@@ -17,6 +17,11 @@ class Mapping {
   // Returns explicit PlatformError values; construction never throws for syscall failures.
   static CreateResult create(const MapOptions& options) noexcept;
 
+  // Creates the same double mapping over an already-open MAP_SHARED file descriptor. The fd is
+  // duplicated and the duplicate is owned by Mapping; callers keep ownership of the original fd.
+  // The file must already be at least options.size bytes long.
+  static CreateResult map_shared_fd(int fd, const MapOptions& options) noexcept;
+
   Mapping() noexcept = default;
   Mapping(Mapping&& other) noexcept;
   Mapping& operator=(Mapping&& other) noexcept;
@@ -32,6 +37,8 @@ class Mapping {
   std::size_t len() const noexcept { return len_; }
 
  private:
+  static CreateResult map_owned_fd(int fd, std::size_t size, bool self_check) noexcept;
+
   Mapping(std::byte* base, std::size_t len, int fd) noexcept;
   void reset() noexcept;
 

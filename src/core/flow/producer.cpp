@@ -16,6 +16,12 @@ std::uint32_t standard_meta(std::uint64_t start_pos, std::size_t cap) noexcept {
   return (generation << 8) | frame::FLAG_BEGIN | frame::FLAG_END | frame::FLAG_COMMITTED;
 }
 
+bool has_capacity(std::size_t capacity, std::uint64_t tail, std::uint64_t head,
+                  std::size_t need) noexcept {
+  const std::uint64_t used = tail - head;
+  return used <= capacity && need <= capacity - used;
+}
+
 }  // namespace
 
 Producer::Producer(ring::MagicRing& ring, Positions positions) noexcept
@@ -33,11 +39,11 @@ Producer::ClaimResult Producer::claim(std::uint32_t payload_len) noexcept {
   }
 
   const std::uint64_t tail = *positions_.producer;
-  if (positions_.cap - (tail - cached_head_) < need) {
+  if (!has_capacity(positions_.cap, tail, cached_head_, need)) {
     // SAFETY: consumer position is written by the consumer with release semantics in advance().
     // This acquire load observes that release and any prior consumer reads before reusing space.
     cached_head_ = ring::load_acquire(*positions_.consumer);
-    if (positions_.cap - (tail - cached_head_) < need) {
+    if (!has_capacity(positions_.cap, tail, cached_head_, need)) {
       return Producer::ClaimResult::failure(FlowError::BackPressured);
     }
   }

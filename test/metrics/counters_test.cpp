@@ -4,13 +4,17 @@
 #include "core/platform/mapping.hpp"
 
 #include <gtest/gtest.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace {
@@ -97,6 +101,40 @@ TEST(CountersTest, ForkedProcessWritesSharedMappingCounters) {
   auto reader_result = salias::metrics::CountersReader::view(region);
   ASSERT_TRUE(reader_result);
   EXPECT_EQ(reader_result.value().value(0), 4096u);
+}
+
+TEST(CountersTest, ReaderOpensReadOnlyCountersFileByPath) {
+  constexpr std::uint32_t kCount = 2;
+  const std::size_t size = salias::metrics::region_size(kCount);
+
+  std::string path = "/tmp/salias-counters-XXXXXX";
+  const int fd = ::mkstemp(path.data());
+  ASSERT_GE(fd, 0);
+  ASSERT_EQ(::ftruncate(fd, static_cast<off_t>(size)), 0);
+
+  void* mapped = ::mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+  ASSERT_NE(mapped, MAP_FAILED);
+  auto region = std::span<std::byte>(static_cast<std::byte*>(mapped), size);
+  auto counters_result = salias::metrics::Counters::create_in(region, kCount);
+  ASSERT_TRUE(counters_result);
+  auto counters = std::move(counters_result).value();
+  ASSERT_EQ(counters.define(0, salias::metrics::CounterType::ProducerPos, 42, "producer"),
+            salias::metrics::MetricsError::Ok);
+  ASSERT_EQ(counters.set_release(0, 9876), salias::metrics::MetricsError::Ok);
+
+  ASSERT_EQ(::munmap(mapped, size), 0);
+  ASSERT_EQ(::close(fd), 0);
+
+  auto reader_result = salias::metrics::CountersReader::open(path);
+  ASSERT_TRUE(reader_result);
+  auto reader = reader_result.value();
+  ASSERT_TRUE(reader.valid());
+  ASSERT_EQ(reader.slots().size(), kCount);
+  EXPECT_EQ(reader.value(0), 9876u);
+  EXPECT_EQ(reader.slots()[0].owner_channel, 42u);
+  EXPECT_STREQ(reader.slots()[0].label, "producer");
+
+  ASSERT_EQ(::unlink(path.c_str()), 0);
 }
 
 }  // namespace

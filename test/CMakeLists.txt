@@ -100,6 +100,9 @@ else()
 endif()
 
 add_executable(salias_channel_tests
+  channel/broadcast_channel_test.cpp
+  channel/bulk_channel_test.cpp
+  channel/mpsc_channel_test.cpp
   channel/spsc_channel_test.cpp
 )
 target_link_libraries(salias_channel_tests PRIVATE salias_core GTest::gtest_main)

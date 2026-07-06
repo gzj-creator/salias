@@ -8,6 +8,8 @@ enum class MetricsError {
   BadMagic,
   BadVersion,
   SlotOutOfRange,
+  OpenFailed,
+  MapFailed,
 };
 
 }  // namespace salias::metrics

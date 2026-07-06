@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string_view>
 
 #include "salias/config.hpp"
 #include "salias/error.hpp"
@@ -13,7 +14,13 @@ struct ChannelState;
 
 class Channel {
  public:
+  // Creates an in-process channel when Config::name is empty. For named SPSC channels, this is the
+  // owner endpoint: it creates the shared memory control/ring objects and publishes ready metadata.
   static Result<Channel> create(const Config& config);
+
+  // Connects to an existing or soon-to-exist named SPSC channel. The call waits boundedly for the
+  // owner to publish its ready flag, then validates the shared metadata before mapping the ring.
+  static Result<Channel> connect(std::string_view name);
 
   Channel(Channel&&) noexcept = default;
   Channel& operator=(Channel&&) noexcept = default;
