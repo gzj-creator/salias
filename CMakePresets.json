@@ -1,0 +1,79 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "debug-asan-ubsan",
+      "displayName": "Debug with ASan/UBSan",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/debug-asan-ubsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_TESTING": "ON",
+        "SALIAS_BUILD_BENCHMARKS": "OFF",
+        "SALIAS_ENABLE_ASAN_UBSAN": "ON",
+        "SALIAS_ENABLE_TSAN": "OFF"
+      }
+    },
+    {
+      "name": "tsan",
+      "displayName": "Debug with TSan",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/tsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_TESTING": "ON",
+        "SALIAS_BUILD_BENCHMARKS": "OFF",
+        "SALIAS_ENABLE_ASAN_UBSAN": "OFF",
+        "SALIAS_ENABLE_TSAN": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_TESTING": "ON",
+        "SALIAS_BUILD_BENCHMARKS": "ON",
+        "SALIAS_ENABLE_ASAN_UBSAN": "OFF",
+        "SALIAS_ENABLE_TSAN": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug-asan-ubsan",
+      "configurePreset": "debug-asan-ubsan"
+    },
+    {
+      "name": "tsan",
+      "configurePreset": "tsan"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "debug-asan-ubsan",
+      "configurePreset": "debug-asan-ubsan",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "tsan",
+      "configurePreset": "tsan",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

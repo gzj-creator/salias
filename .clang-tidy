@@ -1,0 +1,16 @@
+Checks: >
+  clang-analyzer-*,
+  bugprone-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  modernize-*
+WarningsAsErrors: ''
+HeaderFilterRegex: '^(core|salias|test)/.*'
+CheckOptions:
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case

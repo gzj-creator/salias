@@ -1,0 +1,13 @@
+if(SALIAS_ENABLE_ASAN_UBSAN AND SALIAS_ENABLE_TSAN)
+  message(FATAL_ERROR "ASan/UBSan and TSan cannot be enabled in the same build.")
+endif()
+
+function(salias_enable_sanitizers target)
+  if(SALIAS_ENABLE_ASAN_UBSAN)
+    target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+    target_link_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+  elseif(SALIAS_ENABLE_TSAN)
+    target_compile_options(${target} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
+    target_link_options(${target} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
+  endif()
+endfunction()
