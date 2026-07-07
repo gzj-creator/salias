@@ -18,6 +18,7 @@ static_assert(salias::wait::WaitStrategy<salias::wait::SpinPause>);
 static_assert(salias::wait::WaitStrategy<salias::wait::Yielding>);
 static_assert(salias::wait::WaitStrategy<salias::wait::FutexWait>);
 
+// 验证 FutexWait 会在被观察 word 改变后醒来。
 TEST(FutexWaitTest, WakesWhenWordChanges) {
   std::uint32_t word = 0;
   std::atomic<bool> waiter_started = false;

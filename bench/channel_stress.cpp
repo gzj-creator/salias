@@ -20,6 +20,7 @@ struct SmallPayload {
   std::array<std::byte, 56> padding{};
 };
 
+// 按 benchmark 模式和容量构造公共通道配置。
 salias::Config config_for(salias::Mode mode, std::size_t capacity = 1u << 20) {
   salias::Config config;
   config.mode = mode;
@@ -27,6 +28,7 @@ salias::Config config_for(salias::Mode mode, std::size_t capacity = 1u << 20) {
   return config;
 }
 
+// 持续重试发布，直到成功或遇到非背压错误。
 bool offer_until_accepted(salias::Publisher& publisher, std::span<const std::byte> payload) {
   for (;;) {
     auto offered = publisher.offer(payload);
@@ -40,12 +42,14 @@ bool offer_until_accepted(salias::Publisher& publisher, std::span<const std::byt
   }
 }
 
+// 解码 stress benchmark 使用的固定小 payload。
 SmallPayload decode_small(std::span<const std::byte> payload) {
   SmallPayload value{};
   std::memcpy(&value, payload.data(), sizeof(value));
   return value;
 }
 
+// 测量同线程内 64 字节 payload 的 SPSC 发布/接收往返。
 void BM_spsc_roundtrip_64b(benchmark::State& state) {
   auto channel_result = salias::Channel::create(config_for(salias::Mode::Spsc));
   if (!channel_result) {
@@ -76,6 +80,7 @@ void BM_spsc_roundtrip_64b(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
 }
 
+// 测量 64 字节 payload 广播到两个订阅者的往返。
 void BM_broadcast_two_subscribers_64b(benchmark::State& state) {
   auto channel_result = salias::Channel::create(config_for(salias::Mode::Broadcast));
   if (!channel_result) {
@@ -111,6 +116,7 @@ void BM_broadcast_two_subscribers_64b(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload) * 2));
 }
 
+// 测量 128 KiB payload 的 bulk 往返。
 void BM_bulk_roundtrip_128k(benchmark::State& state) {
   auto channel_result = salias::Channel::create(config_for(salias::Mode::Bulk));
   if (!channel_result) {
@@ -141,6 +147,7 @@ void BM_bulk_roundtrip_128k(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(payload.size()));
 }
 
+// 测量四个生产者线程和一个消费者下的 MPSC 吞吐。
 void BM_mpsc_four_producers_64b(benchmark::State& state) {
   constexpr std::uint32_t kProducerCount = 4;
   const auto messages_per_producer = static_cast<std::uint32_t>(state.range(0));

@@ -13,6 +13,7 @@ using salias::channel::BulkChannel;
 using salias::channel::ChannelConfig;
 using salias::flow::FlowError;
 
+// 验证大 bulk payload 会作为一个连续帧被接收。
 TEST(BulkChannelTest, LargeMessageIsReceivedAsOneContiguousFrame) {
   auto created = BulkChannel<>::create(ChannelConfig{.capacity = 1u << 20});
   ASSERT_TRUE(created);
@@ -36,6 +37,7 @@ TEST(BulkChannelTest, LargeMessageIsReceivedAsOneContiguousFrame) {
   rx.release(*message);
 }
 
+// 验证 bulk 模式仍会拒绝无法放入单帧的 payload。
 TEST(BulkChannelTest, RejectsMessageThatCannotFitInOneFrame) {
   auto created = BulkChannel<>::create(ChannelConfig{.capacity = 4096});
   ASSERT_TRUE(created);

@@ -3,7 +3,7 @@
 > 上层文档：`3-layered-architecture-overview.md`
 > 一句话职责：把所有位置、指标、错误计数放进**共享内存里的固定布局**，让外部工具零侵入、只读地观测运行中的通道——对标并借鉴 Aeron 的 counters 体系。
 
-**技术栈**：C++20。namespace `salias::metrics`，目录 `core/metrics/`。被 L1/L3/L5 写入（通过接口注入，避免反向依赖），供 L7 与外部工具读取。
+**技术栈**：C++23。namespace `salias::metrics`，目录 `core/metrics/`。被 L1/L3/L5 写入（通过接口注入，避免反向依赖），供 L7 与外部工具读取。
 
 ---
 

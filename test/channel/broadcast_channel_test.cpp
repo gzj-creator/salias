@@ -15,12 +15,14 @@ using salias::channel::BroadcastChannel;
 using salias::channel::ChannelConfig;
 using salias::flow::FlowError;
 
+// 解码测试生成的小端 uint32 payload。
 std::uint32_t decode_u32(std::span<const std::byte> payload) {
   std::uint32_t value = 0;
   std::memcpy(&value, payload.data(), sizeof(value));
   return value;
 }
 
+// 验证每个 broadcast 订阅者都能独立收到每条消息。
 TEST(BroadcastChannelTest, EachSubscriberReceivesEveryMessageWithIndependentProgress) {
   auto created = BroadcastChannel<>::create(ChannelConfig{.capacity = 4096});
   ASSERT_TRUE(created);
@@ -54,6 +56,7 @@ TEST(BroadcastChannelTest, EachSubscriberReceivesEveryMessageWithIndependentProg
   EXPECT_FALSE(second.try_recv());
 }
 
+// 验证 broadcast 背压由最慢订阅者控制。
 TEST(BroadcastChannelTest, ReliableModeBackpressuresUntilSlowestSubscriberReleasesSpace) {
   auto created = BroadcastChannel<>::create(ChannelConfig{.capacity = 4096});
   ASSERT_TRUE(created);

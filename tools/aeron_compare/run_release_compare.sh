@@ -16,8 +16,8 @@ rm -rf "${AERON_SRC}" "${AERON_BUILD}"
 mkdir -p "${AERON_SRC}"
 tar -xzf "${AERON_TARBALL}" -C "${AERON_SRC}" --strip-components=1
 
-# Aeron 1.52.0 asks for CMake 3.30. The benchmark environment currently ships 3.28.3; this
-# temporary copy configures cleanly with 3.28 when tests/docs/archive are disabled.
+# Aeron 1.52.0 要求 CMake 3.30；当前 benchmark 环境提供的是 3.28.3。
+# 临时源码副本在关闭 tests/docs/archive 后可以用 3.28 正常配置。
 sed -i \
   -e 's/cmake_minimum_required(VERSION 3.30 FATAL_ERROR)/cmake_minimum_required(VERSION 3.28 FATAL_ERROR)/' \
   -e 's/cmake_policy(VERSION 3.30)/cmake_policy(VERSION 3.28)/' \
@@ -49,6 +49,7 @@ c++ -std=c++17 -O3 -DNDEBUG -DDISABLE_BOUNDS_CHECKS \
 
 cmake --build --preset release --target salias_bench_compare >/dev/null
 
+# 运行一个 Aeron IPC 对比场景，并在结束后清理 media driver 和共享目录。
 run_aeron() {
   local scenario="$1"
   local messages="$2"
@@ -79,6 +80,7 @@ run_aeron() {
   return "${status}"
 }
 
+# 运行一个 salias release benchmark 场景。
 run_salias() {
   local scenario="$1"
   local messages="$2"

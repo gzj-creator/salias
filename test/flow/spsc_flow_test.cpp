@@ -21,6 +21,7 @@ struct FlowFixture {
   std::uint64_t producer_pos = 0;
   std::uint64_t consumer_pos = 0;
 
+  // 返回当前 fixture 的 flow 层位置指针。
   salias::flow::Positions positions() noexcept {
     return salias::flow::Positions{
         .producer = &producer_pos,
@@ -30,6 +31,7 @@ struct FlowFixture {
   }
 };
 
+// 为 SPSC flow 测试创建页大小的 magic ring fixture。
 FlowFixture make_fixture() {
   const long raw_page_size = ::sysconf(_SC_PAGESIZE);
   EXPECT_GT(raw_page_size, 0);
@@ -46,6 +48,7 @@ FlowFixture make_fixture() {
                      .consumer_pos = 0};
 }
 
+// 验证 SPSC claim/commit/poll/release 往返路径。
 TEST(SpscFlowTest, ClaimCommitPollAndAdvanceRoundTripsPayload) {
   FlowFixture fixture = make_fixture();
   salias::flow::Producer producer(fixture.ring, fixture.positions());
@@ -77,6 +80,7 @@ TEST(SpscFlowTest, ClaimCommitPollAndAdvanceRoundTripsPayload) {
   EXPECT_FALSE(consumer.poll().has_value());
 }
 
+// 验证释放消费者进度后生产者背压会解除。
 TEST(SpscFlowTest, BackPressureClearsImmediatelyAfterAdvance) {
   FlowFixture fixture = make_fixture();
   salias::flow::Producer producer(fixture.ring, fixture.positions());
@@ -100,6 +104,7 @@ TEST(SpscFlowTest, BackPressureClearsImmediatelyAfterAdvance) {
   ASSERT_TRUE(unblocked);
 }
 
+// 验证超过单个 ring 容量的 payload 会被拒绝。
 TEST(SpscFlowTest, RejectsPayloadLargerThanSingleRingCapacity) {
   FlowFixture fixture = make_fixture();
   salias::flow::Producer producer(fixture.ring, fixture.positions());

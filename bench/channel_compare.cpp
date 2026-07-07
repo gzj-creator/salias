@@ -25,6 +25,7 @@ struct Options {
   std::size_t capacity = 1u << 22;
 };
 
+// 解析 salias 对比 benchmark 的命令行参数。
 Options parse_options(int argc, char** argv) {
   Options options;
   for (int i = 1; i < argc; ++i) {
@@ -61,6 +62,7 @@ Options parse_options(int argc, char** argv) {
   return options;
 }
 
+// 为 benchmark 场景构造公共通道配置。
 salias::Config make_config(salias::Mode mode, const Options& options) {
   salias::Config config;
   config.mode = mode;
@@ -68,6 +70,7 @@ salias::Config make_config(salias::Mode mode, const Options& options) {
   return config;
 }
 
+// 标记 worker 已就绪，并等待共享 start 标志。
 void wait_for_start(std::atomic<std::uint32_t>& ready, std::atomic<bool>& start) {
   ready.fetch_add(1, std::memory_order_release);
   while (!start.load(std::memory_order_acquire)) {
@@ -75,6 +78,7 @@ void wait_for_start(std::atomic<std::uint32_t>& ready, std::atomic<bool>& start)
   }
 }
 
+// 持续重试发布，直到成功或遇到非背压错误。
 bool offer_until_accepted(salias::Publisher& publisher, std::span<const std::byte> payload) {
   for (;;) {
     auto offered = publisher.offer(payload);
@@ -88,6 +92,7 @@ bool offer_until_accepted(salias::Publisher& publisher, std::span<const std::byt
   }
 }
 
+// 在空间允许时创建带 marker 前缀的确定性 payload。
 std::vector<std::byte> payload_for(std::size_t size) {
   std::vector<std::byte> payload(size, std::byte{0x5A});
   if (payload.size() >= sizeof(std::uint64_t)) {
@@ -106,6 +111,7 @@ struct Result {
   double seconds = 0.0;
 };
 
+// 运行 salias 单生产者单消费者 benchmark 场景。
 Result run_spsc(const Options& options) {
   auto channel_result = salias::Channel::create(make_config(salias::Mode::Spsc, options));
   if (!channel_result) {
@@ -165,6 +171,7 @@ Result run_spsc(const Options& options) {
                 .seconds = std::chrono::duration<double>(end - begin).count()};
 }
 
+// 运行 salias 单生产者多消费者 broadcast benchmark 场景。
 Result run_spmc(const Options& options) {
   auto channel_result = salias::Channel::create(make_config(salias::Mode::Broadcast, options));
   if (!channel_result) {
@@ -241,6 +248,7 @@ Result run_spmc(const Options& options) {
                 .seconds = std::chrono::duration<double>(end - begin).count()};
 }
 
+// 运行分片式多生产者多消费者 salias benchmark 场景。
 Result run_mpmc(const Options& options) {
   std::vector<salias::Channel> channels;
   channels.reserve(options.producers);
@@ -330,6 +338,7 @@ Result run_mpmc(const Options& options) {
                 .seconds = std::chrono::duration<double>(end - begin).count()};
 }
 
+// 打印一行机器可读的 benchmark 结果。
 void print_result(const std::string& scenario, const Result& result) {
   const double publish_rate = static_cast<double>(result.published) / result.seconds;
   const double delivery_rate = static_cast<double>(result.delivered) / result.seconds;
@@ -350,6 +359,7 @@ void print_result(const std::string& scenario, const Result& result) {
 
 }  // namespace
 
+// 选择并运行请求的 salias benchmark 场景。
 int main(int argc, char** argv) {
   try {
     const Options options = parse_options(argc, argv);

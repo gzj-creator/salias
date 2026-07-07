@@ -3,7 +3,7 @@
 > 上层文档：`3-layered-architecture-overview.md`
 > 一句话职责：用 64 位单调 position 表达"已发布/已消费"进度，实现零中介背压与 claim/commit 零拷贝写入，是 salias 保留 Aeron 优雅背压、去掉 Media Driver 的关键层。
 
-**技术栈**：C++20。namespace `salias::flow`，目录 `core/flow/`。依赖 L1（`MagicRing`、原子原语）、L2（帧编解码）。绝不依赖 L4+。
+**技术栈**：C++23。namespace `salias::flow`，目录 `core/flow/`。依赖 L1（`MagicRing`、原子原语）、L2（帧编解码）。绝不依赖 L4+。
 
 层间契约（L3→L5）：`Producer::claim/commit`、`Consumer::read/advance` 是通道层唯一入口。
 

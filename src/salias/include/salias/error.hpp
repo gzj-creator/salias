@@ -1,7 +1,6 @@
 #pragma once
 
-#include <utility>
-#include <variant>
+#include <expected>
 
 namespace salias {
 
@@ -16,27 +15,8 @@ enum class Error {
   BadConfig,
 };
 
+// 公共 API 使用的显式结果类型；保留 salias::Result<T> 名称，底层采用 C++23 std::expected。
 template <class T>
-class Result {
- public:
-  static Result success(T value) { return Result(std::in_place_index<0>, std::move(value)); }
-  static Result failure(Error error) { return Result(std::in_place_index<1>, error); }
-
-  bool has_value() const noexcept { return storage_.index() == 0; }
-  explicit operator bool() const noexcept { return has_value(); }
-
-  T& value() & { return std::get<0>(storage_); }
-  const T& value() const& { return std::get<0>(storage_); }
-  T&& value() && { return std::move(std::get<0>(storage_)); }
-
-  Error error() const { return std::get<1>(storage_); }
-
- private:
-  template <std::size_t Index, class... Args>
-  explicit Result(std::in_place_index_t<Index> index, Args&&... args)
-      : storage_(index, std::forward<Args>(args)...) {}
-
-  std::variant<T, Error> storage_;
-};
+using Result = std::expected<T, Error>;
 
 }  // namespace salias

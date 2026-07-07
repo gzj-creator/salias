@@ -12,6 +12,7 @@ namespace {
 using salias::platform::Futex;
 using salias::platform::PlatformError;
 
+// 验证受保护 word 变化并发送 wake 后 futex wait 会返回。
 TEST(FutexTest, WaitReturnsAfterWakeOrObservedValueChange) {
   alignas(std::uint32_t) std::uint32_t word = 0;
   std::atomic<bool> waiter_started = false;

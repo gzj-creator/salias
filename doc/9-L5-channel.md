@@ -3,7 +3,7 @@
 > 上层文档：`3-layered-architecture-overview.md`
 > 一句话职责：把下层（ring/frame/flow/wait）组装成四种成品通道——SPSC、MPSC、多订阅广播、bulk 大消息——面向 L7 提供统一收发语义。
 
-**技术栈**：C++20。namespace `salias::channel`，目录 `core/channel/`。依赖 L1–L4。绝不依赖 L6/L7（L6 计数器由 L5 写入但通过接口注入，避免反向依赖）。
+**技术栈**：C++23。namespace `salias::channel`，目录 `core/channel/`。依赖 L1–L4。绝不依赖 L6/L7（L6 计数器由 L5 写入但通过接口注入，避免反向依赖）。
 
 ---
 

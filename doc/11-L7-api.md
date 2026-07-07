@@ -3,7 +3,7 @@
 > 上层文档：`3-layered-architecture-overview.md`
 > 一句话职责：面向最终用户的门面——driverless 建立通道的握手、简洁的 `Publisher`/`Subscriber` API，以及**可选**的 async 适配层。这是 v0.1 冻结的稳定 ABI/API。
 
-**技术栈**：C++20。namespace `salias`（顶层），目录 `salias/`。依赖 L5（通道）、L6（可观测）。核心不用协程；async 仅此层可选 feature。
+**技术栈**：C++23。namespace `salias`（顶层），目录 `salias/`。依赖 L5（通道）、L6（可观测）。核心不用协程；async 仅此层可选 feature。
 
 ---
 

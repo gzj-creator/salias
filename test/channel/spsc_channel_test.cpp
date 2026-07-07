@@ -10,12 +10,14 @@
 
 namespace {
 
+// 为测试创建页大小的 SPSC 通道配置。
 salias::channel::ChannelConfig test_config() {
   const long raw_page_size = ::sysconf(_SC_PAGESIZE);
   EXPECT_GT(raw_page_size, 0);
   return salias::channel::ChannelConfig{.capacity = static_cast<std::size_t>(raw_page_size)};
 }
 
+// 验证 SPSC offer、receive 和 release 能完成 payload 往返。
 TEST(SpscChannelTest, OfferTryRecvAndReleaseRoundTripsPayload) {
   auto channel_result = salias::channel::SpscChannel<>::create(test_config());
   ASSERT_TRUE(channel_result);
@@ -43,6 +45,7 @@ TEST(SpscChannelTest, OfferTryRecvAndReleaseRoundTripsPayload) {
   EXPECT_FALSE(rx.try_recv().has_value());
 }
 
+// 验证超过 ring 容量的 offer 会被拒绝。
 TEST(SpscChannelTest, RejectsTooLargeOffer) {
   auto channel_result = salias::channel::SpscChannel<>::create(test_config());
   ASSERT_TRUE(channel_result);

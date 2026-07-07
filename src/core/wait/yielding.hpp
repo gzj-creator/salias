@@ -10,6 +10,7 @@ namespace salias::wait {
 
 class Yielding {
  public:
+  // 先短暂自旋，再让出线程，直到 *word 与 expected 不同。
   void wait(std::uint32_t* word, std::uint32_t expected) noexcept {
     int spins = 0;
     while (std::atomic_ref<std::uint32_t>(*word).load(std::memory_order_acquire) == expected) {
@@ -21,7 +22,9 @@ class Yielding {
     }
   }
 
+  // 空唤醒；yield 等待方直接观察 word。
   void wake(std::uint32_t*) noexcept {}
+  // 空重置；Yielding 没有可变状态。
   void reset() noexcept {}
 
  private:

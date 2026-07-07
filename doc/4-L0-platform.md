@@ -1,9 +1,9 @@
 # 4 - L0 平台抽象层
 
 > 上层文档：`3-layered-architecture-overview.md`
-> 一句话职责：把"双映射共享内存 / 大页 / NUMA / 跨进程 futex"封装成 C++20 抽象，向上提供 `Mapping` 与 `Futex`。仅 Linux。
+> 一句话职责：把"双映射共享内存 / 大页 / NUMA / 跨进程 futex"封装成 C++23 抽象，向上提供 `Mapping` 与 `Futex`。仅 Linux。
 
-**技术栈**：C++20 / CMake + vcpkg / 仅 Linux。namespace `salias::platform`，目录 `core/platform/`。
+**技术栈**：C++23 / CMake + vcpkg / 仅 Linux。namespace `salias::platform`，目录 `core/platform/`。
 
 ---
 
@@ -87,7 +87,7 @@ class Futex {
 ```
 
 设计要点：
-- 可失败构造用 `std::expected`（C++23 有标准；限定 C++20 时用 vcpkg 的 `tl::expected` 或自定义 `Result<T,E>`），**不用异常做控制流**——保持显式错误处理，与仓库规范一致。
+- 可失败构造用 `std::expected`，**不用异常做控制流**——保持显式错误处理，与仓库规范一致。
 - `Mapping` 不可拷贝、可移动，RAII 保证 fd 与映射不泄漏、不重复释放（immutable-first：句柄建立后不再改字段）。
 
 ---

@@ -6,6 +6,7 @@
 
 namespace {
 
+// 验证 release store 能被 acquire load 观察到。
 TEST(AtomicCellTest, StoreReleaseIsObservedByLoadAcquire) {
   std::uint64_t cell = 0;
 

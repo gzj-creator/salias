@@ -22,12 +22,14 @@ struct Payload {
   std::uint32_t seq = 0;
 };
 
+// 从接收到的字节 span 解码测试 payload。
 Payload decode(std::span<const std::byte> payload) {
   Payload value{};
   std::memcpy(&value, payload.data(), sizeof(value));
   return value;
 }
 
+// 验证消费者不会跳过更早的未提交预留区间。
 TEST(MpscChannelTest, DoesNotExposeCommittedFrameBehindUncommittedGap) {
   auto created = MpscChannel<>::create(ChannelConfig{.capacity = 4096});
   ASSERT_TRUE(created);
@@ -63,6 +65,7 @@ TEST(MpscChannelTest, DoesNotExposeCommittedFrameBehindUncommittedGap) {
   rx.release(*second_seen);
 }
 
+// 验证多个生产者线程会发布唯一且有序的序列。
 TEST(MpscChannelTest, MultipleProducersPublishUniqueSequences) {
   constexpr std::uint32_t kProducerCount = 4;
   constexpr std::uint32_t kMessagesPerProducer = 64;

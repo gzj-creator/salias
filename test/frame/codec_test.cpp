@@ -9,6 +9,7 @@
 
 namespace {
 
+// 验证固定帧头字节布局可通过 encode/decode 往返。
 TEST(FrameCodecTest, EncodesAndDecodesEightByteHeader) {
   static_assert(sizeof(salias::frame::FrameHeader) == salias::frame::kHeaderSize);
   static_assert(salias::frame::kHeaderSize == 8);
@@ -30,6 +31,7 @@ TEST(FrameCodecTest, EncodesAndDecodesEightByteHeader) {
   EXPECT_EQ(salias::frame::seq(decoded), 0x00A5A5u);
 }
 
+// 验证 payload 对齐和总帧大小计算。
 TEST(FrameCodecTest, AlignsPayloadAndComputesFrameLength) {
   EXPECT_EQ(salias::frame::align_up(0), 0u);
   EXPECT_EQ(salias::frame::align_up(1), 8u);
@@ -42,6 +44,7 @@ TEST(FrameCodecTest, AlignsPayloadAndComputesFrameLength) {
   EXPECT_EQ(salias::frame::fixed_slot(9), 16u);
 }
 
+// 验证常见 8 字节 payload 的帧大小。
 TEST(FrameCodecTest, EightBytePayloadUsesSixteenBytesTotal) {
   EXPECT_EQ(salias::frame::frame_len(8), 16u);
 }

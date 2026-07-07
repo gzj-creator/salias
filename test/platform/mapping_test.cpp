@@ -15,6 +15,7 @@ using salias::platform::MapOptions;
 using salias::platform::Mapping;
 using salias::platform::PlatformError;
 
+// 返回用于平台错误断言的稳定名称。
 std::string_view describe(PlatformError error) noexcept {
   switch (error) {
     case PlatformError::Ok:
@@ -41,10 +42,12 @@ std::string_view describe(PlatformError error) noexcept {
   return "Unknown";
 }
 
+// 将 byte 值转为无符号整数，便于断言阅读。
 unsigned byte_value(std::byte value) noexcept {
   return std::to_integer<unsigned>(value);
 }
 
+// 验证跨尾写入和 fork 进程中的别名映射行为。
 TEST(MappingTest, ForkSharesAliasedPagesAndCrossBoundaryWrites) {
   const long raw_page_size = ::sysconf(_SC_PAGESIZE);
   ASSERT_GT(raw_page_size, 0);

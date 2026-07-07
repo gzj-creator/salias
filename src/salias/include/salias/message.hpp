@@ -6,8 +6,8 @@
 
 namespace salias {
 
-// Borrowed view over a received message. The payload points into the owning Channel's ring and is
-// valid until that storage is released or overwritten according to channel protocol.
+// 已接收消息的借用视图。
+// payload 指向所属 Channel 的 ring，按通道协议在释放或覆盖前保持有效。
 struct Message {
   std::span<const std::byte> payload;
   std::uint64_t position = 0;

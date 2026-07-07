@@ -5,9 +5,9 @@
 
 namespace salias::flow {
 
-// Non-owning pointers to SPSC position cells. The pointed-to cells may live in process-local memory
-// during tests or in shared memory in real channels; L3 accesses them with atomic_ref helpers when
-// crossing producer/consumer ownership boundaries.
+// 指向 SPSC 位置单元的非持有指针。
+// 这些单元在测试中可位于进程本地内存，在真实通道中可位于共享内存；
+// L3 跨越生产者/消费者所有权边界时通过 atomic_ref helper 访问。
 struct Positions {
   std::uint64_t* producer = nullptr;
   std::uint64_t* consumer = nullptr;

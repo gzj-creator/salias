@@ -3,7 +3,7 @@
 > 上层文档：`3-layered-architecture-overview.md`
 > 一句话职责：把 L0–L7 分层映射到**目录结构、CMake 目标、文件粒度**，给出每个文件的职责，使任何人能照着建工程、照着找代码。
 
-**技术栈**：C++20 / CMake + vcpkg / 仅 Linux。遵循仓库规范：小文件（200–400 行典型、800 上限）、高内聚低耦合、namespace 与目录同构。
+**技术栈**：C++23 / CMake + vcpkg / 仅 Linux。遵循仓库规范：小文件（200–400 行典型、800 上限）、高内聚低耦合、namespace 与目录同构。
 
 ---
 
@@ -23,7 +23,7 @@
 salias/
 ├── CMakeLists.txt              # 顶层：project()、vcpkg toolchain、子目录、全局编译选项
 ├── CMakePresets.json           # debug(sanitizers)/release(O3 LTO) 预设
-├── vcpkg.json                  # 依赖清单：gtest, benchmark, fmt, (tl-expected)
+├── vcpkg.json                  # 依赖清单：gtest, benchmark, fmt
 ├── .clang-format               # 统一格式
 ├── .clang-tidy                 # 守护 include 方向、modernize、bugprone
 ├── .gitignore
@@ -189,7 +189,7 @@ test_*       (EXE) ← link: salias_core (或 salias), GTest
 
 - 全局编译：`-std=c++20`；release `-O3 -flto -march=native`；debug `-Og -g + sanitizers`。
 - CI 矩阵：build=Debug(Sanitizers)/Release，并发测试单独跑 TSan。
-- 依赖（`vcpkg.json`）：`gtest`、`benchmark`、`fmt`（可选日志/工具）、`tl-expected`（若限定 C++20 用 `std::expected` 的回退）。
+- 依赖（`vcpkg.json`）：`gtest`、`benchmark`、`fmt`（可选日志/工具）。错误返回直接使用 C++23 `std::expected`。
 
 ---
 
@@ -231,6 +231,6 @@ salias(src) ──▶ channel ──▶ flow ──▶ frame ──▶ ring ─�
 - 函数/变量：`snake_case`。
 - 常量：`kPascalCase`（`kHeaderSize`、`kCacheLine`）。
 - enum class，不带 `ALL_CAPS`。
-- 错误：每层 `enum class XError`，配合 `std::expected<T, XError>`（或 tl::expected）。
+- 错误：每层 `enum class XError`，配合 `std::expected<T, XError>`。
 - 裸内存/原子/reinterpret_cast 集中在 `platform/`、`ring/`，每处 `// SAFETY:` 注释。
 - immutable-first：句柄类删除拷贝、只提供移动；配置对象按值传递、const& 访问。

@@ -3,7 +3,7 @@
 > 上层文档：`3-layered-architecture-overview.md`
 > 一句话职责：把 payload 编码为「8 字节帧头 + 对齐 payload」的字节序列，并纯函数式地解码回帧头——只管编解码与对齐，不管数据从哪来往哪去。
 
-**技术栈**：C++20。namespace `salias::frame`，目录 `core/frame/`。依赖 L1（连续切片），绝不依赖 L3+。**编解码是纯函数、不持状态**（层间契约 L2↔L3）。
+**技术栈**：C++23。namespace `salias::frame`，目录 `core/frame/`。依赖 L1（连续切片），绝不依赖 L3+。**编解码是纯函数、不持状态**（层间契约 L2↔L3）。
 
 ---
 

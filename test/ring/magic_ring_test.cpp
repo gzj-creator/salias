@@ -18,10 +18,12 @@ using salias::ring::CacheAligned;
 using salias::ring::MagicRing;
 using salias::ring::RingError;
 
+// 将 byte 值转为无符号整数，便于断言阅读。
 unsigned byte_value(std::byte value) noexcept {
   return std::to_integer<unsigned>(value);
 }
 
+// 验证双映射能让跨尾切片保持地址连续。
 TEST(MagicRingTest, SlicesAreContiguousAcrossCapacityBoundary) {
   const long raw_page_size = ::sysconf(_SC_PAGESIZE);
   ASSERT_GT(raw_page_size, 0);
@@ -59,6 +61,7 @@ TEST(MagicRingTest, SlicesAreContiguousAcrossCapacityBoundary) {
   }
 }
 
+// 验证空映射不能创建 ring。
 TEST(MagicRingTest, RejectsEmptyMovedFromMapping) {
   Mapping empty;
 
@@ -68,6 +71,7 @@ TEST(MagicRingTest, RejectsEmptyMovedFromMapping) {
   EXPECT_EQ(ring_result.error(), RingError::ZeroLen);
 }
 
+// 验证容量检查基于单段逻辑 ring 大小。
 TEST(MagicRingTest, ReportsFitAgainstSingleCapacity) {
   const long raw_page_size = ::sysconf(_SC_PAGESIZE);
   ASSERT_GT(raw_page_size, 0);
@@ -83,6 +87,7 @@ TEST(MagicRingTest, ReportsFitAgainstSingleCapacity) {
   EXPECT_FALSE(ring.fits(ring.capacity() + 1));
 }
 
+// 验证 cache-aligned 包装占用破坏性干扰大小的存储。
 TEST(CacheAlignedTest, OccupiesAtLeastOneDestructiveInterferenceLine) {
   static_assert(alignof(CacheAligned<std::uint64_t>) >= salias::ring::kCacheLine);
   static_assert(sizeof(CacheAligned<std::uint64_t>) >= salias::ring::kCacheLine);

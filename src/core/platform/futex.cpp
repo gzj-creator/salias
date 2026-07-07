@@ -14,11 +14,13 @@ namespace salias::platform {
 
 namespace {
 
+// 检查 Linux futex 对非空 32 位对齐 word 的前置条件。
 bool is_aligned_word(const std::uint32_t* word) noexcept {
   return word != nullptr &&
          (reinterpret_cast<std::uintptr_t>(word) % alignof(std::uint32_t)) == 0;
 }
 
+// 将 chrono 时长转换为 FUTEX_WAIT 使用的相对 timespec。
 timespec to_timespec(std::chrono::nanoseconds timeout) noexcept {
   if (timeout.count() < 0) {
     timeout = std::chrono::nanoseconds::zero();
@@ -30,8 +32,10 @@ timespec to_timespec(std::chrono::nanoseconds timeout) noexcept {
 
 }  // namespace
 
+// 保存非持有的 futex word 指针。
 Futex::Futex(std::uint32_t* word) noexcept : word_(word) {}
 
+// 当内核仍观察到 expected 值时进入等待。
 PlatformError Futex::wait(std::uint32_t expected,
                           std::optional<std::chrono::nanoseconds> timeout) noexcept {
   if (!is_aligned_word(word_)) {
@@ -45,8 +49,8 @@ PlatformError Futex::wait(std::uint32_t expected,
     timeout_ptr = &timeout_value;
   }
 
-  // SAFETY: word_ is checked for non-null 4-byte alignment above. Callers must place it in shared
-  // memory for cross-process use; FUTEX_WAIT atomically verifies *word_ == expected before sleeping.
+  // 安全性：上面已检查 word_ 非空且 4 字节对齐。
+  // 跨进程使用时调用方必须把它放在共享内存中；FUTEX_WAIT 会在睡眠前原子校验 *word_ == expected。
   const long rc = ::syscall(SYS_futex, word_, FUTEX_WAIT, expected, timeout_ptr, nullptr, 0);
   if (rc == 0) {
     return PlatformError::Ok;
@@ -62,13 +66,14 @@ PlatformError Futex::wait(std::uint32_t expected,
   }
 }
 
+// 唤醒 futex word 上最多一个等待者。
 int Futex::wake_one() noexcept {
   if (!is_aligned_word(word_)) {
     return -1;
   }
 
-  // SAFETY: word_ is checked for non-null 4-byte alignment above. FUTEX_WAKE does not dereference
-  // user memory in this process beyond the kernel's futex word access contract.
+  // 安全性：上面已检查 word_ 非空且 4 字节对齐。
+  // FUTEX_WAKE 只按内核 futex word 访问约定触碰用户内存。
   const long rc = ::syscall(SYS_futex, word_, FUTEX_WAKE, 1, nullptr, nullptr, 0);
   if (rc < 0 || rc > std::numeric_limits<int>::max()) {
     return -1;
@@ -76,13 +81,13 @@ int Futex::wake_one() noexcept {
   return static_cast<int>(rc);
 }
 
+// 唤醒 futex word 上所有当前等待者。
 int Futex::wake_all() noexcept {
   if (!is_aligned_word(word_)) {
     return -1;
   }
 
-  // SAFETY: same alignment and lifetime preconditions as wake_one(); INT_MAX requests all current
-  // waiters on this futex word.
+  // 安全性：对齐和生命周期前置条件与 wake_one() 相同；INT_MAX 表示请求唤醒该 word 上的所有当前等待者。
   const long rc = ::syscall(SYS_futex, word_, FUTEX_WAKE, INT_MAX, nullptr, nullptr, 0);
   if (rc < 0 || rc > std::numeric_limits<int>::max()) {
     return -1;

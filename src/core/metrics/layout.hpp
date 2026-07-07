@@ -9,8 +9,8 @@ inline constexpr std::uint32_t kMagic = 0x53414C31;
 inline constexpr std::uint32_t kVersion = 1;
 inline constexpr std::uint32_t kSlotStride = 64;
 
-// Fixed ABI header at the start of a counters region. Fields may only be appended in a future
-// version; reordering breaks independent readers that mmap the region.
+// counters 区域开头的固定 ABI header。
+// 未来版本只能追加字段；重排字段会破坏独立 mmap 该区域的 reader。
 struct alignas(64) MetaHeader {
   std::uint32_t magic;
   std::uint32_t version;
@@ -20,8 +20,8 @@ struct alignas(64) MetaHeader {
   std::byte _pad[64 - 24];
 };
 
-// One observable counter. Each slot occupies its own cache line to avoid false sharing between
-// unrelated producers, consumers, and maintenance counters.
+// 一个可观测 counter。
+// 每个槽位独占一条 cache line，避免无关生产者、消费者和维护 counter 之间发生 false sharing。
 struct alignas(64) CounterSlot {
   std::uint64_t value;
   std::uint32_t type_id;
@@ -43,6 +43,7 @@ enum class CounterType : std::uint32_t {
   WakeSyscalls = 8,
 };
 
+// 返回容纳 counter_count 个槽位所需的 counters 区域字节数。
 inline constexpr std::size_t region_size(std::uint32_t counter_count) noexcept {
   return sizeof(MetaHeader) + static_cast<std::size_t>(counter_count) * sizeof(CounterSlot);
 }

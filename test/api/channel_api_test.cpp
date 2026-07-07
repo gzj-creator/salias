@@ -37,10 +37,12 @@ struct alignas(64) TestNamedSpscControl {
   alignas(64) std::uint64_t consumer_pos = 0;
 };
 
+// 构造与生产命名通道约定一致的 POSIX shm 控制块名称。
 std::string control_shm_name(std::string_view name) {
   return "/salias-" + std::string(name) + "-ctl";
 }
 
+// 为测试创建页大小的默认公共通道配置。
 salias::Config test_config() {
   const long raw_page_size = ::sysconf(_SC_PAGESIZE);
   EXPECT_GT(raw_page_size, 0);
@@ -49,10 +51,12 @@ salias::Config test_config() {
   return config;
 }
 
+// 为命名通道测试构造当前进程唯一的名称后缀。
 std::string unique_name(std::string_view suffix) {
   return "salias-test-" + std::to_string(::getpid()) + "-" + std::string(suffix);
 }
 
+// 为 connect() 校验测试写入合成命名通道控制块。
 void write_control_shm(std::string_view name, const TestNamedSpscControl& control) {
   const std::string control_name = control_shm_name(name);
   static_cast<void>(::shm_unlink(control_name.c_str()));
@@ -69,11 +73,13 @@ void write_control_shm(std::string_view name, const TestNamedSpscControl& contro
   ASSERT_EQ(::close(fd), 0);
 }
 
+// 删除测试创建的合成命名通道控制块。
 void unlink_control_shm(std::string_view name) {
   const std::string control_name = control_shm_name(name);
   static_cast<void>(::shm_unlink(control_name.c_str()));
 }
 
+// 验证公共进程内 SPSC offer/try_recv/release 路径。
 TEST(ChannelApiTest, InProcessSpscOfferAndTryRecv) {
   auto channel_result = salias::Channel::create(test_config());
   ASSERT_TRUE(channel_result);
@@ -103,6 +109,7 @@ TEST(ChannelApiTest, InProcessSpscOfferAndTryRecv) {
   EXPECT_FALSE(subscriber.try_recv().has_value());
 }
 
+// 验证当前握手实现会拒绝命名非 SPSC 模式。
 TEST(ChannelApiTest, RejectsUnsupportedNamedNonSpscHandshakeForNow) {
   salias::Config config = test_config();
   config.name = unique_name("named-mpsc");
@@ -114,6 +121,7 @@ TEST(ChannelApiTest, RejectsUnsupportedNamedNonSpscHandshakeForNow) {
   EXPECT_EQ(channel.error(), salias::Error::BadConfig);
 }
 
+// 验证命名 SPSC 通道无需驱动进程即可跨 fork 通信。
 TEST(ChannelApiTest, NamedSpscConnectsAcrossForkWithoutDriver) {
   salias::Config config = test_config();
   config.name = unique_name("named-spsc");
@@ -163,6 +171,7 @@ TEST(ChannelApiTest, NamedSpscConnectsAcrossForkWithoutDriver) {
   EXPECT_EQ(WEXITSTATUS(status), 0);
 }
 
+// 验证 connect() 可以先于拥有者发布 ready metadata 启动。
 TEST(ChannelApiTest, NamedSpscPeerCanStartBeforeOwnerPublishesReady) {
   salias::Config config = test_config();
   config.name = unique_name("peer-first");
@@ -235,6 +244,7 @@ TEST(ChannelApiTest, NamedSpscPeerCanStartBeforeOwnerPublishesReady) {
   EXPECT_EQ(WEXITSTATUS(status), 0);
 }
 
+// 验证 connect() 会拒绝不兼容的命名通道 metadata 版本。
 TEST(ChannelApiTest, NamedConnectRejectsVersionMismatchMetadata) {
   const std::string name = unique_name("bad-version");
   TestNamedSpscControl control{};
@@ -252,6 +262,7 @@ TEST(ChannelApiTest, NamedConnectRejectsVersionMismatchMetadata) {
   unlink_control_shm(name);
 }
 
+// 验证 connect() 在映射 ring 前会拒绝损坏的容量 metadata。
 TEST(ChannelApiTest, NamedConnectRejectsDamagedCapacityBeforeOpeningRing) {
   const std::string name = unique_name("bad-capacity");
   TestNamedSpscControl control{};
@@ -269,6 +280,7 @@ TEST(ChannelApiTest, NamedConnectRejectsDamagedCapacityBeforeOpeningRing) {
   unlink_control_shm(name);
 }
 
+// 验证 connect() 会拒绝不可信的命名通道 metadata 字段。
 TEST(ChannelApiTest, NamedConnectRejectsUntrustedMetadataBeforeOpeningRing) {
   struct BadMetaCase {
     const char* suffix;
@@ -332,6 +344,7 @@ TEST(ChannelApiTest, NamedConnectRejectsUntrustedMetadataBeforeOpeningRing) {
   }
 }
 
+// 验证公共 MPSC 外观接受多个 publisher 的 offer。
 TEST(ChannelApiTest, InProcessMpscAcceptsMultiplePublishers) {
   salias::Config config = test_config();
   config.mode = salias::Mode::Mpsc;
@@ -361,6 +374,7 @@ TEST(ChannelApiTest, InProcessMpscAcceptsMultiplePublishers) {
   subscriber.release(*second);
 }
 
+// 验证独立 broadcast 订阅者都会收到同一条已发布消息。
 TEST(ChannelApiTest, InProcessBroadcastSubscribersEachReceiveAllMessages) {
   salias::Config config = test_config();
   config.mode = salias::Mode::Broadcast;
@@ -387,6 +401,7 @@ TEST(ChannelApiTest, InProcessBroadcastSubscribersEachReceiveAllMessages) {
   second_subscriber.release(*second);
 }
 
+// 验证公共 bulk 外观接受大的单帧 payload。
 TEST(ChannelApiTest, InProcessBulkAcceptsLargeSingleFrameMessage) {
   salias::Config config;
   config.mode = salias::Mode::Bulk;
@@ -410,6 +425,7 @@ TEST(ChannelApiTest, InProcessBulkAcceptsLargeSingleFrameMessage) {
   subscriber.release(*message);
 }
 
+// 验证 ring 回绕后新建 publisher 端点状态仍遵守背压。
 TEST(ChannelApiTest, RecreatedPublisherStateStillBackpressuresAfterRingWrap) {
   salias::Config config = test_config();
   auto channel_result = salias::Channel::create(config);

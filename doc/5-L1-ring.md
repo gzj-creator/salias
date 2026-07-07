@@ -3,7 +3,7 @@
 > 上层文档：`3-layered-architecture-overview.md`
 > 一句话职责：在 L0 的双映射 `Mapping` 之上，提供*无 term 轮转、无清零、无分片*的 magic ring 与缓存行隔离原语，让上层把物理内存当作一条首尾相接的连续字节流读写。
 
-**技术栈**：C++20。namespace `salias::ring`，目录 `core/ring/`。依赖 L0（`salias::platform::Mapping`），绝不 `#include` L2+。
+**技术栈**：C++23。namespace `salias::ring`，目录 `core/ring/`。依赖 L0（`salias::platform::Mapping`），绝不 `#include` L2+。
 
 ---
 
@@ -106,7 +106,7 @@ struct alignas(kCacheLine) CacheAligned {
 
 ## 5. 共享内存上的原子位置
 
-跨进程共享内存里的 64 位位置，用 `std::atomic_ref<std::uint64_t>` 包裹裸字段访问（C++20）。**不能用普通 `std::atomic<uint64_t>` 成员**，因为该字段的存储位于 L0 映射出的共享内存、由布局（L6）固定，不是我们 new 出来的对象——`atomic_ref` 正是为"对已存在对象施加原子操作"设计。
+跨进程共享内存里的 64 位位置，用 `std::atomic_ref<std::uint64_t>` 包裹裸字段访问。**不能用普通 `std::atomic<uint64_t>` 成员**，因为该字段的存储位于 L0 映射出的共享内存、由布局（L6）固定，不是我们 new 出来的对象——`atomic_ref` 正是为"对已存在对象施加原子操作"设计。
 
 ```cpp
 // 位置字定义在共享内存布局里（L6），此处仅示意访问方式。

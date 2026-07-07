@@ -6,6 +6,7 @@
 
 namespace salias::wait {
 
+// 在自旋循环中发出当前架构最轻量的 pause/yield 提示。
 inline void cpu_relax() noexcept {
 #if defined(__x86_64__) || defined(__i386__)
   _mm_pause();

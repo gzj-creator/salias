@@ -3,7 +3,7 @@
 > 配套：`1-aeron-analysis-and-optimizations.md`（为什么这么做）、`2-implementation-plan.md`（里程碑）。
 > 本文定义 salias 的**分层架构**：每层职责、依赖方向、对应模块、以及每层的详细文档索引。
 >
-> **技术栈**：C++20 / CMake + vcpkg / 仅 Linux / 核心不用协程。下文"模块"指 `core/` 下的目录与 C++ namespace（如 `salias::platform`），"抽象"用 C++20 concept 或抽象基类表达。
+> **技术栈**：C++23 / CMake + vcpkg / 仅 Linux / 核心不用协程。下文"模块"指 `core/` 下的目录与 C++ namespace（如 `salias::platform`），"抽象"用 C++ concept 或抽象基类表达。
 
 ---
 

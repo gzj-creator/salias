@@ -87,7 +87,7 @@ Aeron 是一套高性能消息传输系统，支持三种介质（media）：
 
 ### 6. 以 JVM 为主，GC 与预热抖动
 - 主力实现是 Java（虽大量用堆外内存，仍有 GC/安全点/JIT 预热抖动）；C++ 客户端存在但生态更薄。
-- **机会**：用 **C++20** 实现，无 GC、无安全点、无预热抖动；`std::atomic_ref` 直接对共享内存原子操作（不手写裸汇编）、`alignas` + `std::hardware_destructive_interference_size` 精确控制缓存行布局、`std::span` 表达连续视图、concepts 约束模板。低延迟中间件领域 C++ 是主流，Aeron 也有 C++ 客户端可对标复用。
+- **机会**：用 **C++23** 实现，无 GC、无安全点、无预热抖动；`std::atomic_ref` 直接对共享内存原子操作（不手写裸汇编）、`alignas` + `std::hardware_destructive_interference_size` 精确控制缓存行布局、`std::span` 表达连续视图、concepts 约束模板，`std::expected` 表达显式错误返回。低延迟中间件领域 C++ 是主流，Aeron 也有 C++ 客户端可对标复用。
 
 ### 7. False sharing 与缓存行管理不彻底
 - 生产/消费位置若落在相邻缓存行，会产生跨核 false sharing。
@@ -117,7 +117,7 @@ Aeron 是一套高性能消息传输系统，支持三种介质（media）：
 | 对齐 | 32 字节 | **8 字节** |
 | 环形缓冲 | 3-term 轮转 + 清零 | **magic ring（双映射）**，无轮转/无清零 |
 | 分片 | 需要，重组有拷贝 | 单帧连续，**免分片** |
-| 语言/运行时 | JVM 为主 | **C++20**，无 GC 抖动 |
+| 语言/运行时 | JVM 为主 | **C++23**，无 GC 抖动 |
 | False sharing | 部分处理 | **缓存行独占** head/tail/limit（`alignas` + `std::hardware_destructive_interference_size`）|
 | 等待策略 | 主要 busy-spin | **可插拔**：spin/yield/futex |
 | 内存页 | 默认 4 KB | **huge pages + NUMA 感知** |
@@ -152,7 +152,7 @@ Aeron 是一套高性能消息传输系统，支持三种介质（media）：
 
 | 项 | 选择 | 理由 |
 |----|------|------|
-| 语言 | **C++20** | 低延迟中间件/HFT/交易所领域主流；Aeron 有 C++ 客户端可对标复用；招聘与团队现成。C++20 关键武器：`std::atomic_ref`（直接对共享内存原子操作，无需手写裸原子）、`alignas` + `std::hardware_destructive_interference_size`（精确缓存行布局）、`std::span`（连续视图）、concepts（模板约束）。 |
+| 语言 | **C++23** | 低延迟中间件/HFT/交易所领域主流；Aeron 有 C++ 客户端可对标复用；招聘与团队现成。关键武器：`std::atomic_ref`（直接对共享内存原子操作，无需手写裸原子）、`alignas` + `std::hardware_destructive_interference_size`（精确缓存行布局）、`std::span`（连续视图）、concepts（模板约束）、`std::expected`（显式错误返回）。 |
 | 构建/依赖 | **CMake + vcpkg** | CMake 跨平台主力，vcpkg 管第三方依赖，IDE 友好，CI 成熟。 |
 | 平台 | **只做 Linux** | 砍掉跨平台，L0 大幅瘦身：`memfd_create` + `ftruncate` + 双 `mmap`（`MAP_FIXED`）实现 magic ring、`MAP_HUGETLB` 大页、`mbind`/libnuma NUMA 绑定、`FUTEX_WAIT/WAKE` 跨进程等待。不做 macOS/Windows。 |
 | 并发模型 | **核心不用协程** | 低延迟目标与协程让出相悖。等待走可插拔 wait strategy（spin/pause/yield/backoff/futex）。仅 L7 提供可选 async 适配层（默认关）。 |

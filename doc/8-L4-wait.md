@@ -3,7 +3,7 @@
 > 上层文档：`3-layered-architecture-overview.md`
 > 一句话职责：把"消息还没来时怎么等"抽象成可插拔策略，在延迟与 CPU 能耗之间提供从 busy-spin 到 futex 阻塞的全谱选择；跨进程唤醒基于共享内存 futex。
 
-**技术栈**：C++20。namespace `salias::wait`，目录 `core/wait/`。依赖 L0（`Futex`）。与 L5 契约：`WaitStrategy` 稳定签名。**不用协程**（见项目决策）。
+**技术栈**：C++23。namespace `salias::wait`，目录 `core/wait/`。依赖 L0（`Futex`）。与 L5 契约：`WaitStrategy` 稳定签名。**不用协程**（见项目决策）。
 
 ---
 
@@ -22,7 +22,7 @@ L3 已经把"有没有新消息"归结为 position 比较。L4 只需等一个�
 ```cpp
 namespace salias::wait {
 
-// C++20 concept：任何等待策略都要能"等到字变化"并"唤醒等待者"。
+// C++ concept：任何等待策略都要能"等到字变化"并"唤醒等待者"。
 template <class S>
 concept WaitStrategy = requires(S s, std::uint32_t* word, std::uint32_t expected) {
   { s.wait(word, expected) } -> std::same_as<void>;  // 阻塞直到 *word != expected（或被唤醒）

@@ -26,6 +26,7 @@ struct Options {
   std::int32_t fragment_limit = 64;
 };
 
+// 解析 Aeron IPC 对比工具的命令行参数。
 Options parse_options(int argc, char** argv) {
   Options options;
   for (int i = 1; i < argc; ++i) {
@@ -72,6 +73,7 @@ Options parse_options(int argc, char** argv) {
   return options;
 }
 
+// 标记 worker 已就绪，并等待共享 start 标志。
 void wait_for_start(std::atomic<std::uint32_t>& ready, std::atomic<bool>& start) {
   ready.fetch_add(1, std::memory_order_release);
   while (!start.load(std::memory_order_acquire)) {
@@ -79,6 +81,7 @@ void wait_for_start(std::atomic<std::uint32_t>& ready, std::atomic<bool>& start)
   }
 }
 
+// 等待所有 Aeron publication 和 subscription 完成连接。
 bool wait_connected(
     const std::vector<std::shared_ptr<aeron::ExclusivePublication>>& publications,
     const std::vector<std::shared_ptr<aeron::Subscription>>& subscriptions,
@@ -110,6 +113,7 @@ struct Result {
   double seconds = 0.0;
 };
 
+// 按请求的生产者和消费者数量运行一个 Aeron IPC benchmark 场景。
 Result run_case(const Options& options) {
   const std::string channel = "aeron:ipc";
   aeron::Context context;
@@ -226,6 +230,7 @@ Result run_case(const Options& options) {
                 .seconds = std::chrono::duration<double>(end - begin).count()};
 }
 
+// 打印一行机器可读的 Aeron benchmark 结果。
 void print_result(const std::string& scenario, const Result& result) {
   const double publish_rate = static_cast<double>(result.published) / result.seconds;
   const double delivery_rate = static_cast<double>(result.delivered) / result.seconds;
@@ -246,6 +251,7 @@ void print_result(const std::string& scenario, const Result& result) {
 
 }  // namespace
 
+// 规整请求的场景，运行 benchmark，并报告失败原因。
 int main(int argc, char** argv) {
   try {
     Options options = parse_options(argc, argv);

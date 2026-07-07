@@ -9,9 +9,11 @@
 
 namespace salias::flow {
 
+// 保存非持有的 ring 引用和共享位置单元。
 Consumer::Consumer(const ring::MagicRing& ring, Positions positions) noexcept
     : ring_(&ring), positions_(positions) {}
 
+// 读取下一条可用帧，但不发布消费者进度。
 std::optional<Message> Consumer::poll() noexcept {
   if (ring_ == nullptr || positions_.producer == nullptr || positions_.consumer == nullptr) {
     return std::nullopt;
@@ -19,8 +21,8 @@ std::optional<Message> Consumer::poll() noexcept {
 
   const std::uint64_t head = *positions_.consumer;
   if (head >= cached_tail_) {
-    // SAFETY: producer commit() release-stores producer position after writing header and payload.
-    // This acquire load makes those bytes visible before decode_header() and payload reads.
+    // 安全性：生产者 commit() 写完 header 和 payload 后以 release 语义发布位置。
+    // 这里的 acquire load 保证 decode_header() 和读取 payload 前可见这些字节。
     cached_tail_ = ring::load_acquire(*positions_.producer);
     if (head == cached_tail_) {
       return std::nullopt;
@@ -41,9 +43,10 @@ std::optional<Message> Consumer::poll() noexcept {
   };
 }
 
+// 发布消费者 head，使生产者可回收 ring 空间。
 void Consumer::advance(std::uint64_t new_head) noexcept {
-  // SAFETY: advancing consumer position releases space back to the producer. Producer claim()
-  // acquire-loads this cell before deciding that old bytes may be overwritten.
+  // 安全性：推进消费者位置会把空间 release 给生产者。
+  // Producer::claim() 决定覆盖旧字节前会 acquire-load 该单元。
   ring::store_release(*positions_.consumer, new_head);
 }
 

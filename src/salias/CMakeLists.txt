@@ -2,7 +2,7 @@ add_library(salias STATIC
   src/channel.cpp
 )
 
-target_compile_features(salias PUBLIC cxx_std_20)
+target_compile_features(salias PUBLIC cxx_std_23)
 target_include_directories(salias
   PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

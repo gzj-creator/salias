@@ -8,8 +8,8 @@ namespace salias {
 enum class Mode { Spsc, Mpsc, Broadcast, Bulk };
 enum class WaitKind { SpinPause, Futex };
 
-// Public configuration for Channel::create(). M0/M1 support only in-process SPSC with empty name;
-// named cross-process driverless handshake is a later L7 milestone.
+// Channel::create() 使用的公共配置。
+// name 为空时创建进程内通道；当前公共 API 支持 SPSC/MPSC/Broadcast/Bulk 和具名 SPSC。
 struct Config {
   std::string name;
   Mode mode = Mode::Spsc;

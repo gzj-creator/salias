@@ -1,10 +1,10 @@
 # 2 - salias 实施计划
 
 > 配套分析文档：`1-aeron-analysis-and-optimizations.md`
-> 定位：纯共享内存（同机 IPC / 进程内）高性能消息库，**C++20 实现，driverless，只做 Linux**。
+> 定位：纯共享内存（同机 IPC / 进程内）高性能消息库，**C++23 实现，driverless，只做 Linux**。
 > 不做网络传输。目标是在同机场景的延迟/吞吐/尾延迟上超越 Aeron IPC。
 >
-> **技术栈**：C++20 / CMake + vcpkg / 仅 Linux / 核心不用协程（详见 `1-` 第六节）。
+> **技术栈**：C++23 / CMake + vcpkg / 仅 Linux / 核心不用协程（详见 `1-` 第六节）。
 
 ---
 
@@ -121,7 +121,7 @@
 | 放弃网络缩小适用面 | 定位受限 | 明确只在同机场景对标，不与网络能力比较 |
 
 ### 目录与工程规范
-- 遵循 CLAUDE.md：immutable-first、文件 200–400 行、显式错误处理（`std::expected`/`Result` 风格或 `std::error_code`/异常分层）、边界校验。
+- 遵循 CLAUDE.md：immutable-first、文件 200–400 行、显式错误处理（core 使用 `std::expected`，公共 API 可保留稳定 `Result` 包装）、边界校验。
 - 裸内存/原子/`reinterpret_cast`/syscall 等危险操作集中在 `core/platform`、`core/ring`，每处附 `// SAFETY:` 注释说明前置条件；其余代码避免裸操作。
 - 每个 PR 走 code-reviewer + cpp-reviewer；安全相关走 security-reviewer。
 
@@ -129,7 +129,7 @@
 
 ## 4. 近期可立即执行的第一步（M0 起步清单）
 1. 建立 CMake 工程，拆 `core/`（`salias_core` 静态库）/ `salias/`（公共头+库）/ `bench/` / `test/`，vcpkg 接 google-benchmark、GTest。
-2. 定义 `Mapping` 抽象（C++20 concept 或抽象类）与 Linux `memfd` 实现骨架（先能双映射并自检地址连续）。
+2. 定义 `Mapping` 抽象（C++23 concept 或抽象类）与 Linux `memfd` 实现骨架（先能双映射并自检地址连续）。
 3. 写第一个失败测试：向双映射 ring 写跨边界数据，读出连续 → 驱动 M1。
 4. 拉起 Aeron C++ IPC 基线 bench，落 `doc/benchmarks/aeron-baseline.md`。
 5. 配 CI：`cmake` + `ctest` + google-benchmark + clang-tidy + cppcheck；debug 带 ASan/UBSan，并发测试带 TSan。

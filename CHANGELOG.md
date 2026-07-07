@@ -39,6 +39,15 @@ are released.
   observers over mmap-backed counter files.
 - Added the project design documentation set under `doc/`.
 
+### Changed
+
+- Migrated the build and public/core result types to C++23 `std::expected`,
+  removing the custom platform result wrapper and the `tl-expected` dependency.
+- Expanded README coverage for the current API surface, Linux runtime
+  dependencies, benchmark entrypoints, Aeron comparison limits, and known gaps.
+- Localized and clarified API, core, benchmark, test, and platform comments so
+  ownership, synchronization, and failure contracts are easier to audit.
+
 ### Fixed
 
 - Fixed ring capacity checks after position wrap so recreated publisher state

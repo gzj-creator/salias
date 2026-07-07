@@ -19,6 +19,7 @@
 
 namespace {
 
+// 验证固定 metrics ABI 布局保持 cache-line 大小。
 TEST(MetricsLayoutTest, HeaderAndCounterSlotAreCacheLineSized) {
   static_assert(alignof(salias::metrics::MetaHeader) == 64);
   static_assert(sizeof(salias::metrics::MetaHeader) == 64);
@@ -31,6 +32,7 @@ TEST(MetricsLayoutTest, HeaderAndCounterSlotAreCacheLineSized) {
   EXPECT_EQ(offsetof(salias::metrics::CounterSlot, label), 16u);
 }
 
+// 验证 writer 创建会拒绝小于请求槽位数量的区域。
 TEST(CountersTest, RejectsRegionTooSmall) {
   std::array<std::byte, sizeof(salias::metrics::MetaHeader)> region{};
 
@@ -40,6 +42,7 @@ TEST(CountersTest, RejectsRegionTooSmall) {
   EXPECT_EQ(counters.error(), salias::metrics::MetricsError::RegionTooSmall);
 }
 
+// 验证内存中的 writer 和 reader 视图共享值与 metadata。
 TEST(CountersTest, WriterAndReaderShareValuesAndMetadata) {
   constexpr std::uint32_t kCount = 3;
   std::vector<std::byte> region(salias::metrics::region_size(kCount));
@@ -67,6 +70,7 @@ TEST(CountersTest, WriterAndReaderShareValuesAndMetadata) {
   EXPECT_STREQ(reader.slots()[0].label, "producer_pos");
 }
 
+// 验证 fork 进程写入的 counter 可通过共享映射观察。
 TEST(CountersTest, ForkedProcessWritesSharedMappingCounters) {
   const long raw_page_size = ::sysconf(_SC_PAGESIZE);
   ASSERT_GT(raw_page_size, 0);
@@ -103,6 +107,7 @@ TEST(CountersTest, ForkedProcessWritesSharedMappingCounters) {
   EXPECT_EQ(reader_result.value().value(0), 4096u);
 }
 
+// 验证 reader 可以按路径打开已初始化的 counters 文件。
 TEST(CountersTest, ReaderOpensReadOnlyCountersFileByPath) {
   constexpr std::uint32_t kCount = 2;
   const std::size_t size = salias::metrics::region_size(kCount);
