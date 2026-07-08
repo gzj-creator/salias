@@ -42,7 +42,7 @@ namespace salias {
 struct ChannelMeta {           // 共享内存区首，握手用
   std::uint32_t magic;         // "SAL1"
   std::uint32_t version;
-  std::uint32_t mode;          // Spsc/Mpsc/Broadcast/Bulk
+  std::uint32_t mode;          // Spsc/Mpsc/Broadcast/Bulk/Mpmc
   std::uint32_t flags;         // fixed_size 等
   std::uint64_t capacity;
   std::uint64_t record_size;   // fixed_size 时
@@ -50,7 +50,7 @@ struct ChannelMeta {           // 共享内存区首，握手用
   std::uint32_t ready;         // release/acquire 握手位
 };
 
-enum class Mode { Spsc, Mpsc, Broadcast, Bulk };
+enum class Mode { Spsc, Mpsc, Broadcast, Bulk, Mpmc };
 
 } // namespace salias
 ```

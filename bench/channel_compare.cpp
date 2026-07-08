@@ -23,6 +23,7 @@ struct Options {
   std::uint32_t consumers = 1;
   std::size_t payload = 64;
   std::size_t capacity = 1u << 22;
+  std::uint32_t poll_limit = 64;
 };
 
 // 解析 salias 对比 benchmark 的命令行参数。
@@ -50,14 +51,21 @@ Options parse_options(int argc, char** argv) {
       options.payload = static_cast<std::size_t>(std::stoull(require_value("--payload")));
     } else if (arg == "--capacity") {
       options.capacity = static_cast<std::size_t>(std::stoull(require_value("--capacity")));
+    } else if (arg == "--poll-limit") {
+      options.poll_limit = static_cast<std::uint32_t>(std::stoul(require_value("--poll-limit")));
     } else if (arg == "--help") {
       std::cout << "usage: salias_bench_compare --scenario spsc|spmc|mpmc "
-                   "[--messages N] [--producers N] [--consumers N] [--payload N]\n";
+                   "[--messages N] [--producers N] [--consumers N] [--payload N] "
+                   "[--poll-limit N]\n";
       std::exit(0);
     } else {
       std::cerr << "unknown argument: " << arg << '\n';
       std::exit(2);
     }
+  }
+  if (options.poll_limit == 0) {
+    std::cerr << "--poll-limit must be greater than 0\n";
+    std::exit(2);
   }
   return options;
 }
@@ -108,6 +116,7 @@ struct Result {
   std::uint64_t published = 0;
   std::uint64_t delivered = 0;
   std::size_t payload = 0;
+  std::uint32_t poll_limit = 0;
   double seconds = 0.0;
 };
 
@@ -129,14 +138,12 @@ Result run_spsc(const Options& options) {
 
   std::thread consumer([&] {
     wait_for_start(ready, start);
+    auto handler = [&consumed](const salias::Message&) noexcept { ++consumed; };
     while (consumed < options.messages) {
-      auto message = subscriber.try_recv();
-      if (!message) {
+      const auto polled = subscriber.poll(options.poll_limit, handler);
+      if (polled == 0) {
         std::this_thread::yield();
-        continue;
       }
-      ++consumed;
-      subscriber.release(*message);
     }
   });
 
@@ -168,6 +175,7 @@ Result run_spsc(const Options& options) {
                 .published = options.messages,
                 .delivered = consumed,
                 .payload = options.payload,
+                .poll_limit = options.poll_limit,
                 .seconds = std::chrono::duration<double>(end - begin).count()};
 }
 
@@ -197,14 +205,12 @@ Result run_spmc(const Options& options) {
     threads.emplace_back([&, i] {
       auto& subscriber = subscribers[i];
       wait_for_start(ready, start);
+      auto handler = [&consumed, i](const salias::Message&) noexcept { ++consumed[i]; };
       while (consumed[i] < options.messages) {
-        auto message = subscriber.try_recv();
-        if (!message) {
+        const auto polled = subscriber.poll(options.poll_limit, handler);
+        if (polled == 0) {
           std::this_thread::yield();
-          continue;
         }
-        ++consumed[i];
-        subscriber.release(*message);
       }
     });
   }
@@ -245,6 +251,7 @@ Result run_spmc(const Options& options) {
                 .published = options.messages,
                 .delivered = delivered,
                 .payload = options.payload,
+                .poll_limit = options.poll_limit,
                 .seconds = std::chrono::duration<double>(end - begin).count()};
 }
 
@@ -282,16 +289,16 @@ Result run_mpmc(const Options& options) {
     threads.emplace_back([&, consumer] {
       wait_for_start(ready, start);
       std::uint32_t next = 0;
+      auto handler = [&consumed, consumer](const salias::Message&) noexcept {
+        ++consumed[consumer];
+      };
       while (consumed[consumer] < expected_per_consumer) {
         auto& subscriber = subscribers[consumer][next];
-        auto message = subscriber.try_recv();
+        const auto polled = subscriber.poll(options.poll_limit, handler);
         next = (next + 1) % options.producers;
-        if (!message) {
+        if (polled == 0) {
           std::this_thread::yield();
-          continue;
         }
-        ++consumed[consumer];
-        subscriber.release(*message);
       }
     });
   }
@@ -335,6 +342,7 @@ Result run_mpmc(const Options& options) {
                 .published = static_cast<std::uint64_t>(options.producers) * options.messages,
                 .delivered = delivered,
                 .payload = options.payload,
+                .poll_limit = options.poll_limit,
                 .seconds = std::chrono::duration<double>(end - begin).count()};
 }
 
@@ -349,6 +357,7 @@ void print_result(const std::string& scenario, const Result& result) {
             << " producers=" << result.producers
             << " consumers=" << result.consumers
             << " payload=" << result.payload
+            << " poll_limit=" << result.poll_limit
             << " published=" << result.published
             << " delivered=" << result.delivered
             << " seconds=" << result.seconds

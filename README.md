@@ -34,17 +34,16 @@ salias 聚焦一个很窄的场景：同一台 Linux 主机上的高吞吐、低
 - L4 wait 层：`BusySpin`、`SpinPause`、`Yielding`、`FutexWait` 和静态
   `WaitStrategy` concept。
 - L5 channel 层：进程内 `SpscChannel`、`MpscChannel`、`BroadcastChannel`、
-  `BulkChannel`，以及用于具名共享内存的 `SharedSpscChannel`。
+  `BulkChannel`，以及用于具名共享内存的 `SharedSpscChannel` 和
+  `SharedMpscChannel`、`SharedMpmcChannel`。
 - L6 metrics 层：固定 ABI 的 counters 区布局、写入端 `Counters`、
   只读端 `CountersReader`。
-- L7 公共 API：`Channel::create`、`Channel::connect`、`Publisher::offer`、
-  `Subscriber::try_recv/recv/release`。进程内支持 SPSC/MPSC/Broadcast/Bulk；
-  具名跨进程握手目前支持 SPSC。
+- L7 公共 API：`Channel::create`、`Channel::connect`、`Publisher::try_claim/offer`、
+  `PublishClaim::commit`、`Subscriber::poll/try_recv/recv/release`。进程内支持
+  SPSC/MPSC/Broadcast/Bulk；具名跨进程握手支持 SPSC/MPSC/MPMC fanout。
 
 尚未实现或尚未作为公共 API 暴露：
 
-- 公共 `Publisher::try_claim/commit` 零拷贝 API。core/channel 内部已有
-  `claim/commit`，公共 `Publisher` 当前只暴露 `offer`，会把用户 buffer 拷入 ring。
 - `Config::fixed_size` / 无头定长帧模式。L2 有 `fixed_slot()` 计算，公共创建会拒绝
   fixed-size 配置。
 - public `WaitKind::Futex` 配置。core 有 `FutexWait`，公共 `Channel::create` 当前只接受
@@ -52,7 +51,7 @@ salias 聚焦一个很窄的场景：同一台 Linux 主机上的高吞吐、低
 - huge page 和 NUMA 绑定。配置类型存在，但 L0 当前对 `HugePage != None` 或
   `numa_node >= 0` 返回不可用错误。
 - metrics 与公共 `Channel` 的自动集成、`salias-top` / `salias-clean` 工具。
-- 原生单通道 MPMC fanout、Broadcast 有损模式、async 适配层、include-lint 规则 enforcement。
+- 进程内原生 MPMC facade、Broadcast 有损模式、async 适配层、include-lint 规则 enforcement。
 
 ## Linux 依赖
 
@@ -70,7 +69,7 @@ salias 聚焦一个很窄的场景：同一台 Linux 主机上的高吞吐、低
 - `memfd_create` + `ftruncate`：创建匿名共享内存后备。
 - `mmap(PROT_NONE)` + 两次 `mmap(MAP_SHARED | MAP_FIXED)`：把同一 fd offset 0 映射到
   两段相邻虚拟地址。
-- `shm_open` / `shm_unlink`：具名 SPSC 通道的控制块和 ring 共享内存对象。
+- `shm_open` / `shm_unlink`：具名通道的控制块和 ring 共享内存对象。
 - `futex(FUTEX_WAIT/FUTEX_WAKE)`：阻塞等待策略和跨进程唤醒。
 
 ## 快速开始
@@ -123,11 +122,11 @@ bash tools/aeron_compare/run_release_compare.sh
 ```
 
 该脚本会从 `third_party/aeron-1.52.0.tar.gz` 解包到 `/tmp` 构建 Aeron，启动外部
-`aeronmd` media driver，并运行 salias/Aeron 的 SPSC、SPMC、组合 MPMC 对照。
-`doc/benchmarks/aeron-baseline.md` 记录了一次 2026-07-06 的 Colima Linux VM
-aarch64 单次运行结果；它是基线记录，不是最终性能承诺。该文档也说明了当前
-salias MPMC 对照是“每个 producer 一个 Broadcast channel”的组合拓扑，尚不是原生
-单通道 MPMC fanout。
+`aeronmd` media driver，并运行 salias 具名共享内存 IPC 与 Aeron IPC 的 MPSC/MPMC
+跨进程对照。默认配置会先 warmup 1 轮，再 measured 5 轮；`ROUNDS`、
+`MPSC_MESSAGES`、`MPMC_MESSAGES`、`PAYLOAD`、`POLL_LIMIT` 和 `FRAGMENT_LIMIT`
+可通过环境变量覆盖。`doc/benchmarks/aeron-baseline.md` 记录历史基线和最新跨进程
+MPSC/MPMC 对照结果；它们是具体环境下的 benchmark 记录，不是最终性能承诺。
 
 ## 最小 API 示例
 
@@ -168,19 +167,34 @@ int main() {
 }
 ```
 
-跨进程 SPSC 使用具名通道：
+零拷贝写入使用 `try_claim/commit`：
+
+```cpp
+auto claim_result = publisher.try_claim(3);
+if (!claim_result) {
+  return 4;
+}
+auto claim = std::move(claim_result).value();
+claim.payload()[0] = std::byte{0x41};
+claim.payload()[1] = std::byte{0x42};
+claim.payload()[2] = std::byte{0x43};
+claim.commit();
+```
+
+跨进程 SPSC/MPSC/MPMC 使用具名通道：
 
 ```cpp
 salias::Config owner_config;
 owner_config.name = "quotes";
-owner_config.mode = salias::Mode::Spsc;
+owner_config.mode = salias::Mode::Mpmc;
 auto owner = salias::Channel::create(owner_config);
 
 auto peer = salias::Channel::connect("quotes");
 ```
 
-具名通道名只允许字母、数字、`-`、`_`、`.`，长度不超过 128。当前具名握手只支持
-SPSC；具名 MPSC/Broadcast/Bulk 会返回 `BadConfig`。
+具名通道名只允许字母、数字、`-`、`_`、`.`，长度不超过 128。当前具名握手支持
+SPSC/MPSC/MPMC；具名 MPMC 是 pub/sub fanout 语义，每个 subscriber 都会收到每个
+publisher 的消息。具名 Broadcast/Bulk 会返回 `BadConfig`。
 
 ## 目录结构
 
@@ -197,11 +211,11 @@ SPSC；具名 MPSC/Broadcast/Bulk 会返回 `BadConfig`。
 │   ├── frame/                  # 8 字节帧头和编解码
 │   ├── flow/                   # SPSC producer/consumer position 协议
 │   ├── wait/                   # spin/pause/yield/futex wait strategies
-│   ├── channel/                # SPSC、MPSC、Broadcast、Bulk、SharedSPSC
+│   ├── channel/                # SPSC、MPSC、Broadcast、Bulk、SharedSPSC、SharedMPSC、SharedMPMC
 │   └── metrics/                # counters ABI、writer、reader
 ├── src/salias/                 # L7 公共 API 库 salias
 │   ├── include/salias/         # 用户头文件
-│   └── src/channel.cpp         # API facade 和具名 SPSC 握手
+│   └── src/channel.cpp         # API facade 和具名 SPSC/MPSC/MPMC 握手
 ├── test/                       # GTest，按模块分组
 ├── bench/                      # google-benchmark 和 salias/Aeron 对照入口
 ├── tools/aeron_compare/        # Aeron IPC 对照脚本和 C++ benchmark
@@ -220,9 +234,9 @@ salias 的实现按 L0-L7 分层。依赖方向自上而下：上层可以使用
 | L2 | `salias::frame` | 8 字节帧头、8 字节对齐、flags/seq | 已实现；无头定长只到 helper |
 | L3 | `salias::flow` | SPSC position、背压、claim/commit、poll/advance | 已实现 SPSC 基础路径 |
 | L4 | `salias::wait` | 可插拔等待策略 concept 和实现 | core 已实现；公共配置只开放 SpinPause |
-| L5 | `salias::channel` | SPSC/MPSC/Broadcast/Bulk 组合通道 | 进程内已实现；具名共享 SPSC 已实现 |
+| L5 | `salias::channel` | SPSC/MPSC/Broadcast/Bulk 组合通道 | 进程内已实现；具名共享 SPSC/MPSC/MPMC 已实现 |
 | L6 | `salias::metrics` | 共享内存 counters 布局、读写视图 | 独立模块已实现；尚未自动接入 Channel |
-| L7 | `salias` | 用户 API、driverless 具名握手 | 公共 offer/recv 已实现；public claim 未实现 |
+| L7 | `salias` | 用户 API、driverless 具名握手 | 公共 offer/claim/poll/recv 已实现 |
 
 ## 数据路径
 
@@ -240,12 +254,14 @@ salias 的实现按 L0-L7 分层。依赖方向自上而下：上层可以使用
 8. 用户处理完成后调用 `release`，consumer position release-store 前移，空间立刻可被
    producer 复用。
 
-### 具名跨进程 SPSC
+### 具名跨进程 SPSC/MPSC/MPMC
 
-具名 SPSC 用两个 POSIX shm 对象：
+具名 SPSC/MPSC/MPMC 用两个 POSIX shm 对象：
 
 - `/salias-<name>-ctl`：4 KiB 控制块，包含 magic/version/mode/capacity/ready、
-  wait word、producer/consumer position。
+  wait word 和两个 position 单元。SPSC 中 `producer_pos` 表示单 producer tail；
+  MPSC/MPMC 中 `producer_pos` 表示所有 producer 共享的 `reserved_tail`。MPMC 还包含
+  subscriber allocation counter 和最多 8 个 subscriber head 槽。
 - `/salias-<name>-ring`：ring 数据区，被 `Mapping::map_shared_fd` 双映射。
 
 owner 端 `Channel::create` 创建并初始化控制块和 ring，最后对 `ready` 做 release-store。
@@ -255,10 +271,19 @@ ready，校验 magic/version/mode/capacity/record_size，再映射 ring。owner 
 
 ### MPSC
 
-MPSC 是进程内通道。多个 Tx 通过 `reserved_tail_` CAS 抢占互不重叠的 ring 区间。
+MPSC 支持进程内和具名跨进程通道。多个 Tx 通过共享 `reserved_tail` CAS 抢占互不
+重叠的 ring 区间。
 每个 producer 先写未提交帧头和 payload，`commit` 时 release-store `FLAG_COMMITTED`。
 单 consumer 按 position 顺序读取；如果遇到前序帧尚未 committed，即使后续帧已经提交也
 不会越过该 gap。
+
+### MPMC fanout
+
+具名 MPMC 是多 producer、多 subscriber 的可靠 pub/sub fanout。多个 publisher 通过
+共享 `reserved_tail` CAS 预留互不重叠的物理帧；每个 subscriber 拥有独立 head，
+因此每个 subscriber 都按顺序读取所有 publisher 发布的消息。producer 的可复用空间由
+所有活跃 subscriber head 的最小值决定，慢 subscriber 会带来背压而不是丢消息。新
+subscriber 从订阅时的当前 tail 开始读取，不回放订阅前已经发布的消息。
 
 ### Broadcast
 
@@ -400,10 +425,12 @@ position 同步。
 公共 API 是 `src/salias/include/salias` 下的 facade：
 
 - `Config`：`name`、`mode`、`capacity`、`fixed_size`、`record_size`、`wait`。
-- `Channel::create`：创建进程内通道或具名 SPSC owner。
-- `Channel::connect`：连接具名 SPSC。
+- `Channel::create`：创建进程内通道或具名 SPSC/MPSC/MPMC owner。
+- `Channel::connect`：连接具名 SPSC/MPSC/MPMC。
 - `Publisher::offer`：把用户 buffer 写入通道。
+- `Publisher::try_claim`：预留 ring 内 payload 区并通过 `PublishClaim::commit` 原地发布。
 - `Subscriber::try_recv`：非阻塞读取。
+- `Subscriber::poll`：批量轮询并在回调后自动释放消息。
 - `Subscriber::recv`：按等待策略阻塞读取。
 - `Subscriber::release`：释放消息占用的 ring 空间。
 
@@ -433,7 +460,7 @@ metrics 模块定义了共享内存 counters 区的固定 ABI：
 - `test/wait`：策略 concept 和 futex 唤醒。
 - `test/channel`：SPSC、MPSC gap、Broadcast 可靠背压、Bulk 大消息。
 - `test/metrics`：layout ABI、writer/reader、fork 共享、只读文件打开。
-- `test/api`：公共 API、具名 SPSC 跨 fork、peer 先启动、版本/损坏 meta 拒绝。
+- `test/api`：公共 API、具名 SPSC/MPSC/MPMC 跨 fork、peer 先启动、版本/损坏 meta 拒绝。
 
 `debug-asan-ubsan` preset 默认关闭 benchmark、打开测试和 ASan/UBSan。
 `tsan` preset 打开 TSan，并通过 `setarch <arch> -R` 运行测试。
@@ -443,12 +470,11 @@ metrics 模块定义了共享内存 counters 区的固定 ABI：
 
 这些方向来自 `doc/` 设计文档，但当前不要当作已完成能力：
 
-- public zero-copy `try_claim/commit`，让用户直接在 ring 上构造消息，避免 `offer` 拷贝。
 - fixed-size/no-header 模式，用 channel 元数据定义定长记录，消除每帧 8 字节头。
 - public futex wait 配置、backoff/type-erased runtime wait strategy。
 - huge page 和 NUMA 探测、绑定与降级策略。
 - metrics 自动挂接到每个 Channel，并提供独立观测工具。
-- 原生 MPMC fanout，而不是 benchmark 中的 Broadcast shard 组合拓扑。
+- 更严格的 salias/Aeron IPC 对照：CPU pinning、更长计时窗口、延迟百分位采集。
 - Broadcast 有损模式和 `Lagged` 检测。
 - async 适配层。核心仍保持同步、无 runtime；async 只能是 L7 薄适配。
 - include 方向 lint 的实际规则和 CI enforcement。

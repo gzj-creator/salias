@@ -14,11 +14,11 @@ struct ChannelState;
 
 class Channel {
  public:
-  /// 创建通道；name 为空时创建进程内通道，命名 SPSC 通道会创建控制块和环形区。
+  /// 创建通道；name 为空时创建进程内通道，命名 SPSC/MPSC/MPMC 通道会创建控制块和环形区。
   /// 返回 Channel；配置无效、平台映射失败或共享元数据异常时返回对应 Error。
   static Result<Channel> create(const Config& config);
 
-  /// 连接已有或即将创建的命名 SPSC 通道。
+  /// 连接已有或即将创建的命名 SPSC/MPSC/MPMC 通道。
   /// 会有限等待拥有者发布 ready 标记，并在映射环形区前校验共享元数据。
   static Result<Channel> connect(std::string_view name);
 

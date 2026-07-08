@@ -38,6 +38,14 @@ are released.
 - Added read-only `CountersReader::open(path)` support for external metrics
   observers over mmap-backed counter files.
 - Added the project design documentation set under `doc/`.
+- Added public `Subscriber::poll` batch consumption and public
+  `Publisher::try_claim` / `PublishClaim::commit` zero-copy publishing APIs.
+- Added an SPMC/MPMC hot-path design and implementation plan under `doc/plans/`.
+- Added named cross-process MPSC create/connect support over POSIX shared memory.
+- Added named cross-process MPMC fanout support where every subscriber receives
+  every publisher's messages over one shared ring.
+- Added a true multi-process salias IPC vs Aeron IPC comparison harness for
+  MPSC and MPMC workloads.
 
 ### Changed
 
@@ -47,6 +55,10 @@ are released.
   dependencies, benchmark entrypoints, Aeron comparison limits, and known gaps.
 - Localized and clarified API, core, benchmark, test, and platform comments so
   ownership, synchronization, and failure contracts are easier to audit.
+- Updated `salias_bench_compare` to use batch polling with an explicit
+  `--poll-limit` option for fairer comparison with Aeron's fragment limit.
+- Updated the Aeron comparison runner to use forked producer/subscriber
+  endpoints for both salias named IPC and Aeron IPC.
 
 ### Fixed
 

@@ -18,6 +18,12 @@ target_link_libraries(salias_bench_compare PRIVATE salias)
 salias_enable_warnings(salias_bench_compare)
 salias_enable_sanitizers(salias_bench_compare)
 
+add_executable(salias_ipc_compare ../tools/aeron_compare/salias_ipc_compare.cpp)
+target_link_libraries(salias_ipc_compare PRIVATE salias)
+
+salias_enable_warnings(salias_ipc_compare)
+salias_enable_sanitizers(salias_ipc_compare)
+
 if(BUILD_TESTING)
   add_test(NAME salias_bench_smoke COMMAND salias_bench_smoke --benchmark_min_time=0.001)
   add_test(NAME salias_bench_channel_stress

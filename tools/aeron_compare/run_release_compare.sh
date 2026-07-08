@@ -6,6 +6,13 @@ AERON_TARBALL="${AERON_TARBALL:-${ROOT_DIR}/third_party/aeron-1.52.0.tar.gz}"
 AERON_SRC="${AERON_SRC:-/tmp/salias-aeron-1.52.0}"
 AERON_BUILD="${AERON_BUILD:-/tmp/salias-aeron-build}"
 AERON_COMPARE="${AERON_BUILD}/aeron_ipc_compare"
+PAYLOAD="${PAYLOAD:-64}"
+POLL_LIMIT="${POLL_LIMIT:-64}"
+FRAGMENT_LIMIT="${FRAGMENT_LIMIT:-64}"
+ROUNDS="${ROUNDS:-5}"
+WARMUP_ROUNDS="${WARMUP_ROUNDS:-1}"
+MPSC_MESSAGES="${MPSC_MESSAGES:-200000}"
+MPMC_MESSAGES="${MPMC_MESSAGES:-200000}"
 
 if [[ ! -f "${AERON_TARBALL}" ]]; then
   echo "missing Aeron tarball: ${AERON_TARBALL}" >&2
@@ -47,7 +54,7 @@ c++ -std=c++17 -O3 -DNDEBUG -DDISABLE_BOUNDS_CHECKS \
   -pthread -ldl -lrt -lm \
   -o "${AERON_COMPARE}"
 
-cmake --build --preset release --target salias_bench_compare >/dev/null
+cmake --build --preset release --target salias_ipc_compare >/dev/null
 
 # 运行一个 Aeron IPC 对比场景，并在结束后清理 media driver 和共享目录。
 run_aeron() {
@@ -71,7 +78,8 @@ run_aeron() {
     --messages "${messages}" \
     --producers "${producers}" \
     --consumers "${consumers}" \
-    --payload 64
+    --payload "${PAYLOAD}" \
+    --fragment-limit "${FRAGMENT_LIMIT}"
   local status=$?
   set -e
   kill "${driver_pid}" 2>/dev/null || true
@@ -80,26 +88,43 @@ run_aeron() {
   return "${status}"
 }
 
-# 运行一个 salias release benchmark 场景。
-run_salias() {
+# 运行一个 salias 具名共享内存 IPC benchmark 场景。
+run_salias_ipc() {
   local scenario="$1"
   local messages="$2"
   local producers="$3"
   local consumers="$4"
-  "${ROOT_DIR}/build/release/bench/salias_bench_compare" \
+  local name="compare-${scenario}-$$-${RANDOM}"
+  "${ROOT_DIR}/build/release/bench/salias_ipc_compare" \
     --scenario "${scenario}" \
     --messages "${messages}" \
     --producers "${producers}" \
     --consumers "${consumers}" \
-    --payload 64
+    --payload "${PAYLOAD}" \
+    --poll-limit "${POLL_LIMIT}" \
+    --name "${name}"
 }
 
-echo "# salias vs Aeron C++ IPC release comparison"
-echo "# payload=64B; SPSC=1P/1C; SPMC=1P/2C; MPMC=4P/2C all-to-all pub/sub"
+run_pair() {
+  local scenario="$1"
+  local messages="$2"
+  local producers="$3"
+  local consumers="$4"
+  for round in $(seq 1 "${WARMUP_ROUNDS}"); do
+    echo "# warmup round=${round} scenario=${scenario}"
+    run_salias_ipc "${scenario}" "${messages}" "${producers}" "${consumers}" >/dev/null
+    run_aeron "${scenario}" "${messages}" "${producers}" "${consumers}" >/dev/null
+  done
+  for round in $(seq 1 "${ROUNDS}"); do
+    echo "# measured round=${round} scenario=${scenario}"
+    run_salias_ipc "${scenario}" "${messages}" "${producers}" "${consumers}"
+    run_aeron "${scenario}" "${messages}" "${producers}" "${consumers}"
+  done
+}
 
-run_salias spsc 1000000 1 1
-run_aeron spsc 1000000 1 1
-run_salias spmc 500000 1 2
-run_aeron spmc 500000 1 2
-run_salias mpmc 200000 4 2
-run_aeron mpmc 200000 4 2
+echo "# salias named IPC vs Aeron C++ IPC release comparison"
+echo "# payload=${PAYLOAD}B; poll_limit=${POLL_LIMIT}; fragment_limit=${FRAGMENT_LIMIT}; warmup=${WARMUP_ROUNDS}; rounds=${ROUNDS}"
+echo "# MPSC=4P/1C; MPMC=4P/2C all-to-all pub/sub"
+
+run_pair mpsc "${MPSC_MESSAGES}" 4 1
+run_pair mpmc "${MPMC_MESSAGES}" 4 2
