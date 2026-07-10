@@ -7,11 +7,13 @@ are released.
 
 - Keep pending local commits under `## [Unreleased]`.
 - When creating a release tag, move relevant entries into a version section
-  formatted as `## [vX.Y.Z.W] - YYYY-MM-DD`.
+  formatted as `## [vX.Y.Z] - YYYY-MM-DD`.
 - Group changes by `Added`, `Changed`, `Fixed`, `Docs`, or similar sections.
 - Prefer concise behavioral summaries over mechanical file lists.
 
 ## [Unreleased]
+
+## [v1.0.0] - 2026-07-10
 
 ### Added
 
