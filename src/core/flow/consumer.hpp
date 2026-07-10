@@ -15,6 +15,8 @@ struct Message {
   std::uint64_t position = 0;
   std::uint64_t next_position = 0;
   std::uint32_t meta = 0;
+  std::uint64_t sequence = 0;
+  std::uint32_t producer_id = 0;
 };
 
 // SPSC 消费端；它不拥有 ring 或位置存储。

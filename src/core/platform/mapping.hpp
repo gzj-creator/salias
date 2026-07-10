@@ -13,11 +13,13 @@ class Mapping {
   using CreateResult = std::expected<Mapping, PlatformError>;
 
   // 创建 Linux magic-ring 双映射，两段相邻虚拟地址共享同一 memfd。
-  // options.size 必须非零、为 2 的幂且页对齐；系统调用失败时返回 PlatformError。
+  // options.size 必须非零、为 2 的幂且页对齐；显式大页请求还必须按大页大小对齐。
+  // 系统调用失败时返回 PlatformError，且大页资源不足返回 HugePageUnavailable。
   static CreateResult create(const MapOptions& options) noexcept;
 
   // 基于已打开的 MAP_SHARED fd 创建双映射；Mapping 持有 dup 后的 fd。
   // 原始 fd 仍归调用者所有，且文件长度必须至少为 options.size。
+  // 若 options.huge 非 None，调用者必须保证 fd 已经由匹配的大页后端创建。
   static CreateResult map_shared_fd(int fd, const MapOptions& options) noexcept;
 
   // 创建空映射句柄。
@@ -41,7 +43,8 @@ class Mapping {
 
  private:
   // 将已持有的 fd 映射两次到一个连续虚拟地址区间。
-  static CreateResult map_owned_fd(int fd, std::size_t size, bool self_check) noexcept;
+  static CreateResult map_owned_fd(int fd, std::size_t size, bool self_check, std::size_t alignment,
+                                   bool huge_requested) noexcept;
 
   // 保存映射成功后的起始地址、逻辑长度和持有 fd。
   Mapping(std::byte* base, std::size_t len, int fd) noexcept;

@@ -157,7 +157,7 @@ else:
 | 背压 | 空间不足 | `FlowError::BackPressured`（**不丢数据、不无限缓冲**） |
 | 超限 | `need > cap` | `MessageTooLarge`（交 bulk） |
 
-- 生产者拿到 `BackPressured` 后，**怎么等由 L4 决定**（spin/yield/futex）——L3 只报状态，不阻塞。这层解耦让"背压检测"与"等待策略"正交。
+- 生产者拿到 `BackPressured` 后由调用方重试；引擎内部使用 L4 的 `SpinPause` 做忙轮询，L3 只报告状态、不阻塞。
 - 对比 Aeron：publisher limit 由 Conductor 周期更新，解背压有滞后；salias 生产者直接读 head，消费者一 `advance`，生产者下次 `claim` 立刻看到，**零滞后**。
 
 ---

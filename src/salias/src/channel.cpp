@@ -5,11 +5,13 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <atomic>
 #include <array>
+#include <atomic>
 #include <cctype>
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -18,35 +20,55 @@
 #include <thread>
 #include <type_traits>
 #include <utility>
-#include <variant>
+#include <vector>
 
-#include "core/channel/broadcast.hpp"
-#include "core/channel/bulk.hpp"
-#include "core/channel/mpsc.hpp"
-#include "core/channel/shared_mpmc.hpp"
-#include "core/channel/shared_mpsc.hpp"
-#include "core/channel/shared_spsc.hpp"
-#include "core/channel/spsc.hpp"
+#include "core/channel/shared_hybrid_mpsc.hpp"
 #include "core/ring/magic_ring.hpp"
 
 namespace salias {
 
 namespace {
 
-inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;  // "SALC"
-inline constexpr std::uint32_t kNamedVersion = 1;
-inline constexpr std::size_t kControlSize = 4096;
-inline constexpr std::size_t kNamedMpmcMaxSubscribers = 8;
+inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;
+inline constexpr std::uint32_t kNamedVersion = 3;
+inline constexpr std::size_t kControlSize = 16u * 1024u;
+inline constexpr std::size_t kCacheLineGuard = 128;
+inline constexpr std::size_t kMaxProducers = 16;
+inline constexpr std::size_t kMaxConsumers = 8;
+inline constexpr std::size_t kHugePage2MiB = std::size_t{2} * 1024 * 1024;
+inline constexpr std::size_t kHugePage1GiB = std::size_t{1024} * 1024 * 1024;
+inline constexpr std::uint32_t kNamedFlagHugetlbfs = 1u;
+inline constexpr std::uint32_t kNamedHugeShift = 1u;
+inline constexpr std::uint32_t kNamedHugeMask = 0x6u;
+inline constexpr std::uint32_t kInvalidEndpoint = std::numeric_limits<std::uint32_t>::max();
+inline constexpr const char* kDefaultHugetlbfsDir = "/dev/hugepages";
+
+enum class NamedRingBackend { PosixShm, Hugetlbfs };
+
+struct NamedRingSpec {
+  NamedRingBackend backend = NamedRingBackend::PosixShm;
+  HugePage huge = HugePage::None;
+};
 
 struct alignas(64) NamedPositionSlot {
   std::uint64_t value = 0;
   std::byte pad[64 - sizeof(std::uint64_t)]{};
 };
 
-static_assert(sizeof(NamedPositionSlot) == 64);
-static_assert(alignof(NamedPositionSlot) == 64);
+struct alignas(64) NamedConsumerCursorSlot {
+  std::uint64_t position = 0;
+  std::uint64_t sequence = 0;
+  std::byte pad[64 - (2 * sizeof(std::uint64_t))]{};
+};
 
-struct alignas(64) NamedControl {
+struct alignas(kCacheLineGuard) NamedProducerSlot {
+  std::uint64_t visible_producer_pos = 0;
+  std::uint64_t local_sequence = 0;
+  std::byte pad[kCacheLineGuard - (2 * sizeof(std::uint64_t))]{};
+  std::array<NamedConsumerCursorSlot, kMaxConsumers> consumers{};
+};
+
+struct alignas(kCacheLineGuard) NamedControl {
   std::uint32_t magic = 0;
   std::uint32_t version = 0;
   std::uint32_t mode = 0;
@@ -55,70 +77,162 @@ struct alignas(64) NamedControl {
   std::uint64_t record_size = 0;
   std::uint32_t ready = 0;
   std::uint32_t wait_word = 0;
-  std::byte pad[64 - 40]{};
-  alignas(64) std::uint64_t producer_pos = 0;
-  alignas(64) std::uint64_t consumer_pos = 0;
-  alignas(64) std::uint32_t subscriber_count = 0;
-  std::byte subscriber_count_pad[64 - sizeof(std::uint32_t)]{};
-  alignas(64) std::array<NamedPositionSlot, kNamedMpmcMaxSubscribers> subscriber_heads{};
+  std::byte pad[kCacheLineGuard - 40]{};
+
+  alignas(kCacheLineGuard) std::uint64_t global_sequence = 0;
+  alignas(kCacheLineGuard) std::uint32_t next_producer = 0;
+  alignas(kCacheLineGuard) std::uint32_t num_producers = 0;
+  alignas(kCacheLineGuard) std::uint32_t next_consumer = 0;
+  alignas(kCacheLineGuard) std::uint32_t num_consumers = 0;
+  alignas(kCacheLineGuard) std::array<NamedPositionSlot, kMaxConsumers> consumer_sequences{};
+  alignas(kCacheLineGuard) std::array<NamedProducerSlot, kMaxProducers> producers{};
 };
 
-static_assert(alignof(NamedControl) == 64);
-static_assert(offsetof(NamedControl, producer_pos) % 64 == 0);
-static_assert(offsetof(NamedControl, consumer_pos) % 64 == 0);
-static_assert(offsetof(NamedControl, subscriber_count) % 64 == 0);
-static_assert(offsetof(NamedControl, subscriber_heads) % 64 == 0);
+static_assert(sizeof(NamedPositionSlot) == 64);
+static_assert(sizeof(NamedConsumerCursorSlot) == 64);
+static_assert(sizeof(NamedProducerSlot) == kCacheLineGuard + 64 * kMaxConsumers);
 static_assert(sizeof(NamedControl) <= kControlSize);
 
-// 校验用户提供的名称，避免生成非法 POSIX shm 路径。
+template <Mode M>
+inline constexpr channel::Order kOrdering =
+    M == Mode::FifoMpsc || M == Mode::FifoFanout ? channel::Order::Fifo : channel::Order::Ordered;
+
+template <Mode M>
+inline constexpr bool kFanout = M == Mode::FifoFanout || M == Mode::OrderedFanout;
+
 bool is_valid_channel_name(std::string_view name) noexcept {
   if (name.empty() || name.size() > 128) {
     return false;
   }
-  for (const unsigned char c : name) {
-    if (!(std::isalnum(c) != 0 || c == '-' || c == '_' || c == '.')) {
+  for (const unsigned char character : name) {
+    if (std::isalnum(character) == 0 && character != '-' && character != '_' && character != '.') {
       return false;
     }
   }
   return true;
 }
 
-// 判断 value 是否为非零 2 的幂。
 bool is_power_of_two(std::size_t value) noexcept {
   return value != 0 && (value & (value - 1)) == 0;
 }
 
-// 校验 ring 容量的大小、2 的幂、溢出和页对齐约束。
 bool is_valid_ring_capacity(std::uint64_t capacity) noexcept {
   if (capacity == 0 || capacity > std::numeric_limits<std::size_t>::max()) {
     return false;
   }
   const auto size = static_cast<std::size_t>(capacity);
-  if (!is_power_of_two(size) || size > (std::numeric_limits<std::size_t>::max() / 2)) {
+  if (!is_power_of_two(size) || size > std::numeric_limits<std::size_t>::max() / 2) {
     return false;
   }
   const long page_size = ::sysconf(_SC_PAGESIZE);
   return page_size > 0 && size % static_cast<std::size_t>(page_size) == 0;
 }
 
-// 构造命名通道控制块的 POSIX 共享内存名称。
+std::size_t huge_page_size(HugePage huge) noexcept {
+  switch (huge) {
+    case HugePage::None:
+      return 0;
+    case HugePage::Size2MB:
+      return kHugePage2MiB;
+    case HugePage::Size1GB:
+      return kHugePage1GiB;
+  }
+  return 0;
+}
+
+platform::HugePage to_platform_huge_page(HugePage huge) noexcept {
+  switch (huge) {
+    case HugePage::None:
+      return platform::HugePage::None;
+    case HugePage::Size2MB:
+      return platform::HugePage::Size2MB;
+    case HugePage::Size1GB:
+      return platform::HugePage::Size1GB;
+  }
+  return platform::HugePage::None;
+}
+
+bool is_valid_huge_capacity(std::size_t capacity, HugePage huge) noexcept {
+  const std::size_t page_size = huge_page_size(huge);
+  return page_size == 0 || capacity % page_size == 0;
+}
+
 std::string control_shm_name(std::string_view name) {
   return "/salias-" + std::string(name) + "-ctl";
 }
 
-// 构造命名通道 ring 的 POSIX 共享内存名称。
-std::string ring_shm_name(std::string_view name) {
-  return "/salias-" + std::string(name) + "-ring";
+std::string ring_shm_name(std::string_view name, std::uint32_t producer_id) {
+  return "/salias-" + std::string(name) + "-ring-" + std::to_string(producer_id);
 }
 
-// 当 fd 表示已打开描述符时关闭它。
+std::string ring_public_name(std::string_view name, std::uint32_t producer_id) {
+  return std::string(name) + "-producer-" + std::to_string(producer_id);
+}
+
+std::string hugetlbfs_dir() {
+  if (const char* directory = std::getenv("SALIAS_HUGETLBFS_DIR");
+      directory != nullptr && directory[0] != '\0') {
+    return directory;
+  }
+  return kDefaultHugetlbfsDir;
+}
+
+std::string huge_ring_path(std::string_view name) {
+  std::string directory = hugetlbfs_dir();
+  if (!directory.empty() && directory.back() == '/') {
+    directory.pop_back();
+  }
+  return directory + "/salias-" + std::string(name) + "-ring";
+}
+
+std::uint32_t named_flags_for(HugePage huge) noexcept {
+  switch (huge) {
+    case HugePage::None:
+      return 0;
+    case HugePage::Size2MB:
+      return kNamedFlagHugetlbfs | (1u << kNamedHugeShift);
+    case HugePage::Size1GB:
+      return kNamedFlagHugetlbfs | (2u << kNamedHugeShift);
+  }
+  return 0;
+}
+
+std::optional<NamedRingSpec> named_ring_spec_from_flags(std::uint32_t flags) noexcept {
+  constexpr std::uint32_t known_mask = kNamedFlagHugetlbfs | kNamedHugeMask;
+  if ((flags & ~known_mask) != 0) {
+    return std::nullopt;
+  }
+  const bool hugetlbfs = (flags & kNamedFlagHugetlbfs) != 0;
+  const std::uint32_t huge_code = (flags & kNamedHugeMask) >> kNamedHugeShift;
+  if (!hugetlbfs) {
+    return huge_code == 0 ? std::optional<NamedRingSpec>{NamedRingSpec{}} : std::nullopt;
+  }
+  if (huge_code == 1) {
+    return NamedRingSpec{.backend = NamedRingBackend::Hugetlbfs, .huge = HugePage::Size2MB};
+  }
+  if (huge_code == 2) {
+    return NamedRingSpec{.backend = NamedRingBackend::Hugetlbfs, .huge = HugePage::Size1GB};
+  }
+  return std::nullopt;
+}
+
+NamedRingSpec named_ring_spec_for(HugePage huge) noexcept {
+  return huge == HugePage::None
+             ? NamedRingSpec{}
+             : NamedRingSpec{.backend = NamedRingBackend::Hugetlbfs, .huge = huge};
+}
+
+std::string ring_cleanup_name(std::string_view public_name, const std::string& shm_name,
+                              NamedRingSpec spec) {
+  return spec.backend == NamedRingBackend::Hugetlbfs ? huge_ring_path(public_name) : shm_name;
+}
+
 void close_if_open(int fd) noexcept {
   if (fd >= 0) {
     static_cast<void>(::close(fd));
   }
 }
 
-// 创建并设置 POSIX 共享内存对象大小；失败时返回 -1。
 int create_sized_shm(const std::string& name, std::size_t size) noexcept {
   const int fd = ::shm_open(name.c_str(), O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600);
   if (fd < 0) {
@@ -132,9 +246,31 @@ int create_sized_shm(const std::string& name, std::size_t size) noexcept {
   return fd;
 }
 
+int create_sized_hugetlbfs_file(std::string_view name, std::size_t size) noexcept {
+  const std::string path = huge_ring_path(name);
+  const int fd = ::open(path.c_str(), O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600);
+  if (fd < 0) {
+    return -1;
+  }
+  if (::ftruncate(fd, static_cast<off_t>(size)) != 0) {
+    close_if_open(fd);
+    static_cast<void>(::unlink(path.c_str()));
+    return -1;
+  }
+  return fd;
+}
+
+void unlink_ring(std::string_view public_name, const std::string& shm_name,
+                 NamedRingSpec spec) noexcept {
+  if (spec.backend == NamedRingBackend::Hugetlbfs) {
+    static_cast<void>(::unlink(huge_ring_path(public_name).c_str()));
+  } else {
+    static_cast<void>(::shm_unlink(shm_name.c_str()));
+  }
+}
+
 class ControlMapping {
  public:
-  // 创建并映射新的命名通道控制块。
   static Result<ControlMapping> create(const std::string& name) noexcept {
     const int fd = create_sized_shm(name, kControlSize);
     if (fd < 0) {
@@ -143,7 +279,6 @@ class ControlMapping {
     return map_fd(fd);
   }
 
-  // 打开并映射已有命名通道控制块。
   static Result<ControlMapping> open(const std::string& name) noexcept {
     const int fd = ::shm_open(name.c_str(), O_RDWR | O_CLOEXEC, 0600);
     if (fd < 0) {
@@ -152,48 +287,30 @@ class ControlMapping {
     return map_fd(fd);
   }
 
-  // 创建空映射句柄。
   ControlMapping() noexcept = default;
-  // 从另一个句柄转移映射所有权。
   ControlMapping(ControlMapping&& other) noexcept
-      : base_(other.base_), len_(other.len_), fd_(other.fd_) {
-    other.base_ = nullptr;
-    other.len_ = 0;
-    other.fd_ = -1;
-  }
-  // 释放当前所有权后，从另一个句柄转移映射所有权。
+      : base_(std::exchange(other.base_, nullptr)),
+        len_(std::exchange(other.len_, 0)),
+        fd_(std::exchange(other.fd_, -1)) {}
   ControlMapping& operator=(ControlMapping&& other) noexcept {
     if (this != &other) {
       reset();
-      base_ = other.base_;
-      len_ = other.len_;
-      fd_ = other.fd_;
-      other.base_ = nullptr;
-      other.len_ = 0;
-      other.fd_ = -1;
+      base_ = std::exchange(other.base_, nullptr);
+      len_ = std::exchange(other.len_, 0);
+      fd_ = std::exchange(other.fd_, -1);
     }
     return *this;
   }
-  // 禁止拷贝；映射持有 mmap 和 fd。
   ControlMapping(const ControlMapping&) = delete;
-  // 禁止拷贝赋值；映射持有 mmap 和 fd。
   ControlMapping& operator=(const ControlMapping&) = delete;
-  // 释放已映射控制块并关闭 fd。
   ~ControlMapping() noexcept { reset(); }
 
-  // 返回固定的命名通道控制块前缀。
-  NamedControl* control() noexcept {
-    // 安全性：ControlMapping 只映射 kControlSize 大小的 shm 对象。
-    // 固定前缀 ABI 是 NamedControl，由拥有者在发布 ready 前写入。
-    return reinterpret_cast<NamedControl*>(base_);
-  }
+  NamedControl* control() noexcept { return reinterpret_cast<NamedControl*>(base_); }
 
  private:
-  // 映射已经打开的控制块 fd。
   static Result<ControlMapping> map_fd(int fd) noexcept {
-    // 安全性：fd 指向由 create_sized_shm() 或拥有者在发布 ready 前截断为 kControlSize 的 shm 对象。
-    // MAP_SHARED 让固定控制块 ABI 对双方可见。
-    void* mapped = ::mmap(nullptr, kControlSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    void* mapped =
+        ::mmap(nullptr, kControlSize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd, 0);
     if (mapped == MAP_FAILED) {
       close_if_open(fd);
       return std::unexpected(Error::PlatformFail);
@@ -201,13 +318,11 @@ class ControlMapping {
     return ControlMapping(static_cast<std::byte*>(mapped), kControlSize, fd);
   }
 
-  // 保存映射成功的控制块。
   ControlMapping(std::byte* base, std::size_t len, int fd) noexcept
       : base_(base), len_(len), fd_(fd) {}
 
-  // 解除控制块映射、关闭 fd，并重置句柄。
   void reset() noexcept {
-    if (base_ != nullptr && len_ != 0) {
+    if (base_ != nullptr) {
       static_cast<void>(::munmap(base_, len_));
     }
     close_if_open(fd_);
@@ -221,7 +336,6 @@ class ControlMapping {
   int fd_ = -1;
 };
 
-// 将 flow 层发布错误转换为公共 API 错误。
 Error map_flow_error(flow::FlowError error) noexcept {
   switch (error) {
     case flow::FlowError::Ok:
@@ -234,76 +348,17 @@ Error map_flow_error(flow::FlowError error) noexcept {
   return Error::BadConfig;
 }
 
-// 将核心通道创建错误转换为公共 API 错误。
-Error map_channel_error(channel::ChannelError error) noexcept {
-  switch (error) {
-    case channel::ChannelError::Ok:
-      return Error::Ok;
-    case channel::ChannelError::BadConfig:
-      return Error::BadConfig;
-    case channel::ChannelError::PlatformFail:
-    case channel::ChannelError::RingFail:
-      return Error::PlatformFail;
-  }
-  return Error::BadConfig;
-}
-
-// 将公共配置转换为核心通道使用的配置子集。
-channel::ChannelConfig core_config(const Config& config) noexcept {
-  return channel::ChannelConfig{
-      .capacity = config.capacity,
-      .fixed_size = config.fixed_size,
-      .record_size = config.record_size,
-  };
-}
-
-// 将 flow 层消息视图转换为公共消息类型。
-Message to_public_message(const flow::Message& message) noexcept {
-  return Message{
-      .payload = message.payload,
-      .position = message.position,
-      .next_position = message.next_position,
-      .meta = message.meta,
-  };
-}
-
-// 将公共消息视图转换回 flow 层消息，用于 release。
-flow::Message to_flow_message(const Message& message) noexcept {
-  return flow::Message{
-      .payload = message.payload,
-      .position = message.position,
-      .next_position = message.next_position,
-      .meta = message.meta,
-  };
-}
-
-// 将平台映射错误转换为公共 API 错误。
 Error map_platform_error(platform::PlatformError error) noexcept {
-  switch (error) {
-    case platform::PlatformError::InvalidSize:
-      return Error::BadConfig;
-    case platform::PlatformError::Ok:
-    case platform::PlatformError::MemfdCreateFailed:
-    case platform::PlatformError::FtruncateFailed:
-    case platform::PlatformError::ReserveFailed:
-    case platform::PlatformError::MapFixedFailed:
-    case platform::PlatformError::UnmapFailed:
-    case platform::PlatformError::HugePageUnavailable:
-    case platform::PlatformError::NumaUnavailable:
-    case platform::PlatformError::FutexFailed:
-      return Error::PlatformFail;
-  }
-  return Error::PlatformFail;
+  return error == platform::PlatformError::InvalidSize ? Error::BadConfig : Error::PlatformFail;
 }
 
-// 将已打开 fd 映射为双映射 ring，并关闭原始 fd。
-Result<ring::MagicRing> map_ring_from_fd(int fd, std::size_t capacity) noexcept {
-  auto mapped = platform::Mapping::map_shared_fd(fd, platform::MapOptions{.size = capacity});
+Result<ring::MagicRing> map_ring_from_fd(int fd, std::size_t capacity, HugePage huge) noexcept {
+  auto mapped = platform::Mapping::map_shared_fd(
+      fd, platform::MapOptions{.size = capacity, .huge = to_platform_huge_page(huge)});
   close_if_open(fd);
   if (!mapped) {
     return std::unexpected(map_platform_error(mapped.error()));
   }
-
   auto ring = ring::MagicRing::create(std::move(mapped).value());
   if (!ring) {
     return std::unexpected(Error::PlatformFail);
@@ -311,893 +366,537 @@ Result<ring::MagicRing> map_ring_from_fd(int fd, std::size_t capacity) noexcept 
   return std::move(ring).value();
 }
 
-// 创建命名共享内存 ring，并映射为 MagicRing。
-Result<ring::MagicRing> create_named_ring(const std::string& name,
-                                          std::size_t capacity) noexcept {
-  const int fd = create_sized_shm(name, capacity);
+Result<ring::MagicRing> create_named_ring(std::string_view public_name, const std::string& shm_name,
+                                          std::size_t capacity, NamedRingSpec spec) noexcept {
+  const int fd = spec.backend == NamedRingBackend::Hugetlbfs
+                     ? create_sized_hugetlbfs_file(public_name, capacity)
+                     : create_sized_shm(shm_name, capacity);
   if (fd < 0) {
     return std::unexpected(Error::PlatformFail);
   }
-  return map_ring_from_fd(fd, capacity);
+  return map_ring_from_fd(fd, capacity, spec.huge);
 }
 
-// 打开已有命名共享内存 ring，并映射为 MagicRing。
-Result<ring::MagicRing> open_named_ring(const std::string& name,
-                                        std::size_t capacity) noexcept {
-  const int fd = ::shm_open(name.c_str(), O_RDWR | O_CLOEXEC, 0600);
+Result<ring::MagicRing> open_named_ring(std::string_view public_name, const std::string& shm_name,
+                                        std::size_t capacity, NamedRingSpec spec) noexcept {
+  const int fd = spec.backend == NamedRingBackend::Hugetlbfs
+                     ? ::open(huge_ring_path(public_name).c_str(), O_RDWR | O_CLOEXEC)
+                     : ::shm_open(shm_name.c_str(), O_RDWR | O_CLOEXEC, 0600);
   if (fd < 0) {
     return std::unexpected(Error::NotFound);
   }
-  return map_ring_from_fd(fd, capacity);
+  return map_ring_from_fd(fd, capacity, spec.huge);
 }
+
+Result<ControlMapping> open_control_when_ready(const std::string& name) {
+  Error open_error = Error::NotFound;
+  for (int attempt = 0; attempt < 100000; ++attempt) {
+    auto opened = ControlMapping::open(name);
+    if (opened) {
+      auto mapping = std::move(opened).value();
+      NamedControl* control = mapping.control();
+      for (int ready_attempt = 0; ready_attempt < 100000; ++ready_attempt) {
+        if (std::atomic_ref<std::uint32_t>(control->ready).load(std::memory_order_acquire) == 1) {
+          return mapping;
+        }
+        std::this_thread::yield();
+      }
+      return std::unexpected(Error::NotFound);
+    }
+    open_error = opened.error();
+    if (open_error != Error::NotFound) {
+      return std::unexpected(open_error);
+    }
+    std::this_thread::yield();
+  }
+  return std::unexpected(open_error);
+}
+
+template <Mode M>
+using SharedChannel = channel::SharedHybridMpscChannel<kOrdering<M>>;
+
+template <Mode M>
+typename SharedChannel<M>::SharedControl make_shared_control(NamedControl& control) {
+  typename SharedChannel<M>::SharedControl shared{};
+  shared.global_seq = &control.global_sequence;
+  shared.wait_word = &control.wait_word;
+  shared.num_producers = &control.num_producers;
+  shared.num_consumers = &control.num_consumers;
+  shared.consumer_sequences.reserve(control.num_consumers);
+  for (std::uint32_t consumer_id = 0; consumer_id < control.num_consumers; ++consumer_id) {
+    shared.consumer_sequences.push_back(&control.consumer_sequences[consumer_id].value);
+  }
+  return shared;
+}
+
+template <Mode M>
+std::vector<typename SharedChannel<M>::ProducerSharedState> make_producer_states(
+    NamedControl& control) {
+  std::vector<typename SharedChannel<M>::ProducerSharedState> states;
+  states.reserve(control.num_producers);
+  for (std::uint32_t producer_id = 0; producer_id < control.num_producers; ++producer_id) {
+    typename SharedChannel<M>::ProducerSharedState state{};
+    state.visible_producer_pos = &control.producers[producer_id].visible_producer_pos;
+    state.local_sequence = &control.producers[producer_id].local_sequence;
+    state.consumers.reserve(control.num_consumers);
+    for (std::uint32_t consumer_id = 0; consumer_id < control.num_consumers; ++consumer_id) {
+      state.consumers.push_back(typename SharedChannel<M>::ConsumerSharedState{
+          .position = &control.producers[producer_id].consumers[consumer_id].position,
+          .sequence = &control.producers[producer_id].consumers[consumer_id].sequence,
+      });
+    }
+    states.push_back(std::move(state));
+  }
+  return states;
+}
+
+template <Mode M>
+class NamedChannelState {
+ public:
+  NamedChannelState(ControlMapping control, SharedChannel<M> channel, std::string control_name,
+                    std::vector<std::string> ring_names, bool owns_names, bool hugetlbfs) noexcept
+      : control_(std::move(control)),
+        channel_(std::move(channel)),
+        control_name_(std::move(control_name)),
+        ring_names_(std::move(ring_names)),
+        owns_names_(owns_names),
+        hugetlbfs_(hugetlbfs) {}
+
+  NamedChannelState(NamedChannelState&& other) noexcept
+      : control_(std::move(other.control_)),
+        channel_(std::move(other.channel_)),
+        control_name_(std::move(other.control_name_)),
+        ring_names_(std::move(other.ring_names_)),
+        owns_names_(std::exchange(other.owns_names_, false)),
+        hugetlbfs_(other.hugetlbfs_) {}
+
+  NamedChannelState& operator=(NamedChannelState&& other) noexcept {
+    if (this != &other) {
+      cleanup();
+      control_ = std::move(other.control_);
+      channel_ = std::move(other.channel_);
+      control_name_ = std::move(other.control_name_);
+      ring_names_ = std::move(other.ring_names_);
+      owns_names_ = std::exchange(other.owns_names_, false);
+      hugetlbfs_ = other.hugetlbfs_;
+    }
+    return *this;
+  }
+
+  NamedChannelState(const NamedChannelState&) = delete;
+  NamedChannelState& operator=(const NamedChannelState&) = delete;
+  ~NamedChannelState() noexcept { cleanup(); }
+
+  auto tx(std::uint32_t producer_id) noexcept { return channel_.tx(producer_id); }
+  auto rx(std::uint32_t consumer_id) noexcept { return channel_.rx(consumer_id); }
+
+  std::optional<std::uint32_t> acquire_producer_id() noexcept {
+    NamedControl* control = control_.control();
+    const std::uint32_t producer_id = std::atomic_ref<std::uint32_t>(control->next_producer)
+                                          .fetch_add(1, std::memory_order_acq_rel);
+    return producer_id < control->num_producers ? std::optional{producer_id} : std::nullopt;
+  }
+
+  std::optional<std::uint32_t> acquire_consumer_id() noexcept {
+    if constexpr (!kFanout<M>) {
+      return 0;
+    }
+    NamedControl* control = control_.control();
+    const std::uint32_t consumer_id = std::atomic_ref<std::uint32_t>(control->next_consumer)
+                                          .fetch_add(1, std::memory_order_acq_rel);
+    return consumer_id < control->num_consumers ? std::optional{consumer_id} : std::nullopt;
+  }
+
+ private:
+  void cleanup() noexcept {
+    if (!owns_names_) {
+      return;
+    }
+    static_cast<void>(::shm_unlink(control_name_.c_str()));
+    for (const auto& ring_name : ring_names_) {
+      if (hugetlbfs_) {
+        static_cast<void>(::unlink(ring_name.c_str()));
+      } else {
+        static_cast<void>(::shm_unlink(ring_name.c_str()));
+      }
+    }
+    owns_names_ = false;
+  }
+
+  ControlMapping control_;
+  SharedChannel<M> channel_;
+  std::string control_name_;
+  std::vector<std::string> ring_names_;
+  bool owns_names_ = false;
+  bool hugetlbfs_ = false;
+};
+
+template <Mode M>
+Result<NamedChannelState<M>> create_named_state(const Config& config) {
+  const std::uint32_t sequence_domains =
+      kOrdering<M> == channel::Order::Ordered ? config.num_producers : 1;
+  if (!is_valid_channel_name(config.name) || config.mode != M ||
+      !is_valid_ring_capacity(config.capacity) || config.num_producers == 0 ||
+      config.num_producers > kMaxProducers || config.num_consumers == 0 ||
+      config.num_consumers > kMaxConsumers || (!kFanout<M> && config.num_consumers != 1) ||
+      !channel::hybrid_detail::sequence_low_window_fits(sequence_domains, config.capacity)) {
+    return std::unexpected(Error::BadConfig);
+  }
+
+  const std::string control_name = control_shm_name(config.name);
+  const NamedRingSpec ring_spec = named_ring_spec_for(config.huge);
+  auto control_mapping = ControlMapping::create(control_name);
+  if (!control_mapping) {
+    return std::unexpected(control_mapping.error());
+  }
+
+  std::vector<ring::MagicRing> rings;
+  std::vector<std::string> cleanup_names;
+  rings.reserve(config.num_producers);
+  cleanup_names.reserve(config.num_producers);
+  for (std::uint32_t producer_id = 0; producer_id < config.num_producers; ++producer_id) {
+    const std::string shm_name = ring_shm_name(config.name, producer_id);
+    const std::string public_name = ring_public_name(config.name, producer_id);
+    auto ring = create_named_ring(public_name, shm_name, config.capacity, ring_spec);
+    if (!ring) {
+      for (std::uint32_t cleanup_id = 0; cleanup_id < producer_id; ++cleanup_id) {
+        unlink_ring(ring_public_name(config.name, cleanup_id),
+                    ring_shm_name(config.name, cleanup_id), ring_spec);
+      }
+      static_cast<void>(::shm_unlink(control_name.c_str()));
+      return std::unexpected(ring.error());
+    }
+    cleanup_names.push_back(ring_cleanup_name(public_name, shm_name, ring_spec));
+    rings.push_back(std::move(ring).value());
+  }
+
+  NamedControl* control = control_mapping->control();
+  std::construct_at(control);
+  control->magic = kNamedMagic;
+  control->version = kNamedVersion;
+  control->mode = static_cast<std::uint32_t>(M);
+  control->flags = named_flags_for(config.huge);
+  control->capacity = config.capacity;
+  control->num_producers = config.num_producers;
+  control->num_consumers = config.num_consumers;
+
+  SharedChannel<M> channel(std::move(rings), make_producer_states<M>(*control),
+                           make_shared_control<M>(*control));
+  std::atomic_ref<std::uint32_t>(control->ready).store(1, std::memory_order_release);
+  return NamedChannelState<M>(std::move(control_mapping).value(), std::move(channel), control_name,
+                              std::move(cleanup_names), true,
+                              ring_spec.backend == NamedRingBackend::Hugetlbfs);
+}
+
+template <Mode M>
+Result<NamedChannelState<M>> connect_named_state(std::string_view name) {
+  if (!is_valid_channel_name(name)) {
+    return std::unexpected(Error::BadConfig);
+  }
+  const std::string control_name = control_shm_name(name);
+  auto control_mapping = open_control_when_ready(control_name);
+  if (!control_mapping) {
+    return std::unexpected(control_mapping.error());
+  }
+  NamedControl* control = control_mapping->control();
+  if (control->magic != kNamedMagic || control->version != kNamedVersion) {
+    return std::unexpected(Error::VersionMismatch);
+  }
+  const std::uint32_t sequence_domains =
+      kOrdering<M> == channel::Order::Ordered ? control->num_producers : 1;
+  if (control->mode != static_cast<std::uint32_t>(M) ||
+      !is_valid_ring_capacity(control->capacity) || control->record_size != 0 ||
+      control->num_producers == 0 || control->num_producers > kMaxProducers ||
+      control->num_consumers == 0 || control->num_consumers > kMaxConsumers ||
+      (!kFanout<M> && control->num_consumers != 1) ||
+      !channel::hybrid_detail::sequence_low_window_fits(sequence_domains, control->capacity)) {
+    return std::unexpected(Error::BadConfig);
+  }
+  const auto ring_spec = named_ring_spec_from_flags(control->flags);
+  if (!ring_spec || !is_valid_huge_capacity(control->capacity, ring_spec->huge)) {
+    return std::unexpected(Error::BadConfig);
+  }
+
+  std::vector<ring::MagicRing> rings;
+  std::vector<std::string> ring_names;
+  rings.reserve(control->num_producers);
+  ring_names.reserve(control->num_producers);
+  for (std::uint32_t producer_id = 0; producer_id < control->num_producers; ++producer_id) {
+    const std::string shm_name = ring_shm_name(name, producer_id);
+    const std::string public_name = ring_public_name(name, producer_id);
+    auto ring = open_named_ring(public_name, shm_name, control->capacity, *ring_spec);
+    if (!ring) {
+      return std::unexpected(ring.error());
+    }
+    ring_names.push_back(ring_cleanup_name(public_name, shm_name, *ring_spec));
+    rings.push_back(std::move(ring).value());
+  }
+
+  SharedChannel<M> channel(std::move(rings), make_producer_states<M>(*control),
+                           make_shared_control<M>(*control));
+  return NamedChannelState<M>(std::move(control_mapping).value(), std::move(channel), control_name,
+                              std::move(ring_names), false,
+                              ring_spec->backend == NamedRingBackend::Hugetlbfs);
+}
+
+template <Mode M>
+struct ChannelTraits {
+  using State = NamedChannelState<M>;
+  static Result<State> create(const Config& config) { return create_named_state<M>(config); }
+  static Result<State> connect(std::string_view name) { return connect_named_state<M>(name); }
+};
 
 }  // namespace
 
-struct NamedSpscState {
-  // 接管命名通道资源，并记录当前端是否拥有 shm 名称。
-  NamedSpscState(ControlMapping control_value, channel::SharedSpscChannel<> channel_value,
-                 std::string control_name_value, std::string ring_name_value,
-                 bool owns_names_value) noexcept
-      : control(std::move(control_value)),
-        channel(std::move(channel_value)),
-        control_name(std::move(control_name_value)),
-        ring_name(std::move(ring_name_value)),
-        owns_names(owns_names_value) {}
-
-  // 转移命名通道资源所有权，并清除来源对象的 unlink 所有权。
-  NamedSpscState(NamedSpscState&& other) noexcept
-      : control(std::move(other.control)),
-        channel(std::move(other.channel)),
-        control_name(std::move(other.control_name)),
-        ring_name(std::move(other.ring_name)),
-        owns_names(other.owns_names) {
-    other.owns_names = false;
-  }
-  // 释放当前持有名称后，转移命名通道资源所有权。
-  NamedSpscState& operator=(NamedSpscState&& other) noexcept {
-    if (this != &other) {
-      cleanup();
-      control = std::move(other.control);
-      channel = std::move(other.channel);
-      control_name = std::move(other.control_name);
-      ring_name = std::move(other.ring_name);
-      owns_names = other.owns_names;
-      other.owns_names = false;
-    }
-    return *this;
-  }
-  // 禁止拷贝；状态持有映射和 shm 名称生命周期。
-  NamedSpscState(const NamedSpscState&) = delete;
-  // 禁止拷贝赋值；状态持有映射和 shm 名称生命周期。
-  NamedSpscState& operator=(const NamedSpscState&) = delete;
-  // unlink 当前持有的名称，但保留已有对端映射有效。
-  ~NamedSpscState() noexcept { cleanup(); }
-
-  // 为底层 shared SPSC 通道创建生产者端点。
-  auto tx() noexcept { return channel.tx(); }
-  // 为底层 shared SPSC 通道创建消费者端点。
-  auto rx() noexcept { return channel.rx(); }
-
-  ControlMapping control;
-  channel::SharedSpscChannel<> channel;
-  std::string control_name;
-  std::string ring_name;
-  bool owns_names = false;
-
- private:
-  // 当当前状态拥有名称时 unlink 命名共享内存对象。
-  void cleanup() noexcept {
-    if (owns_names) {
-      // 安全性：拥有者只 unlink 自己创建的名称。
-      // shm_unlink 后已有对端映射仍保持有效，名称只是不再供后续 connect() 查找。
-      static_cast<void>(::shm_unlink(control_name.c_str()));
-      static_cast<void>(::shm_unlink(ring_name.c_str()));
-      owns_names = false;
-    }
-  }
-};
-
-struct NamedMpscState {
-  // 接管命名 MPSC 资源，并记录当前端是否拥有 shm 名称。
-  NamedMpscState(ControlMapping control_value, channel::SharedMpscChannel<> channel_value,
-                 std::string control_name_value, std::string ring_name_value,
-                 bool owns_names_value) noexcept
-      : control(std::move(control_value)),
-        channel(std::move(channel_value)),
-        control_name(std::move(control_name_value)),
-        ring_name(std::move(ring_name_value)),
-        owns_names(owns_names_value) {}
-
-  // 转移命名 MPSC 资源所有权，并清除来源对象的 unlink 所有权。
-  NamedMpscState(NamedMpscState&& other) noexcept
-      : control(std::move(other.control)),
-        channel(std::move(other.channel)),
-        control_name(std::move(other.control_name)),
-        ring_name(std::move(other.ring_name)),
-        owns_names(other.owns_names) {
-    other.owns_names = false;
-  }
-  // 释放当前持有名称后，转移命名 MPSC 资源所有权。
-  NamedMpscState& operator=(NamedMpscState&& other) noexcept {
-    if (this != &other) {
-      cleanup();
-      control = std::move(other.control);
-      channel = std::move(other.channel);
-      control_name = std::move(other.control_name);
-      ring_name = std::move(other.ring_name);
-      owns_names = other.owns_names;
-      other.owns_names = false;
-    }
-    return *this;
-  }
-  // 禁止拷贝；状态持有映射和 shm 名称生命周期。
-  NamedMpscState(const NamedMpscState&) = delete;
-  // 禁止拷贝赋值；状态持有映射和 shm 名称生命周期。
-  NamedMpscState& operator=(const NamedMpscState&) = delete;
-  // unlink 当前持有的名称，但保留已有对端映射有效。
-  ~NamedMpscState() noexcept { cleanup(); }
-
-  // 为底层 shared MPSC 通道创建生产者端点。
-  auto tx() noexcept { return channel.tx(); }
-  // 为底层 shared MPSC 通道创建消费者端点。
-  auto rx() noexcept { return channel.rx(); }
-
-  ControlMapping control;
-  channel::SharedMpscChannel<> channel;
-  std::string control_name;
-  std::string ring_name;
-  bool owns_names = false;
-
- private:
-  // 当当前状态拥有名称时 unlink 命名共享内存对象。
-  void cleanup() noexcept {
-    if (owns_names) {
-      static_cast<void>(::shm_unlink(control_name.c_str()));
-      static_cast<void>(::shm_unlink(ring_name.c_str()));
-      owns_names = false;
-    }
-  }
-};
-
-struct NamedMpmcState {
-  static constexpr std::uint32_t kInvalidSubscriber =
-      channel::SharedMpmcChannel<>::kInvalidSubscriber;
-
-  // 接管命名 MPMC 资源，并记录当前端是否拥有 shm 名称。
-  NamedMpmcState(ControlMapping control_value, channel::SharedMpmcChannel<> channel_value,
-                 std::string control_name_value, std::string ring_name_value,
-                 bool owns_names_value) noexcept
-      : control(std::move(control_value)),
-        channel(std::move(channel_value)),
-        control_name(std::move(control_name_value)),
-        ring_name(std::move(ring_name_value)),
-        owns_names(owns_names_value) {}
-
-  // 转移命名 MPMC 资源所有权，并清除来源对象的 unlink 所有权。
-  NamedMpmcState(NamedMpmcState&& other) noexcept
-      : control(std::move(other.control)),
-        channel(std::move(other.channel)),
-        control_name(std::move(other.control_name)),
-        ring_name(std::move(other.ring_name)),
-        owns_names(other.owns_names) {
-    other.owns_names = false;
-  }
-  // 释放当前持有名称后，转移命名 MPMC 资源所有权。
-  NamedMpmcState& operator=(NamedMpmcState&& other) noexcept {
-    if (this != &other) {
-      cleanup();
-      control = std::move(other.control);
-      channel = std::move(other.channel);
-      control_name = std::move(other.control_name);
-      ring_name = std::move(other.ring_name);
-      owns_names = other.owns_names;
-      other.owns_names = false;
-    }
-    return *this;
-  }
-  // 禁止拷贝；状态持有映射和 shm 名称生命周期。
-  NamedMpmcState(const NamedMpmcState&) = delete;
-  // 禁止拷贝赋值；状态持有映射和 shm 名称生命周期。
-  NamedMpmcState& operator=(const NamedMpmcState&) = delete;
-  // unlink 当前持有的名称，但保留已有对端映射有效。
-  ~NamedMpmcState() noexcept { cleanup(); }
-
-  // 为底层 shared MPMC 通道创建生产者端点。
-  auto tx() noexcept { return channel.tx(); }
-  // 分配 fanout 订阅者槽位。
-  auto subscribe_index() noexcept { return channel.subscribe_index(); }
-  // 为已有订阅者索引创建订阅端点。
-  auto rx(std::uint32_t index) noexcept { return channel.rx(index); }
-
-  ControlMapping control;
-  channel::SharedMpmcChannel<> channel;
-  std::string control_name;
-  std::string ring_name;
-  bool owns_names = false;
-
- private:
-  // 当当前状态拥有名称时 unlink 命名共享内存对象。
-  void cleanup() noexcept {
-    if (owns_names) {
-      static_cast<void>(::shm_unlink(control_name.c_str()));
-      static_cast<void>(::shm_unlink(ring_name.c_str()));
-      owns_names = false;
-    }
-  }
-};
-
-namespace {
-
-// 从命名控制块构造 flow 位置指针。
-flow::Positions named_positions(NamedControl& control) noexcept {
-  return flow::Positions{
-      .producer = &control.producer_pos,
-      .consumer = &control.consumer_pos,
-      .cap = static_cast<std::size_t>(control.capacity),
-  };
-}
-
-channel::SharedMpmcChannel<>::SubscriberHeads named_subscriber_heads(
-    NamedControl& control) noexcept {
-  channel::SharedMpmcChannel<>::SubscriberHeads heads{};
-  for (std::size_t i = 0; i < heads.size(); ++i) {
-    heads[i] = &control.subscriber_heads[i].value;
-  }
-  return heads;
-}
-
-// 创建命名 SPSC 拥有者端，并发布 ready 元数据。
-Result<NamedSpscState> create_named_spsc_state(const Config& config) {
-  if (!is_valid_channel_name(config.name) || config.mode != Mode::Spsc ||
-      !is_valid_ring_capacity(config.capacity)) {
-    return std::unexpected(Error::BadConfig);
-  }
-
-  const std::string control_name = control_shm_name(config.name);
-  const std::string ring_name = ring_shm_name(config.name);
-
-  auto control_mapping = ControlMapping::create(control_name);
-  if (!control_mapping) {
-    return std::unexpected(control_mapping.error());
-  }
-
-  auto ring = create_named_ring(ring_name, config.capacity);
-  if (!ring) {
-    static_cast<void>(::shm_unlink(control_name.c_str()));
-    static_cast<void>(::shm_unlink(ring_name.c_str()));
-    return std::unexpected(ring.error());
-  }
-
-  NamedControl* control = control_mapping.value().control();
-  control->magic = kNamedMagic;
-  control->version = kNamedVersion;
-  control->mode = static_cast<std::uint32_t>(Mode::Spsc);
-  control->flags = 0;
-  control->capacity = config.capacity;
-  control->record_size = 0;
-  control->wait_word = 0;
-  control->producer_pos = 0;
-  control->consumer_pos = 0;
-
-  channel::SharedSpscChannel<> channel(std::move(ring).value(), named_positions(*control),
-                                       &control->wait_word);
-
-  // 安全性：上面已初始化所有 ChannelMeta/control 字段和共享位置单元。
-  // 对端在信任本进程写入的字段前会 acquire-load ready。
-  std::atomic_ref<std::uint32_t>(control->ready).store(1, std::memory_order_release);
-
-  return NamedSpscState(std::move(control_mapping).value(), std::move(channel), control_name,
-                        ring_name, true);
-}
-
-Result<NamedMpscState> create_named_mpsc_state(const Config& config) {
-  if (!is_valid_channel_name(config.name) || config.mode != Mode::Mpsc ||
-      !is_valid_ring_capacity(config.capacity)) {
-    return std::unexpected(Error::BadConfig);
-  }
-
-  const std::string control_name = control_shm_name(config.name);
-  const std::string ring_name = ring_shm_name(config.name);
-
-  auto control_mapping = ControlMapping::create(control_name);
-  if (!control_mapping) {
-    return std::unexpected(control_mapping.error());
-  }
-
-  auto ring = create_named_ring(ring_name, config.capacity);
-  if (!ring) {
-    static_cast<void>(::shm_unlink(control_name.c_str()));
-    static_cast<void>(::shm_unlink(ring_name.c_str()));
-    return std::unexpected(ring.error());
-  }
-
-  NamedControl* control = control_mapping.value().control();
-  control->magic = kNamedMagic;
-  control->version = kNamedVersion;
-  control->mode = static_cast<std::uint32_t>(Mode::Mpsc);
-  control->flags = 0;
-  control->capacity = config.capacity;
-  control->record_size = 0;
-  control->wait_word = 0;
-  control->producer_pos = 0;  // MPSC reserved tail.
-  control->consumer_pos = 0;
-
-  channel::SharedMpscChannel<> channel(std::move(ring).value(), &control->producer_pos,
-                                       &control->consumer_pos, &control->wait_word);
-
-  // 安全性：上面已初始化所有 control 字段和共享位置单元。
-  // 对端在信任本进程写入的字段前会 acquire-load ready。
-  std::atomic_ref<std::uint32_t>(control->ready).store(1, std::memory_order_release);
-
-  return NamedMpscState(std::move(control_mapping).value(), std::move(channel), control_name,
-                        ring_name, true);
-}
-
-Result<NamedMpmcState> create_named_mpmc_state(const Config& config) {
-  if (!is_valid_channel_name(config.name) || config.mode != Mode::Mpmc ||
-      !is_valid_ring_capacity(config.capacity)) {
-    return std::unexpected(Error::BadConfig);
-  }
-
-  const std::string control_name = control_shm_name(config.name);
-  const std::string ring_name = ring_shm_name(config.name);
-
-  auto control_mapping = ControlMapping::create(control_name);
-  if (!control_mapping) {
-    return std::unexpected(control_mapping.error());
-  }
-
-  auto ring = create_named_ring(ring_name, config.capacity);
-  if (!ring) {
-    static_cast<void>(::shm_unlink(control_name.c_str()));
-    static_cast<void>(::shm_unlink(ring_name.c_str()));
-    return std::unexpected(ring.error());
-  }
-
-  NamedControl* control = control_mapping.value().control();
-  control->magic = kNamedMagic;
-  control->version = kNamedVersion;
-  control->mode = static_cast<std::uint32_t>(Mode::Mpmc);
-  control->flags = 0;
-  control->capacity = config.capacity;
-  control->record_size = 0;
-  control->wait_word = 0;
-  control->producer_pos = 0;  // MPMC reserved tail.
-  control->consumer_pos = 0;
-  control->subscriber_count = 0;
-  for (auto& head : control->subscriber_heads) {
-    head.value = 0;
-  }
-
-  channel::SharedMpmcChannel<> channel(std::move(ring).value(), &control->producer_pos,
-                                       &control->subscriber_count,
-                                       named_subscriber_heads(*control), &control->wait_word);
-
-  // 安全性：上面已初始化所有 control 字段和共享 fanout 位置单元。
-  // 对端在信任本进程写入的字段前会 acquire-load ready。
-  std::atomic_ref<std::uint32_t>(control->ready).store(1, std::memory_order_release);
-
-  return NamedMpmcState(std::move(control_mapping).value(), std::move(channel), control_name,
-                        ring_name, true);
-}
-
-// 有限等待控制块和 ready 元数据后连接命名 SPSC 拥有者。
-Result<NamedSpscState> connect_named_spsc_state(std::string_view name) {
-  if (!is_valid_channel_name(name)) {
-    return std::unexpected(Error::BadConfig);
-  }
-
-  const std::string control_name = control_shm_name(name);
-  const std::string ring_name = ring_shm_name(name);
-  std::optional<ControlMapping> control_mapping;
-  Error open_error = Error::NotFound;
-  for (int attempt = 0; attempt < 100000; ++attempt) {
-    auto opened = ControlMapping::open(control_name);
-    if (opened) {
-      control_mapping.emplace(std::move(opened).value());
-      break;
-    }
-    open_error = opened.error();
-    if (open_error != Error::NotFound) {
-      return std::unexpected(open_error);
-    }
-    std::this_thread::yield();
-  }
-  if (!control_mapping.has_value()) {
-    return std::unexpected(open_error);
-  }
-
-  NamedControl* control = control_mapping->control();
-  bool ready = false;
-  for (int attempt = 0; attempt < 100000; ++attempt) {
-    // 安全性：拥有者初始化所有字段后以 release 语义发布 ready。
-    // 这里的 acquire load 防止对端读到部分初始化的 ChannelMeta/control 块。
-    if (std::atomic_ref<std::uint32_t>(control->ready).load(std::memory_order_acquire) == 1) {
-      ready = true;
-      break;
-    }
-    std::this_thread::yield();
-  }
-  if (!ready) {
-    return std::unexpected(Error::NotFound);
-  }
-
-  if (control->magic != kNamedMagic || control->version != kNamedVersion) {
-    return std::unexpected(Error::VersionMismatch);
-  }
-  if (control->mode != static_cast<std::uint32_t>(Mode::Spsc) ||
-      !is_valid_ring_capacity(control->capacity) || control->record_size != 0) {
-    return std::unexpected(Error::BadConfig);
-  }
-
-  auto ring = open_named_ring(ring_name, static_cast<std::size_t>(control->capacity));
-  if (!ring) {
-    return std::unexpected(ring.error());
-  }
-
-  channel::SharedSpscChannel<> channel(std::move(ring).value(), named_positions(*control),
-                                       &control->wait_word);
-  return NamedSpscState(std::move(*control_mapping), std::move(channel), control_name, ring_name,
-                        false);
-}
-
-// 有限等待控制块和 ready 元数据后连接命名 MPSC 拥有者。
-Result<NamedMpscState> connect_named_mpsc_state(std::string_view name) {
-  if (!is_valid_channel_name(name)) {
-    return std::unexpected(Error::BadConfig);
-  }
-
-  const std::string control_name = control_shm_name(name);
-  const std::string ring_name = ring_shm_name(name);
-  std::optional<ControlMapping> control_mapping;
-  Error open_error = Error::NotFound;
-  for (int attempt = 0; attempt < 100000; ++attempt) {
-    auto opened = ControlMapping::open(control_name);
-    if (opened) {
-      control_mapping.emplace(std::move(opened).value());
-      break;
-    }
-    open_error = opened.error();
-    if (open_error != Error::NotFound) {
-      return std::unexpected(open_error);
-    }
-    std::this_thread::yield();
-  }
-  if (!control_mapping.has_value()) {
-    return std::unexpected(open_error);
-  }
-
-  NamedControl* control = control_mapping->control();
-  bool ready = false;
-  for (int attempt = 0; attempt < 100000; ++attempt) {
-    if (std::atomic_ref<std::uint32_t>(control->ready).load(std::memory_order_acquire) == 1) {
-      ready = true;
-      break;
-    }
-    std::this_thread::yield();
-  }
-  if (!ready) {
-    return std::unexpected(Error::NotFound);
-  }
-
-  if (control->magic != kNamedMagic || control->version != kNamedVersion) {
-    return std::unexpected(Error::VersionMismatch);
-  }
-  if (control->mode != static_cast<std::uint32_t>(Mode::Mpsc) ||
-      !is_valid_ring_capacity(control->capacity) || control->record_size != 0) {
-    return std::unexpected(Error::BadConfig);
-  }
-
-  auto ring = open_named_ring(ring_name, static_cast<std::size_t>(control->capacity));
-  if (!ring) {
-    return std::unexpected(ring.error());
-  }
-
-  channel::SharedMpscChannel<> channel(std::move(ring).value(), &control->producer_pos,
-                                       &control->consumer_pos, &control->wait_word);
-  return NamedMpscState(std::move(*control_mapping), std::move(channel), control_name, ring_name,
-                        false);
-}
-
-Result<NamedMpmcState> connect_named_mpmc_state(std::string_view name) {
-  if (!is_valid_channel_name(name)) {
-    return std::unexpected(Error::BadConfig);
-  }
-
-  const std::string control_name = control_shm_name(name);
-  const std::string ring_name = ring_shm_name(name);
-  std::optional<ControlMapping> control_mapping;
-  Error open_error = Error::NotFound;
-  for (int attempt = 0; attempt < 100000; ++attempt) {
-    auto opened = ControlMapping::open(control_name);
-    if (opened) {
-      control_mapping.emplace(std::move(opened).value());
-      break;
-    }
-    open_error = opened.error();
-    if (open_error != Error::NotFound) {
-      return std::unexpected(open_error);
-    }
-    std::this_thread::yield();
-  }
-  if (!control_mapping.has_value()) {
-    return std::unexpected(open_error);
-  }
-
-  NamedControl* control = control_mapping->control();
-  bool ready = false;
-  for (int attempt = 0; attempt < 100000; ++attempt) {
-    if (std::atomic_ref<std::uint32_t>(control->ready).load(std::memory_order_acquire) == 1) {
-      ready = true;
-      break;
-    }
-    std::this_thread::yield();
-  }
-  if (!ready) {
-    return std::unexpected(Error::NotFound);
-  }
-
-  if (control->magic != kNamedMagic || control->version != kNamedVersion) {
-    return std::unexpected(Error::VersionMismatch);
-  }
-  if (control->mode != static_cast<std::uint32_t>(Mode::Mpmc) ||
-      !is_valid_ring_capacity(control->capacity) || control->record_size != 0) {
-    return std::unexpected(Error::BadConfig);
-  }
-
-  auto ring = open_named_ring(ring_name, static_cast<std::size_t>(control->capacity));
-  if (!ring) {
-    return std::unexpected(ring.error());
-  }
-
-  channel::SharedMpmcChannel<> channel(std::move(ring).value(), &control->producer_pos,
-                                       &control->subscriber_count,
-                                       named_subscriber_heads(*control), &control->wait_word);
-  return NamedMpmcState(std::move(*control_mapping), std::move(channel), control_name, ring_name,
-                        false);
-}
-
-}  // namespace
-
+template <Mode M>
 struct ChannelState {
-  using Storage = std::variant<channel::SpscChannel<>, channel::MpscChannel<>,
-                               channel::BroadcastChannel<>, channel::BulkChannel<>,
-                               NamedSpscState, NamedMpscState, NamedMpmcState>;
-
-  // 将任意受支持核心通道实现存入外观层状态 variant。
-  template <class CoreChannel>
-  explicit ChannelState(CoreChannel channel_value) noexcept : channel(std::move(channel_value)) {}
-
-  Storage channel;
+  using State = typename ChannelTraits<M>::State;
+  explicit ChannelState(State state) noexcept : channel(std::move(state)) {}
+  State channel;
 };
 
-// 保存公共通道句柄共享状态。
-Channel::Channel(std::shared_ptr<ChannelState> state) noexcept : state_(std::move(state)) {}
+template <Mode M>
+struct PublisherEndpoint {
+  using Tx = decltype(std::declval<typename ChannelState<M>::State&>().tx(0));
 
-// 根据公共配置创建进程内或命名通道。
-Result<Channel> Channel::create(const Config& config) {
-  if (config.fixed_size || config.record_size != 0 || config.wait != WaitKind::SpinPause) {
+  PublisherEndpoint(std::shared_ptr<ChannelState<M>> state_value,
+                    std::uint32_t producer_id) noexcept
+      : state(std::move(state_value)),
+        tx(state->channel.tx(producer_id)),
+        valid(producer_id != kInvalidEndpoint) {}
+
+  std::shared_ptr<ChannelState<M>> state;
+  Tx tx;
+  bool valid = false;
+};
+
+template <Mode M>
+struct SubscriberEndpoint {
+  using Rx = decltype(std::declval<typename ChannelState<M>::State&>().rx(0));
+
+  SubscriberEndpoint(std::shared_ptr<ChannelState<M>> state_value,
+                     std::uint32_t consumer_id) noexcept
+      : state(std::move(state_value)),
+        rx(state->channel.rx(consumer_id)),
+        valid(consumer_id != kInvalidEndpoint) {}
+
+  std::shared_ptr<ChannelState<M>> state;
+  Rx rx;
+  bool valid = false;
+};
+
+template <Mode M>
+Channel<M>::Channel(std::shared_ptr<ChannelState<M>> state) noexcept : state_(std::move(state)) {}
+
+template <Mode M>
+Result<Channel<M>> Channel<M>::create(const Config& config) {
+  if (config.name.empty() || config.fixed_size || config.record_size != 0 ||
+      !is_valid_ring_capacity(config.capacity) ||
+      !is_valid_huge_capacity(config.capacity, config.huge)) {
     return std::unexpected(Error::BadConfig);
   }
-
-  if (!config.name.empty()) {
-    switch (config.mode) {
-      case Mode::Spsc: {
-        auto named = create_named_spsc_state(config);
-        if (!named) {
-          return std::unexpected(named.error());
-        }
-        return Channel(std::make_shared<ChannelState>(std::move(named).value()));
-      }
-      case Mode::Mpsc: {
-        auto named = create_named_mpsc_state(config);
-        if (!named) {
-          return std::unexpected(named.error());
-        }
-        return Channel(std::make_shared<ChannelState>(std::move(named).value()));
-      }
-      case Mode::Mpmc: {
-        auto named = create_named_mpmc_state(config);
-        if (!named) {
-          return std::unexpected(named.error());
-        }
-        return Channel(std::make_shared<ChannelState>(std::move(named).value()));
-      }
-      case Mode::Broadcast:
-      case Mode::Bulk:
-        return std::unexpected(Error::BadConfig);
-    }
-  }
-
-  auto create_core = [&config]<class CoreChannel>() -> Result<Channel> {
-    auto created = CoreChannel::create(core_config(config));
-    if (!created) {
-      return std::unexpected(map_channel_error(created.error()));
-    }
-    return Channel(std::make_shared<ChannelState>(std::move(created).value()));
-  };
-
-  switch (config.mode) {
-    case Mode::Spsc:
-      return create_core.template operator()<channel::SpscChannel<>>();
-    case Mode::Mpsc:
-      return create_core.template operator()<channel::MpscChannel<>>();
-    case Mode::Broadcast:
-      return create_core.template operator()<channel::BroadcastChannel<>>();
-    case Mode::Bulk:
-      return create_core.template operator()<channel::BulkChannel<>>();
-    case Mode::Mpmc:
-      return std::unexpected(Error::BadConfig);
-  }
-  return std::unexpected(Error::BadConfig);
-}
-
-// 连接已有命名 SPSC 通道。
-Result<Channel> Channel::connect(std::string_view name) {
-  auto named = connect_named_spsc_state(name);
-  if (named) {
-    return Channel(std::make_shared<ChannelState>(std::move(named).value()));
-  }
-  if (named.error() != Error::BadConfig) {
+  Config typed_config = config;
+  typed_config.mode = M;
+  auto named = ChannelTraits<M>::create(typed_config);
+  if (!named) {
     return std::unexpected(named.error());
   }
-
-  auto mpsc = connect_named_mpsc_state(name);
-  if (mpsc) {
-    return Channel(std::make_shared<ChannelState>(std::move(mpsc).value()));
-  }
-  if (mpsc.error() != Error::BadConfig) {
-    return std::unexpected(mpsc.error());
-  }
-
-  auto mpmc = connect_named_mpmc_state(name);
-  if (!mpmc) {
-    return std::unexpected(mpmc.error());
-  }
-  return Channel(std::make_shared<ChannelState>(std::move(mpmc).value()));
+  return Channel(std::make_shared<ChannelState<M>>(std::move(named).value()));
 }
 
-// 创建共享当前通道状态的发布外观。
-Publisher Channel::publisher() noexcept {
-  return Publisher(state_);
+template <Mode M>
+Result<Channel<M>> Channel<M>::connect(std::string_view name) {
+  auto named = ChannelTraits<M>::connect(name);
+  if (!named) {
+    return std::unexpected(named.error());
+  }
+  return Channel(std::make_shared<ChannelState<M>>(std::move(named).value()));
 }
 
-// 创建订阅外观；broadcast 模式下会分配订阅索引。
-Subscriber Channel::subscriber() noexcept {
-  std::uint32_t subscription_index = 0;
-  std::visit(
-      [&subscription_index](auto& core_channel) {
-        using Core = std::decay_t<decltype(core_channel)>;
-        if constexpr (std::is_same_v<Core, channel::BroadcastChannel<>> ||
-                      std::is_same_v<Core, NamedMpmcState>) {
-          auto index = core_channel.subscribe_index();
-          subscription_index = index.value_or(Core::kInvalidSubscriber);
-        }
-      },
-      state_->channel);
-  return Subscriber(state_, subscription_index);
+template <Mode M>
+Publisher<M> Channel<M>::publisher() noexcept {
+  const std::uint32_t producer_id =
+      state_->channel.acquire_producer_id().value_or(kInvalidEndpoint);
+  return Publisher<M>(std::make_shared<PublisherEndpoint<M>>(state_, producer_id));
 }
 
-// 保存发布端使用的共享通道状态。
-Publisher::Publisher(std::shared_ptr<ChannelState> state) noexcept : state_(std::move(state)) {}
+template <Mode M>
+Subscriber<M> Channel<M>::subscriber() noexcept {
+  const std::uint32_t consumer_id =
+      state_->channel.acquire_consumer_id().value_or(kInvalidEndpoint);
+  return Subscriber<M>(std::make_shared<SubscriberEndpoint<M>>(state_, consumer_id));
+}
 
-// 创建绑定到共享通道状态的公共发布 claim。
-PublishClaim::PublishClaim(std::shared_ptr<ChannelState> state, std::span<std::byte> payload,
-                           std::uint64_t start_pos, std::uint32_t payload_len,
-                           std::uint32_t meta) noexcept
-    : state_(std::move(state)),
-      payload_(payload),
-      start_pos_(start_pos),
-      payload_len_(payload_len),
-      meta_(meta),
-      committed_(false) {}
+template <Mode M>
+Publisher<M>::Publisher(std::shared_ptr<PublisherEndpoint<M>> endpoint) noexcept
+    : endpoint_(std::move(endpoint)) {}
 
-// 转移 claim 所有权，并使来源对象不能再提交。
-PublishClaim::PublishClaim(PublishClaim&& other) noexcept
-    : state_(std::move(other.state_)),
-      payload_(other.payload_),
-      start_pos_(other.start_pos_),
-      payload_len_(other.payload_len_),
-      meta_(other.meta_),
-      committed_(other.committed_) {
-  other.payload_ = {};
+template <Mode M>
+PublishClaim<M>::PublishClaim(std::shared_ptr<PublisherEndpoint<M>> endpoint,
+                              flow::Claim claim) noexcept
+    : endpoint_(std::move(endpoint)), claim_(claim), committed_(false) {}
+
+template <Mode M>
+PublishClaim<M>::PublishClaim(PublishClaim&& other) noexcept
+    : endpoint_(std::move(other.endpoint_)), claim_(other.claim_), committed_(other.committed_) {
+  other.claim_ = {};
   other.committed_ = true;
 }
 
-// 丢弃当前 claim 句柄后，转移另一个 claim 的提交权。
-PublishClaim& PublishClaim::operator=(PublishClaim&& other) noexcept {
+template <Mode M>
+PublishClaim<M>& PublishClaim<M>::operator=(PublishClaim&& other) noexcept {
   if (this != &other) {
-    state_ = std::move(other.state_);
-    payload_ = other.payload_;
-    start_pos_ = other.start_pos_;
-    payload_len_ = other.payload_len_;
-    meta_ = other.meta_;
+    endpoint_ = std::move(other.endpoint_);
+    claim_ = other.claim_;
     committed_ = other.committed_;
-    other.payload_ = {};
+    other.claim_ = {};
     other.committed_ = true;
   }
   return *this;
 }
 
-// 返回 claim 预留的可写 payload 区域。
-std::span<std::byte> PublishClaim::payload() noexcept { return payload_; }
+template <Mode M>
+std::span<std::byte> PublishClaim<M>::payload() noexcept {
+  return claim_.payload;
+}
 
-// 通过当前激活的核心通道发布 claim。
-void PublishClaim::commit() noexcept {
-  if (committed_ || !state_) {
+template <Mode M>
+void PublishClaim<M>::commit() noexcept {
+  if (committed_ || endpoint_ == nullptr || !endpoint_->valid ||
+      claim_.producer_id == kInvalidEndpoint) {
     return;
   }
-
-  flow::Claim claim{
-      .payload = payload_,
-      .start_pos = start_pos_,
-      .payload_len = payload_len_,
-      .meta = meta_,
-  };
-  std::visit(
-      [&claim](auto& core_channel) {
-        auto tx = core_channel.tx();
-        tx.commit(claim);
-      },
-      state_->channel);
-
-  payload_ = {};
+  endpoint_->tx.commit(claim_);
+  claim_ = {};
   committed_ = true;
-  state_.reset();
+  endpoint_.reset();
 }
 
-// 通过当前激活的核心通道预留一条可原地写入的 payload。
-Result<PublishClaim> Publisher::try_claim(std::size_t payload_len) noexcept {
-  if (payload_len > std::numeric_limits<std::uint32_t>::max()) {
-    return std::unexpected(Error::MessageTooLarge);
+template <Mode M>
+Result<PublishClaim<M>> Publisher<M>::try_claim(std::size_t payload_len) noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid ||
+      payload_len > std::numeric_limits<std::uint32_t>::max()) {
+    return std::unexpected(payload_len > std::numeric_limits<std::uint32_t>::max()
+                               ? Error::MessageTooLarge
+                               : Error::BadConfig);
   }
-
-  std::optional<flow::FlowError> error;
-  std::optional<flow::Claim> claim;
-  const auto len = static_cast<std::uint32_t>(payload_len);
-  std::visit(
-      [len, &error, &claim](auto& core_channel) {
-        auto tx = core_channel.tx();
-        auto claimed = tx.claim(len);
-        if (!claimed) {
-          error = claimed.error();
-          return;
-        }
-        claim = claimed.value();
-      },
-      state_->channel);
-
-  if (error.has_value()) {
-    return std::unexpected(map_flow_error(*error));
+  auto claim = endpoint_->tx.claim(static_cast<std::uint32_t>(payload_len));
+  if (!claim) {
+    return std::unexpected(map_flow_error(claim.error()));
   }
-  return PublishClaim(state_, claim->payload, claim->start_pos, claim->payload_len, claim->meta);
+  return PublishClaim<M>(endpoint_, claim.value());
 }
 
-// 通过当前激活的核心通道实现发布一条 payload。
-Result<bool> Publisher::offer(std::span<const std::byte> payload) noexcept {
-  std::optional<flow::FlowError> error;
-  bool value = false;
-  std::visit(
-      [&payload, &error, &value](auto& core_channel) {
-        auto tx = core_channel.tx();
-        auto offered = tx.offer(payload);
-        if (!offered) {
-          error = offered.error();
-          return;
-        }
-        value = offered.value();
-      },
-      state_->channel);
-  if (error.has_value()) {
-    return std::unexpected(map_flow_error(*error));
+template <Mode M>
+Result<bool> Publisher<M>::offer(std::span<const std::byte> payload) noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return std::unexpected(Error::BadConfig);
   }
-  return value;
+  auto offered = endpoint_->tx.offer(payload);
+  if (!offered) {
+    return std::unexpected(map_flow_error(offered.error()));
+  }
+  return offered.value();
 }
 
-// 保存共享通道状态和可选 broadcast 订阅索引。
-Subscriber::Subscriber(std::shared_ptr<ChannelState> state,
-                       std::uint32_t subscription_index) noexcept
-    : state_(std::move(state)), subscription_index_(subscription_index) {}
-
-// 通过当前激活的核心通道实现非阻塞接收一条消息。
-std::optional<Message> Subscriber::try_recv() noexcept {
-  std::optional<flow::Message> message;
-  std::visit(
-      [this, &message](auto& core_channel) {
-        using Core = std::decay_t<decltype(core_channel)>;
-        if constexpr (std::is_same_v<Core, channel::BroadcastChannel<>> ||
-                      std::is_same_v<Core, NamedMpmcState>) {
-          auto rx = core_channel.rx(subscription_index_);
-          message = rx.try_recv();
-        } else {
-          auto rx = core_channel.rx();
-          message = rx.try_recv();
-        }
-      },
-      state_->channel);
-  if (!message) {
-    return std::nullopt;
+template <Mode M>
+Result<std::size_t> Publisher<M>::offer_batch(
+    std::span<const std::span<const std::byte>> payloads) noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return std::unexpected(Error::BadConfig);
   }
-  return to_public_message(*message);
+  if (payloads.empty()) {
+    return std::size_t{0};
+  }
+  const std::size_t first_size = payloads.front().size();
+  bool uniform = true;
+  for (const auto payload : payloads) {
+    if (payload.size() > std::numeric_limits<std::uint32_t>::max()) {
+      return std::unexpected(Error::MessageTooLarge);
+    }
+    uniform = uniform && payload.size() == first_size;
+  }
+  if (uniform) {
+    const std::uint32_t limit = payloads.size() > std::numeric_limits<std::uint32_t>::max()
+                                    ? std::numeric_limits<std::uint32_t>::max()
+                                    : static_cast<std::uint32_t>(payloads.size());
+    auto batch = endpoint_->tx.claim_batch(static_cast<std::uint32_t>(first_size), limit);
+    if (!batch) {
+      return std::unexpected(map_flow_error(batch.error()));
+    }
+    for (std::uint32_t index = 0; index < batch->frame_count; ++index) {
+      auto destination = batch->region.subspan(
+          static_cast<std::size_t>(index) * batch->frame_len + frame::kHeaderSize, first_size);
+      if (first_size != 0) {
+        std::memcpy(destination.data(), payloads[index].data(), first_size);
+      }
+    }
+    endpoint_->tx.commit_batch(batch.value());
+    return batch->frame_count;
+  }
+  std::size_t published = 0;
+  for (const auto payload : payloads) {
+    auto offered = endpoint_->tx.offer(payload);
+    if (!offered) {
+      return published == 0 ? Result<std::size_t>{std::unexpected(map_flow_error(offered.error()))}
+                            : Result<std::size_t>{published};
+    }
+    ++published;
+  }
+  return published;
 }
 
-// 批量轮询当前激活的核心通道，并在回调后释放每条消息。
-std::size_t Subscriber::poll(std::uint32_t max_messages, PollCallback callback,
-                             void* user) noexcept {
-  if (max_messages == 0 || callback == nullptr) {
+template <Mode M>
+Subscriber<M>::Subscriber(std::shared_ptr<SubscriberEndpoint<M>> endpoint) noexcept
+    : endpoint_(std::move(endpoint)) {}
+
+template <Mode M>
+std::optional<Message> Subscriber<M>::try_recv() noexcept {
+  return endpoint_ == nullptr || !endpoint_->valid ? std::nullopt : endpoint_->rx.try_recv();
+}
+
+template <Mode M>
+std::size_t Subscriber<M>::poll(std::uint32_t max_messages, PollCallback callback,
+                                void* user) noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid || max_messages == 0 || callback == nullptr) {
     return 0;
   }
-
   std::size_t consumed = 0;
-  std::visit(
-      [this, callback, user, max_messages, &consumed](auto& core_channel) {
-        using Core = std::decay_t<decltype(core_channel)>;
-        if constexpr (std::is_same_v<Core, channel::BroadcastChannel<>> ||
-                      std::is_same_v<Core, NamedMpmcState>) {
-          auto rx = core_channel.rx(subscription_index_);
-          while (consumed < max_messages) {
-            auto message = rx.try_recv();
-            if (!message) {
-              return;
-            }
-            const Message public_message = to_public_message(*message);
-            callback(public_message, user);
-            rx.release(*message);
-            ++consumed;
-          }
-        } else {
-          auto rx = core_channel.rx();
-          while (consumed < max_messages) {
-            auto message = rx.try_recv();
-            if (!message) {
-              return;
-            }
-            const Message public_message = to_public_message(*message);
-            callback(public_message, user);
-            rx.release(*message);
-            ++consumed;
-          }
-        }
-      },
-      state_->channel);
+  while (consumed < max_messages) {
+    auto message = endpoint_->rx.try_recv();
+    if (!message) {
+      break;
+    }
+    callback(*message, user);
+    endpoint_->rx.release(*message);
+    ++consumed;
+  }
   return consumed;
 }
 
-// 通过当前激活的核心通道实现等待接收一条消息。
-Message Subscriber::recv() noexcept {
-  std::optional<flow::Message> message;
-  std::visit(
-      [this, &message](auto& core_channel) {
-        using Core = std::decay_t<decltype(core_channel)>;
-        if constexpr (std::is_same_v<Core, channel::BroadcastChannel<>> ||
-                      std::is_same_v<Core, NamedMpmcState>) {
-          auto rx = core_channel.rx(subscription_index_);
-          message = rx.recv();
-        } else {
-          auto rx = core_channel.rx();
-          message = rx.recv();
-        }
-      },
-      state_->channel);
-  return to_public_message(*message);
+template <Mode M>
+Message Subscriber<M>::recv() noexcept {
+  return endpoint_->rx.recv();
 }
 
-// 通过当前激活的核心通道实现释放一条消息。
-void Subscriber::release(const Message& message) noexcept {
-  const flow::Message flow_message = to_flow_message(message);
-  std::visit(
-      [this, &flow_message](auto& core_channel) {
-        using Core = std::decay_t<decltype(core_channel)>;
-        if constexpr (std::is_same_v<Core, channel::BroadcastChannel<>> ||
-                      std::is_same_v<Core, NamedMpmcState>) {
-          auto rx = core_channel.rx(subscription_index_);
-          rx.release(flow_message);
-        } else {
-          auto rx = core_channel.rx();
-          rx.release(flow_message);
-        }
-      },
-      state_->channel);
+template <Mode M>
+void Subscriber<M>::release(const Message& message) noexcept {
+  if (endpoint_ != nullptr && endpoint_->valid) {
+    endpoint_->rx.release(message);
+  }
 }
+
+#define SALIAS_INSTANTIATE_MODE(mode)      \
+  template class Channel<Mode::mode>;      \
+  template class Publisher<Mode::mode>;    \
+  template class PublishClaim<Mode::mode>; \
+  template class Subscriber<Mode::mode>
+
+SALIAS_INSTANTIATE_MODE(FifoMpsc);
+SALIAS_INSTANTIATE_MODE(FifoFanout);
+SALIAS_INSTANTIATE_MODE(OrderedMpsc);
+SALIAS_INSTANTIATE_MODE(OrderedFanout);
+
+#undef SALIAS_INSTANTIATE_MODE
 
 }  // namespace salias

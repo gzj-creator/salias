@@ -15,6 +15,28 @@ are released.
 
 ### Added
 
+- Redesigned the channel layer onto a per-producer hybrid magic-ring engine
+  (`hybrid_control.hpp`, `hybrid_mpsc.hpp`, `shared_hybrid_mpsc.hpp`) where each
+  producer owns a private ring and the consumer merges by `global_seq`, replacing
+  the single-ring CAS MPSC/MPMC designs.
+- Exposed four public channel modes through `salias::Mode`
+  (`FifoMpsc` / `FifoFanout` / `OrderedMpsc` / `OrderedFanout`): FIFO modes keep
+  the producer hot path free of shared read-modify-write, ordered modes establish
+  cross-producer global total order via a single `global_seq.fetch_add`.
+- Added `salias::HugePage` (`None` / `Size2MB` / `Size1GB`) on the public
+  `Config`, mapping to `memfd_create(MFD_HUGETLB)` in-process and
+  hugetlbfs-backed named IPC rings.
+- Added runnable MPSC/MPMC publisher/subscriber examples under `example/` with a
+  CTest smoke script.
+- Added sampled p50/p99 one-way latency reporting to the salias and Aeron IPC
+  comparison tools, backed by a header-only logarithmic histogram helper
+  (`latency_histogram.hpp`) and unit tests.
+- Added frame sequence split/encode helpers (`frame/sequence.hpp`) carrying the
+  24-bit in-header sequence plus side high bits.
+- Added design and implementation plan docs under `doc/plans/` for the hybrid
+  ring, dual-engine redesign, huge page support, named huge IPC, throughput /
+  CAS-backoff optimization, example pub/sub, and IPC latency sampling, plus a
+  Tencent CVM Aeron comparison report.
 - Initialized the Linux-only C++20 CMake project structure for salias.
 - Added the documented layered source layout under `src/`, covering platform,
   ring, frame, flow, wait strategy, channel, metrics, and public API modules.
@@ -49,6 +71,11 @@ are released.
 
 ### Changed
 
+- Rewrote the public `salias` layer (`channel.cpp`, `channel.hpp`, `config.hpp`,
+  `message.hpp`, `publisher.hpp`, `subscriber.hpp`) onto the four-mode
+  per-producer engine.
+- Rewrote `README.md` to describe the converged per-producer engine and the four
+  modes, trimming the stale per-layer implementation status.
 - Migrated the build and public/core result types to C++23 `std::expected`,
   removing the custom platform result wrapper and the `tl-expected` dependency.
 - Expanded README coverage for the current API surface, Linux runtime
@@ -59,6 +86,17 @@ are released.
   `--poll-limit` option for fairer comparison with Aeron's fragment limit.
 - Updated the Aeron comparison runner to use forked producer/subscriber
   endpoints for both salias named IPC and Aeron IPC.
+
+### Removed
+
+- Removed the now-redundant channel implementations (`broadcast`, `bulk`, `mpsc`,
+  `spsc`, `shared_mpmc`, `shared_mpsc`, `shared_spsc`, `channel_config`), the L6
+  metrics module (`counters` / `layout` / `reader` / `error`), the platform futex
+  primitive, and the `futex_wait` / `busy_spin` / `yielding` wait strategies,
+  consolidating the wait layer onto `SpinPause` plus the hybrid engine.
+- Removed the obsolete `channel_compare` and `smoke` benchmarks and the
+  broadcast / bulk / mpsc / spsc / metrics / futex / wait-strategy unit tests,
+  superseded by the hybrid channel and latency-histogram tests.
 
 ### Fixed
 

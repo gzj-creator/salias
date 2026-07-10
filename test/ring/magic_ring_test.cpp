@@ -1,5 +1,3 @@
-#include "core/platform/mapping.hpp"
-#include "core/ring/cache_aligned.hpp"
 #include "core/ring/magic_ring.hpp"
 
 #include <gtest/gtest.h>
@@ -10,25 +8,25 @@
 #include <cstdint>
 #include <cstring>
 
+#include "core/platform/mapping.hpp"
+
 namespace {
 
 using salias::platform::MapOptions;
 using salias::platform::Mapping;
-using salias::ring::CacheAligned;
 using salias::ring::MagicRing;
 using salias::ring::RingError;
 
 // 将 byte 值转为无符号整数，便于断言阅读。
-unsigned byte_value(std::byte value) noexcept {
-  return std::to_integer<unsigned>(value);
-}
+unsigned byte_value(std::byte value) noexcept { return std::to_integer<unsigned>(value); }
 
 // 验证双映射能让跨尾切片保持地址连续。
 TEST(MagicRingTest, SlicesAreContiguousAcrossCapacityBoundary) {
   const long raw_page_size = ::sysconf(_SC_PAGESIZE);
   ASSERT_GT(raw_page_size, 0);
 
-  auto mapping_result = Mapping::create(MapOptions{.size = static_cast<std::size_t>(raw_page_size)});
+  auto mapping_result =
+      Mapping::create(MapOptions{.size = static_cast<std::size_t>(raw_page_size)});
   ASSERT_TRUE(mapping_result);
 
   auto ring_result = MagicRing::create(std::move(mapping_result).value());
@@ -76,7 +74,8 @@ TEST(MagicRingTest, ReportsFitAgainstSingleCapacity) {
   const long raw_page_size = ::sysconf(_SC_PAGESIZE);
   ASSERT_GT(raw_page_size, 0);
 
-  auto mapping_result = Mapping::create(MapOptions{.size = static_cast<std::size_t>(raw_page_size)});
+  auto mapping_result =
+      Mapping::create(MapOptions{.size = static_cast<std::size_t>(raw_page_size)});
   ASSERT_TRUE(mapping_result);
   auto ring_result = MagicRing::create(std::move(mapping_result).value());
   ASSERT_TRUE(ring_result);
@@ -88,10 +87,4 @@ TEST(MagicRingTest, ReportsFitAgainstSingleCapacity) {
 }
 
 // 验证 cache-aligned 包装占用破坏性干扰大小的存储。
-TEST(CacheAlignedTest, OccupiesAtLeastOneDestructiveInterferenceLine) {
-  static_assert(alignof(CacheAligned<std::uint64_t>) >= salias::ring::kCacheLine);
-  static_assert(sizeof(CacheAligned<std::uint64_t>) >= salias::ring::kCacheLine);
-  static_assert(sizeof(CacheAligned<std::uint64_t>) % salias::ring::kCacheLine == 0);
-}
-
 }  // namespace

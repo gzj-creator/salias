@@ -11,7 +11,6 @@ enum class PlatformError {
   UnmapFailed,
   HugePageUnavailable,
   NumaUnavailable,
-  FutexFailed,
   InvalidSize,
 };
 

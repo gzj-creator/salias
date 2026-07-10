@@ -9,6 +9,7 @@ namespace salias::wait {
 // 跨进程策略要求 word 位于 MAP_SHARED 内存。
 template <class Strategy>
 concept WaitStrategy = requires(Strategy strategy, std::uint32_t* word, std::uint32_t expected) {
+  { strategy.needs_wake() } -> std::same_as<bool>;
   { strategy.wait(word, expected) } -> std::same_as<void>;
   { strategy.wake(word) } -> std::same_as<void>;
   { strategy.reset() } -> std::same_as<void>;

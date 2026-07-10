@@ -1,4 +1,5 @@
 #include <benchmark/benchmark.h>
+#include <unistd.h>
 
 #include <array>
 #include <atomic>
@@ -21,15 +22,20 @@ struct SmallPayload {
 };
 
 // 按 benchmark 模式和容量构造公共通道配置。
-salias::Config config_for(salias::Mode mode, std::size_t capacity = 1u << 20) {
+salias::Config config_for(salias::Mode mode, std::size_t capacity = 1u << 20,
+                          std::uint32_t producers = 1) {
   salias::Config config;
+  config.name = "salias-bench-stress-" + std::to_string(::getpid()) + "-" +
+                std::to_string(static_cast<int>(mode));
   config.mode = mode;
   config.capacity = capacity;
+  config.num_producers = producers;
   return config;
 }
 
 // 持续重试发布，直到成功或遇到非背压错误。
-bool offer_until_accepted(salias::Publisher& publisher, std::span<const std::byte> payload) {
+template <salias::Mode M>
+bool offer_until_accepted(salias::Publisher<M>& publisher, std::span<const std::byte> payload) {
   for (;;) {
     auto offered = publisher.offer(payload);
     if (offered && offered.value()) {
@@ -50,8 +56,8 @@ SmallPayload decode_small(std::span<const std::byte> payload) {
 }
 
 // 测量同线程内 64 字节 payload 的 SPSC 发布/接收往返。
-void BM_spsc_roundtrip_64b(benchmark::State& state) {
-  auto channel_result = salias::Channel::create(config_for(salias::Mode::Spsc));
+void BM_fifo_roundtrip_64b(benchmark::State& state) {
+  auto channel_result = salias::FifoMpscChannel::create(config_for(salias::Mode::FifoMpsc));
   if (!channel_result) {
     state.SkipWithError("failed to create SPSC channel");
     return;
@@ -80,75 +86,9 @@ void BM_spsc_roundtrip_64b(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
 }
 
-// 测量 64 字节 payload 广播到两个订阅者的往返。
-void BM_broadcast_two_subscribers_64b(benchmark::State& state) {
-  auto channel_result = salias::Channel::create(config_for(salias::Mode::Broadcast));
-  if (!channel_result) {
-    state.SkipWithError("failed to create Broadcast channel");
-    return;
-  }
-
-  auto channel = std::move(channel_result).value();
-  auto publisher = channel.publisher();
-  auto first = channel.subscriber();
-  auto second = channel.subscriber();
-  SmallPayload payload{};
-
-  for (auto _ : state) {
-    if (!offer_until_accepted(publisher, std::as_bytes(std::span{&payload, 1}))) {
-      state.SkipWithError("Broadcast offer failed");
-      break;
-    }
-
-    auto first_message = first.try_recv();
-    auto second_message = second.try_recv();
-    if (!first_message || !second_message) {
-      state.SkipWithError("Broadcast subscriber missed committed message");
-      break;
-    }
-    benchmark::DoNotOptimize(first_message->payload.data());
-    benchmark::DoNotOptimize(second_message->payload.data());
-    first.release(*first_message);
-    second.release(*second_message);
-  }
-
-  state.SetItemsProcessed(state.iterations());
-  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload) * 2));
-}
-
-// 测量 128 KiB payload 的 bulk 往返。
-void BM_bulk_roundtrip_128k(benchmark::State& state) {
-  auto channel_result = salias::Channel::create(config_for(salias::Mode::Bulk));
-  if (!channel_result) {
-    state.SkipWithError("failed to create Bulk channel");
-    return;
-  }
-
-  auto channel = std::move(channel_result).value();
-  auto publisher = channel.publisher();
-  auto subscriber = channel.subscriber();
-  std::vector<std::byte> payload(128 * 1024, std::byte{0x5A});
-
-  for (auto _ : state) {
-    if (!offer_until_accepted(publisher, payload)) {
-      state.SkipWithError("Bulk offer failed");
-      break;
-    }
-    auto message = subscriber.try_recv();
-    if (!message) {
-      state.SkipWithError("Bulk receive missed committed message");
-      break;
-    }
-    benchmark::DoNotOptimize(message->payload.data());
-    subscriber.release(*message);
-  }
-
-  state.SetItemsProcessed(state.iterations());
-  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(payload.size()));
-}
-
 // 测量四个生产者线程和一个消费者下的 MPSC 吞吐。
-void BM_mpsc_four_producers_64b(benchmark::State& state) {
+template <salias::Mode M>
+void BM_four_producers_64b(benchmark::State& state) {
   constexpr std::uint32_t kProducerCount = 4;
   const auto messages_per_producer = static_cast<std::uint32_t>(state.range(0));
   const std::uint64_t total_messages =
@@ -156,7 +96,7 @@ void BM_mpsc_four_producers_64b(benchmark::State& state) {
 
   for (auto _ : state) {
     state.PauseTiming();
-    auto channel_result = salias::Channel::create(config_for(salias::Mode::Mpsc, 1u << 20));
+    auto channel_result = salias::Channel<M>::create(config_for(M, 1u << 20, kProducerCount));
     if (!channel_result) {
       state.SkipWithError("failed to create MPSC channel");
       return;
@@ -207,12 +147,10 @@ void BM_mpsc_four_producers_64b(benchmark::State& state) {
     }
     state.PauseTiming();
 
-    const std::uint64_t expected_producer_sum =
-        static_cast<std::uint64_t>(messages_per_producer) * (kProducerCount - 1) *
-        kProducerCount / 2;
-    const std::uint64_t expected_seq_sum =
-        static_cast<std::uint64_t>(kProducerCount) * (messages_per_producer - 1) *
-        messages_per_producer / 2;
+    const std::uint64_t expected_producer_sum = static_cast<std::uint64_t>(messages_per_producer) *
+                                                (kProducerCount - 1) * kProducerCount / 2;
+    const std::uint64_t expected_seq_sum = static_cast<std::uint64_t>(kProducerCount) *
+                                           (messages_per_producer - 1) * messages_per_producer / 2;
     if (failed.load(std::memory_order_acquire) || producer_sum != expected_producer_sum ||
         seq_sum != expected_seq_sum) {
       state.SkipWithError("MPSC checksum mismatch");
@@ -228,9 +166,12 @@ void BM_mpsc_four_producers_64b(benchmark::State& state) {
 
 }  // namespace
 
-BENCHMARK(BM_spsc_roundtrip_64b)->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_broadcast_two_subscribers_64b)->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_bulk_roundtrip_128k)->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_mpsc_four_producers_64b)->Arg(65536)->Unit(benchmark::kMillisecond);
+BENCHMARK(BM_fifo_roundtrip_64b)->Unit(benchmark::kMicrosecond);
+BENCHMARK_TEMPLATE(BM_four_producers_64b, salias::Mode::FifoMpsc)
+    ->Arg(65536)
+    ->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_four_producers_64b, salias::Mode::OrderedMpsc)
+    ->Arg(65536)
+    ->Unit(benchmark::kMillisecond);
 
 BENCHMARK_MAIN();

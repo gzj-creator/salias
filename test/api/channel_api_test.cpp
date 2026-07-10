@@ -1,738 +1,366 @@
-#include "salias/salias.hpp"
-
 #include <gtest/gtest.h>
-#include <fcntl.h>
-#include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <array>
 #include <atomic>
-#include <cerrno>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <limits>
+#include <span>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
+
+#include "salias/salias.hpp"
 
 namespace {
 
-inline constexpr std::uint32_t kTestNamedMagic = 0x53414C43u;
-inline constexpr std::uint32_t kTestNamedVersion = 1;
-inline constexpr std::size_t kTestControlSize = 4096;
+static_assert(!std::is_copy_constructible_v<salias::PublishClaim<salias::Mode::FifoMpsc>>);
+static_assert(!std::is_same_v<salias::FifoMpscChannel, salias::OrderedMpscChannel>);
+static_assert(!std::is_same_v<salias::FifoFanoutChannel, salias::OrderedFanoutChannel>);
 
-struct alignas(64) TestNamedSpscControl {
-  std::uint32_t magic = 0;
-  std::uint32_t version = 0;
-  std::uint32_t mode = 0;
-  std::uint32_t flags = 0;
-  std::uint64_t capacity = 0;
-  std::uint64_t record_size = 0;
-  std::uint32_t ready = 0;
-  std::uint32_t wait_word = 0;
-  std::byte pad[64 - 40]{};
-  alignas(64) std::uint64_t producer_pos = 0;
-  alignas(64) std::uint64_t consumer_pos = 0;
+struct Payload {
+  std::uint32_t producer = 0;
+  std::uint32_t sequence = 0;
 };
 
-// 构造与生产命名通道约定一致的 POSIX shm 控制块名称。
-std::string control_shm_name(std::string_view name) {
-  return "/salias-" + std::string(name) + "-ctl";
-}
-
-// 为测试创建页大小的默认公共通道配置。
-salias::Config test_config() {
-  const long raw_page_size = ::sysconf(_SC_PAGESIZE);
-  EXPECT_GT(raw_page_size, 0);
-  salias::Config config;
-  config.capacity = static_cast<std::size_t>(raw_page_size);
-  return config;
-}
-
-// 为命名通道测试构造当前进程唯一的名称后缀。
 std::string unique_name(std::string_view suffix) {
-  return "salias-test-" + std::to_string(::getpid()) + "-" + std::string(suffix);
+  static std::atomic<std::uint32_t> counter = 0;
+  return "channel-api-" + std::to_string(::getpid()) + "-" +
+         std::to_string(counter.fetch_add(1, std::memory_order_relaxed)) + "-" +
+         std::string(suffix);
 }
 
-// 为 connect() 校验测试写入合成命名通道控制块。
-void write_control_shm(std::string_view name, const TestNamedSpscControl& control) {
-  const std::string control_name = control_shm_name(name);
-  static_cast<void>(::shm_unlink(control_name.c_str()));
-  const int fd = ::shm_open(control_name.c_str(), O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600);
-  ASSERT_GE(fd, 0);
-  ASSERT_EQ(::ftruncate(fd, static_cast<off_t>(kTestControlSize)), 0);
-  void* mapped =
-      ::mmap(nullptr, kTestControlSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-  ASSERT_NE(mapped, MAP_FAILED);
-  std::memcpy(mapped, &control, sizeof(control));
-  auto* shared = static_cast<TestNamedSpscControl*>(mapped);
-  std::atomic_ref<std::uint32_t>(shared->ready).store(control.ready, std::memory_order_release);
-  ASSERT_EQ(::munmap(mapped, kTestControlSize), 0);
-  ASSERT_EQ(::close(fd), 0);
+salias::Config config_for(salias::Mode mode, std::string_view suffix) {
+  return salias::Config{
+      .name = unique_name(suffix),
+      .mode = mode,
+      .capacity = 4096,
+      .num_producers = 1,
+      .num_consumers = 1,
+  };
 }
 
-// 删除测试创建的合成命名通道控制块。
-void unlink_control_shm(std::string_view name) {
-  const std::string control_name = control_shm_name(name);
-  static_cast<void>(::shm_unlink(control_name.c_str()));
+std::array<std::byte, sizeof(Payload)> encode(Payload payload) {
+  std::array<std::byte, sizeof(Payload)> bytes{};
+  std::memcpy(bytes.data(), &payload, sizeof(payload));
+  return bytes;
 }
 
-// 在限定时间内等待多个子进程报告 ready，避免失败路径让测试永久阻塞在 pipe 上。
-bool wait_for_ready_bytes(int fd, std::size_t expected) {
-  int flags = ::fcntl(fd, F_GETFL, 0);
-  if (flags < 0 || ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) != 0) {
-    return false;
-  }
+Payload decode(std::span<const std::byte> payload) {
+  Payload value{};
+  std::memcpy(&value, payload.data(), sizeof(value));
+  return value;
+}
 
-  std::size_t ready = 0;
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-  while (ready < expected && std::chrono::steady_clock::now() < deadline) {
-    char byte = 0;
-    const ssize_t read_count = ::read(fd, &byte, 1);
-    if (read_count == 1) {
-      if (byte != 'r') {
-        return false;
-      }
-      ++ready;
-      continue;
-    }
-    if (read_count == 0) {
-      return false;
-    }
-    if (errno != EAGAIN && errno != EWOULDBLOCK) {
-      return false;
+template <salias::Mode M>
+salias::Message wait_for_message(salias::Subscriber<M>& subscriber) {
+  for (int attempt = 0; attempt < 100000; ++attempt) {
+    if (auto message = subscriber.try_recv(); message.has_value()) {
+      return *message;
     }
     std::this_thread::yield();
   }
-  return ready == expected;
+  return {};
 }
 
-// 验证公共进程内 SPSC offer/try_recv/release 路径。
-TEST(ChannelApiTest, InProcessSpscOfferAndTryRecv) {
-  auto channel_result = salias::Channel::create(test_config());
-  ASSERT_TRUE(channel_result);
-  auto channel = std::move(channel_result).value();
-
-  salias::Publisher publisher = channel.publisher();
-  salias::Subscriber subscriber = channel.subscriber();
-
-  constexpr std::array payload{
-      std::byte{0x61},
-      std::byte{0x62},
-      std::byte{0x63},
-  };
-
-  auto offered = publisher.offer(payload);
-  ASSERT_TRUE(offered);
-  EXPECT_TRUE(offered.value());
-
-  auto message = subscriber.try_recv();
-  ASSERT_TRUE(message.has_value());
-  ASSERT_EQ(message->payload.size(), payload.size());
-  for (std::size_t i = 0; i < payload.size(); ++i) {
-    EXPECT_EQ(message->payload[i], payload[i]) << "payload byte " << i;
-  }
-
-  subscriber.release(*message);
-  EXPECT_FALSE(subscriber.try_recv().has_value());
-}
-
-// 验证批量 poll 会按顺序消费可用消息并自动释放 ring 空间。
-TEST(ChannelApiTest, PollDrainsAvailableMessagesAndAutoReleasesThem) {
-  auto channel_result = salias::Channel::create(test_config());
-  ASSERT_TRUE(channel_result);
-  auto channel = std::move(channel_result).value();
-
+TEST(ChannelApiTest, FifoMpscClaimOfferAndPersistentSubscriberRoundTrip) {
+  auto created =
+      salias::FifoMpscChannel::create(config_for(salias::Mode::FifoMpsc, "fifo-roundtrip"));
+  ASSERT_TRUE(created);
+  auto channel = std::move(created).value();
   auto publisher = channel.publisher();
   auto subscriber = channel.subscriber();
 
-  std::array first{std::byte{0x11}};
-  std::array second{std::byte{0x22}};
-  ASSERT_TRUE(publisher.offer(first));
+  auto first_claim = publisher.try_claim(sizeof(Payload));
+  ASSERT_TRUE(first_claim);
+  const Payload first{.producer = 0, .sequence = 1};
+  std::memcpy(first_claim->payload().data(), &first, sizeof(first));
+  EXPECT_FALSE(subscriber.try_recv().has_value());
+  first_claim->commit();
+
+  auto first_message = subscriber.try_recv();
+  ASSERT_TRUE(first_message);
+  EXPECT_EQ(decode(first_message->payload).sequence, 1u);
+  subscriber.release(*first_message);
+
+  const auto second = encode(Payload{.producer = 0, .sequence = 2});
   ASSERT_TRUE(publisher.offer(second));
+  auto second_message = subscriber.try_recv();
+  ASSERT_TRUE(second_message);
+  EXPECT_EQ(second_message->sequence, 1u);
+  EXPECT_EQ(decode(second_message->payload).sequence, 2u);
+  subscriber.release(*second_message);
+}
 
-  std::vector<unsigned> seen;
+TEST(ChannelApiTest, PollKeepsReceiverCursorAcrossBatches) {
+  auto created =
+      salias::FifoMpscChannel::create(config_for(salias::Mode::FifoMpsc, "persistent-poll"));
+  ASSERT_TRUE(created);
+  auto channel = std::move(created).value();
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 10})));
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 11})));
+
+  std::vector<std::uint32_t> seen;
   auto handler = [&seen](const salias::Message& message) noexcept {
-    seen.push_back(std::to_integer<unsigned>(message.payload.front()));
+    seen.push_back(decode(message.payload).sequence);
   };
-
-  EXPECT_EQ(subscriber.poll(64, handler), 2u);
-  ASSERT_EQ(seen.size(), 2u);
-  EXPECT_EQ(seen[0], 0x11u);
-  EXPECT_EQ(seen[1], 0x22u);
-  EXPECT_FALSE(subscriber.try_recv().has_value());
-
-  std::array third{std::byte{0x33}};
-  ASSERT_TRUE(publisher.offer(third));
-  auto next = subscriber.try_recv();
-  ASSERT_TRUE(next);
-  EXPECT_EQ(next->payload.front(), std::byte{0x33});
-  subscriber.release(*next);
+  EXPECT_EQ(subscriber.poll(1, handler), 1u);
+  EXPECT_EQ(subscriber.poll(1, handler), 1u);
+  EXPECT_EQ(seen, (std::vector<std::uint32_t>{10, 11}));
 }
 
-// 验证 max_messages 为 0 时 poll 不调用 handler，也不消费消息。
-TEST(ChannelApiTest, PollWithZeroLimitDoesNotCallHandler) {
-  auto channel_result = salias::Channel::create(test_config());
-  ASSERT_TRUE(channel_result);
-  auto channel = std::move(channel_result).value();
-
-  auto publisher = channel.publisher();
-  auto subscriber = channel.subscriber();
-
-  std::array payload{std::byte{0x44}};
-  ASSERT_TRUE(publisher.offer(payload));
-
-  bool called = false;
-  auto handler = [&called](const salias::Message&) noexcept { called = true; };
-
-  EXPECT_EQ(subscriber.poll(0, handler), 0u);
-  EXPECT_FALSE(called);
-
-  auto message = subscriber.try_recv();
-  ASSERT_TRUE(message);
-  EXPECT_EQ(message->payload.front(), std::byte{0x44});
-  subscriber.release(*message);
-}
-
-// 验证公共 try_claim/commit 可以原地写入 payload，并且 commit 前消费者不可见。
-TEST(ChannelApiTest, PublisherClaimWritesInPlaceAndCommitsMessage) {
-  auto channel_result = salias::Channel::create(test_config());
-  ASSERT_TRUE(channel_result);
-  auto channel = std::move(channel_result).value();
-
-  auto publisher = channel.publisher();
-  auto subscriber = channel.subscriber();
-
-  auto claim_result = publisher.try_claim(3);
-  ASSERT_TRUE(claim_result);
-  auto claim = std::move(claim_result).value();
-  ASSERT_EQ(claim.payload().size(), 3u);
-  claim.payload()[0] = std::byte{0x41};
-  claim.payload()[1] = std::byte{0x42};
-  claim.payload()[2] = std::byte{0x43};
-
-  EXPECT_FALSE(subscriber.try_recv().has_value());
-  claim.commit();
-
-  auto message = subscriber.try_recv();
-  ASSERT_TRUE(message);
-  ASSERT_EQ(message->payload.size(), 3u);
-  EXPECT_EQ(message->payload[0], std::byte{0x41});
-  EXPECT_EQ(message->payload[1], std::byte{0x42});
-  EXPECT_EQ(message->payload[2], std::byte{0x43});
-  subscriber.release(*message);
-}
-
-// 验证当前握手实现仍会拒绝尚未支持的命名 Broadcast 模式。
-TEST(ChannelApiTest, RejectsUnsupportedNamedBroadcastHandshakeForNow) {
-  salias::Config config = test_config();
-  config.name = unique_name("named-broadcast");
-  config.mode = salias::Mode::Broadcast;
-
-  auto channel = salias::Channel::create(config);
-
-  ASSERT_FALSE(channel);
-  EXPECT_EQ(channel.error(), salias::Error::BadConfig);
-}
-
-// 验证命名 MPSC 通道支持多个跨进程 publisher 和单个 owner subscriber。
-TEST(ChannelApiTest, NamedMpscAcceptsMultiplePublisherProcesses) {
-  salias::Config config = test_config();
-  config.name = unique_name("named-mpsc");
-  config.mode = salias::Mode::Mpsc;
-
-  auto owner_result = salias::Channel::create(config);
-  ASSERT_TRUE(owner_result);
-  auto owner = std::move(owner_result).value();
-  auto subscriber = owner.subscriber();
-
-  auto spawn_publisher = [&](std::byte value) -> pid_t {
-    const pid_t pid = ::fork();
-    if (pid < 0) {
-      ADD_FAILURE() << "fork failed";
-      return -1;
-    }
-    if (pid == 0) {
-      auto peer_result = salias::Channel::connect(config.name);
-      if (!peer_result) {
-        _exit(10);
-      }
-      auto peer = std::move(peer_result).value();
-      auto publisher = peer.publisher();
-      std::array payload{value};
-      auto offered = publisher.offer(payload);
-      if (!offered || !offered.value()) {
-        _exit(11);
-      }
-      _exit(0);
-    }
-    return pid;
-  };
-
-  const pid_t first_pid = spawn_publisher(std::byte{0x51});
-  const pid_t second_pid = spawn_publisher(std::byte{0x52});
-
-  std::vector<unsigned> seen;
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-  while (seen.size() < 2 && std::chrono::steady_clock::now() < deadline) {
-    auto message = subscriber.try_recv();
-    if (!message) {
-      std::this_thread::yield();
-      continue;
-    }
-    seen.push_back(std::to_integer<unsigned>(message->payload.front()));
-    subscriber.release(*message);
-  }
-
-  int first_status = 0;
-  int second_status = 0;
-  ASSERT_EQ(::waitpid(first_pid, &first_status, 0), first_pid);
-  ASSERT_EQ(::waitpid(second_pid, &second_status, 0), second_pid);
-  ASSERT_TRUE(WIFEXITED(first_status));
-  ASSERT_TRUE(WIFEXITED(second_status));
-  EXPECT_EQ(WEXITSTATUS(first_status), 0);
-  EXPECT_EQ(WEXITSTATUS(second_status), 0);
-
-  ASSERT_EQ(seen.size(), 2u);
-  EXPECT_NE(std::find(seen.begin(), seen.end(), 0x51u), seen.end());
-  EXPECT_NE(std::find(seen.begin(), seen.end(), 0x52u), seen.end());
-}
-
-// 验证命名 MPMC fanout 语义：每个跨进程 subscriber 都收到每个 publisher 的消息。
-TEST(ChannelApiTest, NamedMpmcFanoutDeliversEveryPublisherMessageToEverySubscriberProcess) {
-  salias::Config config = test_config();
-  config.name = unique_name("named-mpmc");
-  config.mode = salias::Mode::Mpmc;
-
-  auto owner_result = salias::Channel::create(config);
-  ASSERT_TRUE(owner_result);
-  auto owner = std::move(owner_result).value();
-
-  int ready_fds[2]{};
-  ASSERT_EQ(::pipe(ready_fds), 0);
-
-  auto spawn_subscriber = [&]() -> pid_t {
-    const pid_t pid = ::fork();
-    if (pid < 0) {
-      ADD_FAILURE() << "fork failed";
-      return -1;
-    }
-    if (pid == 0) {
-      close(ready_fds[0]);
-      auto peer_result = salias::Channel::connect(config.name);
-      if (!peer_result) {
-        _exit(20);
-      }
-      auto peer = std::move(peer_result).value();
-      auto subscriber = peer.subscriber();
-      const char ready = 'r';
-      if (::write(ready_fds[1], &ready, 1) != 1) {
-        _exit(21);
-      }
-      close(ready_fds[1]);
-
-      std::array<bool, 2> seen{};
-      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-      while ((!seen[0] || !seen[1]) && std::chrono::steady_clock::now() < deadline) {
-        auto message = subscriber.try_recv();
-        if (!message) {
-          std::this_thread::yield();
-          continue;
-        }
-        if (message->payload.size() != 1) {
-          _exit(22);
-        }
-        const unsigned value = std::to_integer<unsigned>(message->payload.front());
-        if (value == 0x61u) {
-          seen[0] = true;
-        } else if (value == 0x62u) {
-          seen[1] = true;
-        } else {
-          _exit(23);
-        }
-        subscriber.release(*message);
-      }
-      _exit(seen[0] && seen[1] ? 0 : 24);
-    }
-    return pid;
-  };
-
-  const pid_t first_subscriber = spawn_subscriber();
-  const pid_t second_subscriber = spawn_subscriber();
-  close(ready_fds[1]);
-  ASSERT_TRUE(wait_for_ready_bytes(ready_fds[0], 2));
-  close(ready_fds[0]);
-
-  auto spawn_publisher = [&](std::byte value) -> pid_t {
-    const pid_t pid = ::fork();
-    if (pid < 0) {
-      ADD_FAILURE() << "fork failed";
-      return -1;
-    }
-    if (pid == 0) {
-      auto peer_result = salias::Channel::connect(config.name);
-      if (!peer_result) {
-        _exit(30);
-      }
-      auto peer = std::move(peer_result).value();
-      auto publisher = peer.publisher();
-      std::array payload{value};
-      auto offered = publisher.offer(payload);
-      if (!offered || !offered.value()) {
-        _exit(31);
-      }
-      _exit(0);
-    }
-    return pid;
-  };
-
-  const pid_t first_publisher = spawn_publisher(std::byte{0x61});
-  const pid_t second_publisher = spawn_publisher(std::byte{0x62});
-
-  std::array pids{first_publisher, second_publisher, first_subscriber, second_subscriber};
-  for (const pid_t pid : pids) {
-    int status = 0;
-    ASSERT_EQ(::waitpid(pid, &status, 0), pid);
-    ASSERT_TRUE(WIFEXITED(status)) << "pid=" << pid << " status=" << status;
-    EXPECT_EQ(WEXITSTATUS(status), 0) << "pid=" << pid;
-  }
-}
-
-// 验证命名 SPSC 通道无需驱动进程即可跨 fork 通信。
-TEST(ChannelApiTest, NamedSpscConnectsAcrossForkWithoutDriver) {
-  salias::Config config = test_config();
-  config.name = unique_name("named-spsc");
-  config.mode = salias::Mode::Spsc;
-
-  auto owner_result = salias::Channel::create(config);
-  ASSERT_TRUE(owner_result);
-  auto owner = std::move(owner_result).value();
-  auto publisher = owner.publisher();
-
-  const pid_t child = ::fork();
-  ASSERT_NE(child, -1);
-  if (child == 0) {
-    auto peer_result = salias::Channel::connect(config.name);
-    if (!peer_result) {
-      _exit(10);
-    }
-    auto peer = std::move(peer_result).value();
-    auto subscriber = peer.subscriber();
-
-    for (int attempt = 0; attempt < 1000; ++attempt) {
-      auto message = subscriber.try_recv();
-      if (!message) {
-        std::this_thread::yield();
-        continue;
-      }
-      constexpr std::array expected{std::byte{0x41}, std::byte{0x42}, std::byte{0x43}};
-      if (message->payload.size() != expected.size()) {
-        _exit(11);
-      }
-      if (std::memcmp(message->payload.data(), expected.data(), expected.size()) != 0) {
-        _exit(12);
-      }
-      subscriber.release(*message);
-      _exit(0);
-    }
-    _exit(13);
-  }
-
-  constexpr std::array payload{std::byte{0x41}, std::byte{0x42}, std::byte{0x43}};
-  auto offered = publisher.offer(payload);
-  ASSERT_TRUE(offered);
-
-  int status = 0;
-  ASSERT_EQ(::waitpid(child, &status, 0), child);
-  ASSERT_TRUE(WIFEXITED(status));
-  EXPECT_EQ(WEXITSTATUS(status), 0);
-}
-
-// 验证 connect() 可以先于拥有者发布 ready metadata 启动。
-TEST(ChannelApiTest, NamedSpscPeerCanStartBeforeOwnerPublishesReady) {
-  salias::Config config = test_config();
-  config.name = unique_name("peer-first");
-  config.mode = salias::Mode::Spsc;
-
-  int pipe_fds[2]{};
-  ASSERT_EQ(::pipe(pipe_fds), 0);
-
-  const pid_t child = ::fork();
-  ASSERT_NE(child, -1);
-  if (child == 0) {
-    close(pipe_fds[0]);
-    const char started = 's';
-    if (::write(pipe_fds[1], &started, 1) != 1) {
-      _exit(20);
-    }
-    close(pipe_fds[1]);
-
-    auto peer_result = salias::Channel::connect(config.name);
-    if (!peer_result) {
-      _exit(21);
-    }
-    auto peer = std::move(peer_result).value();
-    auto subscriber = peer.subscriber();
-    for (int attempt = 0; attempt < 1000; ++attempt) {
-      auto message = subscriber.try_recv();
-      if (!message) {
-        std::this_thread::yield();
-        continue;
-      }
-      if (message->payload.size() != 1 || message->payload[0] != std::byte{0x55}) {
-        _exit(22);
-      }
-      subscriber.release(*message);
-      _exit(0);
-    }
-    _exit(23);
-  }
-
-  close(pipe_fds[1]);
-  char started = 0;
-  ASSERT_EQ(::read(pipe_fds[0], &started, 1), 1);
-  close(pipe_fds[0]);
-  ASSERT_EQ(started, 's');
-
-  int early_status = 0;
-  bool child_exited_before_owner = false;
-  for (int attempt = 0; attempt < 100; ++attempt) {
-    const pid_t observed = ::waitpid(child, &early_status, WNOHANG);
-    ASSERT_NE(observed, -1);
-    if (observed == child) {
-      child_exited_before_owner = true;
-      break;
-    }
-    std::this_thread::yield();
-  }
-  ASSERT_FALSE(child_exited_before_owner)
-      << "connect returned before the owner created the named channel, status=" << early_status;
-
-  auto owner_result = salias::Channel::create(config);
-  ASSERT_TRUE(owner_result);
-  auto owner = std::move(owner_result).value();
-  auto publisher = owner.publisher();
-  constexpr std::array payload{std::byte{0x55}};
-  ASSERT_TRUE(publisher.offer(payload));
-
-  int status = 0;
-  ASSERT_EQ(::waitpid(child, &status, 0), child);
-  ASSERT_TRUE(WIFEXITED(status));
-  EXPECT_EQ(WEXITSTATUS(status), 0);
-}
-
-// 验证 connect() 会拒绝不兼容的命名通道 metadata 版本。
-TEST(ChannelApiTest, NamedConnectRejectsVersionMismatchMetadata) {
-  const std::string name = unique_name("bad-version");
-  TestNamedSpscControl control{};
-  control.magic = kTestNamedMagic;
-  control.version = kTestNamedVersion + 1;
-  control.mode = static_cast<std::uint32_t>(salias::Mode::Spsc);
-  control.capacity = test_config().capacity;
-  control.ready = 1;
-  write_control_shm(name, control);
-
-  auto connected = salias::Channel::connect(name);
-
-  EXPECT_FALSE(connected);
-  EXPECT_EQ(connected.error(), salias::Error::VersionMismatch);
-  unlink_control_shm(name);
-}
-
-// 验证 connect() 在映射 ring 前会拒绝损坏的容量 metadata。
-TEST(ChannelApiTest, NamedConnectRejectsDamagedCapacityBeforeOpeningRing) {
-  const std::string name = unique_name("bad-capacity");
-  TestNamedSpscControl control{};
-  control.magic = kTestNamedMagic;
-  control.version = kTestNamedVersion;
-  control.mode = static_cast<std::uint32_t>(salias::Mode::Spsc);
-  control.capacity = 3;
-  control.ready = 1;
-  write_control_shm(name, control);
-
-  auto connected = salias::Channel::connect(name);
-
-  EXPECT_FALSE(connected);
-  EXPECT_EQ(connected.error(), salias::Error::BadConfig);
-  unlink_control_shm(name);
-}
-
-// 验证 connect() 会拒绝不可信的命名通道 metadata 字段。
-TEST(ChannelApiTest, NamedConnectRejectsUntrustedMetadataBeforeOpeningRing) {
-  struct BadMetaCase {
-    const char* suffix;
-    std::uint32_t mode;
-    std::uint64_t capacity;
-    std::uint64_t record_size;
-  };
-
-  const std::uint64_t valid_capacity = test_config().capacity;
-  const std::array cases{
-      BadMetaCase{
-          .suffix = "bad-mode",
-          .mode = static_cast<std::uint32_t>(salias::Mode::Broadcast),
-          .capacity = valid_capacity,
-          .record_size = 0,
-      },
-      BadMetaCase{
-          .suffix = "zero-capacity",
-          .mode = static_cast<std::uint32_t>(salias::Mode::Spsc),
-          .capacity = 0,
-          .record_size = 0,
-      },
-      BadMetaCase{
-          .suffix = "non-power-two-capacity",
-          .mode = static_cast<std::uint32_t>(salias::Mode::Spsc),
-          .capacity = 3,
-          .record_size = 0,
-      },
-      BadMetaCase{
-          .suffix = "huge-capacity",
-          .mode = static_cast<std::uint32_t>(salias::Mode::Spsc),
-          .capacity = std::numeric_limits<std::uint64_t>::max(),
-          .record_size = 0,
-      },
-      BadMetaCase{
-          .suffix = "unexpected-record-size",
-          .mode = static_cast<std::uint32_t>(salias::Mode::Spsc),
-          .capacity = valid_capacity,
-          .record_size = 8,
-      },
-  };
-
-  for (const auto& bad : cases) {
-    const std::string name = unique_name(bad.suffix);
-    TestNamedSpscControl control{};
-    control.magic = kTestNamedMagic;
-    control.version = kTestNamedVersion;
-    control.mode = bad.mode;
-    control.capacity = bad.capacity;
-    control.record_size = bad.record_size;
-    control.ready = 1;
-    write_control_shm(name, control);
-
-    auto connected = salias::Channel::connect(name);
-
-    EXPECT_FALSE(connected) << bad.suffix;
-    if (!connected) {
-      EXPECT_EQ(connected.error(), salias::Error::BadConfig) << bad.suffix;
-    }
-    unlink_control_shm(name);
-  }
-}
-
-// 验证公共 MPSC 外观接受多个 publisher 的 offer。
-TEST(ChannelApiTest, InProcessMpscAcceptsMultiplePublishers) {
-  salias::Config config = test_config();
-  config.mode = salias::Mode::Mpsc;
-
-  auto channel_result = salias::Channel::create(config);
-  ASSERT_TRUE(channel_result);
-  auto channel = std::move(channel_result).value();
-
+TEST(ChannelApiTest, FifoMpscConsumesReadyProducerWithoutGlobalGap) {
+  auto config = config_for(salias::Mode::FifoMpsc, "fifo-order");
+  config.num_producers = 2;
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(created).value();
   auto first_publisher = channel.publisher();
   auto second_publisher = channel.publisher();
   auto subscriber = channel.subscriber();
 
-  constexpr std::array first_payload{std::byte{0x10}, std::byte{0x11}};
-  constexpr std::array second_payload{std::byte{0x20}, std::byte{0x21}};
-
-  ASSERT_TRUE(first_publisher.offer(first_payload));
-  ASSERT_TRUE(second_publisher.offer(second_payload));
-
-  auto first = subscriber.try_recv();
+  auto first = first_publisher.try_claim(sizeof(Payload));
   ASSERT_TRUE(first);
-  EXPECT_EQ(first->payload[0], std::byte{0x10});
-  subscriber.release(*first);
+  ASSERT_TRUE(second_publisher.offer(encode(Payload{.producer = 1, .sequence = 20})));
 
-  auto second = subscriber.try_recv();
-  ASSERT_TRUE(second);
-  EXPECT_EQ(second->payload[0], std::byte{0x20});
-  subscriber.release(*second);
+  auto second_message = subscriber.try_recv();
+  ASSERT_TRUE(second_message);
+  EXPECT_EQ(second_message->producer_id, 1u);
+  subscriber.release(*second_message);
+
+  const Payload first_payload{.producer = 0, .sequence = 10};
+  std::memcpy(first->payload().data(), &first_payload, sizeof(first_payload));
+  first->commit();
+  auto first_message = subscriber.try_recv();
+  ASSERT_TRUE(first_message);
+  EXPECT_EQ(first_message->producer_id, 0u);
+  subscriber.release(*first_message);
 }
 
-// 验证独立 broadcast 订阅者都会收到同一条已发布消息。
-TEST(ChannelApiTest, InProcessBroadcastSubscribersEachReceiveAllMessages) {
-  salias::Config config = test_config();
-  config.mode = salias::Mode::Broadcast;
+TEST(ChannelApiTest, OrderedMpscWaitsForEarlierGlobalSequence) {
+  auto config = config_for(salias::Mode::OrderedMpsc, "ordered-mpsc");
+  config.num_producers = 2;
+  auto created = salias::OrderedMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(created).value();
+  auto first_publisher = channel.publisher();
+  auto second_publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
 
-  auto channel_result = salias::Channel::create(config);
-  ASSERT_TRUE(channel_result);
-  auto channel = std::move(channel_result).value();
+  auto first = first_publisher.try_claim(sizeof(Payload));
+  auto second = second_publisher.try_claim(sizeof(Payload));
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(second);
+  const Payload second_payload{.producer = 1, .sequence = 20};
+  std::memcpy(second->payload().data(), &second_payload, sizeof(second_payload));
+  second->commit();
+  EXPECT_FALSE(subscriber.try_recv().has_value());
 
+  const Payload first_payload{.producer = 0, .sequence = 10};
+  std::memcpy(first->payload().data(), &first_payload, sizeof(first_payload));
+  first->commit();
+  auto first_message = subscriber.try_recv();
+  ASSERT_TRUE(first_message);
+  EXPECT_EQ(first_message->sequence, 0u);
+  subscriber.release(*first_message);
+  auto second_message = subscriber.try_recv();
+  ASSERT_TRUE(second_message);
+  EXPECT_EQ(second_message->sequence, 1u);
+  subscriber.release(*second_message);
+}
+
+TEST(ChannelApiTest, FifoFanoutDeliversEachMessageToEverySubscriber) {
+  auto config = config_for(salias::Mode::FifoFanout, "fifo-fanout");
+  config.num_consumers = 2;
+  auto created = salias::FifoFanoutChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(created).value();
   auto publisher = channel.publisher();
   auto first_subscriber = channel.subscriber();
   auto second_subscriber = channel.subscriber();
 
-  constexpr std::array payload{std::byte{0x31}, std::byte{0x32}, std::byte{0x33}};
-  ASSERT_TRUE(publisher.offer(payload));
-
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 7})));
   auto first = first_subscriber.try_recv();
-  ASSERT_TRUE(first);
-  EXPECT_EQ(first->payload[0], std::byte{0x31});
-  first_subscriber.release(*first);
-
   auto second = second_subscriber.try_recv();
+  ASSERT_TRUE(first);
   ASSERT_TRUE(second);
-  EXPECT_EQ(second->payload[0], std::byte{0x31});
+  EXPECT_EQ(decode(first->payload).sequence, 7u);
+  EXPECT_EQ(decode(second->payload).sequence, 7u);
+  first_subscriber.release(*first);
   second_subscriber.release(*second);
 }
 
-// 验证公共 bulk 外观接受大的单帧 payload。
-TEST(ChannelApiTest, InProcessBulkAcceptsLargeSingleFrameMessage) {
-  salias::Config config;
-  config.mode = salias::Mode::Bulk;
-  config.capacity = 1u << 20;
+TEST(ChannelApiTest, OrderedFanoutPreservesGlobalOrderForEverySubscriber) {
+  auto config = config_for(salias::Mode::OrderedFanout, "ordered-fanout");
+  config.num_producers = 2;
+  config.num_consumers = 2;
+  auto created = salias::OrderedFanoutChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(created).value();
+  auto first_publisher = channel.publisher();
+  auto second_publisher = channel.publisher();
+  auto first_subscriber = channel.subscriber();
+  auto second_subscriber = channel.subscriber();
 
-  auto channel_result = salias::Channel::create(config);
-  ASSERT_TRUE(channel_result);
-  auto channel = std::move(channel_result).value();
+  auto first = first_publisher.try_claim(sizeof(Payload));
+  auto second = second_publisher.try_claim(sizeof(Payload));
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(second);
+  second->commit();
+  EXPECT_FALSE(first_subscriber.try_recv().has_value());
+  EXPECT_FALSE(second_subscriber.try_recv().has_value());
+  first->commit();
 
-  auto publisher = channel.publisher();
-  auto subscriber = channel.subscriber();
+  auto first_a = first_subscriber.try_recv();
+  auto first_b = second_subscriber.try_recv();
+  ASSERT_TRUE(first_a);
+  ASSERT_TRUE(first_b);
+  EXPECT_EQ(first_a->sequence, 0u);
+  EXPECT_EQ(first_b->sequence, 0u);
+  first_subscriber.release(*first_a);
+  second_subscriber.release(*first_b);
 
-  std::vector<std::byte> payload(128 * 1024, std::byte{0x5A});
-  ASSERT_TRUE(publisher.offer(payload));
-
-  auto message = subscriber.try_recv();
-  ASSERT_TRUE(message);
-  EXPECT_EQ(message->payload.size(), payload.size());
-  EXPECT_EQ(message->payload.front(), std::byte{0x5A});
-  EXPECT_EQ(message->payload.back(), std::byte{0x5A});
-  subscriber.release(*message);
+  auto second_a = first_subscriber.try_recv();
+  auto second_b = second_subscriber.try_recv();
+  ASSERT_TRUE(second_a);
+  ASSERT_TRUE(second_b);
+  EXPECT_EQ(second_a->sequence, 1u);
+  EXPECT_EQ(second_b->sequence, 1u);
+  first_subscriber.release(*second_a);
+  second_subscriber.release(*second_b);
 }
 
-// 验证 ring 回绕后新建 publisher 端点状态仍遵守背压。
-TEST(ChannelApiTest, RecreatedPublisherStateStillBackpressuresAfterRingWrap) {
-  salias::Config config = test_config();
-  auto channel_result = salias::Channel::create(config);
-  ASSERT_TRUE(channel_result);
-  auto channel = std::move(channel_result).value();
-
+TEST(ChannelApiTest, OfferBatchPublishesContiguousMessages) {
+  auto created = salias::FifoMpscChannel::create(config_for(salias::Mode::FifoMpsc, "batch"));
+  ASSERT_TRUE(created);
+  auto channel = std::move(created).value();
   auto publisher = channel.publisher();
   auto subscriber = channel.subscriber();
-  std::vector<std::byte> payload(512, std::byte{0x6B});
 
-  for (int i = 0; i < 8; ++i) {
-    auto offered = publisher.offer(payload);
-    ASSERT_TRUE(offered);
+  const auto first = encode(Payload{.sequence = 1});
+  const auto second = encode(Payload{.sequence = 2});
+  const std::array<std::span<const std::byte>, 2> payloads{first, second};
+  auto published = publisher.offer_batch(payloads);
+  ASSERT_TRUE(published);
+  EXPECT_EQ(published.value(), 2u);
+
+  for (std::uint32_t expected = 1; expected <= 2; ++expected) {
     auto message = subscriber.try_recv();
     ASSERT_TRUE(message);
+    EXPECT_EQ(decode(message->payload).sequence, expected);
     subscriber.release(*message);
   }
+}
 
-  for (int i = 0; i < 7; ++i) {
-    auto offered = publisher.offer(payload);
-    ASSERT_TRUE(offered);
+TEST(ChannelApiTest, ConnectRejectsDifferentMode) {
+  auto config = config_for(salias::Mode::FifoMpsc, "mode-mismatch");
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto connected = salias::OrderedMpscChannel::connect(config.name);
+  ASSERT_FALSE(connected);
+  EXPECT_EQ(connected.error(), salias::Error::BadConfig);
+}
+
+TEST(ChannelApiTest, RejectsInvalidProducerAndConsumerCounts) {
+  auto producer_config = config_for(salias::Mode::FifoMpsc, "bad-producers");
+  producer_config.num_producers = 0;
+  auto no_producers = salias::FifoMpscChannel::create(producer_config);
+  ASSERT_FALSE(no_producers);
+  EXPECT_EQ(no_producers.error(), salias::Error::BadConfig);
+
+  auto single_config = config_for(salias::Mode::OrderedMpsc, "bad-single-consumers");
+  single_config.num_consumers = 2;
+  auto multiple_consumers = salias::OrderedMpscChannel::create(single_config);
+  ASSERT_FALSE(multiple_consumers);
+  EXPECT_EQ(multiple_consumers.error(), salias::Error::BadConfig);
+
+  auto fanout_config = config_for(salias::Mode::FifoFanout, "bad-fanout-consumers");
+  fanout_config.num_consumers = 9;
+  auto too_many_consumers = salias::FifoFanoutChannel::create(fanout_config);
+  ASSERT_FALSE(too_many_consumers);
+  EXPECT_EQ(too_many_consumers.error(), salias::Error::BadConfig);
+}
+
+TEST(ChannelApiTest, ExhaustedEndpointSlotsReturnBadConfigOnUse) {
+  auto config = config_for(salias::Mode::FifoFanout, "slot-exhaustion");
+  config.num_producers = 1;
+  config.num_consumers = 1;
+  auto created = salias::FifoFanoutChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(created).value();
+  auto first_publisher = channel.publisher();
+  auto exhausted_publisher = channel.publisher();
+  auto first_subscriber = channel.subscriber();
+  auto exhausted_subscriber = channel.subscriber();
+
+  ASSERT_TRUE(first_publisher.offer(encode(Payload{.sequence = 1})));
+  auto rejected = exhausted_publisher.offer(encode(Payload{.sequence = 2}));
+  ASSERT_FALSE(rejected);
+  EXPECT_EQ(rejected.error(), salias::Error::BadConfig);
+  EXPECT_FALSE(exhausted_subscriber.try_recv().has_value());
+
+  auto message = first_subscriber.try_recv();
+  ASSERT_TRUE(message);
+  first_subscriber.release(*message);
+}
+
+TEST(ChannelApiTest, HugePageCapacityMustBeAligned) {
+  auto config = config_for(salias::Mode::FifoMpsc, "huge-alignment");
+  config.huge = salias::HugePage::Size2MB;
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_FALSE(created);
+  EXPECT_EQ(created.error(), salias::Error::BadConfig);
+}
+
+TEST(ChannelApiTest, MultiplePublisherProcessesShareProducerSlots) {
+  auto config = config_for(salias::Mode::FifoMpsc, "fork-publishers");
+  config.num_producers = 2;
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto owner = std::move(created).value();
+  auto subscriber = owner.subscriber();
+
+  std::array<pid_t, 2> children{};
+  for (std::uint32_t producer = 0; producer < children.size(); ++producer) {
+    children[producer] = ::fork();
+    ASSERT_GE(children[producer], 0);
+    if (children[producer] == 0) {
+      auto connected = salias::FifoMpscChannel::connect(config.name);
+      if (!connected) {
+        ::_exit(10);
+      }
+      auto peer = std::move(connected).value();
+      auto publisher = peer.publisher();
+      auto offered = publisher.offer(encode(Payload{.producer = producer, .sequence = 1}));
+      ::_exit(offered ? 0 : 11);
+    }
   }
 
-  auto blocked = publisher.offer(payload);
-  ASSERT_FALSE(blocked);
-  EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
+  std::array<bool, 2> seen{};
+  for (std::size_t received = 0; received < children.size(); ++received) {
+    auto message = wait_for_message(subscriber);
+    ASSERT_FALSE(message.payload.empty());
+    const Payload payload = decode(message.payload);
+    ASSERT_LT(payload.producer, seen.size());
+    seen[payload.producer] = true;
+    subscriber.release(message);
+  }
+  EXPECT_TRUE(seen[0]);
+  EXPECT_TRUE(seen[1]);
+
+  for (const pid_t child : children) {
+    int status = 0;
+    ASSERT_EQ(::waitpid(child, &status, 0), child);
+    ASSERT_TRUE(WIFEXITED(status));
+    EXPECT_EQ(WEXITSTATUS(status), 0);
+  }
 }
 
 }  // namespace

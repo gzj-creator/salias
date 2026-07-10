@@ -1,10 +1,7 @@
 add_library(salias_core STATIC
-  platform/futex.cpp
   platform/mapping.cpp
   flow/consumer.cpp
   flow/producer.cpp
-  metrics/counters.cpp
-  metrics/reader.cpp
   ring/magic_ring.cpp
 )
 

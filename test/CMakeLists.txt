@@ -1,8 +1,28 @@
 find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
 
+add_executable(salias_latency_histogram_tests
+  tools/latency_histogram_test.cpp
+)
+target_include_directories(salias_latency_histogram_tests PRIVATE "${PROJECT_SOURCE_DIR}")
+target_link_libraries(salias_latency_histogram_tests PRIVATE GTest::gtest_main)
+
+salias_enable_warnings(salias_latency_histogram_tests)
+salias_enable_sanitizers(salias_latency_histogram_tests)
+
+if(SALIAS_ENABLE_TSAN)
+  find_program(SALIAS_SETARCH_EXECUTABLE setarch REQUIRED)
+  add_test(
+    NAME salias_latency_histogram_tests
+    COMMAND
+      "${SALIAS_SETARCH_EXECUTABLE}" "${CMAKE_SYSTEM_PROCESSOR}" "-R"
+      "$<TARGET_FILE:salias_latency_histogram_tests>"
+  )
+else()
+  gtest_discover_tests(salias_latency_histogram_tests)
+endif()
+
 add_executable(salias_platform_tests
-  platform/futex_test.cpp
   platform/mapping_test.cpp
 )
 target_link_libraries(salias_platform_tests PRIVATE salias_core GTest::gtest_main)
@@ -80,30 +100,8 @@ else()
   gtest_discover_tests(salias_flow_tests)
 endif()
 
-add_executable(salias_wait_tests
-  wait/wait_strategy_test.cpp
-)
-target_link_libraries(salias_wait_tests PRIVATE salias_core GTest::gtest_main)
-
-salias_enable_warnings(salias_wait_tests)
-salias_enable_sanitizers(salias_wait_tests)
-
-if(SALIAS_ENABLE_TSAN)
-  add_test(
-    NAME salias_wait_tests
-    COMMAND
-      "${SALIAS_SETARCH_EXECUTABLE}" "${CMAKE_SYSTEM_PROCESSOR}" "-R"
-      "$<TARGET_FILE:salias_wait_tests>"
-  )
-else()
-  gtest_discover_tests(salias_wait_tests)
-endif()
-
 add_executable(salias_channel_tests
-  channel/broadcast_channel_test.cpp
-  channel/bulk_channel_test.cpp
-  channel/mpsc_channel_test.cpp
-  channel/spsc_channel_test.cpp
+  channel/hybrid_mpsc_channel_test.cpp
 )
 target_link_libraries(salias_channel_tests PRIVATE salias_core GTest::gtest_main)
 
@@ -119,25 +117,6 @@ if(SALIAS_ENABLE_TSAN)
   )
 else()
   gtest_discover_tests(salias_channel_tests)
-endif()
-
-add_executable(salias_metrics_tests
-  metrics/counters_test.cpp
-)
-target_link_libraries(salias_metrics_tests PRIVATE salias_core GTest::gtest_main)
-
-salias_enable_warnings(salias_metrics_tests)
-salias_enable_sanitizers(salias_metrics_tests)
-
-if(SALIAS_ENABLE_TSAN)
-  add_test(
-    NAME salias_metrics_tests
-    COMMAND
-      "${SALIAS_SETARCH_EXECUTABLE}" "${CMAKE_SYSTEM_PROCESSOR}" "-R"
-      "$<TARGET_FILE:salias_metrics_tests>"
-  )
-else()
-  gtest_discover_tests(salias_metrics_tests)
 endif()
 
 add_executable(salias_api_tests

@@ -11,8 +11,27 @@ POLL_LIMIT="${POLL_LIMIT:-64}"
 FRAGMENT_LIMIT="${FRAGMENT_LIMIT:-64}"
 ROUNDS="${ROUNDS:-5}"
 WARMUP_ROUNDS="${WARMUP_ROUNDS:-1}"
+SCENARIOS="${SCENARIOS:-fifo ordered}"
 MPSC_MESSAGES="${MPSC_MESSAGES:-200000}"
 MPMC_MESSAGES="${MPMC_MESSAGES:-200000}"
+HYBRID_MESSAGES="${HYBRID_MESSAGES:-${MPSC_MESSAGES}}"
+MPSC_PRODUCERS="${MPSC_PRODUCERS:-4}"
+MPSC_CONSUMERS="${MPSC_CONSUMERS:-1}"
+MPMC_PRODUCERS="${MPMC_PRODUCERS:-4}"
+MPMC_CONSUMERS="${MPMC_CONSUMERS:-2}"
+HYBRID_PRODUCERS="${HYBRID_PRODUCERS:-${MPSC_PRODUCERS}}"
+HYBRID_CONSUMERS="${HYBRID_CONSUMERS:-1}"
+SALIAS_PAGES="${SALIAS_PAGES:-normal huge2m huge1g}"
+SALIAS_BATCH_SIZE="${SALIAS_BATCH_SIZE:-1}"
+SALIAS_CAPACITY_NORMAL="${SALIAS_CAPACITY_NORMAL:-4194304}"
+SALIAS_CAPACITY_HUGE2M="${SALIAS_CAPACITY_HUGE2M:-4194304}"
+SALIAS_CAPACITY_HUGE1G="${SALIAS_CAPACITY_HUGE1G:-1073741824}"
+PIN_CPUS="${PIN_CPUS:-0}"
+CPU_BASE="${CPU_BASE:-0}"
+CPU_STRIDE="${CPU_STRIDE:-1}"
+AERON_DRIVER_CPU="${AERON_DRIVER_CPU:-}"
+AERON_TERM_LENGTH="${AERON_TERM_LENGTH:-${SALIAS_CAPACITY_NORMAL}}"
+LATENCY_SAMPLE_RATE="${LATENCY_SAMPLE_RATE:-0}"
 
 if [[ ! -f "${AERON_TARBALL}" ]]; then
   echo "missing Aeron tarball: ${AERON_TARBALL}" >&2
@@ -64,22 +83,62 @@ run_aeron() {
   local consumers="$4"
   local dir="/dev/shm/salias-aeron-${scenario}-$$"
   rm -rf "${dir}"
-  "${AERON_BUILD}/binaries/aeronmd" \
+  local driver_cmd=(
+    "${AERON_BUILD}/binaries/aeronmd"
     -Daeron.dir="${dir}" \
     -Daeron.dir.delete.on.start=true \
     -Daeron.term.buffer.sparse.file=false \
-    >/tmp/salias-aeronmd-${scenario}.log 2>&1 &
+    -Daeron.term.buffer.length="${AERON_TERM_LENGTH}"
+  )
+  local driver_cpu="${AERON_DRIVER_CPU}"
+  if [[ -z "${driver_cpu}" ]]; then
+    driver_cpu=$((CPU_BASE + (producers + consumers) * CPU_STRIDE))
+  fi
+  if [[ "${PIN_CPUS}" == "1" ]]; then
+    taskset -c "${driver_cpu}" "${driver_cmd[@]}" >/tmp/salias-aeronmd-${scenario}.log 2>&1 &
+  else
+    "${driver_cmd[@]}" >/tmp/salias-aeronmd-${scenario}.log 2>&1 &
+  fi
   local driver_pid=$!
-  sleep 1
+  local ready=0
+  for _ in $(seq 1 100); do
+    if [[ -e "${dir}/cnc.dat" ]]; then
+      ready=1
+      break
+    fi
+    if ! kill -0 "${driver_pid}" 2>/dev/null; then
+      cat /tmp/salias-aeronmd-${scenario}.log >&2
+      wait "${driver_pid}" 2>/dev/null || true
+      rm -rf "${dir}"
+      return 1
+    fi
+    sleep 0.1
+  done
+  if [[ "${ready}" -ne 1 ]]; then
+    echo "Aeron media driver did not create ${dir}/cnc.dat" >&2
+    cat /tmp/salias-aeronmd-${scenario}.log >&2
+    kill "${driver_pid}" 2>/dev/null || true
+    wait "${driver_pid}" 2>/dev/null || true
+    rm -rf "${dir}"
+    return 1
+  fi
   set +e
-  "${AERON_COMPARE}" \
+  local compare_cmd=(
+    "${AERON_COMPARE}"
     --dir "${dir}" \
     --scenario "${scenario}" \
     --messages "${messages}" \
     --producers "${producers}" \
     --consumers "${consumers}" \
     --payload "${PAYLOAD}" \
-    --fragment-limit "${FRAGMENT_LIMIT}"
+    --fragment-limit "${FRAGMENT_LIMIT}" \
+    --term-length "${AERON_TERM_LENGTH}" \
+    --latency-sample-rate "${LATENCY_SAMPLE_RATE}"
+  )
+  if [[ "${PIN_CPUS}" == "1" ]]; then
+    compare_cmd+=(--cpu-base "${CPU_BASE}" --cpu-stride "${CPU_STRIDE}")
+  fi
+  "${compare_cmd[@]}"
   local status=$?
   set -e
   kill "${driver_pid}" 2>/dev/null || true
@@ -94,37 +153,151 @@ run_salias_ipc() {
   local messages="$2"
   local producers="$3"
   local consumers="$4"
+  local page="$5"
+  local capacity
+  capacity="$(salias_capacity_for_page "${page}")"
   local name="compare-${scenario}-$$-${RANDOM}"
-  "${ROOT_DIR}/build/release/bench/salias_ipc_compare" \
+  local compare_cmd=(
+    "${ROOT_DIR}/build/release/bench/salias_ipc_compare"
     --scenario "${scenario}" \
     --messages "${messages}" \
     --producers "${producers}" \
     --consumers "${consumers}" \
     --payload "${PAYLOAD}" \
+    --capacity "${capacity}" \
+    --batch-size "${SALIAS_BATCH_SIZE}" \
     --poll-limit "${POLL_LIMIT}" \
-    --name "${name}"
+    --page "${page}" \
+    --name "${name}" \
+    --latency-sample-rate "${LATENCY_SAMPLE_RATE}"
+  )
+  if [[ "${PIN_CPUS}" == "1" ]]; then
+    compare_cmd+=(--cpu-base "${CPU_BASE}" --cpu-stride "${CPU_STRIDE}")
+  fi
+  "${compare_cmd[@]}"
+}
+
+salias_capacity_for_page() {
+  local page="$1"
+  case "${page}" in
+    normal)
+      echo "${SALIAS_CAPACITY_NORMAL}"
+      ;;
+    huge2m)
+      echo "${SALIAS_CAPACITY_HUGE2M}"
+      ;;
+    huge1g)
+      echo "${SALIAS_CAPACITY_HUGE1G}"
+      ;;
+    *)
+      echo "unknown salias page: ${page}" >&2
+      return 2
+      ;;
+  esac
+}
+
+run_salias_ipc_attempt() {
+  local phase="$1"
+  local round="$2"
+  local emit_result="$3"
+  local scenario="$4"
+  local messages="$5"
+  local producers="$6"
+  local consumers="$7"
+  local page="$8"
+  local error_log="/tmp/salias-ipc-${scenario}-${page}-${phase}-${round}-$$.err"
+  set +e
+  if [[ "${emit_result}" == "1" ]]; then
+    run_salias_ipc \
+      "${scenario}" "${messages}" "${producers}" "${consumers}" "${page}" \
+      2>"${error_log}"
+  else
+    run_salias_ipc \
+      "${scenario}" "${messages}" "${producers}" "${consumers}" "${page}" \
+      >/dev/null 2>"${error_log}"
+  fi
+  local status=$?
+  set -e
+  if [[ "${status}" -eq 0 ]]; then
+    rm -f "${error_log}"
+    return 0
+  fi
+  if [[ "${page}" == "normal" ]]; then
+    cat "${error_log}" >&2
+    rm -f "${error_log}"
+    return "${status}"
+  fi
+  rm -f "${error_log}"
+  echo "SKIP library=salias-ipc scenario=${scenario} page=${page} phase=${phase}" \
+    "round=${round} reason=status_${status}"
 }
 
 run_pair() {
   local scenario="$1"
-  local messages="$2"
-  local producers="$3"
-  local consumers="$4"
+  local aeron_scenario="$2"
+  local messages="$3"
+  local producers="$4"
+  local consumers="$5"
   for round in $(seq 1 "${WARMUP_ROUNDS}"); do
     echo "# warmup round=${round} scenario=${scenario}"
-    run_salias_ipc "${scenario}" "${messages}" "${producers}" "${consumers}" >/dev/null
-    run_aeron "${scenario}" "${messages}" "${producers}" "${consumers}" >/dev/null
+    for page in ${SALIAS_PAGES}; do
+      run_salias_ipc_attempt \
+        warmup "${round}" 0 "${scenario}" "${messages}" "${producers}" "${consumers}" "${page}"
+    done
+    run_aeron "${aeron_scenario}" "${messages}" "${producers}" "${consumers}" >/dev/null
   done
   for round in $(seq 1 "${ROUNDS}"); do
     echo "# measured round=${round} scenario=${scenario}"
-    run_salias_ipc "${scenario}" "${messages}" "${producers}" "${consumers}"
-    run_aeron "${scenario}" "${messages}" "${producers}" "${consumers}"
+    for page in ${SALIAS_PAGES}; do
+      run_salias_ipc_attempt \
+        measured "${round}" 1 "${scenario}" "${messages}" "${producers}" "${consumers}" "${page}"
+    done
+    run_aeron "${aeron_scenario}" "${messages}" "${producers}" "${consumers}"
   done
 }
 
-echo "# salias named IPC vs Aeron C++ IPC release comparison"
-echo "# payload=${PAYLOAD}B; poll_limit=${POLL_LIMIT}; fragment_limit=${FRAGMENT_LIMIT}; warmup=${WARMUP_ROUNDS}; rounds=${ROUNDS}"
-echo "# MPSC=4P/1C; MPMC=4P/2C all-to-all pub/sub"
+aeron_scenario_for() {
+  local producers="$1"
+  local consumers="$2"
+  if [[ "${producers}" -gt 1 && "${consumers}" -gt 1 ]]; then
+    echo mpmc
+  elif [[ "${producers}" -gt 1 ]]; then
+    echo mpsc
+  elif [[ "${consumers}" -gt 1 ]]; then
+    echo spmc
+  else
+    echo spsc
+  fi
+}
 
-run_pair mpsc "${MPSC_MESSAGES}" 4 1
-run_pair mpmc "${MPMC_MESSAGES}" 4 2
+for page in ${SALIAS_PAGES}; do
+  salias_capacity_for_page "${page}" >/dev/null
+done
+
+echo "# salias named IPC vs Aeron C++ IPC release comparison"
+echo "# payload=${PAYLOAD}B; salias_batch_size=${SALIAS_BATCH_SIZE};" \
+  "poll_limit=${POLL_LIMIT}; fragment_limit=${FRAGMENT_LIMIT}; warmup=${WARMUP_ROUNDS};" \
+  "rounds=${ROUNDS}; latency_sample_rate=${LATENCY_SAMPLE_RATE}"
+echo "# salias_pages=${SALIAS_PAGES}; capacities normal=${SALIAS_CAPACITY_NORMAL}" \
+  "huge2m=${SALIAS_CAPACITY_HUGE2M} huge1g=${SALIAS_CAPACITY_HUGE1G}"
+echo "# pin_cpus=${PIN_CPUS}; cpu_base=${CPU_BASE}; cpu_stride=${CPU_STRIDE};" \
+  "aeron_driver_cpu=${AERON_DRIVER_CPU:-auto}; aeron_term_length=${AERON_TERM_LENGTH}"
+echo "# scenarios=${SCENARIOS}; FIFO=${HYBRID_PRODUCERS}P/${HYBRID_CONSUMERS}C;" \
+  "ORDERED=${MPSC_PRODUCERS}P/${MPSC_CONSUMERS}C"
+
+for scenario in ${SCENARIOS}; do
+  case "${scenario}" in
+    fifo)
+      run_pair fifo "$(aeron_scenario_for "${HYBRID_PRODUCERS}" "${HYBRID_CONSUMERS}")" \
+        "${HYBRID_MESSAGES}" "${HYBRID_PRODUCERS}" "${HYBRID_CONSUMERS}"
+      ;;
+    ordered)
+      run_pair ordered "$(aeron_scenario_for "${MPSC_PRODUCERS}" "${MPSC_CONSUMERS}")" \
+        "${MPSC_MESSAGES}" "${MPSC_PRODUCERS}" "${MPSC_CONSUMERS}"
+      ;;
+    *)
+      echo "unknown scenario: ${scenario}" >&2
+      exit 2
+      ;;
+  esac
+done

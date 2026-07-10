@@ -1,5 +1,8 @@
 # salias vs Aeron C++ IPC Baseline
 
+最新 Tencent x86 对比见 `tencent-aeron-comparison-2026-07-10.md`。该次 2P/1C、固定绑核、真实多进程
+IPC 测试中，FIFO batch=1 中位吞吐为 Aeron 的约 41%，未达到追平验收线。
+
 Date: 2026-07-06
 
 Environment:
@@ -76,6 +79,15 @@ Method:
 - MPSC: 4 producers, 1 consumer, 200,000 messages per producer.
 - MPMC: 4 producers, 2 consumers, 200,000 messages per producer; every consumer
   receives every producer's messages.
+- Current script salias page matrix: `SALIAS_PAGES="normal huge2m huge1g"` by
+  default. `RESULT library=salias-ipc` rows include `page=<value>` and
+  `capacity=<bytes>`. Aeron remains one IPC baseline per scenario.
+- Huge page rows require a mounted hugetlbfs directory and reserved huge pages.
+  The default hugetlbfs directory is `/dev/hugepages`; set
+  `SALIAS_HUGETLBFS_DIR` to override it. If a huge page run cannot create its
+  ring, the script prints `SKIP library=salias-ipc scenario=<scenario>
+  page=<page> ... reason=status_<code>` instead of silently falling back to
+  normal pages.
 
 Command:
 
@@ -83,7 +95,8 @@ Command:
 bash tools/aeron_compare/run_release_compare.sh
 ```
 
-Measured raw output:
+Measured raw output from the 2026-07-08 normal-page run captured before the
+`page=` output field was added:
 
 ```text
 RESULT library=salias-ipc scenario=mpsc producers=4 consumers=1 payload=64 poll_limit=64 published=800000 delivered=800000 seconds=0.0263676 publish_msg_per_sec=3.03403e+07 delivery_msg_per_sec=3.03403e+07 delivery_mib_per_sec=1851.83

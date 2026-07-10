@@ -9,7 +9,7 @@ target_include_directories(salias
   PRIVATE
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
 )
-target_link_libraries(salias PRIVATE salias_core)
+target_link_libraries(salias PUBLIC salias_core)
 
 salias_enable_warnings(salias)
 salias_enable_sanitizers(salias)

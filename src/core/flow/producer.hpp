@@ -16,6 +16,17 @@ struct Claim {
   std::uint64_t start_pos = 0;
   std::uint32_t payload_len = 0;
   std::uint32_t meta = 0;
+  std::uint64_t sequence = 0;
+  std::uint32_t producer_id = 0;
+};
+
+struct BatchClaim {
+  std::span<std::byte> region;
+  std::uint64_t start_pos = 0;
+  std::uint32_t frame_len = 0;
+  std::uint32_t frame_count = 0;
+  std::uint64_t base_sequence = 0;
+  std::uint32_t producer_id = 0;
 };
 
 // SPSC 生产端；它只借用 MagicRing 和位置单元，调用方必须保证 ring 与 Positions 存活。

@@ -8,6 +8,8 @@
 namespace salias::wait {
 
 struct SpinPause {
+  constexpr bool needs_wake() const noexcept { return false; }
+
   // 使用 cpu_relax() 提示自旋，直到 *word 与 expected 不同。
   void wait(std::uint32_t* word, std::uint32_t expected) noexcept {
     while (std::atomic_ref<std::uint32_t>(*word).load(std::memory_order_acquire) == expected) {

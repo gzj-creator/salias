@@ -6,13 +6,19 @@
 #include <optional>
 #include <type_traits>
 
+#include "salias/config.hpp"
 #include "salias/message.hpp"
 
 namespace salias {
 
+template <Mode M>
 class Channel;
+template <Mode M>
 struct ChannelState;
+template <Mode M>
+struct SubscriberEndpoint;
 
+template <Mode M>
 class Subscriber {
  public:
   using PollCallback = void (*)(const Message& message, void* user) noexcept;
@@ -39,22 +45,26 @@ class Subscriber {
     using HandlerType = std::remove_reference_t<Handler>;
     static_assert(std::is_nothrow_invocable_v<HandlerType&, const Message&>,
                   "Subscriber::poll handler must be noexcept and accept const Message&");
-    return poll(max_messages,
-                [](const Message& message, void* user) noexcept {
-                  (*static_cast<HandlerType*>(user))(message);
-                },
-                static_cast<void*>(std::addressof(handler)));
+    return poll(
+        max_messages,
+        [](const Message& message, void* user) noexcept {
+          (*static_cast<HandlerType*>(user))(message);
+        },
+        static_cast<void*>(std::addressof(handler)));
   }
 
  private:
-  /// 创建绑定到共享通道状态的订阅端，可携带 broadcast 订阅索引。
-  explicit Subscriber(std::shared_ptr<ChannelState> state,
-                      std::uint32_t subscription_index = 0) noexcept;
+  /// 创建绑定到共享通道状态的订阅端，可携带 MPMC fanout 订阅索引。
+  explicit Subscriber(std::shared_ptr<SubscriberEndpoint<M>> endpoint) noexcept;
 
-  std::shared_ptr<ChannelState> state_;
-  std::uint32_t subscription_index_ = 0;
+  std::shared_ptr<SubscriberEndpoint<M>> endpoint_;
 
-  friend class Channel;
+  friend class Channel<M>;
 };
+
+using FifoMpscSubscriber = Subscriber<Mode::FifoMpsc>;
+using FifoFanoutSubscriber = Subscriber<Mode::FifoFanout>;
+using OrderedMpscSubscriber = Subscriber<Mode::OrderedMpsc>;
+using OrderedFanoutSubscriber = Subscriber<Mode::OrderedFanout>;
 
 }  // namespace salias
