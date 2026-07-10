@@ -31,6 +31,8 @@ class SharedHybridMpscChannel {
     std::uint32_t* wait_word = nullptr;
     std::uint32_t* num_producers = nullptr;
     std::uint32_t* num_consumers = nullptr;
+    // 发布流控窗口（字节，0 表示满环）。常量配置，创建/连接时从命名控制块复制得到。
+    std::uint64_t publication_window = 0;
   };
 
   struct ConsumerSharedState {
@@ -105,6 +107,16 @@ class SharedHybridMpscChannel {
     return consumer_id < consumer_count();
   }
 
+  // 返回流控闸门用的有效容量：窗口为 0 时即环容量，否则取 min(环容量, 窗口)。
+  // 只限制生产者领先消费者的在途字节数，不改变环的寻址与回绕（那仍用真实 capacity）。
+  std::size_t effective_capacity(std::size_t ring_capacity) const noexcept {
+    if (control_.publication_window == 0) {
+      return ring_capacity;
+    }
+    const auto window = static_cast<std::size_t>(control_.publication_window);
+    return window < ring_capacity ? window : ring_capacity;
+  }
+
   static std::uint64_t minimum_consumer_position(const ProducerRing& producer) noexcept {
     if (producer.shared.consumers.empty() ||
         producer.shared.consumers.front().position == nullptr) {
@@ -137,15 +149,10 @@ class SharedHybridMpscChannel {
   }
 
   std::optional<flow::Message> try_read_from_ring(std::uint32_t producer_id, std::uint64_t position,
-                                                  std::uint64_t target_sequence) noexcept {
+                                                  std::uint64_t target_sequence,
+                                                  std::uint64_t visible_bound) noexcept {
     auto& producer = producer_rings_[producer_id];
-    if (producer.shared.visible_producer_pos == nullptr) {
-      return std::nullopt;
-    }
-    const std::uint64_t visible_producer_pos =
-        std::atomic_ref<std::uint64_t>(*producer.shared.visible_producer_pos)
-            .load(std::memory_order_acquire);
-    if (position >= visible_producer_pos) {
+    if (position >= visible_bound) {
       return std::nullopt;
     }
 
@@ -161,7 +168,7 @@ class SharedHybridMpscChannel {
     const std::uint32_t payload_len = hybrid_detail::load_len_after_commit(producer.ring, position);
     const std::uint64_t next_position = position + frame::frame_len(payload_len);
     if (frame::frame_len(payload_len) > producer.ring.capacity() ||
-        next_position > visible_producer_pos) {
+        next_position > visible_bound) {
       return std::nullopt;
     }
 
@@ -207,11 +214,10 @@ class SharedHybridMpscChannel {
       const std::uint64_t tail =
           std::atomic_ref<std::uint64_t>(*producer.shared.visible_producer_pos)
               .load(std::memory_order_acquire);
-      if (!hybrid_detail::has_capacity(producer.ring.capacity(), tail, cached_consumer_pos_,
-                                       need)) {
+      const std::size_t effective_cap = channel_->effective_capacity(producer.ring.capacity());
+      if (!hybrid_detail::has_capacity(effective_cap, tail, cached_consumer_pos_, need)) {
         cached_consumer_pos_ = channel_->minimum_consumer_position(producer);
-        if (!hybrid_detail::has_capacity(producer.ring.capacity(), tail, cached_consumer_pos_,
-                                         need)) {
+        if (!hybrid_detail::has_capacity(effective_cap, tail, cached_consumer_pos_, need)) {
           return std::unexpected(flow::FlowError::BackPressured);
         }
       }
@@ -261,12 +267,12 @@ class SharedHybridMpscChannel {
       const std::uint64_t tail =
           std::atomic_ref<std::uint64_t>(*producer.shared.visible_producer_pos)
               .load(std::memory_order_acquire);
-      std::uint32_t fit = hybrid_detail::batch_fit(producer.ring.capacity(), tail,
-                                                   cached_consumer_pos_, per, max_frames);
+      const std::size_t effective_cap = channel_->effective_capacity(producer.ring.capacity());
+      std::uint32_t fit =
+          hybrid_detail::batch_fit(effective_cap, tail, cached_consumer_pos_, per, max_frames);
       if (fit == 0) {
         cached_consumer_pos_ = channel_->minimum_consumer_position(producer);
-        fit = hybrid_detail::batch_fit(producer.ring.capacity(), tail, cached_consumer_pos_, per,
-                                       max_frames);
+        fit = hybrid_detail::batch_fit(effective_cap, tail, cached_consumer_pos_, per, max_frames);
         if (fit == 0) {
           return std::unexpected(flow::FlowError::BackPressured);
         }
@@ -357,7 +363,9 @@ class SharedHybridMpscChannel {
         : channel_(&channel),
           consumer_id_(consumer_id),
           read_positions_(channel.producer_rings_.size(), 0),
-          next_sequences_(channel.producer_rings_.size(), 0) {
+          next_sequences_(channel.producer_rings_.size(), 0),
+          cached_visible_pos_(channel.producer_rings_.size(), 0),
+          flushed_positions_(channel.producer_rings_.size(), 0) {
       if (!channel.has_consumer(consumer_id)) {
         return;
       }
@@ -386,6 +394,7 @@ class SharedHybridMpscChannel {
                   .load(std::memory_order_acquire);
         }
       }
+      flushed_positions_ = read_positions_;
     }
 
     std::optional<flow::Message> try_recv() noexcept {
@@ -401,16 +410,83 @@ class SharedHybridMpscChannel {
       for (std::size_t scanned = 0; scanned < count; ++scanned) {
         const std::uint32_t producer_id =
             static_cast<std::uint32_t>((last_hit_ring_ + scanned) % count);
+
+        // 只有当本地读位置追平缓存的可见位时，才跨核 acquire-load 生产者位置刷新缓存。
+        // 稳态批量消费时，一次刷新可覆盖一整批，跨核 load 从 “每消息” 降到 “每批次每环一次”。
+        if (read_positions_[producer_id] >= cached_visible_pos_[producer_id]) {
+          auto* visible_pos = channel_->producer_rings_[producer_id].shared.visible_producer_pos;
+          if (visible_pos == nullptr) {
+            continue;
+          }
+          cached_visible_pos_[producer_id] =
+              std::atomic_ref<std::uint64_t>(*visible_pos).load(std::memory_order_acquire);
+          if (read_positions_[producer_id] >= cached_visible_pos_[producer_id]) {
+            continue;
+          }
+        }
+
         const std::uint64_t target_sequence =
             Ordering == Order::Ordered ? expected_sequence_ : next_sequences_[producer_id];
-        auto message = channel_->try_read_from_ring(producer_id, read_positions_[producer_id],
-                                                    target_sequence);
+        auto message =
+            channel_->try_read_from_ring(producer_id, read_positions_[producer_id], target_sequence,
+                                         cached_visible_pos_[producer_id]);
         if (message.has_value()) {
           last_hit_ring_ = static_cast<std::uint32_t>((producer_id + 1) % count);
           return message;
         }
       }
       return std::nullopt;
+    }
+
+    // 批量接收：选中一个可读环后在同环内紧循环连续排空，最多填 cap 条到 out[]。
+    // 每条消息只更新本地读位置（consume 语义），不写共享槽——进度由调用方在批末统一 flush_progress()。
+    // 返回本次收集的条数（0 表示当前无可读消息）。
+    std::uint32_t try_recv_run(flow::Message* out, std::uint32_t cap) noexcept {
+      if (out == nullptr || cap == 0 || channel_ == nullptr ||
+          !channel_->has_consumer(consumer_id_) || channel_->producer_rings_.empty() ||
+          (Ordering == Order::Ordered &&
+           (consumer_id_ >= channel_->control_.consumer_sequences.size() ||
+            channel_->control_.consumer_sequences[consumer_id_] == nullptr))) {
+        return 0;
+      }
+
+      const std::size_t count = channel_->producer_rings_.size();
+      for (std::size_t scanned = 0; scanned < count; ++scanned) {
+        const std::uint32_t producer_id =
+            static_cast<std::uint32_t>((last_hit_ring_ + scanned) % count);
+
+        if (read_positions_[producer_id] >= cached_visible_pos_[producer_id]) {
+          auto* visible_pos = channel_->producer_rings_[producer_id].shared.visible_producer_pos;
+          if (visible_pos == nullptr) {
+            continue;
+          }
+          cached_visible_pos_[producer_id] =
+              std::atomic_ref<std::uint64_t>(*visible_pos).load(std::memory_order_acquire);
+          if (read_positions_[producer_id] >= cached_visible_pos_[producer_id]) {
+            continue;
+          }
+        }
+
+        std::uint32_t produced = 0;
+        while (produced < cap) {
+          const std::uint64_t target_sequence =
+              Ordering == Order::Ordered ? expected_sequence_ : next_sequences_[producer_id];
+          auto message = channel_->try_read_from_ring(producer_id, read_positions_[producer_id],
+                                                      target_sequence,
+                                                      cached_visible_pos_[producer_id]);
+          if (!message.has_value()) {
+            break;
+          }
+          out[produced++] = *message;
+          consume(*message);
+        }
+
+        if (produced > 0) {
+          last_hit_ring_ = static_cast<std::uint32_t>((producer_id + 1) % count);
+          return produced;
+        }
+      }
+      return 0;
     }
 
     flow::Message recv() noexcept {
@@ -445,6 +521,7 @@ class SharedHybridMpscChannel {
       read_positions_[message.producer_id] = message.next_position;
       std::atomic_ref<std::uint64_t>(*consumer.position)
           .store(message.next_position, std::memory_order_release);
+      flushed_positions_[message.producer_id] = message.next_position;
       if constexpr (Ordering == Order::Ordered) {
         expected_sequence_ = message.sequence + 1;
         std::atomic_ref<std::uint64_t>(*channel_->control_.consumer_sequences[consumer_id_])
@@ -458,12 +535,66 @@ class SharedHybridMpscChannel {
       }
     }
 
+    // 只更新本地消费进度，不写共享槽；热路径批量消费时配合 flush_progress() 使用。
+    // 把 “每消息 2 次共享 release-store” 收敛为 “每批次每环 2 次”。
+    void consume(const flow::Message& message) noexcept {
+      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_) ||
+          message.producer_id >= channel_->producer_rings_.size()) {
+        return;
+      }
+      read_positions_[message.producer_id] = message.next_position;
+      if constexpr (Ordering == Order::Ordered) {
+        expected_sequence_ = message.sequence + 1;
+      } else {
+        next_sequences_[message.producer_id] = message.sequence + 1;
+      }
+    }
+
+    // 把本地消费进度 release-store 到共享内存，让生产者回收环空间。
+    // 仅对自上次 flush 后有推进的环写入，避免重复脏化生产者会读的缓存行。
+    void flush_progress() noexcept {
+      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_)) {
+        return;
+      }
+      const std::size_t count = channel_->producer_rings_.size();
+      for (std::size_t producer_id = 0; producer_id < count; ++producer_id) {
+        if (read_positions_[producer_id] == flushed_positions_[producer_id]) {
+          continue;
+        }
+        auto& producer = channel_->producer_rings_[producer_id];
+        if (consumer_id_ >= producer.shared.consumers.size()) {
+          continue;
+        }
+        auto& consumer = producer.shared.consumers[consumer_id_];
+        if (consumer.position == nullptr || consumer.sequence == nullptr) {
+          continue;
+        }
+        std::atomic_ref<std::uint64_t>(*consumer.position)
+            .store(read_positions_[producer_id], std::memory_order_release);
+        if constexpr (Ordering == Order::Ordered) {
+          if (consumer_id_ < channel_->control_.consumer_sequences.size() &&
+              channel_->control_.consumer_sequences[consumer_id_] != nullptr) {
+            std::atomic_ref<std::uint64_t>(*channel_->control_.consumer_sequences[consumer_id_])
+                .store(expected_sequence_, std::memory_order_release);
+          }
+          std::atomic_ref<std::uint64_t>(*consumer.sequence)
+              .store(expected_sequence_, std::memory_order_release);
+        } else {
+          std::atomic_ref<std::uint64_t>(*consumer.sequence)
+              .store(next_sequences_[producer_id], std::memory_order_release);
+        }
+        flushed_positions_[producer_id] = read_positions_[producer_id];
+      }
+    }
+
    private:
     SharedHybridMpscChannel* channel_;
     std::uint32_t consumer_id_ = 0;
     std::uint32_t last_hit_ring_ = 0;
     std::vector<std::uint64_t> read_positions_;
     std::vector<std::uint64_t> next_sequences_;
+    std::vector<std::uint64_t> cached_visible_pos_;
+    std::vector<std::uint64_t> flushed_positions_;
     std::uint64_t expected_sequence_ = 0;
   };
 };

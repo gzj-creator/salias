@@ -38,6 +38,7 @@ struct Options {
   std::size_t payload = 64;
   std::size_t capacity = 1u << 22;
   std::size_t batch_size = 1;
+  std::size_t publication_window = 0;
   bool capacity_set = false;
   std::uint32_t poll_limit = 64;
   std::string name;
@@ -94,6 +95,9 @@ Options parse_options(int argc, char** argv) {
       options.capacity_set = true;
     } else if (arg == "--batch-size") {
       options.batch_size = static_cast<std::size_t>(std::stoull(require_value("--batch-size")));
+    } else if (arg == "--publication-window") {
+      options.publication_window =
+          static_cast<std::size_t>(std::stoull(require_value("--publication-window")));
     } else if (arg == "--poll-limit") {
       options.poll_limit = static_cast<std::uint32_t>(std::stoul(require_value("--poll-limit")));
     } else if (arg == "--page") {
@@ -110,6 +114,7 @@ Options parse_options(int argc, char** argv) {
       std::cout << "usage: salias_ipc_compare --scenario fifo|ordered "
                    "[--messages N] [--producers N] [--consumers N] [--payload N] "
                    "[--capacity N] [--batch-size N] [--poll-limit N] "
+                   "[--publication-window N] "
                    "[--page normal|huge2m|huge1g] "
                    "[--name NAME] [--cpu-base N] [--cpu-stride N] "
                    "[--latency-sample-rate N]\n";
@@ -191,6 +196,7 @@ salias::Config make_named_config(const Options& options) {
   config.huge = huge_page_for(options.page);
   config.num_producers = options.producers;
   config.num_consumers = options.consumers;
+  config.publication_window = options.publication_window;
   if (options.scenario == "fifo") {
     config.mode = options.consumers == 1 ? salias::Mode::FifoMpsc : salias::Mode::FifoFanout;
   } else {
@@ -591,7 +597,9 @@ void print_result(const Options& options, const Result& result) {
             << " cpu_base=" << options.cpu_base << " cpu_stride=" << options.cpu_stride
             << " producers=" << result.producers << " consumers=" << result.consumers
             << " payload=" << result.payload << " capacity=" << result.capacity
-            << " batch_size=" << options.batch_size << " poll_limit=" << result.poll_limit
+            << " batch_size=" << options.batch_size
+            << " publication_window=" << options.publication_window
+            << " poll_limit=" << result.poll_limit
             << " published=" << result.published << " delivered=" << result.delivered
             << " seconds=" << result.seconds << " publish_msg_per_sec=" << publish_rate
             << " delivery_msg_per_sec=" << delivery_rate

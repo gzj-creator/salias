@@ -20,6 +20,10 @@ struct Config {
   HugePage huge = HugePage::None;
   bool fixed_size = false;
   std::size_t record_size = 0;
+  // 发布流控窗口（字节）。0 表示不限制，生产者可领先消费者直至写满整个环。
+  // 非 0 时把 “生产者领先消费者的在途字节数” 限制在 min(capacity, publication_window) 内，
+  // 用于把稳态排队延迟从 “满环” 压到 “窗口大小”；不改变环的实际几何与回绕。
+  std::size_t publication_window = 0;
 };
 
 }  // namespace salias

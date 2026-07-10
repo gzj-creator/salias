@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include <array>
+#include <algorithm>
 #include <atomic>
 #include <cctype>
 #include <cstddef>
@@ -30,7 +31,7 @@ namespace salias {
 namespace {
 
 inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;
-inline constexpr std::uint32_t kNamedVersion = 3;
+inline constexpr std::uint32_t kNamedVersion = 4;
 inline constexpr std::size_t kControlSize = 16u * 1024u;
 inline constexpr std::size_t kCacheLineGuard = 128;
 inline constexpr std::size_t kMaxProducers = 16;
@@ -42,6 +43,8 @@ inline constexpr std::uint32_t kNamedHugeShift = 1u;
 inline constexpr std::uint32_t kNamedHugeMask = 0x6u;
 inline constexpr std::uint32_t kInvalidEndpoint = std::numeric_limits<std::uint32_t>::max();
 inline constexpr const char* kDefaultHugetlbfsDir = "/dev/hugepages";
+// 发布窗口下限（字节）：非 0 窗口必须不小于一页，避免窗口小于一次 poll 批量导致生产者长期回压。
+inline constexpr std::size_t kMinPublicationWindow = 4096;
 
 enum class NamedRingBackend { PosixShm, Hugetlbfs };
 
@@ -77,7 +80,8 @@ struct alignas(kCacheLineGuard) NamedControl {
   std::uint64_t record_size = 0;
   std::uint32_t ready = 0;
   std::uint32_t wait_word = 0;
-  std::byte pad[kCacheLineGuard - 40]{};
+  std::uint64_t publication_window = 0;
+  std::byte pad[kCacheLineGuard - 48]{};
 
   alignas(kCacheLineGuard) std::uint64_t global_sequence = 0;
   alignas(kCacheLineGuard) std::uint32_t next_producer = 0;
@@ -114,6 +118,11 @@ bool is_valid_channel_name(std::string_view name) noexcept {
 
 bool is_power_of_two(std::size_t value) noexcept {
   return value != 0 && (value & (value - 1)) == 0;
+}
+
+// 发布窗口合法性：0 表示不限流；非 0 时必须落在 [一页, capacity] 之内。
+bool is_valid_publication_window(std::uint64_t window, std::uint64_t capacity) noexcept {
+  return window == 0 || (window >= kMinPublicationWindow && window <= capacity);
 }
 
 bool is_valid_ring_capacity(std::uint64_t capacity) noexcept {
@@ -422,6 +431,7 @@ typename SharedChannel<M>::SharedControl make_shared_control(NamedControl& contr
   shared.wait_word = &control.wait_word;
   shared.num_producers = &control.num_producers;
   shared.num_consumers = &control.num_consumers;
+  shared.publication_window = control.publication_window;
   shared.consumer_sequences.reserve(control.num_consumers);
   for (std::uint32_t consumer_id = 0; consumer_id < control.num_consumers; ++consumer_id) {
     shared.consumer_sequences.push_back(&control.consumer_sequences[consumer_id].value);
@@ -539,6 +549,7 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
       !is_valid_ring_capacity(config.capacity) || config.num_producers == 0 ||
       config.num_producers > kMaxProducers || config.num_consumers == 0 ||
       config.num_consumers > kMaxConsumers || (!kFanout<M> && config.num_consumers != 1) ||
+      !is_valid_publication_window(config.publication_window, config.capacity) ||
       !channel::hybrid_detail::sequence_low_window_fits(sequence_domains, config.capacity)) {
     return std::unexpected(Error::BadConfig);
   }
@@ -579,6 +590,7 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
   control->capacity = config.capacity;
   control->num_producers = config.num_producers;
   control->num_consumers = config.num_consumers;
+  control->publication_window = config.publication_window;
 
   SharedChannel<M> channel(std::move(rings), make_producer_states<M>(*control),
                            make_shared_control<M>(*control));
@@ -609,6 +621,7 @@ Result<NamedChannelState<M>> connect_named_state(std::string_view name) {
       control->num_producers == 0 || control->num_producers > kMaxProducers ||
       control->num_consumers == 0 || control->num_consumers > kMaxConsumers ||
       (!kFanout<M> && control->num_consumers != 1) ||
+      !is_valid_publication_window(control->publication_window, control->capacity) ||
       !channel::hybrid_detail::sequence_low_window_fits(sequence_domains, control->capacity)) {
     return std::unexpected(Error::BadConfig);
   }
@@ -856,20 +869,41 @@ std::optional<Message> Subscriber<M>::try_recv() noexcept {
 }
 
 template <Mode M>
+std::size_t Subscriber<M>::fetch_batch(Message* out, std::uint32_t cap) noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid || out == nullptr || cap == 0) {
+    return 0;
+  }
+  return endpoint_->rx.try_recv_run(out, cap);
+}
+
+template <Mode M>
+void Subscriber<M>::flush_batch() noexcept {
+  if (endpoint_ != nullptr && endpoint_->valid) {
+    endpoint_->rx.flush_progress();
+  }
+}
+
+template <Mode M>
 std::size_t Subscriber<M>::poll(std::uint32_t max_messages, PollCallback callback,
                                 void* user) noexcept {
   if (endpoint_ == nullptr || !endpoint_->valid || max_messages == 0 || callback == nullptr) {
     return 0;
   }
+  constexpr std::uint32_t kChunk = 32;
+  Message buffer[kChunk];
   std::size_t consumed = 0;
   while (consumed < max_messages) {
-    auto message = endpoint_->rx.try_recv();
-    if (!message) {
+    const std::uint32_t remaining =
+        static_cast<std::uint32_t>(std::min<std::size_t>(kChunk, max_messages - consumed));
+    const std::size_t got = endpoint_->rx.try_recv_run(buffer, remaining);
+    if (got == 0) {
       break;
     }
-    callback(*message, user);
-    endpoint_->rx.release(*message);
-    ++consumed;
+    for (std::size_t i = 0; i < got; ++i) {
+      callback(buffer[i], user);
+    }
+    endpoint_->rx.flush_progress();
+    consumed += got;
   }
   return consumed;
 }

@@ -1,0 +1,129 @@
+# Tencent 4-vCPU equal-budget MPMC comparison
+# batch=1 messages_per_producer=2000000 producers=2 consumers=2 payload=64 warmup=3 rounds=20
+# workers cpu0,1,2,3; Aeron driver shares cpu0 with consumer0
+# warmup round=1 scenario=fifo
+# warmup round=2 scenario=fifo
+# warmup round=3 scenario=fifo
+# measured round=1 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.360643 publish_msg_per_sec=1.10913e+07 delivery_msg_per_sec=2.21826e+07 delivery_mib_per_sec=1353.92
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.164913 publish_msg_per_sec=2.42552e+07 delivery_msg_per_sec=4.85105e+07 delivery_mib_per_sec=2960.85
+# measured round=2 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.37173 publish_msg_per_sec=1.07605e+07 delivery_msg_per_sec=2.1521e+07 delivery_mib_per_sec=1313.54
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.162362 publish_msg_per_sec=2.46363e+07 delivery_msg_per_sec=4.92726e+07 delivery_mib_per_sec=3007.36
+# measured round=3 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.375109 publish_msg_per_sec=1.06636e+07 delivery_msg_per_sec=2.13271e+07 delivery_mib_per_sec=1301.71
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.273296 publish_msg_per_sec=1.46362e+07 delivery_msg_per_sec=2.92723e+07 delivery_mib_per_sec=1786.64
+# measured round=4 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.375406 publish_msg_per_sec=1.06551e+07 delivery_msg_per_sec=2.13102e+07 delivery_mib_per_sec=1300.67
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.164964 publish_msg_per_sec=2.42477e+07 delivery_msg_per_sec=4.84954e+07 delivery_mib_per_sec=2959.92
+# measured round=5 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.400124 publish_msg_per_sec=9.99691e+06 delivery_msg_per_sec=1.99938e+07 delivery_mib_per_sec=1220.33
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.193231 publish_msg_per_sec=2.07006e+07 delivery_msg_per_sec=4.14012e+07 delivery_mib_per_sec=2526.93
+# measured round=6 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.341325 publish_msg_per_sec=1.1719e+07 delivery_msg_per_sec=2.34381e+07 delivery_mib_per_sec=1430.55
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.221517 publish_msg_per_sec=1.80573e+07 delivery_msg_per_sec=3.61146e+07 delivery_mib_per_sec=2204.26
+# measured round=7 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.378758 publish_msg_per_sec=1.05608e+07 delivery_msg_per_sec=2.11217e+07 delivery_mib_per_sec=1289.16
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.167175 publish_msg_per_sec=2.39271e+07 delivery_msg_per_sec=4.78542e+07 delivery_mib_per_sec=2920.79
+# measured round=8 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.333541 publish_msg_per_sec=1.19925e+07 delivery_msg_per_sec=2.3985e+07 delivery_mib_per_sec=1463.93
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.275508 publish_msg_per_sec=1.45187e+07 delivery_msg_per_sec=2.90373e+07 delivery_mib_per_sec=1772.3
+# measured round=9 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.300561 publish_msg_per_sec=1.33084e+07 delivery_msg_per_sec=2.66169e+07 delivery_mib_per_sec=1624.56
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.284344 publish_msg_per_sec=1.40675e+07 delivery_msg_per_sec=2.81349e+07 delivery_mib_per_sec=1717.22
+# measured round=10 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.328043 publish_msg_per_sec=1.21935e+07 delivery_msg_per_sec=2.4387e+07 delivery_mib_per_sec=1488.47
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.202067 publish_msg_per_sec=1.97955e+07 delivery_msg_per_sec=3.95909e+07 delivery_mib_per_sec=2416.44
+# measured round=11 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.368023 publish_msg_per_sec=1.08689e+07 delivery_msg_per_sec=2.17378e+07 delivery_mib_per_sec=1326.77
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.15496 publish_msg_per_sec=2.58131e+07 delivery_msg_per_sec=5.16262e+07 delivery_mib_per_sec=3151.02
+# measured round=12 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.358513 publish_msg_per_sec=1.11572e+07 delivery_msg_per_sec=2.23144e+07 delivery_mib_per_sec=1361.96
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.184994 publish_msg_per_sec=2.16223e+07 delivery_msg_per_sec=4.32446e+07 delivery_mib_per_sec=2639.44
+# measured round=13 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.420764 publish_msg_per_sec=9.50652e+06 delivery_msg_per_sec=1.9013e+07 delivery_mib_per_sec=1160.46
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.344514 publish_msg_per_sec=1.16106e+07 delivery_msg_per_sec=2.32211e+07 delivery_mib_per_sec=1417.3
+# measured round=14 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.323446 publish_msg_per_sec=1.23668e+07 delivery_msg_per_sec=2.47337e+07 delivery_mib_per_sec=1509.62
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.238614 publish_msg_per_sec=1.67635e+07 delivery_msg_per_sec=3.35269e+07 delivery_mib_per_sec=2046.32
+# measured round=15 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.281646 publish_msg_per_sec=1.42022e+07 delivery_msg_per_sec=2.84045e+07 delivery_mib_per_sec=1733.67
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.227431 publish_msg_per_sec=1.75877e+07 delivery_msg_per_sec=3.51755e+07 delivery_mib_per_sec=2146.94
+# measured round=16 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.419511 publish_msg_per_sec=9.53491e+06 delivery_msg_per_sec=1.90698e+07 delivery_mib_per_sec=1163.93
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.187286 publish_msg_per_sec=2.13577e+07 delivery_msg_per_sec=4.27154e+07 delivery_mib_per_sec=2607.14
+# measured round=17 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.364199 publish_msg_per_sec=1.0983e+07 delivery_msg_per_sec=2.1966e+07 delivery_mib_per_sec=1340.7
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.151907 publish_msg_per_sec=2.63319e+07 delivery_msg_per_sec=5.26637e+07 delivery_mib_per_sec=3214.34
+# measured round=18 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.323287 publish_msg_per_sec=1.23729e+07 delivery_msg_per_sec=2.47458e+07 delivery_mib_per_sec=1510.36
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.165328 publish_msg_per_sec=2.41943e+07 delivery_msg_per_sec=4.83886e+07 delivery_mib_per_sec=2953.41
+# measured round=19 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.37846 publish_msg_per_sec=1.05692e+07 delivery_msg_per_sec=2.11383e+07 delivery_mib_per_sec=1290.18
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.174768 publish_msg_per_sec=2.28875e+07 delivery_msg_per_sec=4.5775e+07 delivery_mib_per_sec=2793.88
+# measured round=20 scenario=fifo
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.342344 publish_msg_per_sec=1.16842e+07 delivery_msg_per_sec=2.33683e+07 delivery_mib_per_sec=1426.29
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.235852 publish_msg_per_sec=1.69598e+07 delivery_msg_per_sec=3.39195e+07 delivery_mib_per_sec=2070.28
+# warmup round=1 scenario=ordered
+# warmup round=2 scenario=ordered
+# warmup round=3 scenario=ordered
+# measured round=1 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.471783 publish_msg_per_sec=8.47847e+06 delivery_msg_per_sec=1.69569e+07 delivery_mib_per_sec=1034.97
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.157971 publish_msg_per_sec=2.53211e+07 delivery_msg_per_sec=5.06422e+07 delivery_mib_per_sec=3090.95
+# measured round=2 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.509338 publish_msg_per_sec=7.85333e+06 delivery_msg_per_sec=1.57067e+07 delivery_mib_per_sec=958.658
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.244084 publish_msg_per_sec=1.63878e+07 delivery_msg_per_sec=3.27755e+07 delivery_mib_per_sec=2000.46
+# measured round=3 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.555032 publish_msg_per_sec=7.20679e+06 delivery_msg_per_sec=1.44136e+07 delivery_mib_per_sec=879.735
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.15685 publish_msg_per_sec=2.55021e+07 delivery_msg_per_sec=5.10041e+07 delivery_mib_per_sec=3113.04
+# measured round=4 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.50051 publish_msg_per_sec=7.99185e+06 delivery_msg_per_sec=1.59837e+07 delivery_mib_per_sec=975.568
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.161918 publish_msg_per_sec=2.47039e+07 delivery_msg_per_sec=4.94078e+07 delivery_mib_per_sec=3015.61
+# measured round=5 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.515629 publish_msg_per_sec=7.75751e+06 delivery_msg_per_sec=1.5515e+07 delivery_mib_per_sec=946.962
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.185358 publish_msg_per_sec=2.15799e+07 delivery_msg_per_sec=4.31597e+07 delivery_mib_per_sec=2634.26
+# measured round=6 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.502113 publish_msg_per_sec=7.96633e+06 delivery_msg_per_sec=1.59327e+07 delivery_mib_per_sec=972.452
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.17282 publish_msg_per_sec=2.31455e+07 delivery_msg_per_sec=4.6291e+07 delivery_mib_per_sec=2825.38
+# measured round=7 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.442956 publish_msg_per_sec=9.03024e+06 delivery_msg_per_sec=1.80605e+07 delivery_mib_per_sec=1102.32
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.187839 publish_msg_per_sec=2.12949e+07 delivery_msg_per_sec=4.25898e+07 delivery_mib_per_sec=2599.47
+# measured round=8 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.462299 publish_msg_per_sec=8.6524e+06 delivery_msg_per_sec=1.73048e+07 delivery_mib_per_sec=1056.2
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.148732 publish_msg_per_sec=2.68939e+07 delivery_msg_per_sec=5.37878e+07 delivery_mib_per_sec=3282.95
+# measured round=9 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.478591 publish_msg_per_sec=8.35787e+06 delivery_msg_per_sec=1.67157e+07 delivery_mib_per_sec=1020.25
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.169288 publish_msg_per_sec=2.36283e+07 delivery_msg_per_sec=4.72567e+07 delivery_mib_per_sec=2884.32
+# measured round=10 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.470415 publish_msg_per_sec=8.50314e+06 delivery_msg_per_sec=1.70063e+07 delivery_mib_per_sec=1037.98
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.351696 publish_msg_per_sec=1.13734e+07 delivery_msg_per_sec=2.27469e+07 delivery_mib_per_sec=1388.36
+# measured round=11 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.546134 publish_msg_per_sec=7.32422e+06 delivery_msg_per_sec=1.46484e+07 delivery_mib_per_sec=894.069
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.652148 publish_msg_per_sec=6.13358e+06 delivery_msg_per_sec=1.22672e+07 delivery_mib_per_sec=748.728
+# measured round=12 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.535756 publish_msg_per_sec=7.46609e+06 delivery_msg_per_sec=1.49322e+07 delivery_mib_per_sec=911.388
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.287629 publish_msg_per_sec=1.39068e+07 delivery_msg_per_sec=2.78136e+07 delivery_mib_per_sec=1697.61
+# measured round=13 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.524308 publish_msg_per_sec=7.62911e+06 delivery_msg_per_sec=1.52582e+07 delivery_mib_per_sec=931.288
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.177134 publish_msg_per_sec=2.25818e+07 delivery_msg_per_sec=4.51636e+07 delivery_mib_per_sec=2756.57
+# measured round=14 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.416805 publish_msg_per_sec=9.59682e+06 delivery_msg_per_sec=1.91936e+07 delivery_mib_per_sec=1171.49
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.222434 publish_msg_per_sec=1.79829e+07 delivery_msg_per_sec=3.59657e+07 delivery_mib_per_sec=2195.17
+# measured round=15 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.433828 publish_msg_per_sec=9.22024e+06 delivery_msg_per_sec=1.84405e+07 delivery_mib_per_sec=1125.52
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.179168 publish_msg_per_sec=2.23255e+07 delivery_msg_per_sec=4.46509e+07 delivery_mib_per_sec=2725.28
+# measured round=16 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.529341 publish_msg_per_sec=7.55657e+06 delivery_msg_per_sec=1.51131e+07 delivery_mib_per_sec=922.433
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.349103 publish_msg_per_sec=1.14579e+07 delivery_msg_per_sec=2.29159e+07 delivery_mib_per_sec=1398.67
+# measured round=17 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.488288 publish_msg_per_sec=8.19189e+06 delivery_msg_per_sec=1.63838e+07 delivery_mib_per_sec=999.987
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.174653 publish_msg_per_sec=2.29025e+07 delivery_msg_per_sec=4.58051e+07 delivery_mib_per_sec=2795.72
+# measured round=18 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.514264 publish_msg_per_sec=7.77811e+06 delivery_msg_per_sec=1.55562e+07 delivery_mib_per_sec=949.476
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.158341 publish_msg_per_sec=2.5262e+07 delivery_msg_per_sec=5.05239e+07 delivery_mib_per_sec=3083.74
+# measured round=19 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.424213 publish_msg_per_sec=9.42922e+06 delivery_msg_per_sec=1.88584e+07 delivery_mib_per_sec=1151.03
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.166892 publish_msg_per_sec=2.39676e+07 delivery_msg_per_sec=4.79351e+07 delivery_mib_per_sec=2925.73
+# measured round=20 scenario=ordered
+RESULT library=salias-ipc scenario=ordered page=normal pinning=on cpu_base=0 cpu_stride=1 producers=2 consumers=2 payload=64 capacity=4194304 batch_size=1 poll_limit=64 published=4000000 delivered=8000000 seconds=0.393221 publish_msg_per_sec=1.01724e+07 delivery_msg_per_sec=2.03448e+07 delivery_mib_per_sec=1241.75
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=4194304 producers=2 consumers=2 payload=64 published=4000000 delivered=8000000 seconds=0.158368 publish_msg_per_sec=2.52577e+07 delivery_msg_per_sec=5.05153e+07 delivery_mib_per_sec=3083.21

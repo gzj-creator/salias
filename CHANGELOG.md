@@ -13,6 +13,41 @@ are released.
 
 ## [Unreleased]
 
+### Added
+
+- Channel publication flow-control window: a new `Config::publication_window`
+  (bytes, `0` = full ring) caps how far a producer may lead its consumer at
+  `min(ring_capacity, window)` in-flight bytes, letting steady-state queueing
+  latency be driven down from "full ring" to "window size" without changing the
+  ring geometry or wraparound. Plumbed through `hybrid_control.hpp`,
+  `hybrid_mpsc.hpp`, and `shared_hybrid_mpsc.hpp` via a new
+  `effective_capacity()` gate, and validated at named-channel create/connect
+  (a non-zero window must fall in `[page, capacity]`).
+- Consumer batch-receive hot path on both hybrid engines: a new
+  `try_recv_run()` drains a single ring in a tight loop, while `consume()` /
+  `flush_progress()` collapse per-message shared release-stores to a per-batch
+  per-ring pair, and a cached `visible_producer_pos` drops cross-core
+  acquire-loads from per-message to per-batch per-ring.
+- Inlined L7 `Subscriber::poll` handler: the template path now batches into a
+  32-entry buffer and runs the handler in-header, removing the per-message
+  `.so` indirect call and flushing progress once per batch.
+- `--publication-window` option on the `salias_ipc_compare` harness.
+- Eight GTest cases covering window-bounded inflight, zero-window full-ring
+  regression, batched flush reclaiming space, cached visible-position staging,
+  and same-ring run draining / truncation for FIFO and Ordered.
+
+### Changed
+
+- Named IPC control block now carries `publication_window`; `kNamedVersion`
+  raised `3 -> 4` (binary-incompatible protocol bump).
+
+### Docs
+
+- Updated the Tencent 4 vCPU Aeron comparison with flow-control-window and
+  Phase A re-verification results (FIFO throughput lifted to ~85% of Aeron; a
+  128 KiB window cuts FIFO p50 from 5.37 ms to 147 µs), plus the matching raw
+  benchmark logs.
+
 ## [v1.0.0] - 2026-07-10
 
 ### Added

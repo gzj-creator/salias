@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -40,20 +41,42 @@ class Subscriber {
   std::size_t poll(std::uint32_t max_messages, PollCallback callback, void* user) noexcept;
 
   /// 使用不抛异常的 C++ callable 批量轮询消息。
+  /// handler 在头文件循环内内联执行，避免跨 .so 边界的每消息间接调用；进度按批 flush。
   template <class Handler>
   std::size_t poll(std::uint32_t max_messages, Handler&& handler) noexcept {
     using HandlerType = std::remove_reference_t<Handler>;
     static_assert(std::is_nothrow_invocable_v<HandlerType&, const Message&>,
                   "Subscriber::poll handler must be noexcept and accept const Message&");
-    return poll(
-        max_messages,
-        [](const Message& message, void* user) noexcept {
-          (*static_cast<HandlerType*>(user))(message);
-        },
-        static_cast<void*>(std::addressof(handler)));
+    if (max_messages == 0) {
+      return 0;
+    }
+    constexpr std::uint32_t kChunk = 32;
+    Message buffer[kChunk];
+    std::size_t consumed = 0;
+    while (consumed < max_messages) {
+      const std::uint32_t remaining = static_cast<std::uint32_t>(
+          std::min<std::size_t>(kChunk, max_messages - consumed));
+      const std::size_t got = fetch_batch(buffer, remaining);
+      if (got == 0) {
+        break;
+      }
+      for (std::size_t i = 0; i < got; ++i) {
+        handler(buffer[i]);
+      }
+      flush_batch();
+      consumed += got;
+    }
+    return consumed;
   }
 
  private:
+  /// 批量取回最多 cap 条已提交消息到 out[]，只推进消费者本地进度，不发布给生产者。
+  /// 返回取回条数；返回 0 表示当前无可读消息。配合 flush_batch() 使用。
+  std::size_t fetch_batch(Message* out, std::uint32_t cap) noexcept;
+
+  /// 把本批消费进度发布给生产者，使其可回收环空间。
+  void flush_batch() noexcept;
+
   /// 创建绑定到共享通道状态的订阅端，可携带 MPMC fanout 订阅索引。
   explicit Subscriber(std::shared_ptr<SubscriberEndpoint<M>> endpoint) noexcept;
 

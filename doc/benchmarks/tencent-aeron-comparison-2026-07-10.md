@@ -152,6 +152,55 @@ FIFO batch=16 基本没有改善，说明当前 MPMC 瓶颈不在单次 batch AP
 超卖时 salias p99 为 14.29–28.31 毫秒，Aeron p99 为 1.80–5.44 毫秒。2P/3C batch=16 的 salias
 p50 降至 274.4 微秒，但 p99 仍为 15.47 毫秒，说明较低的中位数并未消除慢消费者和调度造成的长尾。
 
+## 流控窗口与消费者批处理优化后复验
+
+在同一台 Tencent 4 vCPU x86_64 KVM 主机上，使用优化后的代码重新执行 Release 构建、43 项 CTest，
+并复跑 2P/1C、64B payload、4MiB capacity/term、固定绑核（producer CPU 0/1、consumer CPU 2、
+Aeron driver CPU 3）的真实多进程 IPC 对比。每个 case 预热 1 轮、测量 10 轮。
+
+吞吐单位：百万条/秒，表中为 10 轮中位数。
+
+| 模式 | batch | 优化前 salias | 优化后 salias | 提升 | Aeron | salias / Aeron |
+|------|------:|---------------:|---------------:|-----:|------:|----------------:|
+| FIFO | 1 | 13.980 | 19.776 | +41.5% | 32.103 | 61.6% |
+| Ordered | 1 | 10.700 | 16.201 | +51.4% | 32.103 | 50.5% |
+| FIFO | 16 | 14.547 | 19.780 | +36.0% | 32.955 | 60.0% |
+| Ordered | 16 | 12.218 | 13.835 | +13.2% | 32.955 | 42.0% |
+
+消费者可见位置缓存和进度按批 flush 已带来明确吞吐提升，尤其是 batch=1；FIFO 仍约为 Aeron 的 60%，
+Ordered 因跨生产者全序语义约为 Aeron 的 42%–51%。batch=16 不再稳定优于 batch=1，说明生产者侧
+批量 claim 及 ordered 归并路径仍是后续吞吐优化重点。
+
+### Phase A：同环 run 接收与 L7 批量内联
+
+2026-07-11 在同一主机和相同 2P/1C、64B、4MiB、batch=1、固定绑核配置下复验。Release 构建完成，
+CTest 从 43 项增加到 46 项并全部通过。每个场景预热 1 轮、测量 10 轮；Aeron 数字按各自配对场景
+单独计算，避免把 FIFO 和 Ordered 两组 Aeron 结果混合。
+
+| 模式 | Phase A 前 salias | Phase A 后 salias | salias 提升 | 本轮 Aeron | Phase A 后 / Aeron |
+|------|------------------:|------------------:|------------:|-----------:|--------------------:|
+| FIFO | 19.776 M/s | 29.068 M/s | +47.0% | 34.184 M/s | 85.0% |
+| Ordered | 16.201 M/s | 17.141 M/s | +5.8% | 33.238 M/s | 51.6% |
+
+FIFO 的同环连续排空和 L7 handler 内联收益显著，实际结果高于原先 70%–78% 的预期，已达到本轮 Aeron
+中位吞吐的 85.0%。Ordered 只提升 5.8%，符合跨生产者全序会缩短单环 run 的预期；剩余约 1.94 倍
+差距不能继续归因于 L7 每消息间接调用，是否进入 FIFO 提交水位快路径等发布协议优化应按模式分别决策。
+
+延迟复验使用 batch=16、`--latency-sample-rate 64`。完整环和 Aeron 来自同一配对运行；128KiB
+发布窗口使用同一 salias Release 二进制和相同 CPU/消息配置独立运行 10 轮。
+
+| 实现/模式 | publication window | p50 | p99 | delivery throughput |
+|-----------|-------------------:|----:|----:|--------------------:|
+| salias FIFO | 0（完整 4MiB 环） | 5374.0 us | 5701.6 us | 21.783 M/s |
+| salias FIFO | 128KiB | 147.5 us | 352.3 us | 19.706 M/s |
+| salias Ordered | 128KiB | 167.9 us | 274.4 us | 19.689 M/s |
+| Aeron MPSC | 4MiB term | 54.3 us | 1540.1 us | 29.880 M/s |
+
+128KiB 窗口把 FIFO p50 从 5.37ms 降到 147us，降低约 36 倍，命中原先约 130us 的定量预期；
+p99 从 5.70ms 降到 352us。该窗口下 FIFO p50 约为本轮 Aeron 的 2.7 倍，但 p99 低于本轮 Aeron。
+考虑到 Aeron 在 KVM 上各轮 p50 波动较大，结论应表述为 salias 已从毫秒级回到与 Aeron 相同的微秒级，
+而不是宣称稳定优于 Aeron。
+
 ## 原始数据
 
 - `benchmark-tencent-2026-07-10-batch1.log`
@@ -172,6 +221,20 @@ p50 降至 274.4 微秒，但 p99 仍为 15.47 毫秒，说明较低的中位数
   - SHA-256: `9351a69ace6febc61b69cb60aac7f13674e74962b254045c2f48315089ccf6f6`
 - `benchmark-tencent-latency-2026-07-10-oversubscribed.log`
   - SHA-256: `a1401e37009588105f554d3828a5a10df5027c025811b75bec6fb6791bfaa587`
+- `benchmark-tencent-flow-window-2026-07-10-throughput-batch1.log`
+  - SHA-256: `4bfa6b6749ff75ec23f11c0c270f493caaa3515dc918f3206673eb0bb3e5c8be`
+- `benchmark-tencent-flow-window-2026-07-10-throughput-batch16.log`
+  - SHA-256: `a50c22bdb71b23ebe390314742fc77b4b71aab3eb9109df3d89c09d7d9836083`
+- `benchmark-tencent-flow-window-2026-07-10-latency-fullring.log`
+  - SHA-256: `2edf832a75b979ce3b59198b1e85a86022e6acf9923bf029b165bae63de47f35`
+- `benchmark-tencent-flow-window-2026-07-10-latency-fifo-window128k.log`
+  - SHA-256: `25fe9baace071662b144076fc0ed785ec0557a7901aeedf52a520c32efadfac8`
+- `benchmark-tencent-flow-window-2026-07-10-latency-ordered-window128k.log`
+  - SHA-256: `06c7c22c227212a5f2d22ad5aa67cec8e3cc8a20c1e65d9360e98d34a56dfea3`
+- `benchmark-tencent-phase-a-2026-07-11-throughput-batch1.log`
+  - SHA-256: `22203f3f99f2b3836f85ee15165e9cd1fd617ebc36c93d05c19e966129989da0`
 
 吞吐远端运行目录：`/home/ubuntu/salias-dual-engine-bench/run-20260710-1315`。
 延迟远端运行目录：`/home/ubuntu/salias-dual-engine-bench/run-20260710-latency`。
+优化后复验远端运行目录：`/home/ubuntu/salias-dual-engine-bench/run-20260710-flow-window`。
+Phase A 复验远端运行目录：`/home/ubuntu/salias-dual-engine-bench/run-20260711-phase-a`。
