@@ -13,6 +13,43 @@ are released.
 
 ## [Unreleased]
 
+## [v1.3.0] - 2026-07-12
+
+### Added
+
+- CMake 安装导出能力：顶层新增 `install` 规则导出 `saliasTargets`（`salias::`
+  命名空间）、安装 salias 与 core 公共头，并通过 `CMakePackageConfigHelpers`
+  生成 `saliasConfig.cmake` / `saliasConfigVersion.cmake`（`SameMajorVersion`
+  兼容）。下游工程可通过 `find_package(salias CONFIG REQUIRED)` +
+  `target_link_libraries(... salias::salias)` 直接消费。`salias_core` 与
+  `salias` 补 `salias::` ALIAS 目标，`salias` 增加 `INSTALL_INTERFACE` 头路径。
+- 安装消费冒烟测试：新增 `cmake/saliasConfig.cmake.in` 包配置模板、
+  `cmake/install_consumer_test.cmake` 安装并配置/构建下游工程的脚本，以及
+  `test/install/` 最小 `find_package` 消费示例，统一挂到 CTest
+  `salias_install_consumer`。
+- 测试新增 `LongChannelNameSupportsCreateAndConnect`（最长 128 字符通道名创建 /
+  连接 / 收发）与 macOS 专属 `ExplicitHugePagesAreUnavailableOnMacOS`。
+
+### Changed
+
+- `channel.cpp` 对公共通道名引入 FNV-1a 64 位哈希编码（`channel_name_hash` +
+  `encoded_channel_name`），控制段与 ring 的 POSIX shm 名称统一改用固定 16 位
+  hex 键（`/salias-<16hex>-c`、`/salias-<16hex>-r-<id>`），Linux 与 macOS 共用
+  同一资源寻址，规避 macOS 对 POSIX shm 名称的短限制。公共 API、字符集与最大长度
+  不变。
+- README 由 "Linux-only" 改为 "支持 Linux 与 macOS"，补充 CMake 安装与
+  `find_package` 消费说明。
+
+### Fixed
+
+- `create_named_state` 在非 Linux 平台（macOS）对显式 `HugePage` 请求提前返回
+  `PlatformFail`，不再依赖后端隐式失败或触碰 Linux 专属 hugetlbfs 路径。
+
+### Docs
+
+- 新增 `docs/plans/2026-07-11-macos-install-support-design.md` 与
+  `2026-07-11-macos-install-support.md` 设计与实现计划。
+
 ## [v1.2.0] - 2026-07-11
 
 ### Added

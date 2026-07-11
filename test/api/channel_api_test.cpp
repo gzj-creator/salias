@@ -430,4 +430,40 @@ TEST(ChannelApiTest, MultiplePublisherProcessesShareProducerSlots) {
   }
 }
 
+/// @brief 验证公共 API 允许的最长 channel 名称可在 POSIX shm 后端创建并连接。
+TEST(ChannelApiTest, LongChannelNameSupportsCreateAndConnect) {
+  auto config = config_for(salias::Mode::FifoMpsc, "long-name");
+  config.name.assign(128, 'a');
+  const std::string process_id = std::to_string(::getpid());
+  config.name.replace(config.name.size() - process_id.size(), process_id.size(), process_id);
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+
+  auto connected = salias::FifoMpscChannel::connect(config.name);
+  ASSERT_TRUE(connected);
+
+  auto owner = std::move(created).value();
+  auto peer = std::move(connected).value();
+  auto publisher = owner.publisher();
+  auto subscriber = peer.subscriber();
+
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 42})));
+  auto message = wait_for_message(subscriber);
+  ASSERT_FALSE(message.payload.empty());
+  EXPECT_EQ(decode(message.payload).sequence, 42u);
+  subscriber.release(message);
+}
+
+#if defined(__APPLE__)
+/// @brief 验证 macOS 明确拒绝 Linux hugetlbfs 显式大页后端。
+TEST(ChannelApiTest, ExplicitHugePagesAreUnavailableOnMacOS) {
+  auto config = config_for(salias::Mode::FifoMpsc, "macos-huge-pages");
+  config.capacity = 2u * 1024u * 1024u;
+  config.huge = salias::HugePage::Size2MB;
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_FALSE(created);
+  EXPECT_EQ(created.error(), salias::Error::PlatformFail);
+}
+#endif
+
 }  // namespace

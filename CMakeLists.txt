@@ -18,6 +18,7 @@ option(SALIAS_ENABLE_TSAN "Enable ThreadSanitizer" OFF)
 
 include(CTest)
 include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -48,4 +49,54 @@ endif()
 
 if(BUILD_TESTING)
   add_subdirectory(test)
+endif()
+
+install(
+  TARGETS salias salias_core
+  EXPORT saliasTargets
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+)
+install(
+  DIRECTORY "${PROJECT_SOURCE_DIR}/src/salias/include/salias"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+install(
+  DIRECTORY "${PROJECT_SOURCE_DIR}/src/core/"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/salias/core"
+  FILES_MATCHING PATTERN "*.hpp"
+)
+install(
+  EXPORT saliasTargets
+  FILE saliasTargets.cmake
+  NAMESPACE salias::
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/salias"
+)
+
+configure_package_config_file(
+  "${PROJECT_SOURCE_DIR}/cmake/saliasConfig.cmake.in"
+  "${PROJECT_BINARY_DIR}/saliasConfig.cmake"
+  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/salias"
+)
+write_basic_package_version_file(
+  "${PROJECT_BINARY_DIR}/saliasConfigVersion.cmake"
+  VERSION "${PROJECT_VERSION}"
+  COMPATIBILITY SameMajorVersion
+)
+install(
+  FILES
+    "${PROJECT_BINARY_DIR}/saliasConfig.cmake"
+    "${PROJECT_BINARY_DIR}/saliasConfigVersion.cmake"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/salias"
+)
+
+if(BUILD_TESTING)
+  add_test(
+    NAME salias_install_consumer
+    COMMAND
+      "${CMAKE_COMMAND}"
+      "-DSALIAS_BUILD_DIR=${PROJECT_BINARY_DIR}"
+      "-DSALIAS_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+      "-DSALIAS_TEST_CONFIG=$<CONFIG>"
+      -P "${PROJECT_SOURCE_DIR}/cmake/install_consumer_test.cmake"
+  )
 endif()

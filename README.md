@@ -1,6 +1,6 @@
 # salias
 
-`salias` 是 Linux-only 的 C++23 低延迟具名 IPC 消息通道。当前实现收敛为一个
+`salias` 是支持 Linux 与 macOS 的 C++23 低延迟具名 IPC 消息通道。当前实现收敛为一个
 per-producer magic-ring 引擎，并通过排序模式与消费者拓扑提供四种公共通道：
 
 | Mode | 排序语义 | 消费者拓扑 |
@@ -16,8 +16,8 @@ per-producer 游标。
 
 ## 构建
 
-要求 Linux、CMake 3.25+、支持 C++23 的 GCC/Clang，以及 GTest；benchmark 目标还需要
-Google Benchmark。
+要求 Linux 或 macOS、CMake 3.25+、支持 C++23 的 GCC/Clang。测试目标需要 GTest，
+benchmark 目标还需要 Google Benchmark。预设使用 Ninja，也可直接选择其他 CMake generator。
 
 ```bash
 cmake --preset debug-asan-ubsan
@@ -31,6 +31,21 @@ ctest --preset debug-asan-ubsan
 cmake --preset tsan
 cmake --preset release
 ```
+
+安装并供下游 CMake 工程使用：
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+cmake --install build --prefix /path/to/salias
+```
+
+```cmake
+find_package(salias CONFIG REQUIRED)
+target_link_libraries(my_app PRIVATE salias::salias)
+```
+
+配置下游工程时，将安装前缀加入 `CMAKE_PREFIX_PATH`。
 
 ## API
 
@@ -90,9 +105,10 @@ auto owner = salias::FifoFanoutChannel::create(config);
 
 ## Huge Pages
 
-`Config::huge` 支持 `None`、`Size2MB` 和 `Size1GB`。显式大页请求使用 hugetlbfs，失败时返回
-`PlatformFail`，不会降级。默认目录为 `/dev/hugepages`，可通过
-`SALIAS_HUGETLBFS_DIR` 覆盖。
+`Config::huge` 支持 `None`、`Size2MB` 和 `Size1GB`。Linux 上的显式大页请求使用
+hugetlbfs，失败时返回 `PlatformFail`，不会降级。默认目录为 `/dev/hugepages`，可通过
+`SALIAS_HUGETLBFS_DIR` 覆盖。macOS 支持普通页模式；显式 HugePage 和 NUMA 属于 Linux
+专属能力，在 macOS 上会明确返回不可用。
 
 普通页与大页 ring 在计时前使用 `MAP_POPULATE` prefault。控制块使用 POSIX shared memory。
 

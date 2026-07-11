@@ -168,6 +168,30 @@ bool is_valid_channel_name(std::string_view name) noexcept {
   return true;
 }
 
+/// @brief 将公共 channel 名编码为固定长度 POSIX shm 键，规避 macOS 的短名称限制。
+std::uint64_t channel_name_hash(std::string_view name) noexcept {
+  constexpr std::uint64_t offset_basis = 14695981039346656037ull;
+  constexpr std::uint64_t prime = 1099511628211ull;
+  std::uint64_t hash = offset_basis;
+  for (const unsigned char character : name) {
+    hash ^= character;
+    hash *= prime;
+  }
+  return hash;
+}
+
+std::string encoded_channel_name(std::string_view name) {
+  constexpr std::array<char, 16> hex_digits = {'0', '1', '2', '3', '4', '5', '6', '7',
+                                                '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+  std::array<char, 16> encoded{};
+  std::uint64_t hash = channel_name_hash(name);
+  for (std::size_t index = encoded.size(); index != 0; --index) {
+    encoded[index - 1] = hex_digits[hash & 0x0fu];
+    hash >>= 4;
+  }
+  return std::string(encoded.data(), encoded.size());
+}
+
 /// @brief 判断 value 是否为 2 的幂。
 /// @details ring 容量必须为 2 的幂，以便用位与（而非取模）完成序列号到槽位的映射。
 bool is_power_of_two(std::size_t value) noexcept {
@@ -236,12 +260,12 @@ bool is_valid_huge_capacity(std::size_t capacity, HugePage huge) noexcept {
 
 /// @brief 构造控制段的 POSIX 共享内存名称（/salias-<name>-ctl）。
 std::string control_shm_name(std::string_view name) {
-  return "/salias-" + std::string(name) + "-ctl";
+  return "/salias-" + encoded_channel_name(name) + "-c";
 }
 
 /// @brief 构造某 producer 的 ring 的 POSIX 共享内存名称（/salias-<name>-ring-<id>）。
 std::string ring_shm_name(std::string_view name, std::uint32_t producer_id) {
-  return "/salias-" + std::string(name) + "-ring-" + std::to_string(producer_id);
+  return "/salias-" + encoded_channel_name(name) + "-r-" + std::to_string(producer_id);
 }
 
 /// @brief 构造某 producer 的 ring 在 hugetlbfs 文件系统中的公开名（不含目录）。
@@ -727,6 +751,12 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
       !channel::hybrid_detail::sequence_low_window_fits(sequence_domains, config.capacity)) {
     return std::unexpected(Error::BadConfig);
   }
+
+#if !defined(__linux__)
+  if (config.huge != HugePage::None) {
+    return std::unexpected(Error::PlatformFail);
+  }
+#endif
 
   const std::string control_name = control_shm_name(config.name);
   const NamedRingSpec ring_spec = named_ring_spec_for(config.huge);
