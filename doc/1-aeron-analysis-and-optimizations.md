@@ -159,3 +159,8 @@ Aeron 是一套高性能消息传输系统，支持三种介质（media）：
 | 正确性验证 | TSan/ASan/UBSan + 自建并发交错测试 | C++ 无 loom/miri 这类 Rust 专属工具；用 sanitizer + 压力测试 + 形式化推理补位。 |
 
 > 性能上 C++ 与 Rust 峰值打平（同为 AOT、无 GC、同 LLVM 量级），选 C++ 的决定因素是生态同源与团队，不是性能。
+
+---
+
+> 本文记录项目初期的 Aeron 分析与优化方向。已落地的架构、热路径、帧头、批量和流控窗口优化，以及
+> 最终实测效果，见 `13-optimization-retrospective.md`。

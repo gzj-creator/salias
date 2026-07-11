@@ -102,6 +102,7 @@ auto owner = salias::FifoFanoutChannel::create(config);
 - `salias_ipc_compare`：`fifo` / `ordered` IPC 对比 harness。
 - `tools/aeron_compare/run_release_compare.sh`：与 Aeron 的 release 对比脚本。
 - `salias_mpsc_subscriber` / `salias_mpsc_publisher`：FIFO MPSC 示例。
+- `salias_minimal_fifo` / `salias_minimal_ordered`：两个单文件最小模式示例，说明见 `example/README.md`。
 
 ## 目录
 
@@ -123,3 +124,4 @@ example/             FIFO MPSC 示例
 - `fifo` 对齐 Aeron 的 per-publication FIFO 语义，是追平 Aeron 的性能路径。
 - `ordered` 提供 Aeron 不提供的跨生产者全序，因此必须承担一个共享 rank 与归并点。
 - ARM Colima VM 只用于功能回归；最终性能验收必须在公平绑核的 x86 真机完成。
+- 完整优化时间线、原理与分阶段效果见 `doc/13-optimization-retrospective.md`。

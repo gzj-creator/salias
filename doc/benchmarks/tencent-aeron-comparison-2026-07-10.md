@@ -1,5 +1,7 @@
 # Tencent x86 salias 与 Aeron IPC 对比（2026-07-10）
 
+> 优化点、实现原理和分阶段性能演进的完整复盘见 `../13-optimization-retrospective.md`。
+
 ## 环境
 
 - 主机：Tencent Cloud `VM-8-5-ubuntu`
@@ -201,6 +203,41 @@ p99 从 5.70ms 降到 352us。该窗口下 FIFO p50 约为本轮 Aeron 的 2.7 �
 考虑到 Aeron 在 KVM 上各轮 p50 波动较大，结论应表述为 salias 已从毫秒级回到与 Aeron 相同的微秒级，
 而不是宣称稳定优于 Aeron。
 
+## 64 位帧头发布优化最终复验
+
+2026-07-11 在 Phase A 基础上继续优化 hybrid 热路径：消费者将 `len + meta` 合并为单次 64 位
+acquire load；生产者 claim 时以单次 relaxed 64 位 store 清除回绕位置的旧提交状态，commit 时以单次
+release 64 位 store 发布完整帧头；`try_recv_run()` 同时预取下一帧头。进程内和共享内存 hybrid 后端
+使用相同协议，并新增整环回绕后未提交 claim 不得暴露旧 `COMMITTED` 帧的回归测试。
+
+最终吞吐复验继续使用同一台 Tencent 4 vCPU x86_64 KVM 主机，配置为 2P/1C、64B payload、4MiB
+capacity/term、normal page、poll/fragment limit 64。salias worker 固定在 CPU 0/1/2，Aeron media driver
+固定在 CPU 3。每个 batch 档位和场景预热 3 轮、正式测量 20 轮；每轮发布并交付 4,000,000 条消息。
+表中吞吐单位为 Mmsg/s，括号为 p10–p90；比例使用双方各自 20 轮中位数计算，不选择最好轮次。
+
+| 模式 | batch | salias median (p10–p90) | Aeron median (p10–p90) | salias / Aeron |
+|------|------:|-------------------------:|------------------------:|---------------:|
+| FIFO | 1 | 42.889 (34.540–44.686) | 37.286 (33.589–39.502) | 115.0% |
+| FIFO | 8 | 37.875 (32.435–44.094) | 36.303 (31.781–39.797) | 104.3% |
+| FIFO | 16 | 32.452 (30.211–37.998) | 34.217 (32.004–38.429) | 94.8% |
+| Ordered | 1 | 22.124 (19.722–23.660) | 37.026 (33.839–39.935) | 59.8% |
+| Ordered | 8 | 35.489 (32.734–37.442) | 37.993 (33.639–41.300) | 93.4% |
+| Ordered | 16 | 33.182 (29.404–38.548) | 35.179 (31.470–38.123) | 94.3% |
+
+结论：
+
+- FIFO batch=1 从 Phase A 的 29.068 M/s 提升到 42.889 M/s，提升 47.5%，本轮中位吞吐达到
+  Aeron 的 115.0%。这支持 FIFO 剩余瓶颈主要位于帧头读取、提交写入和下一帧访存延迟的判断。
+- FIFO 不需要生产者批量发布：batch=8 和 batch=16 分别比 batch=1 低 11.7% 和 24.3%。独立生产者环
+  已经消除了生产者竞争，额外批量只会增加突发和调度敏感性；FIFO 默认应继续使用 batch=1。
+- Ordered batch=1 从 Phase A 的 17.141 M/s 提升到 22.124 M/s，提升 29.1%，但仍只有 Aeron 的
+  59.8%，说明帧头微优化无法消除 `global_seq.fetch_add` 和跨环寻找下一全序消息的架构成本。
+- Ordered batch=8 达到 35.489 M/s，是 batch=1 的 1.60 倍，并达到本轮 Aeron 中位吞吐的 93.4%；
+  batch=16 为 94.3%，但绝对吞吐低于 batch=8。当前吞吐优先配置应选择 Ordered batch=8。
+- 20 轮配对比例仍有明显 KVM 波动：FIFO batch=1 的配对 p10–p90 为 93.3%–129.1%，Ordered
+  batch=8 为 83.9%–108.1%。因此可以表述为 FIFO 中位数已追平并超过本轮 Aeron、Ordered 批量模式
+  已接近 Aeron，但最终验收仍应在非超卖 x86 物理机上复跑。
+
 ## 原始数据
 
 - `benchmark-tencent-2026-07-10-batch1.log`
@@ -233,8 +270,15 @@ p99 从 5.70ms 降到 352us。该窗口下 FIFO p50 约为本轮 Aeron 的 2.7 �
   - SHA-256: `06c7c22c227212a5f2d22ad5aa67cec8e3cc8a20c1e65d9360e98d34a56dfea3`
 - `benchmark-tencent-phase-a-2026-07-11-throughput-batch1.log`
   - SHA-256: `22203f3f99f2b3836f85ee15165e9cd1fd617ebc36c93d05c19e966129989da0`
+- `benchmark-tencent-final-header-2026-07-11-batch1-20r.log`
+  - SHA-256: `d0efb7a05260f61e8c4727c2a5839692a69bcc79634411fbd262ab82d7e44ed9`
+- `benchmark-tencent-final-header-2026-07-11-batch8-20r.log`
+  - SHA-256: `b1751734d7dc3c2b15c5a030f91964806a43e937ffa034da3c90c3c3c2dbe995`
+- `benchmark-tencent-final-header-2026-07-11-batch16-20r.log`
+  - SHA-256: `5a397dbd751f234fa838d3ddf9791c8ed3d2c1a507b11292ff79e9bd4d4abc9e`
 
 吞吐远端运行目录：`/home/ubuntu/salias-dual-engine-bench/run-20260710-1315`。
 延迟远端运行目录：`/home/ubuntu/salias-dual-engine-bench/run-20260710-latency`。
 优化后复验远端运行目录：`/home/ubuntu/salias-dual-engine-bench/run-20260710-flow-window`。
 Phase A 复验远端运行目录：`/home/ubuntu/salias-dual-engine-bench/run-20260711-phase-a`。
+64 位帧头优化最终复验远端运行目录：`/home/ubuntu/salias-final-aeron`。
