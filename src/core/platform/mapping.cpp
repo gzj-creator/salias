@@ -1,8 +1,9 @@
 /**
  * @file src/core/platform/mapping.cpp
- * @brief Linux magic-ring 双映射（mmap）后端的实现。
+ * @brief POSIX magic-ring 双映射（mmap）后端的实现。
  * @details 本文件位于 L0 平台层，实现 mapping.hpp 中声明的 Mapping 类。
- * 核心机制：通过 memfd_create 建立匿名共享内存后端，再用 MAP_FIXED 将
+ * 核心机制：Linux 通过 memfd_create、macOS 通过立即 unlink 的临时文件
+ * 建立匿名共享内存后端，再用 MAP_FIXED 将
  * 同一 fd 的 offset 0 映射到两段相邻虚拟地址，构造 [base, base+2*size)
  * 的连续虚拟空间——使上层 L1 ring 的 sequence 无需 wraparound 判断。
  *
@@ -18,9 +19,13 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#if defined(__linux__)
 #include <linux/memfd.h>
+#endif
 #include <sys/mman.h>
+#if defined(__linux__)
 #include <sys/syscall.h>
+#endif
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -38,6 +43,12 @@ namespace {
 constexpr std::size_t kHugePage2MiB = std::size_t{2} * 1024 * 1024;
 /// 1 GiB 显式大页的字节大小（huge page）。
 constexpr std::size_t kHugePage1GiB = std::size_t{1024} * 1024 * 1024;
+
+#if defined(MAP_POPULATE)
+constexpr int kPopulateFlag = MAP_POPULATE;
+#else
+constexpr int kPopulateFlag = 0;
+#endif
 
 // 判断 value 是否为非零 2 的幂。
 bool is_power_of_two(std::size_t value) noexcept {
@@ -81,6 +92,7 @@ std::size_t huge_page_size(HugePage huge) noexcept {
   return 0;
 }
 
+#if defined(__linux__)
 // 返回 memfd_create 的 MFD_HUGE_* 编码。
 // 配合 MFD_HUGETLB 一起传入，让内核为该 memfd 分配指定规格的显式大页。
 int huge_memfd_flag(HugePage huge) noexcept {
@@ -94,6 +106,7 @@ int huge_memfd_flag(HugePage huge) noexcept {
   }
   return 0;
 }
+#endif
 
 // 显式大页请求要求 ring 容量按所选大页大小对齐。
 bool is_valid_huge_size(std::size_t size, HugePage huge) noexcept {
@@ -162,6 +175,7 @@ void* reserve_aligned_range(std::size_t mapped_len, std::size_t alignment) noexc
 
 // 为 ring 后端存储创建 close-on-exec 匿名 memfd。
 int create_memfd(HugePage huge) noexcept {
+#if defined(__linux__)
   // MFD_CLOEXEC 确保 exec 时自动关闭 fd，避免泄漏给子进程。
   int flags = MFD_CLOEXEC;
   if (huge != HugePage::None) {
@@ -175,6 +189,23 @@ int create_memfd(HugePage huge) noexcept {
     return -1;
   }
   return static_cast<int>(fd);
+#else
+  if (huge != HugePage::None) {
+    return -1;
+  }
+
+  char path[] = "/tmp/salias-ring-XXXXXX";
+  const int fd = ::mkstemp(path);
+  if (fd < 0) {
+    return -1;
+  }
+  static_cast<void>(::unlink(path));
+  const int descriptor_flags = ::fcntl(fd, F_GETFD);
+  if (descriptor_flags >= 0) {
+    static_cast<void>(::fcntl(fd, F_SETFD, descriptor_flags | FD_CLOEXEC));
+  }
+  return fd;
+#endif
 }
 
 // 当 fd 表示已打开描述符时关闭它。
@@ -206,7 +237,7 @@ Mapping::CreateResult Mapping::map_owned_fd(int fd, std::size_t size, bool self_
   // 安全性：base 指向上面的 PROT_NONE 预留区，且至少覆盖 size 字节。
   // MAP_FIXED 只刻意替换该预留子区间，并映射 fd offset 0。
   void* const first =
-      ::mmap(base, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_POPULATE, fd, 0);
+      ::mmap(base, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | kPopulateFlag, fd, 0);
   if (first == MAP_FAILED || first != base) {
     static_cast<void>(::munmap(base, mapped_len));
     close_if_open(fd);
@@ -219,7 +250,7 @@ Mapping::CreateResult Mapping::map_owned_fd(int fd, std::size_t size, bool self_
   // 安全性：base + size 仍位于同一段 2*size 预留区间内。
   // 再次映射同一 fd offset 0 会创建同一物理页的第二个虚拟别名。
   void* const second = ::mmap(base + size, size, PROT_READ | PROT_WRITE,
-                              MAP_SHARED | MAP_FIXED | MAP_POPULATE, fd, 0);
+                              MAP_SHARED | MAP_FIXED | kPopulateFlag, fd, 0);
   if (second == MAP_FAILED || second != base + size) {
     static_cast<void>(::munmap(base, mapped_len));
     close_if_open(fd);

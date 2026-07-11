@@ -354,16 +354,15 @@ class SharedHybridMpscChannel {
 
       // 取序列号：Ordered 用全局原子 fetch_add(relaxed，序号单调性由 fetch_add 保证)；
       // Fifo 用本地序列号并 store 回共享内存(relaxed，可见性由下方 release 保证)。
-      const std::uint64_t sequence = [&producer, this] {
-        if constexpr (Ordering == Order::Ordered) {
-          return std::atomic_ref<std::uint64_t>(*channel_->control_.global_seq)
-              .fetch_add(1, std::memory_order_relaxed);
-        }
-        const std::uint64_t sequence = producer.local_sequence++;
+      std::uint64_t sequence = 0;
+      if constexpr (Ordering == Order::Ordered) {
+        sequence = std::atomic_ref<std::uint64_t>(*channel_->control_.global_seq)
+                       .fetch_add(1, std::memory_order_relaxed);
+      } else {
+        sequence = producer.local_sequence++;
         std::atomic_ref<std::uint64_t>(*producer.shared.local_sequence)
             .store(producer.local_sequence, std::memory_order_relaxed);
-        return sequence;
-      }();
+      }
       // 写未提交帧头占位(此时帧对 consumer 不可见)。
       channel_->write_uncommitted_header(producer, tail, payload_len, sequence);
       // release 推进可见尾位置：此后该帧对 consumer 可见(但尚未 committed)。
@@ -424,17 +423,16 @@ class SharedHybridMpscChannel {
       }
 
       // 一次性为整批获取连续序列号(Ordered)或本地累加 fit(Fifo)。
-      const std::uint64_t base_sequence = [&producer, fit, this] {
-        if constexpr (Ordering == Order::Ordered) {
-          return std::atomic_ref<std::uint64_t>(*channel_->control_.global_seq)
-              .fetch_add(fit, std::memory_order_relaxed);
-        }
-        const std::uint64_t sequence = producer.local_sequence;
+      std::uint64_t base_sequence = 0;
+      if constexpr (Ordering == Order::Ordered) {
+        base_sequence = std::atomic_ref<std::uint64_t>(*channel_->control_.global_seq)
+                            .fetch_add(fit, std::memory_order_relaxed);
+      } else {
+        base_sequence = producer.local_sequence;
         producer.local_sequence += fit;
         std::atomic_ref<std::uint64_t>(*producer.shared.local_sequence)
             .store(producer.local_sequence, std::memory_order_relaxed);
-        return sequence;
-      }();
+      }
       const std::uint64_t span_bytes = static_cast<std::uint64_t>(per) * fit;
       // 为批内每帧写未提交帧头，序列号连续递增。
       for (std::uint32_t i = 0; i < fit; ++i) {

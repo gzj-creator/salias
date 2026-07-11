@@ -62,6 +62,12 @@ inline constexpr const char* kDefaultHugetlbfsDir = "/dev/hugepages";  // hugetl
 // 发布窗口下限（字节）：非 0 窗口须不小于一页，避免小于一次 poll 批量导致长期回压。
 inline constexpr std::size_t kMinPublicationWindow = 4096;
 
+#if defined(MAP_POPULATE)
+inline constexpr int kPopulateFlag = MAP_POPULATE;
+#else
+inline constexpr int kPopulateFlag = 0;
+#endif
+
 /// @brief 具名 ring 的后端存储类型。
 /// @details PosixShm 使用 shm_open 共享内存；Hugetlbfs 使用挂载在 hugetlbfs 的普通文件，
 /// 后者走 huge page 以降低 TLB miss，适合大容量低延迟场景。
@@ -422,7 +428,7 @@ class ControlMapping {
   /// @brief 将已打开的 fd 以 MAP_SHARED|MAP_POPULATE 映射，失败时关闭 fd。
   static Result<ControlMapping> map_fd(int fd) noexcept {
     void* mapped =
-        ::mmap(nullptr, kControlSize, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_POPULATE, fd, 0);
+        ::mmap(nullptr, kControlSize, PROT_READ | PROT_WRITE, MAP_SHARED | kPopulateFlag, fd, 0);
     if (mapped == MAP_FAILED) {
       close_if_open(fd);
       return std::unexpected(Error::PlatformFail);

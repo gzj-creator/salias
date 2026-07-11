@@ -1,6 +1,6 @@
 /**
  * @file src/core/platform/mapping.hpp
- * @brief Linux magic-ring 双映射（mmap）后端存储的 RAII 句柄。
+ * @brief Linux/macOS magic-ring 双映射（mmap）后端存储的 RAII 句柄。
  * @details 本文件位于 L0 平台层，为 L1 ring 提供底层共享内存后端。
  * 核心技巧：将同一个 memfd 以 offset 0 映射到两段相邻的虚拟地址区间，
  * 构造出"首尾相接"的 2*len 连续虚拟空间，使 ring 的 producer/consumer
@@ -22,8 +22,9 @@ namespace salias::platform {
 /// L0 平台层命名空间，封装 mmap/memfd_create/huge page 等系统资源管理。
 
 /**
- * @brief Linux magic-ring 双映射后端的 RAII 句柄。
- * @details 通过 memfd_create 创建匿名共享内存后端，并以 MAP_FIXED 将其
+ * @brief Linux/macOS magic-ring 双映射后端的 RAII 句柄。
+ * @details Linux 通过 memfd_create、macOS 通过 unlink 后的临时文件创建匿名后端，
+ * 并以 MAP_FIXED 将其
  * 同一 offset 映射到两段相邻虚拟地址，使上层 ring 获得逻辑上的环形空间。
  *
  * 所有权：独占（move-only）。构造由静态工厂 create()/map_shared_fd() 完成，
@@ -42,14 +43,14 @@ class Mapping {
   using CreateResult = std::expected<Mapping, PlatformError>;
 
   /**
-   * @brief 创建新的 memfd 后端并构造双映射。
+   * @brief 创建新的匿名文件后端并构造双映射。
    * @param options 映射选项（容量、大页类型、NUMA 节点）。
    * @retval Mapping 创建成功的句柄。
    * @retval PlatformError 系统调用失败时的错误码。
    * @note options.size 须非零、为 2 的幂且页对齐；显式大页请求还须按大页大小对齐。
    *       大页资源不足时返回 HugePageUnavailable。该函数 noexcept，绝不抛异常。
    */
-  // 创建 Linux magic-ring 双映射，两段相邻虚拟地址共享同一 memfd。
+  // 创建 POSIX magic-ring 双映射，两段相邻虚拟地址共享同一文件后端。
   // options.size 必须非零、为 2 的幂且页对齐；显式大页请求还必须按大页大小对齐。
   // 系统调用失败时返回 PlatformError，且大页资源不足返回 HugePageUnavailable。
   static CreateResult create(const MapOptions& options) noexcept;
@@ -145,7 +146,7 @@ class Mapping {
 
   std::byte* base_ = nullptr;  ///< 双映射起始虚拟地址；nullptr 表示空句柄。
   std::size_t len_ = 0;        ///< 单段逻辑容量（字节）；双映射实际占用 2*len_ 虚拟地址。
-  int fd_ = -1;                ///< 持有的 memfd 文件描述符；-1 表示未持有。
+  int fd_ = -1;                ///< 持有的匿名文件描述符；-1 表示未持有。
 };
 
 }  // namespace salias::platform

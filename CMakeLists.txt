@@ -2,15 +2,16 @@ cmake_minimum_required(VERSION 3.25)
 
 project(salias VERSION 0.0.1 LANGUAGES CXX)
 
-if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  message(FATAL_ERROR "salias is Linux-only: L0 requires memfd_create and mmap.")
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT APPLE)
+  message(FATAL_ERROR "salias currently supports Linux and macOS.")
 endif()
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(SALIAS_BUILD_BENCHMARKS "Build salias benchmarks" ON)
+option(BUILD_TESTING "Build salias tests" OFF)
+option(SALIAS_BUILD_BENCHMARKS "Build salias benchmarks" OFF)
 option(SALIAS_BUILD_EXAMPLES "Build salias examples" ON)
 option(SALIAS_ENABLE_ASAN_UBSAN "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(SALIAS_ENABLE_TSAN "Enable ThreadSanitizer" OFF)

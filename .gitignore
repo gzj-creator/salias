@@ -1,4 +1,6 @@
 build/
+build-macos*/
+.DS_Store
 .cache/
 .idea/
 compile_commands.json

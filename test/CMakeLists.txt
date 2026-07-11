@@ -1,4 +1,11 @@
-find_package(GTest CONFIG REQUIRED)
+find_package(GTest CONFIG QUIET)
+if(NOT GTest_FOUND)
+  message(WARNING
+    "GTest was not found; skipping salias test targets. "
+    "Install GTest or set GTest_DIR to build the tests."
+  )
+  return()
+endif()
 include(GoogleTest)
 
 add_executable(salias_latency_histogram_tests

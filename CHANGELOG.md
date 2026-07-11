@@ -13,8 +13,17 @@ are released.
 
 ## [Unreleased]
 
+## [v1.1.0] - 2026-07-11
+
 ### Added
 
+- macOS platform support: the magic-ring double-mapping backend now builds and
+  runs on macOS alongside Linux. macOS backs the ring with an immediately-unlinked
+  `mkstemp` temp file where Linux uses `memfd_create`; `MAP_POPULATE` is applied
+  only where the platform defines it (via a `kPopulateFlag` fallback in
+  `mapping.cpp` and `channel.cpp`), and Linux-only headers (`linux/memfd.h`,
+  `sys/syscall.h`) are guarded by `__linux__`. Explicit huge-page backends remain
+  Linux-only (rejected on macOS).
 - Channel publication flow-control window: a new `Config::publication_window`
   (bytes, `0` = full ring) caps how far a producer may lead its consumer at
   `min(ring_capacity, window)` in-flight bytes, letting steady-state queueing
@@ -42,11 +51,25 @@ are released.
 
 ### Changed
 
+- Relaxed the top-level build from Linux-only to Linux + macOS; added a
+  `BUILD_TESTING` option, defaulted `SALIAS_BUILD_BENCHMARKS` to OFF, and made
+  Google Benchmark / GTest optional (`find_package ... QUIET`) with graceful
+  skip messages. `salias_ipc_compare` is now gated to Linux-only.
+- Refactored `SharedHybridMpscChannel` sequence-number acquisition from an
+  immediately-invoked lambda to a plain if/else on both the single-frame and
+  batch claim paths (portability cleanup; behavior unchanged).
 - Named IPC control block now carries `publication_window`; `kNamedVersion`
   raised `3 -> 4` (binary-incompatible protocol bump).
 
 ### Docs
 
+- Added `doc/13-optimization-retrospective.md`: a full retrospective of the
+  optimization timeline (per-producer architecture → shared-state dedup →
+  consumer hot path → frame-header micro-opts) with final recommended configs
+  and measurements; referenced from `README.md` and the Tencent comparison doc.
+- Appended the final 64-bit frame-header publish optimization re-verification to
+  the Tencent 4 vCPU Aeron comparison (FIFO batch=1 lifted to 115.0% of Aeron;
+  Ordered batch=8 at 93.4%), with the matching batch1/8/16 × 20-round raw logs.
 - Updated the Tencent 4 vCPU Aeron comparison with flow-control-window and
   Phase A re-verification results (FIFO throughput lifted to ~85% of Aeron; a
   128 KiB window cuts FIFO p50 from 5.37 ms to 147 µs), plus the matching raw
