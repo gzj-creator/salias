@@ -35,6 +35,10 @@ are released.
 - Eight GTest cases covering window-bounded inflight, zero-window full-ring
   regression, batched flush reclaiming space, cached visible-position staging,
   and same-ring run draining / truncation for FIFO and Ordered.
+- Two minimal end-to-end demos (`example/minimal_fifo.cpp`,
+  `example/minimal_ordered.cpp`) plus `example/README.md` showing the shortest
+  path to FIFO vs Ordered MPSC semantics; wired into the build and test graph
+  via `example/CMakeLists.txt`.
 
 ### Changed
 
@@ -47,6 +51,12 @@ are released.
   Phase A re-verification results (FIFO throughput lifted to ~85% of Aeron; a
   128 KiB window cuts FIFO p50 from 5.37 ms to 147 µs), plus the matching raw
   benchmark logs.
+- Added Chinese Doxygen header docs and inline rationale comments across the
+  entire C++ tree (src/test/bench/tools/example): file-level
+  `@file/@brief/@details` with layering and thread/process model, per-function
+  `@param/@return/@note`, and inline notes on memory ordering, flow control,
+  sequence wraparound, and cache-line layout. Code unchanged (verified by a
+  comment-stripped skeleton diff against the pre-change baseline).
 
 ## [v1.0.0] - 2026-07-10
 
