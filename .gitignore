@@ -10,3 +10,6 @@ CMakeUserPresets.json
 *.so
 *.dylib
 *.dSYM/
+
+# 基准测试/运行时产生的日志，不应提交
+*.log

@@ -104,6 +104,32 @@ auto owner = salias::FifoFanoutChannel::create(config);
 - `salias_mpsc_subscriber` / `salias_mpsc_publisher`：FIFO MPSC 示例。
 - `salias_minimal_fifo` / `salias_minimal_ordered`：两个单文件最小模式示例，说明见 `example/README.md`。
 
+## 架构动画
+
+- [消息流交互动画](doc/salias-message-flow.html)：浏览器直接打开，查看 `Channel`、
+  `Publisher` / `Subscriber`、底层 `Producer` / `Consumer`、per-producer `MagicRing`
+  的关系，以及 FIFO、Ordered、MPSC、Fanout、release 与背压的完整流转。
+
+## 最终性能
+
+Tencent 4 vCPU x86 KVM，两个独立 Publisher 程序，每 Publisher 2,000,000 条 64B 消息；
+每组预热 3 次、正式 20 次。Publisher/Subscriber 均为独立可执行程序，没有在 benchmark
+程序内 `fork()` worker。完整机器配置、公平条件、Ordered 表格与原始数据见
+[最终独立进程性能报告](doc/performance-report.md)。
+
+| 拓扑 | 容量 | salias FIFO | Aeron | salias/Aeron | salias 背压 |
+|---|---:|---:|---:|---:|---:|
+| 2 Publisher / 1 Subscriber | 1 MiB | **44.867 M/s** | 41.108 M/s | **109.1%** | 0.312% |
+| 2 Publisher / 1 Subscriber | 4 MiB | **44.485 M/s** | 38.515 M/s | **115.5%** | 0.200% |
+| 2 Publisher / 1 Subscriber | 64 MiB | **38.806 M/s** | 22.011 M/s | **176.3%** | 0.000% |
+| 2 Publisher / 2 Subscriber | 1 MiB | **29.206 M/s** | 15.214 M/s | **192.0%** | 0.884% |
+| 2 Publisher / 2 Subscriber | 4 MiB | **30.158 M/s** | 25.127 M/s | **120.0%** | 0.386% |
+| 2 Publisher / 2 Subscriber | 64 MiB | **28.423 M/s** | 17.743 M/s | **160.2%** | 0.000% |
+
+2P2S 的每条消息交付两次；salias 4 MiB 对应 **60.316 Mmsg/s** 交付吞吐。Ordered 是
+Aeron 不具备的跨 Publisher 全局全序能力，最佳结果为 2P1S batch=8、64 MiB 的
+**42.856 Mmsg/s**，以及 2P2S 的 **34.207 Mmsg/s** 发布 / **68.414 Mmsg/s** 交付。
+
 ## 目录
 
 ```text
@@ -123,5 +149,8 @@ example/             FIFO MPSC 示例
 
 - `fifo` 对齐 Aeron 的 per-publication FIFO 语义，是追平 Aeron 的性能路径。
 - `ordered` 提供 Aeron 不提供的跨生产者全序，因此必须承担一个共享 rank 与归并点。
+- Ring 容量按每个 Producer 独立配置。最终独立进程测试中，FIFO 的最佳绝对吞吐出现在
+  1/4 MiB；64 MiB 虽消除背压，但扩大工作集后吞吐下降。容量主要用于突发吸收，不能替代
+  Consumer 稳定吞吐能力或受控的 `publication_window`。
 - ARM Colima VM 只用于功能回归；最终性能验收必须在公平绑核的 x86 真机完成。
-- 完整优化时间线、原理与分阶段效果见 `doc/13-optimization-retrospective.md`。
+- 当前唯一有效的性能结论见 `doc/performance-report.md`。

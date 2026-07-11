@@ -43,6 +43,7 @@ endif()
 
 if(SALIAS_BUILD_BENCHMARKS)
   add_subdirectory(bench)
+  add_subdirectory(tools/final_bench)
 endif()
 
 if(BUILD_TESTING)

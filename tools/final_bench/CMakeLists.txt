@@ -1,0 +1,9 @@
+add_executable(salias_final_publisher salias_publisher.cpp)
+target_include_directories(salias_final_publisher PRIVATE "${PROJECT_SOURCE_DIR}")
+target_link_libraries(salias_final_publisher PRIVATE salias)
+salias_enable_warnings(salias_final_publisher)
+
+add_executable(salias_final_subscriber salias_subscriber.cpp)
+target_include_directories(salias_final_subscriber PRIVATE "${PROJECT_SOURCE_DIR}")
+target_link_libraries(salias_final_subscriber PRIVATE salias)
+salias_enable_warnings(salias_final_subscriber)

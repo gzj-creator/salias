@@ -13,6 +13,29 @@ are released.
 
 ## [Unreleased]
 
+### Added
+
+- Added independent-process salias and Aeron benchmark workers for Publisher and
+  Subscriber roles, coordinated externally without forking benchmark workers.
+  The final matrix covers 2P1S/2P2S, 1/4/64 MiB capacities, FIFO fairness,
+  Ordered batch 1/8, message validation, and backpressure statistics.
+- Added a standalone interactive HTML animation explaining Channel,
+  Publisher/Subscriber, Producer/Consumer, per-producer MagicRing, ordering,
+  fanout, release, and backpressure message flow.
+
+### Changed
+
+- Replaced historical performance comparison documents and logs with one final
+  independent-process report, machine configuration, 480 validated raw samples,
+  generated summaries, and the core salias/Aeron table embedded in README.
+- Updated the optimization retrospective to treat the final independent-process
+  report as the sole current performance truth source.
+
+### Removed
+
+- Removed superseded Tencent/Aeron comparison reports and intermediate benchmark
+  logs that used earlier harnesses or conflicting measurement conditions.
+
 ## [v1.1.0] - 2026-07-11
 
 ### Added

@@ -1,0 +1,26 @@
+| Library | Mode | Topology | Capacity | Batch | N | Publish median | p10-p90 | Delivery median | Backpressure median |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+| aeron | fifo | 2P1S | 1 MiB | 1 | 20 | 41.108 M/s | 36.112-45.335 | 41.108 M/s | 27.828% |
+| aeron | fifo | 2P1S | 4 MiB | 1 | 20 | 38.515 M/s | 34.980-42.101 | 38.515 M/s | 15.891% |
+| aeron | fifo | 2P1S | 64 MiB | 1 | 20 | 22.011 M/s | 20.672-22.617 | 22.011 M/s | 0.000% |
+| aeron | fifo | 2P2S | 1 MiB | 1 | 20 | 15.214 M/s | 9.253-18.579 | 30.429 M/s | 73.875% |
+| aeron | fifo | 2P2S | 4 MiB | 1 | 20 | 25.127 M/s | 21.480-27.882 | 50.254 M/s | 45.811% |
+| aeron | fifo | 2P2S | 64 MiB | 1 | 20 | 17.743 M/s | 15.694-18.699 | 35.486 M/s | 22.189% |
+| salias | fifo | 2P1S | 1 MiB | 1 | 20 | 44.867 M/s | 42.783-46.408 | 44.867 M/s | 0.312% |
+| salias | fifo | 2P1S | 4 MiB | 1 | 20 | 44.485 M/s | 38.606-46.316 | 44.485 M/s | 0.200% |
+| salias | fifo | 2P1S | 64 MiB | 1 | 20 | 38.806 M/s | 35.909-43.545 | 38.806 M/s | 0.000% |
+| salias | fifo | 2P2S | 1 MiB | 1 | 20 | 29.206 M/s | 24.095-32.785 | 58.411 M/s | 0.884% |
+| salias | fifo | 2P2S | 4 MiB | 1 | 20 | 30.158 M/s | 24.403-34.688 | 60.316 M/s | 0.386% |
+| salias | fifo | 2P2S | 64 MiB | 1 | 20 | 28.423 M/s | 24.456-33.147 | 56.845 M/s | 0.000% |
+| salias | ordered | 2P1S | 1 MiB | 1 | 20 | 18.784 M/s | 16.790-20.219 | 18.784 M/s | 3.178% |
+| salias | ordered | 2P1S | 1 MiB | 8 | 20 | 34.890 M/s | 33.155-36.644 | 34.890 M/s | 12.616% |
+| salias | ordered | 2P1S | 4 MiB | 1 | 20 | 18.267 M/s | 17.234-19.764 | 18.267 M/s | 3.209% |
+| salias | ordered | 2P1S | 4 MiB | 8 | 20 | 34.607 M/s | 33.024-38.625 | 34.607 M/s | 12.342% |
+| salias | ordered | 2P1S | 64 MiB | 1 | 20 | 19.517 M/s | 17.705-22.377 | 19.517 M/s | 0.111% |
+| salias | ordered | 2P1S | 64 MiB | 8 | 20 | 42.856 M/s | 40.049-43.809 | 42.856 M/s | 0.000% |
+| salias | ordered | 2P2S | 1 MiB | 1 | 20 | 15.498 M/s | 13.329-17.338 | 30.997 M/s | 0.871% |
+| salias | ordered | 2P2S | 1 MiB | 8 | 20 | 28.691 M/s | 23.395-31.117 | 57.382 M/s | 14.184% |
+| salias | ordered | 2P2S | 4 MiB | 1 | 20 | 15.129 M/s | 13.360-18.503 | 30.259 M/s | 0.455% |
+| salias | ordered | 2P2S | 4 MiB | 8 | 20 | 28.208 M/s | 23.135-32.046 | 56.415 M/s | 12.876% |
+| salias | ordered | 2P2S | 64 MiB | 1 | 20 | 16.512 M/s | 15.225-17.727 | 33.025 M/s | 0.000% |
+| salias | ordered | 2P2S | 64 MiB | 8 | 20 | 34.207 M/s | 26.649-35.737 | 68.414 M/s | 0.000% |

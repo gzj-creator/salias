@@ -1,8 +1,8 @@
 # 13 - salias 性能优化复盘
 
 本文总结 salias 从初始共享环实现到最终 hybrid 双模式引擎的主要性能优化，重点说明每项修改要解决的
-问题、实现原理和实测效果。完整原始数据与 Aeron 配对结果见
-`benchmarks/tencent-aeron-comparison-2026-07-10.md`。
+问题、实现原理和阶段性效果。当前唯一有效的最终性能结论见
+`performance-report.md`；本文中的历史数字只用于解释优化过程，不作为当前验收结果。
 
 ## 一、最终结论
 
@@ -459,11 +459,20 @@ CPU 最擅长连续且可预测的内存访问。
 
 三个参数不应承担同一个职责。
 
+最终独立进程矩阵覆盖 1/4/64 MiB。FIFO 的最佳绝对吞吐出现在 1/4 MiB；64 MiB 虽然把
+salias 背压中位数降至 0，但更大的工作集没有提高吞吐。Ordered batch=8 在 64 MiB 下受益，
+说明容量收益与模式、批量和同步结构相关。完整结果见 `performance-report.md`。
+
+因此扩大物理 ring 可以吸收突发并减少空间不足重试，但不能解决长期生产速率高于消费速率的问题，
+也不应替代 `publication_window` 对最大在途数据和排队延迟的约束。容量并非越大越快，仍需同时
+考虑 cache/TLB 工作集。
+
 ## 十、当前边界与下一步
 
 ### FIFO
 
-FIFO 已完成主要架构和热路径优化，最终中位吞吐达到本轮 Aeron 的 115.0%。当前默认建议：
+FIFO 已完成主要架构和热路径优化。最终独立进程测试中，2P1S 在 1/4/64 MiB 分别达到
+Aeron 的 109.1%、115.5%、176.3%；2P2S 分别达到 192.0%、120.0%、160.2%。当前默认建议：
 
 ```text
 FIFO batch=1
@@ -491,11 +500,10 @@ Ordered batch=8
 
 最终结果来自 Tencent 4 vCPU x86 KVM：
 
-- batch 1/8/16 每档预热 3 轮、正式测量 20 轮。
-- 每轮发布并交付 4,000,000 条 64B 消息。
-- Release 完整构建和 47 项 CTest 全部通过。
-- FIFO batch=1 配对比例 p10-p90 为 93.3%-129.1%。
-- Ordered batch=8 配对比例 p10-p90 为 83.9%-108.1%。
+- Publisher/Subscriber 均为独立可执行程序，不在 benchmark 进程内 `fork()` worker。
+- 1/4/64 MiB、2P1S/2P2S、FIFO/Aeron 和 Ordered batch 1/8 每组预热 3 次、正式 20 次。
+- 每轮每 Publisher 发布 2,000,000 条 64B 消息，共 480 个正式样本且消息校验全部通过。
+- 2P2S Aeron media driver 与一个 Subscriber 共享 CPU，这是 4 vCPU 机器的明确限制。
 
-因此合理结论是 FIFO 中位吞吐已追平并超过本轮 Aeron，Ordered batch 模式已接近 Aeron；最终稳定性
-验收仍应在非超卖 x86 物理机上复跑。
+因此合理结论是 FIFO 在本轮所有容量和拓扑的中位吞吐均超过 Aeron；Ordered batch 模式在提供
+更强全局全序语义的同时保持较高吞吐。最终稳定性验收仍应在非超卖 x86 物理机上复跑。

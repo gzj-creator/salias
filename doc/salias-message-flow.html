@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>salias 消息流动画</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07111f;
+      --panel: #0c1b2f;
+      --panel-2: #10243d;
+      --line: #28415f;
+      --text: #e7f1ff;
+      --muted: #8fa8c5;
+      --cyan: #3ddbd9;
+      --blue: #5c8dff;
+      --violet: #a879ff;
+      --amber: #ffc857;
+      --green: #5ee09a;
+      --red: #ff6b7a;
+      --shadow: 0 24px 70px rgb(0 0 0 / 35%);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% 0%, rgb(61 219 217 / 12%), transparent 31rem),
+        radial-gradient(circle at 85% 15%, rgb(168 121 255 / 12%), transparent 28rem),
+        var(--bg);
+      font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input { font: inherit; }
+
+    button:focus-visible, input:focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 3px;
+    }
+
+    .shell { width: min(1480px, calc(100% - 32px)); margin: 0 auto; padding: 30px 0 46px; }
+    .eyebrow { color: var(--cyan); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { max-width: 920px; margin: 8px 0 8px; font-size: clamp(30px, 4vw, 56px); line-height: 1.08; }
+    .lead { max-width: 900px; margin: 0; color: var(--muted); font-size: clamp(15px, 2vw, 18px); }
+
+    .toolbar, .stage-card, .info-card {
+      border: 1px solid rgb(86 128 176 / 28%);
+      background: linear-gradient(145deg, rgb(15 35 59 / 94%), rgb(8 23 40 / 96%));
+      box-shadow: var(--shadow);
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      margin: 26px 0 16px;
+      padding: 16px;
+      border-radius: 18px;
+    }
+
+    .modes, .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+    .controls { justify-content: flex-end; }
+
+    button {
+      min-height: 40px;
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      color: var(--text);
+      background: #122843;
+      cursor: pointer;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    }
+
+    button:hover { transform: translateY(-1px); border-color: #5b7ca4; }
+    button[aria-pressed="true"] { color: #031318; border-color: var(--cyan); background: var(--cyan); font-weight: 800; }
+    .control-primary { border-color: rgb(61 219 217 / 55%); background: rgb(61 219 217 / 14%); }
+    .speed { display: grid; grid-template-columns: auto 100px auto; align-items: center; gap: 8px; color: var(--muted); }
+    input[type="range"] { accent-color: var(--cyan); }
+
+    .stage-card { position: relative; overflow: hidden; border-radius: 22px; }
+    .stage-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 17px 20px;
+      border-bottom: 1px solid var(--line);
+      background: rgb(7 17 31 / 56%);
+    }
+    .stage-title { font-weight: 800; }
+    .stage-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .badge { padding: 4px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 12px; }
+    .badge.on { color: var(--amber); border-color: rgb(255 200 87 / 45%); background: rgb(255 200 87 / 8%); }
+
+    svg { display: block; width: 100%; height: auto; min-height: 570px; }
+    .zone { fill: rgb(14 33 56 / 72%); stroke: #284561; stroke-width: 1.5; }
+    .zone-title { fill: #91abc9; font-size: 15px; font-weight: 800; letter-spacing: .06em; }
+    .node { fill: #122b48; stroke: #3d5b7d; stroke-width: 1.5; }
+    .node.api { fill: #102f3d; stroke: #2d8b91; }
+    .node.endpoint { fill: #1b2448; stroke: #6857ac; }
+    .node.consumer { fill: #132f2b; stroke: #348d70; }
+    .node-label { fill: var(--text); font-size: 14px; font-weight: 800; text-anchor: middle; }
+    .node-sub { fill: var(--muted); font-size: 11px; text-anchor: middle; }
+    .path { fill: none; stroke: #45637f; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 7 9; opacity: .55; }
+    .path.active { stroke: var(--cyan); opacity: 1; animation: dash .8s linear infinite; }
+    .path.waiting { stroke: var(--amber); opacity: 1; }
+    .ring-shell { fill: #09192c; stroke: #3a5879; stroke-width: 1.5; }
+    .slot { fill: #10233a; stroke: #385370; }
+    .slot.filled-a { fill: rgb(92 141 255 / 48%); stroke: var(--blue); }
+    .slot.filled-b { fill: rgb(168 121 255 / 48%); stroke: var(--violet); }
+    .slot.released { fill: rgb(94 224 154 / 20%); stroke: var(--green); }
+    .ring-label { fill: var(--text); font-size: 13px; font-weight: 800; }
+    .ring-sub { fill: var(--muted); font-size: 10px; }
+    .seq-box { fill: rgb(255 200 87 / 12%); stroke: rgb(255 200 87 / 65%); stroke-width: 1.5; }
+    .seq-text { fill: var(--amber); font-size: 13px; font-weight: 800; text-anchor: middle; }
+    .cursor { fill: var(--green); filter: drop-shadow(0 0 6px rgb(94 224 154 / 65%)); }
+    .cursor.secondary { fill: var(--amber); }
+    .message { filter: drop-shadow(0 0 10px rgb(61 219 217 / 60%)); transition: opacity .18s linear; }
+    .message circle { fill: var(--cyan); stroke: #d8ffff; stroke-width: 1.5; }
+    .message.alt circle { fill: var(--violet); }
+    .message text { fill: #041519; font-size: 10px; font-weight: 900; text-anchor: middle; dominant-baseline: middle; }
+    .callout { fill: #091a2d; stroke: #4b6887; }
+    .callout-text { fill: var(--text); font-size: 12px; }
+    .callout-muted { fill: var(--muted); font-size: 10px; }
+    .hidden { opacity: 0; pointer-events: none; }
+    .dim { opacity: .25; }
+    .pulse { animation: pulse 1.1s ease-in-out infinite; }
+    .blocked { stroke: var(--red) !important; animation: blocked .8s ease-in-out infinite; }
+
+    .status-strip {
+      display: grid;
+      grid-template-columns: 116px minmax(0, 1fr);
+      gap: 14px;
+      align-items: center;
+      padding: 17px 20px;
+      border-top: 1px solid var(--line);
+      background: rgb(7 17 31 / 72%);
+    }
+    .step-count { color: var(--cyan); font-weight: 900; }
+    #step-title { margin: 0 0 3px; font-size: 17px; }
+    #step-copy { margin: 0; color: var(--muted); }
+
+    .info-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 16px; margin-top: 16px; }
+    .info-card { padding: 18px; border-radius: 16px; box-shadow: none; }
+    .info-card h2 { margin: 0 0 10px; font-size: 16px; }
+    .info-card p, .info-card li { color: var(--muted); }
+    .info-card p { margin: 0; }
+    .info-card ul { margin: 0; padding-left: 20px; }
+    .legend { display: grid; gap: 9px; }
+    .legend span { display: flex; align-items: center; gap: 9px; color: var(--muted); }
+    .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--cyan); }
+    .dot.violet { background: var(--violet); }
+    .dot.green { background: var(--green); }
+    .dot.amber { background: var(--amber); }
+    code { color: #bdefff; }
+
+    @keyframes dash { to { stroke-dashoffset: -32; } }
+    @keyframes pulse { 50% { opacity: .5; } }
+    @keyframes blocked { 50% { opacity: .45; } }
+
+    @media (max-width: 900px) {
+      .toolbar { grid-template-columns: 1fr; }
+      .controls { justify-content: flex-start; }
+      .info-grid { grid-template-columns: 1fr; }
+      .stage-head { align-items: flex-start; flex-direction: column; }
+      .stage-badges { justify-content: flex-start; }
+      svg { min-height: 500px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+      button { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="eyebrow">salias · IPC Architecture</div>
+      <h1>从公共 API 到 per-producer MagicRing</h1>
+      <p class="lead">交互演示 Publisher、Producer、Ring、Consumer、Subscriber 与 Channel 的分层关系，以及 FIFO、Ordered、MPSC、Fanout 四种组合下的消息流转。</p>
+    </header>
+
+    <section class="toolbar" aria-label="动画控制器">
+      <div class="modes" role="group" aria-label="通道模式">
+        <button class="mode" data-mode="FifoMpsc" aria-pressed="true">FifoMpsc</button>
+        <button class="mode" data-mode="FifoFanout" aria-pressed="false">FifoFanout</button>
+        <button class="mode" data-mode="OrderedMpsc" aria-pressed="false">OrderedMpsc</button>
+        <button class="mode" data-mode="OrderedFanout" aria-pressed="false">OrderedFanout</button>
+      </div>
+      <div class="controls">
+        <button id="play" class="control-primary">▶ 播放</button>
+        <button id="pause">Ⅱ 暂停</button>
+        <button id="step">→ 单步</button>
+        <button id="replay">↻ 重播</button>
+        <label class="speed">速度 <input id="speed" type="range" min="0.5" max="2" value="1" step="0.25"><output id="speed-value">1×</output></label>
+      </div>
+    </section>
+
+    <section class="stage-card" aria-labelledby="scene-title">
+      <div class="stage-head">
+        <div><div class="eyebrow">当前模式</div><div id="scene-title" class="stage-title">FifoMpsc · 多生产者 / 单消费者</div></div>
+        <div class="stage-badges">
+          <span id="ordering-badge" class="badge">per-producer FIFO</span>
+          <span id="fanout-badge" class="badge">single consumer</span>
+          <span id="sequence-badge" class="badge">无共享 RMW</span>
+        </div>
+      </div>
+
+      <svg id="scene" viewBox="0 0 1400 650" role="img" aria-label="salias 消息流架构动画">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#547493"/></marker>
+        </defs>
+
+        <rect class="zone" x="24" y="40" width="230" height="540" rx="20"/>
+        <rect class="zone" x="278" y="40" width="796" height="540" rx="20"/>
+        <rect class="zone" x="1098" y="40" width="278" height="540" rx="20"/>
+        <text class="zone-title" x="48" y="72">L7 · PUBLIC API</text>
+        <text class="zone-title" x="302" y="72">CHANNEL · SHARED STATE + PER-PRODUCER RINGS</text>
+        <text class="zone-title" x="1122" y="72">L7 · DELIVERY API</text>
+
+        <rect class="node api" x="52" y="125" width="174" height="68" rx="14"/>
+        <text class="node-label" x="139" y="152">Publisher P0</text><text class="node-sub" x="139" y="174">offer(payload)</text>
+        <rect class="node api" x="52" y="340" width="174" height="68" rx="14"/>
+        <text class="node-label" x="139" y="367">Publisher P1</text><text class="node-sub" x="139" y="389">offer(payload)</text>
+
+        <rect class="node endpoint" x="310" y="125" width="164" height="68" rx="14"/>
+        <text class="node-label" x="392" y="152">Producer / Tx 0</text><text class="node-sub" x="392" y="174">encode + publish</text>
+        <rect class="node endpoint" x="310" y="340" width="164" height="68" rx="14"/>
+        <text class="node-label" x="392" y="367">Producer / Tx 1</text><text class="node-sub" x="392" y="389">encode + publish</text>
+
+        <g id="global-sequence" class="hidden">
+          <rect class="seq-box" x="506" y="85" width="210" height="54" rx="12"/>
+          <text class="seq-text" x="611" y="108">global_sequence.fetch_add</text>
+          <text class="node-sub" x="611" y="128">跨 Producer 全局 rank</text>
+        </g>
+
+        <g id="ring0">
+          <rect class="ring-shell" x="515" y="158" width="383" height="106" rx="17"/>
+          <text class="ring-label" x="536" y="184">MagicRing 0</text><text class="ring-sub" x="536" y="202">P0 独占 · 双映射连续地址</text>
+          <rect id="r0s0" class="slot" x="536" y="214" width="70" height="34" rx="6"/><rect id="r0s1" class="slot" x="614" y="214" width="70" height="34" rx="6"/>
+          <rect id="r0s2" class="slot" x="692" y="214" width="70" height="34" rx="6"/><rect id="r0s3" class="slot" x="770" y="214" width="70" height="34" rx="6"/>
+          <text id="r0-label" class="node-sub" x="860" y="235">pos 0</text>
+          <path id="cursor-0a" class="cursor hidden" d="M571 254 l-7 12 h14 z"/><path id="cursor-0b" class="cursor secondary hidden" d="M571 274 l-7 12 h14 z"/>
+        </g>
+        <g id="ring1">
+          <rect class="ring-shell" x="515" y="373" width="383" height="106" rx="17"/>
+          <text class="ring-label" x="536" y="399">MagicRing 1</text><text class="ring-sub" x="536" y="417">P1 独占 · 写路径无 Producer 竞争</text>
+          <rect id="r1s0" class="slot" x="536" y="429" width="70" height="34" rx="6"/><rect id="r1s1" class="slot" x="614" y="429" width="70" height="34" rx="6"/>
+          <rect id="r1s2" class="slot" x="692" y="429" width="70" height="34" rx="6"/><rect id="r1s3" class="slot" x="770" y="429" width="70" height="34" rx="6"/>
+          <text id="r1-label" class="node-sub" x="860" y="450">pos 0</text>
+          <path id="cursor-1a" class="cursor hidden" d="M571 469 l-7 12 h14 z"/><path id="cursor-1b" class="cursor secondary hidden" d="M571 489 l-7 12 h14 z"/>
+        </g>
+
+        <g id="merge-gate" class="hidden">
+          <rect class="seq-box" x="930" y="266" width="116" height="72" rx="14"/>
+          <text class="seq-text" x="988" y="291">merge</text><text class="node-sub" x="988" y="312">next sequence</text><text id="next-seq" class="node-sub" x="988" y="328">expect #1</text>
+        </g>
+
+        <rect class="node consumer" x="1126" y="194" width="220" height="76" rx="14"/>
+        <text class="node-label" x="1236" y="222">Consumer / Rx 0</text><text id="consumer0-sub" class="node-sub" x="1236" y="244">poll rings + release</text>
+        <rect id="subscriber0" class="node api" x="1126" y="302" width="220" height="68" rx="14"/>
+        <text class="node-label" x="1236" y="329">Subscriber S0</text><text class="node-sub" x="1236" y="351">try_recv() / release()</text>
+
+        <g id="subscriber1-group" class="hidden">
+          <rect class="node consumer" x="1126" y="405" width="220" height="76" rx="14"/>
+          <text class="node-label" x="1236" y="433">Consumer / Rx 1</text><text class="node-sub" x="1236" y="455">独立 per-ring cursors</text>
+          <rect class="node api" x="1126" y="507" width="220" height="58" rx="14"/>
+          <text class="node-label" x="1236" y="532">Subscriber S1</text><text class="node-sub" x="1236" y="551">同消息独立进度</text>
+        </g>
+
+        <path id="p-api0" class="path" marker-end="url(#arrow)" d="M226 159 C260 159 274 159 310 159"/>
+        <path id="p-api1" class="path" marker-end="url(#arrow)" d="M226 374 C260 374 274 374 310 374"/>
+        <path id="p-ring0" class="path" marker-end="url(#arrow)" d="M474 159 C490 159 498 190 515 210"/>
+        <path id="p-ring1" class="path" marker-end="url(#arrow)" d="M474 374 C490 374 498 405 515 425"/>
+        <path id="p-seq0" class="path hidden" marker-end="url(#arrow)" d="M420 125 C450 95 470 95 506 108"/>
+        <path id="p-seq1" class="path hidden" marker-end="url(#arrow)" d="M420 340 C470 280 480 165 545 139"/>
+        <path id="p-read0" class="path" marker-end="url(#arrow)" d="M898 211 C990 211 1040 224 1126 232"/>
+        <path id="p-read1" class="path" marker-end="url(#arrow)" d="M898 426 C1000 426 1035 285 1126 245"/>
+        <path id="p-merge0" class="path hidden" marker-end="url(#arrow)" d="M898 211 C922 211 930 252 948 271"/>
+        <path id="p-merge1" class="path hidden" marker-end="url(#arrow)" d="M898 426 C922 426 930 350 948 333"/>
+        <path id="p-merge-out" class="path hidden" marker-end="url(#arrow)" d="M1046 302 C1072 302 1090 252 1126 242"/>
+        <path id="p-deliver0" class="path" marker-end="url(#arrow)" d="M1236 270 L1236 302"/>
+        <path id="p-fanout" class="path hidden" marker-end="url(#arrow)" d="M1096 310 C1065 375 1088 443 1126 443"/>
+        <path id="p-deliver1" class="path hidden" marker-end="url(#arrow)" d="M1236 481 L1236 507"/>
+
+        <g id="msg-a" class="message hidden"><circle r="18"/><text>P0#1</text></g>
+        <g id="msg-b" class="message alt hidden"><circle r="18"/><text>P1#2</text></g>
+
+        <g id="backpressure-note" class="hidden">
+          <rect class="callout" x="340" y="512" width="520" height="45" rx="10"/>
+          <text class="callout-text" x="360" y="531">BACKPRESSURE · 最慢 Consumer 游标决定可回收空间</text>
+          <text class="callout-muted" x="360" y="548">release 推进游标后，Producer 才能覆盖已消费槽位</text>
+        </g>
+      </svg>
+
+      <div class="status-strip" aria-live="polite">
+        <div id="step-count" class="step-count">STEP 1 / 8</div>
+        <div><h2 id="step-title">公共 API 接收消息</h2><p id="step-copy">Publisher 是用户可见对象，内部持有绑定 Channel 的 Producer/Tx endpoint。</p></div>
+      </div>
+    </section>
+
+    <section class="info-grid">
+      <article class="info-card"><h2 id="mode-summary-title">FifoMpsc 语义</h2><p id="mode-summary">每个 Producer 在自己的 MagicRing 内维持 FIFO；单个 Consumer 轮询所有 ring，跨 Producer 的交付次序取决于轮询时机。</p></article>
+      <article class="info-card"><h2>分层关系</h2><ul><li><code>Publisher / Subscriber</code>：L7 公共 API</li><li><code>Producer / Consumer</code>：底层 Tx/Rx endpoint</li><li><code>Channel</code>：共享状态与端点组织者</li><li><code>MagicRing</code>：每个 Producer 独占的数据平面</li></ul></article>
+      <article class="info-card"><h2>图例</h2><div class="legend"><span><i class="dot"></i>P0 消息 / 活跃路径</span><span><i class="dot violet"></i>P1 消息</span><span><i class="dot green"></i>Consumer S0 游标</span><span><i class="dot amber"></i>Consumer S1 / 全局 sequence</span></div></article>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const modes = {
+        FifoMpsc: {
+          title: 'FifoMpsc · 多生产者 / 单消费者', ordered: false, fanout: false,
+          badges: ['per-producer FIFO', 'single consumer', '无共享 RMW'],
+          summary: '每个 Producer 在自己的 MagicRing 内维持 FIFO；单个 Consumer 轮询所有 ring，跨 Producer 的交付次序取决于轮询时机。'
+        },
+        FifoFanout: {
+          title: 'FifoFanout · 多生产者 / 多消费者扇出', ordered: false, fanout: true,
+          badges: ['per-producer FIFO', 'fanout cursors', '最慢订阅者施加背压'],
+          summary: '所有 Subscriber 都接收每条 ring 的消息，并维护独立的 per-producer 游标；慢订阅者不会改变快订阅者的读取进度，但会影响槽位回收。'
+        },
+        OrderedMpsc: {
+          title: 'OrderedMpsc · 全局有序 / 单消费者', ordered: true, fanout: false,
+          badges: ['global total order', 'single consumer', 'global_sequence RMW'],
+          summary: 'Producer 获取全局 sequence 后发布；Consumer 比较各 ring 头部序号并按 next sequence 归并，缺失序号时暂缓交付。'
+        },
+        OrderedFanout: {
+          title: 'OrderedFanout · 全局有序 / 多消费者扇出', ordered: true, fanout: true,
+          badges: ['global total order', 'fanout cursors', '每个订阅者独立归并'],
+          summary: '每个 Subscriber 都使用自己的游标按全局 sequence 归并多条 ring，因此看到相同的有序消息流，同时保留独立消费进度。'
+        }
+      };
+
+      const stages = [
+        { title: '公共 API 接收消息', copy: 'Publisher 是用户可见对象，内部持有绑定 Channel 的 Producer/Tx endpoint。', paths: ['p-api0', 'p-api1'], particles: [['msg-a','p-api0',.66], ['msg-b','p-api1',.66]] },
+        { title: 'Producer 编码 frame', copy: 'Producer 将 payload 编码为 frame；Ordered 模式还会获取跨 Producer 的 global sequence。', paths: ['p-ring0','p-ring1','p-seq0','p-seq1'], particles: [['msg-a','p-ring0',.38], ['msg-b','p-ring1',.38]], fill: 'encode' },
+        { title: '发布到独占 MagicRing', copy: '每个 Producer 只写自己的 ring，发布 position 后 Consumer 才能观察到完整 frame。', paths: ['p-ring0','p-ring1'], particles: [['msg-a','p-ring0',.95], ['msg-b','p-ring1',.95]], fill: 'published' },
+        { title: 'Consumer 轮询或归并', copy: 'FIFO 轮询各 ring；Ordered 检查头部 sequence，只交付当前期望的全局序号。', paths: ['p-read0','p-read1','p-merge0','p-merge1','p-merge-out'], particles: [['msg-a','read0',.62], ['msg-b','read1',.45]], cursors: true },
+        { title: '消息交付给 Subscriber', copy: 'Subscriber::try_recv() 返回引用 ring 内存的 MessageView；此时对应槽位还不能被覆盖。', paths: ['p-deliver0','p-fanout','p-deliver1'], particles: [['msg-a','p-deliver0',.72], ['msg-b','p-fanout',.66]], cursors: true },
+        { title: 'Fanout 保持独立进度', copy: 'Fanout 中每个 Subscriber 都收到消息，并分别维护每条 ring 的 cursor；MPSC 则只有一个消费端。', paths: ['p-fanout','p-deliver1'], particles: [['msg-a','p-deliver1',.78]], cursors: true, fanoutOnly: true },
+        { title: '慢 Consumer 触发背压', copy: 'Producer 检查最慢 Consumer 的游标；空间不足时 offer 不能继续覆盖仍被引用的 ring 槽位。', paths: ['p-ring0','p-ring1'], particles: [['msg-b','p-ring1',.22]], cursors: true, blocked: true },
+        { title: 'release 推进游标并回收', copy: 'Subscriber::release() 推进对应 cursor，槽位重新可用，Producer 恢复发布。', paths: ['p-read0','p-read1'], particles: [['msg-a','p-read0',.96], ['msg-b','p-read1',.96]], cursors: true, released: true }
+      ];
+
+      const element = id => document.getElementById(id);
+      const modeButtons = [...document.querySelectorAll('.mode')];
+      const pathIds = ['p-api0','p-api1','p-ring0','p-ring1','p-seq0','p-seq1','p-read0','p-read1','p-merge0','p-merge1','p-merge-out','p-deliver0','p-fanout','p-deliver1'];
+      const slots = ['r0s0','r0s1','r0s2','r0s3','r1s0','r1s1','r1s2','r1s3'];
+      const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let currentMode = 'FifoMpsc';
+      let stageIndex = 0;
+      let timer = null;
+      let speed = 1;
+
+      function toggle(id, show) { element(id).classList.toggle('hidden', !show); }
+
+      function setPathState(activeIds, blocked) {
+        pathIds.forEach(id => {
+          const path = element(id);
+          path.classList.remove('active', 'waiting', 'blocked');
+          if (activeIds.includes(id) && !path.classList.contains('hidden')) path.classList.add(blocked ? 'blocked' : 'active');
+        });
+      }
+
+      function positionParticle(particleId, pathId, progress) {
+        const particle = element(particleId);
+        let actualPath = pathId;
+        if (pathId === 'read0') actualPath = modes[currentMode].ordered ? 'p-merge0' : 'p-read0';
+        if (pathId === 'read1') actualPath = modes[currentMode].ordered ? 'p-merge1' : 'p-read1';
+        const path = element(actualPath);
+        if (!path || path.classList.contains('hidden')) { particle.classList.add('hidden'); return; }
+        const point = path.getPointAtLength(path.getTotalLength() * progress);
+        particle.setAttribute('transform', `translate(${point.x} ${point.y})`);
+        particle.classList.remove('hidden');
+      }
+
+      function resetVisualState() {
+        slots.forEach(id => element(id).setAttribute('class', 'slot'));
+        ['msg-a','msg-b'].forEach(id => element(id).classList.add('hidden'));
+        ['cursor-0a','cursor-0b','cursor-1a','cursor-1b'].forEach(id => element(id).classList.add('hidden'));
+        element('backpressure-note').classList.add('hidden');
+        element('r0-label').textContent = 'pos 0';
+        element('r1-label').textContent = 'pos 0';
+      }
+
+      function renderMode() {
+        const mode = modes[currentMode];
+        element('scene-title').textContent = mode.title;
+        element('mode-summary-title').textContent = `${currentMode} 语义`;
+        element('mode-summary').textContent = mode.summary;
+        ['ordering-badge','fanout-badge','sequence-badge'].forEach((id, index) => {
+          element(id).textContent = mode.badges[index];
+          element(id).classList.toggle('on', (index === 0 && mode.ordered) || (index === 1 && mode.fanout));
+        });
+        toggle('global-sequence', mode.ordered);
+        toggle('merge-gate', mode.ordered);
+        ['p-seq0','p-seq1','p-merge0','p-merge1','p-merge-out'].forEach(id => toggle(id, mode.ordered));
+        ['p-read0','p-read1'].forEach(id => toggle(id, !mode.ordered));
+        toggle('subscriber1-group', mode.fanout);
+        toggle('p-fanout', mode.fanout);
+        toggle('p-deliver1', mode.fanout);
+        element('consumer0-sub').textContent = mode.ordered ? 'merge by global sequence' : 'poll rings + release';
+        modeButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode === currentMode)));
+        renderStage();
+      }
+
+      function renderStage() {
+        const mode = modes[currentMode];
+        const stage = stages[stageIndex];
+        resetVisualState();
+        const activePaths = stage.paths.filter(id => {
+          if (!mode.ordered && (id.includes('seq') || id.includes('merge'))) return false;
+          if (!mode.fanout && (id === 'p-fanout' || id === 'p-deliver1')) return false;
+          return true;
+        });
+        setPathState(activePaths, stage.blocked);
+        element('step-count').textContent = `STEP ${stageIndex + 1} / ${stages.length}`;
+        element('step-title').textContent = stage.title;
+        element('step-copy').textContent = stage.fanoutOnly && !mode.fanout
+          ? '当前模式只有一个 Consumer；切换到 Fanout 模式可观察多个 Subscriber 的独立游标。'
+          : stage.copy;
+        if (stage.fill === 'encode' || stage.fill === 'published' || stageIndex > 2) {
+          element('r0s0').setAttribute('class', 'slot filled-a');
+          element('r1s0').setAttribute('class', 'slot filled-b');
+          element('r0-label').textContent = 'published pos 1';
+          element('r1-label').textContent = 'published pos 1';
+        }
+        if (stage.cursors) {
+          ['cursor-0a','cursor-1a'].forEach(id => element(id).classList.remove('hidden'));
+          if (mode.fanout) ['cursor-0b','cursor-1b'].forEach(id => element(id).classList.remove('hidden'));
+        }
+        if (stage.blocked) {
+          element('backpressure-note').classList.remove('hidden');
+          element('r0s3').classList.add('blocked');
+          element('r1s3').classList.add('blocked');
+        }
+        if (stage.released) {
+          element('r0s0').setAttribute('class', 'slot released');
+          element('r1s0').setAttribute('class', 'slot released');
+          ['cursor-0a','cursor-1a'].forEach(id => element(id).setAttribute('transform', 'translate(78 0)'));
+          if (mode.fanout) ['cursor-0b','cursor-1b'].forEach(id => element(id).setAttribute('transform', 'translate(78 0)'));
+        } else {
+          ['cursor-0a','cursor-0b','cursor-1a','cursor-1b'].forEach(id => element(id).removeAttribute('transform'));
+        }
+        if (mode.ordered) element('next-seq').textContent = stageIndex < 4 ? 'expect #1' : 'next #2';
+        stage.particles.forEach(([particle, path, progress]) => {
+          if (stage.fanoutOnly && !mode.fanout) return;
+          positionParticle(particle, path, progress);
+        });
+      }
+
+      function pause() { if (timer) clearInterval(timer); timer = null; }
+      function play() {
+        pause();
+        if (reducedMotion) return;
+        timer = setInterval(() => {
+          stageIndex = (stageIndex + 1) % stages.length;
+          renderStage();
+        }, 1850 / speed);
+      }
+
+      modeButtons.forEach(button => button.addEventListener('click', () => {
+        currentMode = button.dataset.mode;
+        stageIndex = 0;
+        pause();
+        renderMode();
+      }));
+      element('play').addEventListener('click', play);
+      element('pause').addEventListener('click', pause);
+      element('step').addEventListener('click', () => { pause(); stageIndex = (stageIndex + 1) % stages.length; renderStage(); });
+      element('replay').addEventListener('click', () => { pause(); stageIndex = 0; renderStage(); });
+      element('speed').addEventListener('input', event => {
+        speed = Number(event.target.value);
+        element('speed-value').textContent = `${speed}×`;
+        if (timer) play();
+      });
+      document.addEventListener('keydown', event => {
+        if (event.target instanceof HTMLInputElement) return;
+        if (event.code === 'Space') { event.preventDefault(); timer ? pause() : play(); }
+        if (event.code === 'ArrowRight') { pause(); stageIndex = (stageIndex + 1) % stages.length; renderStage(); }
+      });
+
+      renderMode();
+    })();
+  </script>
+</body>
+</html>
