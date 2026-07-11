@@ -13,6 +13,8 @@ are released.
 
 ## [Unreleased]
 
+## [v1.2.0] - 2026-07-11
+
 ### Added
 
 - Added independent-process salias and Aeron benchmark workers for Publisher and
@@ -30,6 +32,11 @@ are released.
   generated summaries, and the core salias/Aeron table embedded in README.
 - Updated the optimization retrospective to treat the final independent-process
   report as the sole current performance truth source.
+
+### Chore
+
+- Added `*.log` to `.gitignore` so benchmark and runtime logs are no longer
+  tracked by version control.
 
 ### Removed
 
