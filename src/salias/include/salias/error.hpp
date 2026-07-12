@@ -23,10 +23,11 @@ enum class Error {
   NotFound,           ///< 找不到指定名称的通道（connect 时通道尚未创建）。
   VersionMismatch,    ///< 共享元数据版本不匹配，创建者与连接者协议版本不一致。
   BackPressured,      ///< 生产者遭遇背压：环形缓冲已满或流控窗口在途字节数达上限。
-  MessageTooLarge,    ///< 单条消息负载超过环容量或 record_size 限制。
+  MessageTooLarge,    ///< 单条消息负载超过环容量限制。
   Lagged,             ///< 消费者落后过多，目标消息已被生产者覆盖（仅 fanout 协议）。
   PlatformFail,       ///< 平台层失败（mmap/memfd_create/huge page 等系统调用出错）。
-  BadConfig,          ///< 配置非法（name 为空、容量非 2 的幂、record_size 不一致等）。
+  BadConfig,          ///< 配置非法（name 为空、容量或端点数量不合法等）。
+  OutOfMemory,        ///< 创建或连接通道时的动态内存分配失败。
 };
 
 // 公共 API 使用的显式结果类型；保留 salias::Result<T> 名称，底层采用 C++23 std::expected。

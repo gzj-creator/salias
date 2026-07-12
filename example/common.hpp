@@ -85,6 +85,8 @@ inline const char* error_name(salias::Error error) noexcept {
       return "PlatformFail";
     case salias::Error::BadConfig:
       return "BadConfig";
+    case salias::Error::OutOfMemory:
+      return "OutOfMemory";
   }
   return "Unknown";
 }

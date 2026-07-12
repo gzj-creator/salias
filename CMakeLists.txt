@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(salias VERSION 0.0.1 LANGUAGES CXX)
+project(salias VERSION 2.0.0 LANGUAGES CXX)
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT APPLE)
   message(FATAL_ERROR "salias currently supports Linux and macOS.")
@@ -48,6 +48,13 @@ if(SALIAS_BUILD_BENCHMARKS)
 endif()
 
 if(BUILD_TESTING)
+  add_test(
+    NAME salias_version_consistency
+    COMMAND
+      "${CMAKE_COMMAND}"
+      "-DSALIAS_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+      -P "${PROJECT_SOURCE_DIR}/cmake/check_version_consistency.cmake"
+  )
   add_subdirectory(test)
 endif()
 

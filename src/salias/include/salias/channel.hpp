@@ -40,10 +40,12 @@ class Channel {
  public:
   /**
    * @brief 创建并拥有一条具名 IPC 通道。
-   * @param config 通道配置；name 必须非空，capacity 需为 2 的幂。
+   * @param config 通道配置；name 必须非空。capacity 须为 2 的幂及系统页大小的整数倍；
+   *               使用显式大页时还须为所选大页大小的整数倍。
    * @retval Channel 创建成功的通道句柄。
    * @retval Error::PlatformFail 平台层（mmap/memfd_create）失败。
    * @retval Error::BadConfig 配置非法（name 为空或容量不合法）。
+   * @retval Error::OutOfMemory 创建通道状态时动态内存分配失败。
    * @note 模板参数 M 决定通道协议，Config::mode 会被外观层覆盖为 M。
    *       创建成功后该进程成为通道 owner，负责初始化共享元数据。
    */
@@ -55,6 +57,7 @@ class Channel {
    * @retval Channel 连接成功的通道句柄。
    * @retval Error::NotFound 通道不存在。
    * @retval Error::VersionMismatch 共享元数据版本与当前编译版本不一致。
+   * @retval Error::OutOfMemory 连接通道状态时动态内存分配失败。
    * @note 会有限等待 owner 发布 ready 标记，并在映射环形区前校验共享元数据。
    *       连接者不拥有共享段，仅映射并附加为生产者/消费者。
    */
@@ -72,15 +75,15 @@ class Channel {
   /**
    * @brief 创建绑定到当前通道的发布端。
    * @return 绑定该通道共享状态的 Publisher<M>。
-   * @note noexcept；返回值按值传递，持有 endpoint 的 shared_ptr 引用。
+   * @note 返回值按值传递并持有 endpoint 的 shared_ptr；分配失败时可能抛出 std::bad_alloc。
    */
-  Publisher<M> publisher() noexcept;
+  Publisher<M> publisher();
   /**
    * @brief 创建绑定到当前通道的订阅端。
    * @return 绑定该通道共享状态的 Subscriber<M>。
-   * @note noexcept；fanout 模式下分配独立的订阅索引。
+   * @note fanout 模式下分配独立的订阅索引；分配失败时可能抛出 std::bad_alloc。
    */
-  Subscriber<M> subscriber() noexcept;
+  Subscriber<M> subscriber();
 
  private:
   /// 封装 create/connect 成功后得到的共享通道状态。

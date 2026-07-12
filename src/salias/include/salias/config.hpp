@@ -39,12 +39,10 @@ enum class HugePage { None, Size2MB, Size1GB };
 struct Config {
   std::string name;                  ///< 通道名称，作为共享内存命名控制块的键，必须非空。
   Mode mode = Mode::FifoMpsc;        ///< 通道协议；实际生效值由 Channel<Mode> 模板参数覆盖。
-  std::size_t capacity = 1u << 20;   ///< 环形缓冲容量（字节），默认 1MiB；需为 2 的幂以支持位掩码取模。
+  std::size_t capacity = 1u << 20;   ///< 环形缓冲容量（字节），默认 1MiB；须为 2 的幂且为系统页大小的整数倍。
   std::uint32_t num_producers = 1;   ///< 生产者数量，用于预分配 per-producer 提交槽位。
   std::uint32_t num_consumers = 1;   ///< 消费者数量；MPMC fanout 模式下决定扇出订阅索引数。
-  HugePage huge = HugePage::None;    ///< 大页策略，影响 L0 平台层 mmap 对齐与页大小。
-  bool fixed_size = false;           ///< 是否启用定长记录模式（每条消息固定 record_size 字节）。
-  std::size_t record_size = 0;       ///< 定长模式下每条记录的字节数；变长模式下应为 0。
+  HugePage huge = HugePage::None;    ///< 大页策略；显式大页要求 capacity 同时为所选大页大小的整数倍。
   // 发布流控窗口（字节）。0 表示不限制，生产者可领先消费者直至写满整个环。
   // 非 0 时把 “生产者领先消费者的在途字节数” 限制在 min(capacity, publication_window) 内，
   // 用于把稳态排队延迟从 “满环” 压到 “窗口大小”；不改变环的实际几何与回绕。

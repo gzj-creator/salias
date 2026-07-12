@@ -1,3 +1,27 @@
+add_executable(salias_config_contract_test
+  api/config_contract_test.cpp
+)
+target_link_libraries(salias_config_contract_test PRIVATE salias)
+salias_enable_warnings(salias_config_contract_test)
+salias_enable_sanitizers(salias_config_contract_test)
+add_test(NAME salias_config_contract_test COMMAND salias_config_contract_test)
+
+add_executable(salias_capacity_contract_test
+  api/capacity_contract_test.cpp
+)
+target_link_libraries(salias_capacity_contract_test PRIVATE salias)
+salias_enable_warnings(salias_capacity_contract_test)
+salias_enable_sanitizers(salias_capacity_contract_test)
+add_test(NAME salias_capacity_contract_test COMMAND salias_capacity_contract_test)
+
+add_executable(salias_allocation_contract_test
+  api/allocation_contract_test.cpp
+)
+target_link_libraries(salias_allocation_contract_test PRIVATE salias)
+salias_enable_warnings(salias_allocation_contract_test)
+salias_enable_sanitizers(salias_allocation_contract_test)
+add_test(NAME salias_allocation_contract_test COMMAND salias_allocation_contract_test)
+
 find_package(GTest CONFIG QUIET)
 if(NOT GTest_FOUND)
   message(WARNING

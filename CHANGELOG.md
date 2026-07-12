@@ -13,6 +13,28 @@ are released.
 
 ## [Unreleased]
 
+## [v2.0.0] - 2026-07-12
+
+### Changed
+
+- 移除未实现但曾公开暴露的 `Config::fixed_size` 与 `Config::record_size`，明确当前公共协议只支持变长帧；控制段以保留槽位维持内部布局尺寸。
+- `Channel::publisher()` 与 `Channel::subscriber()` 不再错误声明为 `noexcept`，端点状态分配失败可正常传播 `std::bad_alloc`，避免触发 `std::terminate`。
+- 公共配置与 L7 API 文档明确 ring 容量必须同时满足 2 的幂、系统页对齐，以及显式大页大小对齐要求。
+
+### Fixed
+
+- 新增 `Error::OutOfMemory`，`Channel::create()` 与 `Channel::connect()` 捕获动态内存分配失败并通过 `std::expected` 返回 typed error。
+- 创建通道过程中发生分配失败时回收已创建的控制段与 ring 名称，避免 OOM 路径遗留共享内存资源。
+- CMake 与 vcpkg 包版本统一为 `2.0.0`，新增 CMake/vcpkg/精确 Git tag 一致性检查，修复安装包版本长期停留在 `0.0.1` 的问题。
+
+### Tests
+
+- 新增不依赖 GTest 的配置表面、容量约束和分配失败契约测试，并保留安装消费者测试覆盖。
+
+### Docs
+
+- 更新 L7 公共 API 文档，并新增 API 契约对齐设计与实施计划。
+
 ## [v1.3.0] - 2026-07-12
 
 ### Added

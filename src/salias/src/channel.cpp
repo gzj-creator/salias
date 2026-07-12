@@ -28,6 +28,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <new>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -119,7 +120,7 @@ struct alignas(kCacheLineGuard) NamedControl {
   std::uint32_t mode = 0;  ///< channel 模式（Mode 枚举值），决定 ordering/fanout。
   std::uint32_t flags = 0;  ///< 后端/huge page 编码标志位。
   std::uint64_t capacity = 0;  ///< 单 ring 字节容量（2 的幂且页对齐）。
-  std::uint64_t record_size = 0;  ///< 定长记录大小，变长模式须为 0。
+  std::uint64_t reserved_record_size = 0;  ///< 保留旧布局槽位，当前协议不支持定长记录。
   std::uint32_t ready = 0;  ///< 就绪标志：创建端置 1（release），连接端等 1（acquire）。
   std::uint32_t wait_word = 0;  ///< 等待策略唤醒字（wait strategy 回填）。
   std::uint64_t publication_window = 0;  ///< 发布流控窗口（0 表示不限流）。
@@ -374,7 +375,7 @@ int create_sized_shm(const std::string& name, std::size_t size) noexcept {
 /// @param size 文件大小（字节）。
 /// @retval fd>=0 成功。
 /// @retval -1 创建或 ftruncate 失败（已清理半成品）。
-int create_sized_hugetlbfs_file(std::string_view name, std::size_t size) noexcept {
+int create_sized_hugetlbfs_file(std::string_view name, std::size_t size) {
   const std::string path = huge_ring_path(name);
   const int fd = ::open(path.c_str(), O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600);
   if (fd < 0) {
@@ -386,16 +387,6 @@ int create_sized_hugetlbfs_file(std::string_view name, std::size_t size) noexcep
     return -1;
   }
   return fd;
-}
-
-/// @brief 按后端类型 unlink 某 ring，hugetlbfs 走文件 unlink，PosixShm 走 shm_unlink。
-void unlink_ring(std::string_view public_name, const std::string& shm_name,
-                 NamedRingSpec spec) noexcept {
-  if (spec.backend == NamedRingBackend::Hugetlbfs) {
-    static_cast<void>(::unlink(huge_ring_path(public_name).c_str()));
-  } else {
-    static_cast<void>(::shm_unlink(shm_name.c_str()));
-  }
 }
 
 /// @brief RAII 封装控制段的 mmap 映射与文件描述符生命周期。
@@ -526,7 +517,7 @@ Result<ring::MagicRing> map_ring_from_fd(int fd, std::size_t capacity, HugePage 
 /// @retval MagicRing 成功。
 /// @retval Error::PlatformFail 创建失败。
 Result<ring::MagicRing> create_named_ring(std::string_view public_name, const std::string& shm_name,
-                                          std::size_t capacity, NamedRingSpec spec) noexcept {
+                                          std::size_t capacity, NamedRingSpec spec) {
   const int fd = spec.backend == NamedRingBackend::Hugetlbfs
                      ? create_sized_hugetlbfs_file(public_name, capacity)
                      : create_sized_shm(shm_name, capacity);
@@ -544,7 +535,7 @@ Result<ring::MagicRing> create_named_ring(std::string_view public_name, const st
 /// @retval MagicRing 成功。
 /// @retval Error::NotFound 段不存在。
 Result<ring::MagicRing> open_named_ring(std::string_view public_name, const std::string& shm_name,
-                                        std::size_t capacity, NamedRingSpec spec) noexcept {
+                                        std::size_t capacity, NamedRingSpec spec) {
   const int fd = spec.backend == NamedRingBackend::Hugetlbfs
                      ? ::open(huge_ring_path(public_name).c_str(), O_RDWR | O_CLOEXEC)
                      : ::shm_open(shm_name.c_str(), O_RDWR | O_CLOEXEC, 0600);
@@ -769,42 +760,55 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
   std::vector<std::string> cleanup_names;
   rings.reserve(config.num_producers);
   cleanup_names.reserve(config.num_producers);
-  // 逐个创建 per-producer ring；任一失败则回滚已创建的 ring 与控制段。
-  for (std::uint32_t producer_id = 0; producer_id < config.num_producers; ++producer_id) {
-    const std::string shm_name = ring_shm_name(config.name, producer_id);
-    const std::string public_name = ring_public_name(config.name, producer_id);
-    auto ring = create_named_ring(public_name, shm_name, config.capacity, ring_spec);
-    if (!ring) {
-      for (std::uint32_t cleanup_id = 0; cleanup_id < producer_id; ++cleanup_id) {
-        unlink_ring(ring_public_name(config.name, cleanup_id),
-                    ring_shm_name(config.name, cleanup_id), ring_spec);
+  auto cleanup_created_names = [&]() noexcept {
+    for (const auto& cleanup_name : cleanup_names) {
+      if (ring_spec.backend == NamedRingBackend::Hugetlbfs) {
+        static_cast<void>(::unlink(cleanup_name.c_str()));
+      } else {
+        static_cast<void>(::shm_unlink(cleanup_name.c_str()));
       }
-      static_cast<void>(::shm_unlink(control_name.c_str()));
-      return std::unexpected(ring.error());
     }
-    cleanup_names.push_back(ring_cleanup_name(public_name, shm_name, ring_spec));
-    rings.push_back(std::move(ring).value());
+    static_cast<void>(::shm_unlink(control_name.c_str()));
+  };
+
+  try {
+    // 逐个创建 per-producer ring；任一失败则回滚已创建的 ring 与控制段。
+    for (std::uint32_t producer_id = 0; producer_id < config.num_producers; ++producer_id) {
+      const std::string shm_name = ring_shm_name(config.name, producer_id);
+      const std::string public_name = ring_public_name(config.name, producer_id);
+      const std::string cleanup_name = ring_cleanup_name(public_name, shm_name, ring_spec);
+      auto ring = create_named_ring(public_name, shm_name, config.capacity, ring_spec);
+      if (!ring) {
+        cleanup_created_names();
+        return std::unexpected(ring.error());
+      }
+      cleanup_names.push_back(cleanup_name);
+      rings.push_back(std::move(ring).value());
+    }
+
+    NamedControl* control = control_mapping->control();
+    std::construct_at(control);  // placement-new 初始化控制段为默认值。
+    // 写入 channel 元数据；随后以 release 写 ready，对连接端形成发布屏障。
+    control->magic = kNamedMagic;
+    control->version = kNamedVersion;
+    control->mode = static_cast<std::uint32_t>(M);
+    control->flags = named_flags_for(config.huge);
+    control->capacity = config.capacity;
+    control->num_producers = config.num_producers;
+    control->num_consumers = config.num_consumers;
+    control->publication_window = config.publication_window;
+
+    SharedChannel<M> channel(std::move(rings), make_producer_states<M>(*control),
+                             make_shared_control<M>(*control));
+    // release 写 ready=1：与 open_control_when_ready 的 acquire 读配对，保证元数据可见。
+    std::atomic_ref<std::uint32_t>(control->ready).store(1, std::memory_order_release);
+    return NamedChannelState<M>(std::move(control_mapping).value(), std::move(channel), control_name,
+                                std::move(cleanup_names), true,
+                                ring_spec.backend == NamedRingBackend::Hugetlbfs);
+  } catch (const std::bad_alloc&) {
+    cleanup_created_names();
+    return std::unexpected(Error::OutOfMemory);
   }
-
-  NamedControl* control = control_mapping->control();
-  std::construct_at(control);  // placement-new 初始化控制段为默认值。
-  // 写入 channel 元数据；随后以 release 写 ready，对连接端形成发布屏障。
-  control->magic = kNamedMagic;
-  control->version = kNamedVersion;
-  control->mode = static_cast<std::uint32_t>(M);
-  control->flags = named_flags_for(config.huge);
-  control->capacity = config.capacity;
-  control->num_producers = config.num_producers;
-  control->num_consumers = config.num_consumers;
-  control->publication_window = config.publication_window;
-
-  SharedChannel<M> channel(std::move(rings), make_producer_states<M>(*control),
-                           make_shared_control<M>(*control));
-  // release 写 ready=1：与 open_control_when_ready 的 acquire 读配对，保证元数据可见。
-  std::atomic_ref<std::uint32_t>(control->ready).store(1, std::memory_order_release);
-  return NamedChannelState<M>(std::move(control_mapping).value(), std::move(channel), control_name,
-                              std::move(cleanup_names), true,
-                              ring_spec.backend == NamedRingBackend::Hugetlbfs);
 }
 
 /// @brief 以连接者身份挂载已存在的具名 channel：等待 ready→校验元数据→打开各 ring。
@@ -831,7 +835,7 @@ Result<NamedChannelState<M>> connect_named_state(std::string_view name) {
   const std::uint32_t sequence_domains =
       kOrdering<M> == channel::Order::Ordered ? control->num_producers : 1;
   if (control->mode != static_cast<std::uint32_t>(M) ||
-      !is_valid_ring_capacity(control->capacity) || control->record_size != 0 ||
+      !is_valid_ring_capacity(control->capacity) ||
       control->num_producers == 0 || control->num_producers > kMaxProducers ||
       control->num_consumers == 0 || control->num_consumers > kMaxConsumers ||
       (!kFanout<M> && control->num_consumers != 1) ||
@@ -941,18 +945,21 @@ Channel<M>::Channel(std::shared_ptr<ChannelState<M>> state) noexcept : state_(st
 /// @note 公共入口校验后再委托 ChannelTraits 创建具名状态。
 template <Mode M>
 Result<Channel<M>> Channel<M>::create(const Config& config) {
-  if (config.name.empty() || config.fixed_size || config.record_size != 0 ||
-      !is_valid_ring_capacity(config.capacity) ||
-      !is_valid_huge_capacity(config.capacity, config.huge)) {
-    return std::unexpected(Error::BadConfig);
+  try {
+    if (config.name.empty() || !is_valid_ring_capacity(config.capacity) ||
+        !is_valid_huge_capacity(config.capacity, config.huge)) {
+      return std::unexpected(Error::BadConfig);
+    }
+    Config typed_config = config;
+    typed_config.mode = M;  // 强制模式与本模板实例一致。
+    auto named = ChannelTraits<M>::create(typed_config);
+    if (!named) {
+      return std::unexpected(named.error());
+    }
+    return Channel(std::make_shared<ChannelState<M>>(std::move(named).value()));
+  } catch (const std::bad_alloc&) {
+    return std::unexpected(Error::OutOfMemory);
   }
-  Config typed_config = config;
-  typed_config.mode = M;  // 强制模式与本模板实例一致。
-  auto named = ChannelTraits<M>::create(typed_config);
-  if (!named) {
-    return std::unexpected(named.error());
-  }
-  return Channel(std::make_shared<ChannelState<M>>(std::move(named).value()));
 }
 
 /// @brief 静态工厂：连接已存在的具名 channel。
@@ -961,17 +968,21 @@ Result<Channel<M>> Channel<M>::create(const Config& config) {
 /// @retval Error 未找到、版本不匹配或配置非法。
 template <Mode M>
 Result<Channel<M>> Channel<M>::connect(std::string_view name) {
-  auto named = ChannelTraits<M>::connect(name);
-  if (!named) {
-    return std::unexpected(named.error());
+  try {
+    auto named = ChannelTraits<M>::connect(name);
+    if (!named) {
+      return std::unexpected(named.error());
+    }
+    return Channel(std::make_shared<ChannelState<M>>(std::move(named).value()));
+  } catch (const std::bad_alloc&) {
+    return std::unexpected(Error::OutOfMemory);
   }
-  return Channel(std::make_shared<ChannelState<M>>(std::move(named).value()));
 }
 
 /// @brief 分配一个 producer 并返回其 Publisher。
 /// @return Publisher；若 producer id 耗尽则返回无效端点。
 template <Mode M>
-Publisher<M> Channel<M>::publisher() noexcept {
+Publisher<M> Channel<M>::publisher() {
   const std::uint32_t producer_id =
       state_->channel.acquire_producer_id().value_or(kInvalidEndpoint);
   return Publisher<M>(std::make_shared<PublisherEndpoint<M>>(state_, producer_id));
@@ -980,7 +991,7 @@ Publisher<M> Channel<M>::publisher() noexcept {
 /// @brief 分配一个 consumer 并返回其 Subscriber。
 /// @return Subscriber；若 consumer id 耗尽则返回无效端点。
 template <Mode M>
-Subscriber<M> Channel<M>::subscriber() noexcept {
+Subscriber<M> Channel<M>::subscriber() {
   const std::uint32_t consumer_id =
       state_->channel.acquire_consumer_id().value_or(kInvalidEndpoint);
   return Subscriber<M>(std::make_shared<SubscriberEndpoint<M>>(state_, consumer_id));

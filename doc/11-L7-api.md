@@ -17,13 +17,17 @@ struct Config {
   std::uint32_t num_producers = 1;
   std::uint32_t num_consumers = 1;
   HugePage huge = HugePage::None;
-  bool fixed_size = false;
-  std::size_t record_size = 0;
+  std::size_t publication_window = 0;
 };
 ```
 
 `Channel<M>::create` 创建 owner，`connect` 连接已有通道。模板参数覆盖 `Config::mode`。
 single 模式要求 `num_consumers == 1`；fanout 模式允许 1–8 个消费者；生产者上限为 16。
+`capacity` 必须为 2 的幂和系统页大小的整数倍；显式大页配置还要求它是所选大页大小的整数倍。
+当前公共协议只支持变长帧，不提供 fixed-size 配置模式。
+
+`create` 和 `connect` 会把动态内存分配失败转换为 `Error::OutOfMemory`。`publisher()` 和
+`subscriber()` 需要分配端点共享状态，因此分配失败时仍可能抛出 `std::bad_alloc`。
 
 ```cpp
 auto owner = salias::FifoFanoutChannel::create(config);
