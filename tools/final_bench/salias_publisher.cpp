@@ -29,7 +29,25 @@ int run(const salias::final_bench::Options& options) {
   std::uint64_t published = 0;
   const std::uint64_t start_ns = monotonic_now_ns();
 
-  if (options.batch_size == 1) {
+  if (options.aligned && options.batch_size == 1) {
+    while (published < options.messages) {
+      ++attempts;
+      auto claimed = publisher.try_claim(kPayloadSize);
+      if (claimed) {
+        write_payload(claimed->payload(), options.index, published);
+        claimed->commit();
+        ++published;
+        consecutive_retries = 0;
+      } else if (claimed.error() == salias::Error::BackPressured) {
+        ++backpressured;
+        ++consecutive_retries;
+        max_consecutive_retries = std::max(max_consecutive_retries, consecutive_retries);
+        std::this_thread::yield();
+      } else {
+        return 13;
+      }
+    }
+  } else if (options.batch_size == 1) {
     std::array<std::byte, kPayloadSize> payload{};
     while (published < options.messages) {
       write_payload(payload, options.index, published);

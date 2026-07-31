@@ -44,7 +44,8 @@ int main(int argc, char** argv) {
     };
     while (consumed < expected) {
       const int fragments = subscription->poll(handler, static_cast<int>(options.poll_limit));
-      if (fragments == 0) idle.idle();
+      if (fragments == 0 && options.aligned) std::this_thread::yield();
+      else if (fragments == 0) idle.idle();
       else idle.reset();
     }
     const std::uint64_t end_ns = salias::final_bench::monotonic_now_ns();

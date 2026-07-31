@@ -297,7 +297,11 @@ class SharedHybridMpscChannel {
    * @brief producer 发送端句柄，持有对 channel 与 producer_id 的引用。
    * @details 线程模型：一个 Tx 实例由单个 producer 线程独占使用。提供单帧 claim/commit
    *          与批量 claim_batch/commit_batch 两套两阶段接口，以及一步式 offer。
-   *          cached_consumer_pos_ 缓存最慢消费者位置，避免每次 claim 都跨核读取共享内存。
+   *          producer_pos_ 缓存本 producer 的预留尾位置，published_pos_ 缓存已发布
+   *          的最高尾位置；二者构造时从共享位置恢复，之后由
+   *          单写者本地递增，避免每条 claim 都 acquire-load 消费者正在观察的
+   *          visible_producer_pos cache line。cached_consumer_pos_ 缓存最慢消费者
+   *          位置，仅在容量快判失败时跨核刷新。
    */
   class Tx {
    public:
@@ -310,7 +314,19 @@ class SharedHybridMpscChannel {
      * @param producer_id 本句柄对应的 producer 索引。
      */
     explicit Tx(SharedHybridMpscChannel& channel, std::uint32_t producer_id) noexcept
-        : channel_(&channel), producer_id_(producer_id) {}
+        : channel_(&channel), producer_id_(producer_id) {
+      if (!channel.has_producer(producer_id)) {
+        return;
+      }
+      auto* visible_pos = channel.producer_rings_[producer_id].shared.visible_producer_pos;
+      if (visible_pos != nullptr) {
+        // 端点创建/重连时只需同步一次共享尾位置；此后 Tx 由单线程独占，
+        // producer_pos_ 可作为权威本地写游标，发布时再 release-store 给 consumer。
+        producer_pos_ =
+            std::atomic_ref<std::uint64_t>(*visible_pos).load(std::memory_order_acquire);
+        published_pos_ = producer_pos_;
+      }
+    }
 
     /**
      * @brief 申请一帧的可写负载空间(claim 阶段，不提交)。
@@ -338,10 +354,8 @@ class SharedHybridMpscChannel {
         return std::unexpected(flow::FlowError::MessageTooLarge);
       }
 
-      // acquire 读生产者尾位置，获取当前可写入的起点。
-      const std::uint64_t tail =
-          std::atomic_ref<std::uint64_t>(*producer.shared.visible_producer_pos)
-              .load(std::memory_order_acquire);
+      // 单写者本地游标是当前可写入起点；无需每条消息重读共享 visible position。
+      const std::uint64_t tail = producer_pos_;
       const std::size_t effective_cap = channel_->effective_capacity(producer.ring.capacity());
       // 先用缓存的消费者位置判空间(快路径，避免跨核 load)。
       if (!hybrid_detail::has_capacity(effective_cap, tail, cached_consumer_pos_, need)) {
@@ -365,10 +379,7 @@ class SharedHybridMpscChannel {
       }
       // 写未提交帧头占位(此时帧对 consumer 不可见)。
       channel_->write_uncommitted_header(producer, tail, payload_len, sequence);
-      // release 推进可见尾位置：此后该帧对 consumer 可见(但尚未 committed)。
-      std::atomic_ref<std::uint64_t>(*producer.shared.visible_producer_pos)
-          .store(tail + need, std::memory_order_release);
-
+      producer_pos_ = tail + need;
       return flow::Claim{
           .payload = producer.ring.slice_mut(tail + frame::kHeaderSize, payload_len),
           .start_pos = tail,
@@ -406,9 +417,7 @@ class SharedHybridMpscChannel {
         return std::unexpected(flow::FlowError::MessageTooLarge);
       }
 
-      const std::uint64_t tail =
-          std::atomic_ref<std::uint64_t>(*producer.shared.visible_producer_pos)
-              .load(std::memory_order_acquire);
+      const std::uint64_t tail = producer_pos_;
       const std::size_t effective_cap = channel_->effective_capacity(producer.ring.capacity());
       // 快路径：用缓存消费者位置计算可容纳帧数。
       std::uint32_t fit =
@@ -440,10 +449,7 @@ class SharedHybridMpscChannel {
         channel_->write_uncommitted_header(producer, frame_position, payload_len,
                                            base_sequence + i);
       }
-      // release 推进可见尾位置，整批对 consumer 可见(但尚未 committed)。
-      std::atomic_ref<std::uint64_t>(*producer.shared.visible_producer_pos)
-          .store(tail + span_bytes, std::memory_order_release);
-
+      producer_pos_ = tail + span_bytes;
       return flow::BatchClaim{
           .region = producer.ring.slice_mut(tail, static_cast<std::size_t>(span_bytes)),
           .start_pos = tail,
@@ -469,6 +475,16 @@ class SharedHybridMpscChannel {
       hybrid_detail::store_header(producer.ring, claim.start_pos, claim.payload_len,
                                   claim.meta | frame::FLAG_COMMITTED,
                                   std::memory_order_release);
+      const std::uint64_t committed_end =
+          claim.start_pos + frame::frame_len(claim.payload_len);
+      if (committed_end > published_pos_) {
+        // 先发布 payload/header，再推进共享可见尾；正常顺序 commit 时 consumer
+        // 不再提前撞到未提交帧。乱序 commit 仍允许可见尾跨过空洞，consumer 继续
+        // 依赖 COMMITTED 位停在最早未完成帧，后续较早帧提交时不回退可见位置。
+        published_pos_ = committed_end;
+        std::atomic_ref<std::uint64_t>(*producer.shared.visible_producer_pos)
+            .store(published_pos_, std::memory_order_release);
+      }
       // 唤醒可能阻塞在等待策略上的 consumer。
       if (channel_->control_.wait_word != nullptr && channel_->wait_.needs_wake()) {
         std::atomic_ref<std::uint32_t>(*channel_->control_.wait_word)
@@ -497,6 +513,13 @@ class SharedHybridMpscChannel {
                                     committed_meta,
                                     std::memory_order_release);
       }
+      const std::uint64_t committed_end =
+          batch.start_pos + static_cast<std::uint64_t>(batch.frame_len) * batch.frame_count;
+      if (committed_end > published_pos_) {
+        published_pos_ = committed_end;
+        std::atomic_ref<std::uint64_t>(*producer.shared.visible_producer_pos)
+            .store(published_pos_, std::memory_order_release);
+      }
       // 整批提交后统一唤醒一次 consumer，摊薄唤醒开销。
       if (channel_->control_.wait_word != nullptr && channel_->wait_.needs_wake()) {
         std::atomic_ref<std::uint32_t>(*channel_->control_.wait_word)
@@ -523,6 +546,10 @@ class SharedHybridMpscChannel {
    private:
     SharedHybridMpscChannel* channel_;  ///< 所属 channel(非拥有)。
     std::uint32_t producer_id_;  ///< 本句柄的 producer 索引。
+    /// 单写者本地发布位置；构造时从共享 visible position 恢复，claim 后递增。
+    std::uint64_t producer_pos_ = 0;
+    /// 已提交的最高发布位置；commit 只前进不回退，支持同一 Tx 的乱序 commit。
+    std::uint64_t published_pos_ = 0;
     /// 缓存的最慢消费者位置；claim 快路径用它判空间，避免每次跨核 load。
     std::uint64_t cached_consumer_pos_ = 0;
   };

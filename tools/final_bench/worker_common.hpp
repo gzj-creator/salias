@@ -34,6 +34,7 @@ struct Options {
   std::uint32_t poll_limit = 64;
   int cpu = -1;
   bool create = false;
+  bool aligned = false;
 };
 
 inline std::uint64_t monotonic_now_ns() noexcept {
@@ -130,6 +131,7 @@ inline Options parse_options(int argc, char** argv) {
     else if (arg == "--poll-limit") options.poll_limit = static_cast<std::uint32_t>(std::stoul(value(arg)));
     else if (arg == "--cpu") options.cpu = std::stoi(value(arg));
     else if (arg == "--create") options.create = true;
+    else if (arg == "--aligned") options.aligned = true;
     else throw std::runtime_error("unknown argument: " + std::string(arg));
   }
   if (options.name.empty() || options.coordination_dir.empty() || options.producers == 0 ||

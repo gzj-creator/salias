@@ -13,6 +13,15 @@ are released.
 
 ## [Unreleased]
 
+### Changed
+
+- 对齐 salias/Aeron 最终基准的 64B payload、`try_claim`/`tryClaim` 零拷贝发布与空转/背压 `yield` 策略，新增可选 `--aligned` 模式，减少测试策略差异对 MPSC/扇出结论的干扰。
+- 优化跨进程 `SharedHybridMpscChannel::Tx` 热路径：在发送端本地维护预留尾位置与已发布尾位置，避免每条 claim 重读共享可见位置，并改为帧 commit 后再发布可见 tail，减少 consumer 提前撞到未提交帧的无效轮询。
+
+### Tests
+
+- 新增 commit 可见性契约测试，覆盖同一 producer 连续 claim 后乱序 commit，验证 consumer 不会越过未提交空洞且共享可见位置不会回退。
+
 ## [v2.0.0] - 2026-07-12
 
 ### Changed

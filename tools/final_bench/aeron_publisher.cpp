@@ -36,9 +36,16 @@ int main(int argc, char** argv) {
       ++attempts;
       const auto position = publication->tryClaim(salias::final_bench::kPayloadSize, claim);
       if (position > 0) {
-        claim.buffer().putInt64(
-            claim.offset(),
-            static_cast<std::int64_t>(salias::final_bench::marker(options.index, sequence)));
+        if (options.aligned) {
+          auto payload = std::span<std::byte>(
+              reinterpret_cast<std::byte*>(claim.buffer().buffer() + claim.offset()),
+              salias::final_bench::kPayloadSize);
+          salias::final_bench::write_payload(payload, options.index, sequence);
+        } else {
+          claim.buffer().putInt64(
+              claim.offset(),
+              static_cast<std::int64_t>(salias::final_bench::marker(options.index, sequence)));
+        }
         claim.commit();
         ++sequence;
         consecutive_retries = 0;
@@ -51,7 +58,8 @@ int main(int argc, char** argv) {
       ++backpressured;
       ++consecutive_retries;
       max_consecutive_retries = std::max(max_consecutive_retries, consecutive_retries);
-      idle.idle();
+      if (options.aligned) std::this_thread::yield();
+      else idle.idle();
     }
     const std::uint64_t end_ns = salias::final_bench::monotonic_now_ns();
     salias::final_bench::write_result(

@@ -22,6 +22,17 @@ salias_enable_warnings(salias_allocation_contract_test)
 salias_enable_sanitizers(salias_allocation_contract_test)
 add_test(NAME salias_allocation_contract_test COMMAND salias_allocation_contract_test)
 
+add_executable(salias_commit_visibility_contract_test
+  api/commit_visibility_contract_test.cpp
+)
+target_link_libraries(salias_commit_visibility_contract_test PRIVATE salias)
+salias_enable_warnings(salias_commit_visibility_contract_test)
+salias_enable_sanitizers(salias_commit_visibility_contract_test)
+add_test(
+  NAME salias_commit_visibility_contract_test
+  COMMAND salias_commit_visibility_contract_test
+)
+
 find_package(GTest CONFIG QUIET)
 if(NOT GTest_FOUND)
   message(WARNING
