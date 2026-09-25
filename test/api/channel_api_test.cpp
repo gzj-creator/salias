@@ -13,6 +13,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -101,6 +102,266 @@ salias::Message wait_for_message(salias::Subscriber<M>& subscriber) {
     std::this_thread::yield();
   }
   return {};
+}
+
+TEST(ChannelApiTest, FifoThreeProducerScanWrapsAndRemainsFair) {
+  auto config = config_for(salias::Mode::FifoMpsc, "three-ring-scan");
+  config.num_producers = 3;
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  std::array publishers{channel.publisher(), channel.publisher(), channel.publisher()};
+  auto subscriber = channel.subscriber();
+  ASSERT_TRUE(publishers[2].offer(encode(Payload{.producer = 2})));
+  auto last = subscriber.try_recv();
+  ASSERT_TRUE(last);
+  EXPECT_EQ(last->producer_id, 2u);
+  subscriber.release(*last);
+  EXPECT_FALSE(subscriber.try_recv());
+  for (std::uint32_t sequence = 0; sequence < 3; ++sequence) {
+    for (std::uint32_t p = 0; p < 3; ++p) {
+      ASSERT_TRUE(publishers[p].offer(encode(Payload{p, sequence})));
+    }
+  }
+  for (std::uint32_t i = 0; i < 9; ++i) {
+    auto message = subscriber.try_recv();
+    ASSERT_TRUE(message);
+    EXPECT_EQ(message->producer_id, i % 3);
+    EXPECT_EQ(decode(message->payload).sequence, i / 3);
+    subscriber.release(*message);
+  }
+  EXPECT_FALSE(subscriber.try_recv());
+  for (const auto p : {1u, 0u, 2u}) {
+    ASSERT_TRUE(publishers[p].offer(encode(Payload{.producer = p})));
+    EXPECT_EQ(subscriber.poll(32, [p](const salias::Message& message) noexcept {
+      EXPECT_EQ(message.producer_id, p);
+    }), 1u);
+    EXPECT_FALSE(subscriber.try_recv());
+  }
+}
+
+template <salias::Mode M>
+void check_ordered_batches() {
+  auto config = config_for(M, "ordered-cross-ring-batch");
+  config.num_producers = 3;
+  auto created = salias::Channel<M>::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  std::array publishers{channel.publisher(), channel.publisher(), channel.publisher()};
+  auto subscriber = channel.subscriber();
+  std::uint64_t expected = 0;
+  auto check = [&](const salias::Message& message) noexcept {
+    EXPECT_EQ(message.sequence, expected);
+    EXPECT_EQ(decode(message.payload).sequence, expected);
+    ++expected;
+  };
+  // More than a ring's capacity over repeated rounds, and more than one chunk
+  // per poll. Sequence assignment cycles across a non-power-of-two ring count.
+  for (std::uint32_t round = 0; round < 20; ++round) {
+    const auto start = static_cast<std::uint32_t>(expected);
+    for (std::uint32_t i = 0; i < 99; ++i) {
+      const auto p = i % 3;
+      ASSERT_TRUE(publishers[p].offer(encode(Payload{p, start + i})));
+    }
+    EXPECT_EQ(subscriber.poll(1, check), 1u);
+    EXPECT_EQ(subscriber.poll(31, check), 31u);
+    EXPECT_EQ(subscriber.poll(33, check), 33u);
+    EXPECT_EQ(subscriber.poll(100, check), 34u);
+    EXPECT_FALSE(subscriber.try_recv());
+  }
+  auto gap = publishers[2].try_claim(sizeof(Payload));
+  ASSERT_TRUE(gap);
+  const Payload missing{2, static_cast<std::uint32_t>(expected)};
+  std::memcpy(gap->payload().data(), &missing, sizeof(missing));
+  ASSERT_TRUE(publishers[0].offer(encode(Payload{0, missing.sequence + 1})));
+  EXPECT_EQ(subscriber.poll(32, check), 0u);
+  gap->commit();
+  EXPECT_EQ(subscriber.poll(32, check), 2u);
+  EXPECT_FALSE(subscriber.try_recv());
+}
+
+TEST(ChannelApiTest, OrderedMpscBatchesRespectLimitsGapsAndWraparound) {
+  check_ordered_batches<salias::Mode::OrderedMpsc>();
+}
+
+TEST(ChannelApiTest, OrderedFanoutBatchesRespectLimitsGapsAndWraparound) {
+  check_ordered_batches<salias::Mode::OrderedFanout>();
+}
+
+template <salias::Mode M>
+void check_batch_retention() {
+  auto config = config_for(M, "batch-retention");
+  config.num_producers = 3;
+  config.num_consumers = 2;
+  auto created = salias::Channel<M>::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  std::array publishers{channel.publisher(), channel.publisher(), channel.publisher()};
+  auto fast = channel.subscriber();
+  auto slow = channel.subscriber();
+  for (std::uint32_t p = 0; p < 3; ++p) {
+    auto claim = publishers[p].try_claim(4088);
+    ASSERT_TRUE(claim);
+    std::fill(claim->payload().begin(), claim->payload().end(), static_cast<std::byte>(p));
+    claim->commit();
+  }
+  std::uint32_t callbacks = 0;
+  auto check = [&](const salias::Message& message) noexcept {
+    if constexpr (M == salias::Mode::OrderedFanout) {
+      EXPECT_EQ(message.sequence, callbacks % 3);
+    } else {
+      EXPECT_EQ(message.sequence, 0u);
+    }
+    for (const auto byte : message.payload) {
+      EXPECT_EQ(byte, static_cast<std::byte>(message.producer_id));
+    }
+    EXPECT_FALSE(publishers[message.producer_id].try_claim(4088));
+    ++callbacks;
+  };
+  EXPECT_EQ(fast.poll(32, check), 3u);
+  for (auto& publisher : publishers) {
+    EXPECT_FALSE(publisher.try_claim(4088));
+  }
+  // Exercise the function-pointer overload as well as the templated callable.
+  EXPECT_EQ(slow.poll(32, [](const salias::Message& message, void* context) noexcept {
+    (*static_cast<decltype(check)*>(context))(message);
+  }, &check), 3u);
+  EXPECT_EQ(callbacks, 6u);
+  for (auto& publisher : publishers) {
+    auto next = publisher.try_claim(4088);
+    ASSERT_TRUE(next);
+    next->commit();
+  }
+}
+
+TEST(ChannelApiTest, OrderedPollKeepsPayloadUntilCallbacksAndSlowFanoutFinish) {
+  check_batch_retention<salias::Mode::OrderedFanout>();
+}
+
+TEST(ChannelApiTest, FifoPollKeepsPayloadUntilCallbacksAndSlowFanoutFinish) {
+  check_batch_retention<salias::Mode::FifoFanout>();
+}
+
+template <salias::Mode M>
+void check_concurrent_batches() {
+  constexpr std::uint32_t kProducers = 3;
+  constexpr std::uint32_t kMessages = 20000;
+  auto config = config_for(M, "concurrent-batches");
+  config.num_producers = kProducers;
+  config.num_consumers = 2;
+  auto created = salias::Channel<M>::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  std::array publishers{channel.publisher(), channel.publisher(), channel.publisher()};
+  std::array subscribers{channel.subscriber(), channel.subscriber()};
+  std::atomic<bool> stop{false};
+  std::atomic<bool> failed{false};
+  std::vector<std::jthread> threads;
+  for (std::uint32_t p = 0; p < kProducers; ++p) {
+    threads.emplace_back([&, p](std::stop_token token) {
+      for (std::uint32_t seq = 0; seq < kMessages;) {
+        if (token.stop_requested() || stop.load(std::memory_order_relaxed)) {
+          return;
+        }
+        auto result = publishers[p].offer(encode(Payload{p, seq}));
+        if (result && *result) {
+          ++seq;
+        } else if (!result && result.error() != salias::Error::BackPressured) {
+          failed.store(true, std::memory_order_relaxed);
+          return;
+        } else {
+          std::this_thread::yield();
+        }
+      }
+    });
+  }
+  std::array<std::uint64_t, 2> received{};
+  std::array<std::array<std::uint32_t, kProducers>, 2> expected{};
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  while ((received[0] != kProducers * kMessages ||
+          received[1] != kProducers * kMessages) &&
+         !failed.load(std::memory_order_relaxed) &&
+         std::chrono::steady_clock::now() < deadline) {
+    for (std::size_t c = 0; c < subscribers.size(); ++c) {
+      subscribers[c].poll(c == 0 ? 17 : 31, [&, c](const salias::Message& message) noexcept {
+        const auto payload = decode(message.payload);
+        if constexpr (M == salias::Mode::OrderedFanout) {
+          if (message.sequence != received[c]) {
+            failed.store(true, std::memory_order_relaxed);
+          }
+        } else {
+          if (message.sequence != payload.sequence) {
+            failed.store(true, std::memory_order_relaxed);
+          }
+        }
+        if (message.producer_id >= kProducers ||
+            payload.producer != message.producer_id ||
+            payload.sequence != expected[c][message.producer_id]++) {
+          failed.store(true, std::memory_order_relaxed);
+        }
+        ++received[c];
+      });
+    }
+  }
+  stop.store(true, std::memory_order_relaxed);
+  for (auto& thread : threads) {
+    thread.join();
+  }
+  EXPECT_FALSE(failed.load(std::memory_order_relaxed));
+  for (std::size_t c = 0; c < subscribers.size(); ++c) {
+    EXPECT_EQ(received[c], kProducers * kMessages);
+    for (const auto count : expected[c]) {
+      EXPECT_EQ(count, kMessages);
+    }
+    EXPECT_FALSE(subscribers[c].try_recv());
+  }
+}
+
+TEST(ChannelApiTest, OrderedFanoutConcurrentBatchesSurviveBackpressureAndWraparound) {
+  check_concurrent_batches<salias::Mode::OrderedFanout>();
+}
+
+TEST(ChannelApiTest, FifoFanoutConcurrentBatchesSurviveBackpressureAndWraparound) {
+  check_concurrent_batches<salias::Mode::FifoFanout>();
+}
+
+TEST(ChannelApiTest, FifoBatchesKeepPerRingCursorsAcrossPartialRuns) {
+  auto config = config_for(salias::Mode::FifoMpsc, "fifo-partial-runs");
+  config.num_producers = 3;
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  std::array publishers{channel.publisher(), channel.publisher(), channel.publisher()};
+  auto subscriber = channel.subscriber();
+  std::array<std::uint32_t, 3> expected{};
+  auto check = [&](const salias::Message& message) noexcept {
+    ASSERT_LT(message.producer_id, expected.size());
+    const auto payload = decode(message.payload);
+    EXPECT_EQ(payload.producer, message.producer_id);
+    EXPECT_EQ(payload.sequence, expected[message.producer_id]);
+    EXPECT_EQ(message.sequence, expected[message.producer_id]++);
+  };
+  for (std::uint32_t round = 0; round < 20; ++round) {
+    for (std::uint32_t p = 0; p < 3; ++p) {
+      for (std::uint32_t i = 0; i < 63; ++i) {
+        auto result = publishers[p].offer(encode(Payload{p, round * 63 + i}));
+        ASSERT_TRUE(result && *result);
+      }
+    }
+    EXPECT_EQ(subscriber.poll(0, check), 0u);
+    EXPECT_EQ(subscriber.poll(1, check), 1u);
+    EXPECT_EQ(subscriber.poll(31, check), 31u);
+    auto single = subscriber.try_recv();
+    ASSERT_TRUE(single);
+    check(*single);
+    subscriber.release(*single);
+    EXPECT_EQ(subscriber.poll(33, check), 33u);
+    EXPECT_EQ(subscriber.poll(256, check), 123u);
+    EXPECT_FALSE(subscriber.try_recv());
+  }
+  for (const auto sequence : expected) {
+    EXPECT_EQ(sequence, 20u * 63);
+  }
 }
 
 /// @brief 验证 FifoMpsc 下 claim/commit 与 offer 两条发布路径，以及

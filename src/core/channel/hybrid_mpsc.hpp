@@ -7,11 +7,13 @@
  *          流控提供 claim/commit 与消费进度模型；L4 等待策略经模板注入。
  *
  *          核心设计：每个 producer 拥有独立 MagicRing(避免生产者间写冲突)，
- *          单 consumer 轮询所有 ring。生产采用 claim→写 payload→commit 两阶段，
- *          commit 以 release 语义推进 visible_producer_pos 使帧对消费者可见；
- *          消费者以 acquire 语义观察该位置。支持 Order::Ordered(全局单调)
- *          与 Order::Fifo(每环内 FIFO)两种序。流控窗口(publication_window)
- *          限制生产者领先消费者的在途字节数，实现背压。
+ *          单 consumer 轮询所有 ring。生产采用 claim→写 payload→commit 两阶段。
+ *          每个 ring 只有一个写者，因此发布点收敛为 commit 时的一次
+ *          visible_producer_pos release：帧头只普通写一次，消费者对该位置
+ *          acquire 后即可读帧。乱序 commit 不越过尚未提交的空洞，水位只推进
+ *          连续已提交前缀。支持 Order::Ordered(全局单调)与 Order::Fifo(每环
+ *          内 FIFO)。流控窗口(publication_window)限制生产者领先消费者的在途
+ *          字节数，实现背压；低延迟场景推荐 64–256KiB。
  *
  *          线程模型：每个 producer 独占一个 ring 与其 Tx；consumer 独占 Rx。
  *          producer_pos、visible_producer_pos 独占不同缓存行(128B 对齐)避免
@@ -160,33 +162,88 @@ inline std::uint64_t pack_header(std::uint32_t payload_len, std::uint32_t meta) 
 }
 
 /**
- * @brief 以指定内存序原子写入 8 字节帧头到 ring 的 position 处。
- * @param ring 目标 ring。
- * @param position 帧起始字节偏移。
- * @param payload_len 负载字节长度(将写入帧头低 32 位)。
- * @param meta 帧元数据(将写入帧头高 32 位)。
- * @param order 写入内存序：claim 用 relaxed，commit 用 release(发布可见)。
- * @note 通过 std::atomic_ref 对普通内存做原子写，避免帧头独占原子成员。
+ * @brief 普通写入 8 字节帧头，不带 release 语义。
+ * @details 可见性由随后对 visible_producer_pos 的 release store 建立。消费者
+ *          acquire 该水位后，此次写入以及此前的 payload 均已对其可见。
  */
-inline void store_header(ring::MagicRing& ring, std::uint64_t position, std::uint32_t payload_len,
-                         std::uint32_t meta, std::memory_order order) noexcept {
+inline void store_header_plain(ring::MagicRing& ring, std::uint64_t position,
+                               std::uint32_t payload_len, std::uint32_t meta) noexcept {
   auto header_dst = ring.slice_mut(position, frame::kHeaderSize);
-  auto* header_ptr = reinterpret_cast<std::uint64_t*>(header_dst.data());
-  std::atomic_ref<std::uint64_t>(*header_ptr).store(pack_header(payload_len, meta), order);
+  if (header_dst.size() < frame::kHeaderSize) {
+    return;
+  }
+  const std::uint64_t word = pack_header(payload_len, meta);
+  std::memcpy(header_dst.data(), &word, sizeof(word));
 }
 
 /**
- * @brief 以 acquire 语义原子读取 position 处的 8 字节帧头。
- * @return 打包后的 64 位帧头字(低 32 位 payload_len，高 32 位 meta)。
- * @note acquire load 与生产者 commit 阶段的 release store 配对，确保读到帧头时
- *       payload 数据亦已对当前线程可见，避免读到半写帧。
+ * @brief 普通读取 8 字节帧头。
+ * @details 调用方必须已经 acquire 观察到覆盖该位置的 visible_producer_pos，
+ *          否则与生产者的发布不构成 happens-before。
  */
-inline std::uint64_t load_header_acquire(const ring::MagicRing& ring,
-                                         std::uint64_t position) noexcept {
+inline std::uint64_t load_header_plain(const ring::MagicRing& ring,
+                                       std::uint64_t position) noexcept {
   auto header_src = ring.slice(position, frame::kHeaderSize);
-  auto* header_ptr =
-      const_cast<std::uint64_t*>(reinterpret_cast<const std::uint64_t*>(header_src.data()));
-  return std::atomic_ref<std::uint64_t>(*header_ptr).load(std::memory_order_acquire);
+  std::uint64_t word = 0;
+  if (header_src.size() < sizeof(word)) {
+    return 0;
+  }
+  std::memcpy(&word, header_src.data(), sizeof(word));
+  return word;
+}
+
+/// @brief 一段已提交但尚未并入连续水位的字节区间 [start, end)。
+struct CommitSpan {
+  std::uint64_t start = 0;
+  std::uint64_t end = 0;
+};
+
+/**
+ * @brief 记录一个乱序提交区间，保持按 start 升序且相邻区间合并。
+ * @note 热路径(按 claim 顺序 commit)不会调用。容量不足时扩容；分配失败会
+ *       因为调用方是 noexcept 而终止，与建表路径的分配失败策略一致。
+ */
+inline void note_pending_commit(std::vector<CommitSpan>& pending, std::uint64_t start,
+                                std::uint64_t end) noexcept {
+  if (end <= start) {
+    return;
+  }
+  std::size_t index = 0;
+  while (index < pending.size() && pending[index].start < start) {
+    ++index;
+  }
+  if (index < pending.size() && pending[index].start == start) {
+    if (end > pending[index].end) {
+      pending[index].end = end;
+    }
+    return;
+  }
+  if (index > 0 && pending[index - 1].end == start) {
+    pending[index - 1].end = end;
+    if (index < pending.size() && pending[index].start == pending[index - 1].end) {
+      pending[index - 1].end = pending[index].end;
+      pending.erase(pending.begin() + static_cast<std::ptrdiff_t>(index));
+    }
+    return;
+  }
+  if (index < pending.size() && pending[index].start == end) {
+    pending[index].start = start;
+    return;
+  }
+  if (pending.size() == pending.capacity()) {
+    pending.reserve(pending.capacity() == 0 ? 8 : pending.capacity() * 2);
+  }
+  pending.insert(pending.begin() + static_cast<std::ptrdiff_t>(index), CommitSpan{start, end});
+}
+
+/// @brief 把水位吞掉所有紧挨着 end 的已提交区间，返回新的连续末端。
+inline std::uint64_t consume_pending_contiguous(std::vector<CommitSpan>& pending,
+                                                std::uint64_t end) noexcept {
+  while (!pending.empty() && pending.front().start == end) {
+    end = pending.front().end;
+    pending.erase(pending.begin());
+  }
+  return end;
 }
 
 /**
@@ -214,8 +271,9 @@ inline void prefetch_header(const ring::MagicRing& ring, std::uint64_t position)
  *          HybridSharedControl、producer_rings_ 与 consumer_sequences_，move-only。
  *          线程安全：Tx/Rx 分别为单生产者/单消费者独占使用，非线程安全；
  *          底层原子操作保证跨生产者-消费者可见性。
- *          关键不变式：consumer 仅消费已 COMMITTED 且序列号匹配的帧；
- *          序列号低位回绕安全由 create() 经 sequence_low_window_fits 静态保证。
+   *          关键不变式：consumer 只读 visible_producer_pos 已覆盖的帧(该水位
+   *          是连续已提交前缀)；序列号低位回绕安全由 create() 经
+   *          sequence_low_window_fits 静态保证。
  */
 template <Order Ordering = Order::Ordered, wait::WaitStrategy Wait = wait::SpinPause>
 class HybridMpscChannel {
@@ -224,8 +282,9 @@ class HybridMpscChannel {
    * @brief channel 建表配置。
    * @details ring_capacity_per_producer 须为 2 的幂(由 MagicRing 校验)。
    *          publication_window 为流控窗口(字节)，0 表示满环可用；非 0 时限制
-   *          生产者领先消费者的在途字节数以实现背压。huge 启用大页降低
-   *          miss；numa_node=-1 不绑定。
+   *          生产者领先消费者的在途字节数以实现背压。低延迟推荐 64–256KiB
+   *          (128KiB 实测可将 p99 排队从满环数毫秒压到数百微秒)。huge 启用
+   *          大页降低 miss；numa_node=-1 不绑定。
    */
   struct Config {
     std::uint32_t num_producers = 1;       ///< 生产者(独立 ring)数量
@@ -233,7 +292,7 @@ class HybridMpscChannel {
     std::size_t ring_capacity_per_producer = 4u * 1024u * 1024u;  ///< 单环容量(须 2 的幂)
     platform::HugePage huge = platform::HugePage::None;  ///< 是否启用大页(huge page)
     int numa_node = -1;                    ///< NUMA 绑定节点，-1 表示不绑定
-    std::size_t publication_window = 0;    ///< 发布流控窗口(字节)，0 表示满环
+    std::size_t publication_window = 0;    ///< 发布流控窗口(字节)，0 表示满环；低延迟推荐 64–256KiB
   };
 
   /// @brief create() 结果类型：成功返回 channel，失败返回 ChannelError。
@@ -350,6 +409,8 @@ class HybridMpscChannel {
         : ring(std::move(other.ring)),
           producer_pos(other.producer_pos),
           cached_consumer_pos(other.cached_consumer_pos),
+          published_pos(other.published_pos),
+          pending_commits(std::move(other.pending_commits)),
           visible_producer_pos(other.visible_producer_pos.load(std::memory_order_relaxed)),
           consumer_positions(std::move(other.consumer_positions)),
           consumer_count(other.consumer_count),
@@ -362,6 +423,8 @@ class HybridMpscChannel {
         ring = std::move(other.ring);
         producer_pos = other.producer_pos;
         cached_consumer_pos = other.cached_consumer_pos;
+        published_pos = other.published_pos;
+        pending_commits = std::move(other.pending_commits);
         visible_producer_pos.store(other.visible_producer_pos.load(std::memory_order_relaxed),
                                    std::memory_order_relaxed);
         consumer_positions = std::move(other.consumer_positions);
@@ -379,6 +442,10 @@ class HybridMpscChannel {
     // 写位置(独占缓存行)：单生产者独占递增，无需原子；单调全量偏移。
     alignas(128) std::uint64_t producer_pos = 0;
     std::uint64_t cached_consumer_pos = 0;  ///< 消费者最小位置本地缓存，减少跨核读
+    /// 已对消费者发布的连续末端。只由本环写者更新，commit 时 release 到 visible。
+    std::uint64_t published_pos = 0;
+    /// 乱序 commit 的已提交区间。按序 commit 时为空，不进入热路径。
+    std::vector<hybrid_detail::CommitSpan> pending_commits;
     // 可见位置(独占缓存行)：commit 后 release 写，消费者 acquire 读。
     alignas(128) std::atomic<std::uint64_t> visible_producer_pos{0};
     // 每个 consumer 在本环的消费进度；consumer release 写、producer acquire 读。
@@ -437,15 +504,32 @@ class HybridMpscChannel {
   }
 
   /**
-   * @brief claim 阶段写入"未提交"帧头(无 COMMITTED 标志，relaxed 序)。
-   * @details 此时帧对消费者尚不可见(visible_producer_pos 未推进)；relaxed 写
-   *          足够，因为随后 commit 会以 release 序重写帧头并推进可见位置。
+   * @brief 若 [start, end) 接上已发布水位，则 release 推进可见位置。
+   * @return true 表示可见水位前进，调用方可以唤醒消费者。
+   * @details 每个 ring 单写者。按序 commit 时 start 等于 published_pos，帧头
+   *          普通写之后只做这一次 release。乱序 commit 先记入 pending，等空洞
+   *          补上再一次性发布连续前缀，避免消费者读到未写完的帧。
    */
-  void write_uncommitted_header(ProducerRing& producer, std::uint64_t position,
-                                std::uint32_t payload_len, std::uint64_t sequence) noexcept {
-    const std::uint32_t meta = hybrid_detail::meta_for_sequence(sequence, false);
-    hybrid_detail::store_header(producer.ring, position, payload_len, meta,
-                                std::memory_order_relaxed);
+  bool publish_contiguous(ProducerRing& producer, std::uint64_t start,
+                          std::uint64_t end) noexcept {
+    if (start == producer.published_pos) {
+      end = hybrid_detail::consume_pending_contiguous(producer.pending_commits, end);
+      producer.published_pos = end;
+      producer.visible_producer_pos.store(end, std::memory_order_release);
+      return true;
+    }
+    if (start > producer.published_pos) {
+      hybrid_detail::note_pending_commit(producer.pending_commits, start, end);
+    }
+    return false;
+  }
+
+  /// @brief 等待策略需要唤醒时，递增 wait_word 并通知阻塞中的消费者。
+  void wake_consumer() noexcept {
+    if (wait_.needs_wake()) {
+      std::atomic_ref<std::uint32_t>(control_->wait_word).fetch_add(1, std::memory_order_release);
+      wait_.wake(&control_->wait_word);
+    }
   }
 
   /**
@@ -455,9 +539,9 @@ class HybridMpscChannel {
    * @param target_sequence 期望的序列号(用于校验帧归属)。
    * @param visible_bound 可见上界(position >= visible_bound 表示尚不可读)。
    * @return 可读则返回 Message；未就绪/未提交/序列号不符/越界返回 nullopt。
-   * @note 以 acquire 读帧头(与 commit 的 release 配对)；帧未置 COMMITTED 则视为
-   *       不可读，避免消费半写帧。序列号低位匹配校验防止跨环/跨帧混淆
-   *       (见 sequence_low_window_fits)。
+   * @note 位置 < visible_bound 即已提交：水位只覆盖连续已提交前缀，消费者对
+   *       水位的 acquire 已经同步了帧头与 payload，这里用普通读。序列号低位
+   *       匹配校验防止跨环/跨帧混淆(见 sequence_low_window_fits)。
    *       next_position 越过 visible_bound 也判为不可读，保证不读未发布区域。
    */
   std::optional<flow::Message> try_read_from_ring(std::uint32_t producer_id, std::uint64_t position,
@@ -468,13 +552,9 @@ class HybridMpscChannel {
       return std::nullopt;
     }
 
-    const std::uint64_t header = hybrid_detail::load_header_acquire(producer.ring, position);
+    const std::uint64_t header = hybrid_detail::load_header_plain(producer.ring, position);
     const std::uint32_t payload_len = static_cast<std::uint32_t>(header);
     const std::uint32_t meta = static_cast<std::uint32_t>(header >> 32u);
-    const std::uint32_t flags = meta & 0xFFu;
-    if ((flags & frame::FLAG_COMMITTED) == 0) {
-      return std::nullopt;
-    }
     if (frame::sequence_low_from_meta(meta) != frame::sequence_low(target_sequence)) {
       return std::nullopt;
     }
@@ -518,16 +598,15 @@ class HybridMpscChannel {
         : channel_(&channel), producer_id_(producer_id) {}
 
     /**
-     * @brief 单帧 claim：在 ring 预留 payload 区域并写未提交帧头。
+     * @brief 单帧 claim：在 ring 预留 payload 区域，不发布。
      * @param payload_len 期望的负载字节数(不含帧头)。
      * @retval Claim 预留成功，payload 为 ring 内独占可写区，commit() 前写完。
      * @retval MessageTooLarge 帧长超过 ring 总容量或 producer_id 非法。
      * @retval BackPressured 流控窗口/环空间不足，需等待消费者推进或重试。
-     * @note 两阶段发布：claim 先写未提交帧头(relaxed)并推进 producer_pos 与可见
-     *       位置(release)，但帧头未置 COMMITTED 故消费者跳过；commit() 再以
-     *       release 重写帧头置 COMMITTED。背压处理：先用本地缓存
-     *       cached_consumer_pos 快判，失效时以 acquire 重读最小消费位置。
-     *       Ordered 模式序列号取自全局 global_seq(fetch_add relaxed，单调即可)。
+     * @note 只推进本环私有 producer_pos。帧头与 visible_producer_pos 留到
+     *       commit()：一次普通写加一次 release。背压先用 cached_consumer_pos
+     *       快判，失效时以 acquire 重读最小消费位置。Ordered 模式序列号取自
+     *       全局 global_seq(fetch_add relaxed，单调即可)。
      */
     flow::Producer::ClaimResult claim(std::uint32_t payload_len) noexcept {
       if (channel_ == nullptr || !channel_->has_producer(producer_id_)) {
@@ -562,9 +641,6 @@ class HybridMpscChannel {
       const std::uint64_t position = producer.producer_pos;
       producer.producer_pos += need;
       ++producer.total_written;
-      channel_->write_uncommitted_header(producer, position, payload_len, sequence);
-      // release 推进可见位置：与消费者 acquire load 配对，保证 payload 可见。
-      producer.visible_producer_pos.store(producer.producer_pos, std::memory_order_release);
 
       return flow::Claim{
           .payload = producer.ring.slice_mut(position + frame::kHeaderSize, payload_len),
@@ -585,7 +661,7 @@ class HybridMpscChannel {
      * @retval BackPressured 剩余空间不足以容纳任何一帧，需重试或等待。
      * @note 批量边界对齐：所有帧等长，base_sequence 为首帧序号，后续帧 +1。
      *       Ordered 模式下一次 fetch_add(fit) 批量领取序列号，减少原子争用。
-     *       各帧逐个写未提交帧头，最后统一 release 推进可见位置。
+     *       帧头留到 commit_batch() 一次普通写完，再统一 release 水位。
      */
     BatchClaimResult claim_batch(std::uint32_t payload_len, std::uint32_t max_frames) noexcept {
       if (channel_ == nullptr || !channel_->has_producer(producer_id_) || max_frames == 0) {
@@ -624,14 +700,6 @@ class HybridMpscChannel {
       producer.producer_pos += span_bytes;
       producer.total_written += fit;
 
-      // 为批量内每帧写未提交帧头(序列号从 base_sequence 起递增)。
-      for (std::uint32_t i = 0; i < fit; ++i) {
-        const std::uint64_t frame_position = position + static_cast<std::uint64_t>(per) * i;
-        channel_->write_uncommitted_header(producer, frame_position, payload_len,
-                                           base_sequence + i);
-      }
-      producer.visible_producer_pos.store(producer.producer_pos, std::memory_order_release);
-
       return flow::BatchClaim{
           .region = producer.ring.slice_mut(position, static_cast<std::size_t>(span_bytes)),
           .start_pos = position,
@@ -643,12 +711,10 @@ class HybridMpscChannel {
     }
 
     /**
-     * @brief 提交单帧：以 release 重写帧头置 COMMITTED，使帧对消费者可见，
-     *        并按需唤醒等待的消费者。
+     * @brief 提交单帧：普通写一次已提交帧头，再按连续水位 release 一次。
      * @param claim 此前 claim() 返回的预留描述，payload 必须已写完。
-     * @note 内存序：release 写帧头与消费者 acquire load 配对，保证 payload
-     *       先于 COMMITTED 可见。唤醒：仅当等待策略 needs_wake() 时才
-     *       fetch_add wait_word 并 wake，避免无阻塞消费者时的开销。
+     * @note 按序 commit 时发布点只有 visible_producer_pos。乱序 commit 不推进
+     *       水位，等更早的帧提交后一并发布。仅在水位前进时唤醒消费者。
      */
     void commit(const flow::Claim& claim) noexcept {
       if (channel_ == nullptr || !channel_->has_producer(producer_id_)) {
@@ -657,23 +723,22 @@ class HybridMpscChannel {
 
       auto& producer = channel_->producer_rings_[producer_id_];
       const std::uint32_t committed_meta = claim.meta | frame::FLAG_COMMITTED;
-      hybrid_detail::store_header(producer.ring, claim.start_pos, claim.payload_len, committed_meta,
-                                  std::memory_order_release);
-      if (channel_->wait_.needs_wake()) {
-        std::atomic_ref<std::uint32_t>(channel_->control_->wait_word)
-            .fetch_add(1, std::memory_order_release);
-        channel_->wait_.wake(&channel_->control_->wait_word);
+      hybrid_detail::store_header_plain(producer.ring, claim.start_pos, claim.payload_len,
+                                        committed_meta);
+      const std::uint64_t end = claim.start_pos + frame::frame_len(claim.payload_len);
+      if (channel_->publish_contiguous(producer, claim.start_pos, end)) {
+        channel_->wake_consumer();
       }
     }
 
     /**
-     * @brief 批量提交：逐帧以 release 写 COMMITTED 帧头，按需唤醒消费者。
+     * @brief 批量提交：批内帧头普通写，批末一次 release 发布连续水位。
      * @param batch 此前 claim_batch() 返回的批量预留描述，payload 须已写完。
      * @note 每帧 payload_len = frame_len - kHeaderSize(从定长 frame_len 反推)。
-     *       唤醒在所有帧提交后统一执行一次，减少唤醒次数。
+     *       同一线程内批末的 release 覆盖批内全部普通写，建立整批 happens-before。
      */
     void commit_batch(const flow::BatchClaim& batch) noexcept {
-      if (channel_ == nullptr || !channel_->has_producer(producer_id_)) {
+      if (channel_ == nullptr || !channel_->has_producer(producer_id_) || batch.frame_count == 0) {
         return;
       }
 
@@ -683,14 +748,13 @@ class HybridMpscChannel {
             batch.start_pos + static_cast<std::uint64_t>(batch.frame_len) * i;
         const std::uint32_t committed_meta =
             hybrid_detail::meta_for_sequence(batch.base_sequence + i, true);
-        hybrid_detail::store_header(producer.ring, position, batch.frame_len - frame::kHeaderSize,
-                                    committed_meta,
-                                    std::memory_order_release);
+        hybrid_detail::store_header_plain(producer.ring, position,
+                                          batch.frame_len - frame::kHeaderSize, committed_meta);
       }
-      if (channel_->wait_.needs_wake()) {
-        std::atomic_ref<std::uint32_t>(channel_->control_->wait_word)
-            .fetch_add(1, std::memory_order_release);
-        channel_->wait_.wake(&channel_->control_->wait_word);
+      const std::uint64_t end =
+          batch.start_pos + static_cast<std::uint64_t>(batch.frame_len) * batch.frame_count;
+      if (channel_->publish_contiguous(producer, batch.start_pos, end)) {
+        channel_->wake_consumer();
       }
     }
 
@@ -813,22 +877,46 @@ class HybridMpscChannel {
         }
 
         std::uint32_t produced = 0;
-        while (produced < cap) {
-          const std::uint64_t target_sequence =
-              Ordering == Order::Ordered ? expected_sequence_ : next_sequences_[producer_id];
-          auto message = channel_->try_read_from_ring(producer_id, read_positions_[producer_id],
-                                                      target_sequence,
-                                                      cached_visible_pos_[producer_id]);
-          if (!message.has_value()) {
-            break;
+        if constexpr (Ordering == Order::Fifo) {
+          // 同环 FIFO 批量读取只在批末回写本地游标，省去逐帧 consume 校验。
+          // 共享进度仍由调用方在回调完成后 flush，不能提前回收 payload。
+          auto position = read_positions_[producer_id];
+          auto sequence = next_sequences_[producer_id];
+          const auto visible_bound = cached_visible_pos_[producer_id];
+          while (produced < cap) {
+            auto message =
+                channel_->try_read_from_ring(producer_id, position, sequence, visible_bound);
+            if (!message.has_value()) {
+              break;
+            }
+            if (message->next_position < visible_bound) {
+              hybrid_detail::prefetch_header(channel_->producer_rings_[producer_id].ring,
+                                             message->next_position);
+            }
+            out[produced++] = *message;
+            position = message->next_position;
+            ++sequence;
           }
-          if (message->next_position < cached_visible_pos_[producer_id]) {
-            // 下一帧仍在可见范围内则预取其帧头，隐藏后续读的缓存延迟。
-            hybrid_detail::prefetch_header(channel_->producer_rings_[producer_id].ring,
-                                           message->next_position);
+          if (produced > 0) {
+            read_positions_[producer_id] = position;
+            next_sequences_[producer_id] = sequence;
           }
-          out[produced++] = *message;
-          consume(*message);
+        } else {
+          // 全序流常因下一序号位于其他环而截断，保留原有逐帧推进路径。
+          while (produced < cap) {
+            auto message = channel_->try_read_from_ring(
+                producer_id, read_positions_[producer_id], expected_sequence_,
+                cached_visible_pos_[producer_id]);
+            if (!message.has_value()) {
+              break;
+            }
+            if (message->next_position < cached_visible_pos_[producer_id]) {
+              hybrid_detail::prefetch_header(channel_->producer_rings_[producer_id].ring,
+                                             message->next_position);
+            }
+            out[produced++] = *message;
+            consume(*message);
+          }
         }
 
         if (produced > 0) {

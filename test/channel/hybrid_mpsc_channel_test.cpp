@@ -76,6 +76,105 @@ void write_batch_payload(salias::flow::BatchClaim& batch, std::uint32_t index,
   write_payload(dst, payload);
 }
 
+TEST(HybridMpscChannelTest, FifoRoundRobinSkipsEmptyRingsAndWrapsThreeProducers) {
+  using Channel = HybridMpscChannel<Order::Fifo, NoWakeWait>;
+  auto created = Channel::create(Channel::Config{
+      .num_producers = 3, .ring_capacity_per_producer = 4096});
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  std::array tx{channel.tx(0), channel.tx(1), channel.tx(2)};
+  auto rx = channel.rx();
+  const Payload payload{};
+  const auto bytes = std::as_bytes(std::span{&payload, 1});
+  ASSERT_TRUE(tx[2].offer(bytes));
+  auto last = rx.try_recv();
+  ASSERT_TRUE(last);
+  EXPECT_EQ(last->producer_id, 2u);
+  rx.release(*last);
+  EXPECT_FALSE(rx.try_recv());
+  for (int round = 0; round < 3; ++round) {
+    for (auto& publisher : tx) {
+      ASSERT_TRUE(publisher.offer(bytes));
+    }
+  }
+  for (std::uint32_t i = 0; i < 9; ++i) {
+    auto message = rx.try_recv();
+    ASSERT_TRUE(message);
+    EXPECT_EQ(message->producer_id, i % 3);
+    rx.release(*message);
+  }
+  EXPECT_FALSE(rx.try_recv());
+  ASSERT_TRUE(tx[1].offer(bytes));
+  std::array<salias::flow::Message, 4> buffer;
+  ASSERT_EQ(rx.try_recv_run(buffer.data(), 4), 1u);
+  EXPECT_EQ(buffer[0].producer_id, 1u);
+  rx.flush_progress();
+  EXPECT_EQ(rx.try_recv_run(buffer.data(), 4), 0u);
+  ASSERT_TRUE(tx[0].offer(bytes));
+  ASSERT_EQ(rx.try_recv_run(buffer.data(), 4), 1u);
+  EXPECT_EQ(buffer[0].producer_id, 0u);
+  rx.flush_progress();
+}
+
+TEST(HybridMpscChannelTest, OrderedRunStopsAtGapAndResumesAcrossThreeRings) {
+  using Channel = HybridMpscChannel<Order::Ordered, NoWakeWait>;
+  auto created = Channel::create(Channel::Config{
+      .num_producers = 3, .ring_capacity_per_producer = 4096});
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  std::array tx{channel.tx(0), channel.tx(1), channel.tx(2)};
+  auto rx = channel.rx();
+  auto first = tx[2].claim(sizeof(Payload));
+  auto gap = tx[0].claim(sizeof(Payload));
+  auto later = tx[1].claim(sizeof(Payload));
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(gap);
+  ASSERT_TRUE(later);
+  tx[2].commit(*first);
+  tx[1].commit(*later);
+  std::array<salias::flow::Message, 4> buffer;
+  EXPECT_EQ(rx.try_recv_run(nullptr, 4), 0u);
+  EXPECT_EQ(rx.try_recv_run(buffer.data(), 0), 0u);
+  ASSERT_EQ(rx.try_recv_run(buffer.data(), 4), 1u);
+  EXPECT_EQ(buffer[0].sequence, 0u);
+  rx.flush_progress();
+  EXPECT_EQ(rx.try_recv_run(buffer.data(), 4), 0u);
+  tx[0].commit(*gap);
+  ASSERT_EQ(rx.try_recv_run(buffer.data(), 1), 1u);
+  EXPECT_EQ(buffer[0].sequence, 1u);
+  rx.flush_progress();
+  ASSERT_EQ(rx.try_recv_run(buffer.data(), 4), 1u);
+  EXPECT_EQ(buffer[0].sequence, 2u);
+  rx.flush_progress();
+  EXPECT_FALSE(rx.try_recv());
+}
+
+TEST(HybridMpscChannelTest, OrderedRunsRetainAllRingStorageUntilFlush) {
+  using Channel = HybridMpscChannel<Order::Ordered, NoWakeWait>;
+  auto created = Channel::create(Channel::Config{
+      .num_producers = 3, .ring_capacity_per_producer = 4096});
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  std::array tx{channel.tx(0), channel.tx(1), channel.tx(2)};
+  auto rx = channel.rx();
+  for (auto& publisher : tx) {
+    auto claim = publisher.claim(4088);
+    ASSERT_TRUE(claim);
+    publisher.commit(*claim);
+  }
+  std::array<salias::flow::Message, 3> buffer;
+  for (std::uint32_t p = 0; p < 3; ++p) {
+    ASSERT_EQ(rx.try_recv_run(buffer.data() + p, 1), 1u);
+    EXPECT_EQ(buffer[p].producer_id, p);
+    EXPECT_EQ(buffer[p].sequence, p);
+    EXPECT_FALSE(tx[p].claim(4088));
+  }
+  rx.flush_progress();
+  for (auto& publisher : tx) {
+    EXPECT_TRUE(publisher.claim(4088));
+  }
+}
+
 /// 验证 sequence 序列号低 24 位入帧头 metadata、高 40 位入旁路存储的拆分重建。
 TEST(FrameSequenceTest, EncodesLowSequenceBitsAndPreservesFlags) {
   constexpr std::uint64_t kSequence = 0x1234'5678'9ABCull;
@@ -638,6 +737,44 @@ TEST(HybridMpscChannelTest, BatchedRunPollMatchesPerMessageContent) {
               8);
   EXPECT_EQ(count, 2u);
   EXPECT_EQ(seen, (std::vector<std::uint32_t>{100, 200}));
+  EXPECT_FALSE(rx.try_recv().has_value());
+}
+
+/// 同一生产者乱序 commit：后写的帧不可见，直到更早的空洞被补上，再按位置顺序交付。
+TEST(HybridMpscChannelTest, SameProducerOutOfOrderCommitWaitsForContiguousPrefix) {
+  using FifoChannel = HybridMpscChannel<Order::Fifo>;
+  auto created = FifoChannel::create(FifoChannel::Config{
+      .num_producers = 1,
+      .ring_capacity_per_producer = 4096,
+  });
+  ASSERT_TRUE(created);
+
+  auto channel = std::move(created).value();
+  auto tx = channel.tx(0);
+  auto rx = channel.rx();
+
+  auto first = tx.claim(sizeof(Payload));
+  auto second = tx.claim(sizeof(Payload));
+  auto third = tx.claim(sizeof(Payload));
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(second);
+  ASSERT_TRUE(third);
+  write_payload(first->payload, Payload{.producer = 0, .seq = 1});
+  write_payload(second->payload, Payload{.producer = 0, .seq = 2});
+  write_payload(third->payload, Payload{.producer = 0, .seq = 3});
+
+  tx.commit(third.value());
+  tx.commit(second.value());
+  EXPECT_FALSE(rx.try_recv().has_value());
+
+  tx.commit(first.value());
+
+  for (std::uint32_t expected = 1; expected <= 3; ++expected) {
+    auto message = rx.try_recv();
+    ASSERT_TRUE(message) << "missing frame " << expected;
+    EXPECT_EQ(decode(message->payload).seq, expected);
+    rx.release(*message);
+  }
   EXPECT_FALSE(rx.try_recv().has_value());
 }
 

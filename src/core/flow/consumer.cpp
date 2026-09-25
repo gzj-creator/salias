@@ -19,7 +19,12 @@ namespace salias::flow {  // flow 层：环形缓冲之上的生产/消费位置
 
 /// @brief 保存非持有的 ring 引用和共享位置单元。
 Consumer::Consumer(const ring::MagicRing& ring, Positions positions) noexcept
-    : ring_(&ring), positions_(positions) {}
+    : ring_(&ring), positions_(positions) {
+  if (positions_.consumer != nullptr) {
+    local_head_ = ring::load_acquire(*positions_.consumer);
+    flushed_head_ = local_head_;
+  }
+}
 
 /// @brief 读取下一条可用帧，但不发布消费者进度。
 std::optional<Message> Consumer::poll() noexcept {
@@ -28,7 +33,7 @@ std::optional<Message> Consumer::poll() noexcept {
     return std::nullopt;
   }
 
-  const std::uint64_t head = *positions_.consumer;
+  const std::uint64_t head = local_head_;
   if (head >= cached_tail_) {
     // 安全性：生产者 commit() 写完 header 和 payload 后以 release 语义发布位置。
     // 这里的 acquire load 保证 decode_header() 和读取 payload 前可见这些字节。
@@ -57,9 +62,19 @@ std::optional<Message> Consumer::poll() noexcept {
 
 /// @brief 发布消费者 head，使生产者可回收 ring 空间。
 void Consumer::advance(std::uint64_t new_head) noexcept {
+  local_head_ = new_head;
+  flush();
+}
+
+/// @brief 把本地 head 发布到共享消费者位置；无增量时不写。
+void Consumer::flush() noexcept {
+  if (positions_.consumer == nullptr || local_head_ == flushed_head_) {
+    return;
+  }
   // 安全性：推进消费者位置会把空间 release 给生产者。
   // Producer::claim() 决定覆盖旧字节前会 acquire-load 该单元。
-  ring::store_release(*positions_.consumer, new_head);
+  ring::store_release(*positions_.consumer, local_head_);
+  flushed_head_ = local_head_;
 }
 
 }  // namespace salias::flow

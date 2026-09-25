@@ -99,6 +99,8 @@ class Producer {
   ring::MagicRing* ring_;          ///< 非持有的 ring 指针(不拥有)
   Positions positions_;            ///< 生产者/消费者位置单元(非持有)
   std::uint64_t cached_head_ = 0;  ///< 消费者 head 的本地缓存，减少原子读的缓存行乒乓
+  bool cap_pow2_ = false;          ///< cap 是否为 2 的幂，决定 generation 用移位还是除法
+  std::uint32_t cap_shift_ = 0;    ///< log2(cap)，仅 cap_pow2_ 时有效
 };
 
 }  // namespace salias::flow

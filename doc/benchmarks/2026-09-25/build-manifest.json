@@ -1,0 +1,25 @@
+{
+  "date": "2026-09-25",
+  "compiler": "c++ (Ubuntu 14.2.0-4ubuntu2~24.04.1) 14.2.0",
+  "kernel": "7.0.0-30-generic",
+  "architecture": "x86_64",
+  "flags": "-O3 -DNDEBUG -flto -march=native",
+  "files": {
+    "src/core/channel/hybrid_mpsc.hpp": {
+      "before_sha256": "10564075f035807e69a8d7c7222f6f7c43004ea17b3c60951e6584ad86a85c06",
+      "after_sha256": "55c825104e25c2aea27348b3078c2bf92a24f25a5bc50ee84df102650098d5c9"
+    },
+    "src/core/channel/shared_hybrid_mpsc.hpp": {
+      "before_sha256": "93c1e7cfba13cf374198ef22be4adf8a907d28dfbfd951025cdc0f30c676c0a3",
+      "after_sha256": "367bafbf965123d05b2c96dd49c21fc8ea4e7ba1b5615c969284d93fed38c8e9"
+    },
+    "bench/receiver_scan.cpp": {
+      "sha256": "b05e50245137aaa9d94cdaf34ba885e13b210bf4a9ecd9877d4328e85d35f9e1",
+      "identical_in_baseline": true
+    },
+    "bench/hotpath_ab.cpp": {
+      "sha256": "daf09ad605d73aaaeddb6b1397a90e50f3541570255a2ead07ebdade903a9bfd",
+      "identical_in_baseline": true
+    }
+  }
+}

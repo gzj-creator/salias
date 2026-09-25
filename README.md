@@ -17,7 +17,8 @@ per-producer 游标。
 ## 构建
 
 要求 Linux 或 macOS、CMake 3.25+、支持 C++23 的 GCC/Clang。测试目标需要 GTest，
-benchmark 目标还需要 Google Benchmark。预设使用 Ninja，也可直接选择其他 CMake generator。
+压力 benchmark 目标还需要 Google Benchmark；hotpath_ab 与 receiver_scan 无此依赖。
+预设使用 Ninja，也可直接选择其他 CMake generator。
 
 ```bash
 cmake --preset debug-asan-ubsan
@@ -114,6 +115,8 @@ hugetlbfs，失败时返回 `PlatformFail`，不会降级。默认目录为 `/de
 
 ## 工具
 
+- salias_receiver_scan：预填充后单独计时接收，覆盖 FIFO/Ordered、稀疏环与批量路径。
+- salias_hotpath_ab、bench/compare.py：热路径基准与保留原始结果的 ABBA 对照脚本。
 - `salias_bench_channel_stress`：FIFO/ordered 多生产者压力基准。
 - `salias_ipc_compare`：`fifo` / `ordered` IPC 对比 harness。
 - `tools/aeron_compare/run_release_compare.sh`：与 Aeron 的 release 对比脚本。
@@ -127,6 +130,10 @@ hugetlbfs，失败时返回 `PlatformFail`，不会降级。默认目录为 `/de
   的关系，以及 FIFO、Ordered、MPSC、Fanout、release 与背压的完整流转。
 
 ## 最终性能
+
+2026-09-25 的 FIFO 消费热路径改动、对照数据与回归测试见
+[本地优化验证报告](doc/performance-optimization-2026-09-25.md)。该报告仅验证本次改动，
+测量环境和指标与以下独立进程验收不同。
 
 Tencent 4 vCPU x86 KVM，两个独立 Publisher 程序，每 Publisher 2,000,000 条 64B 消息；
 每组预热 3 次、正式 20 次。Publisher/Subscriber 均为独立可执行程序，没有在 benchmark

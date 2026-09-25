@@ -16,11 +16,18 @@ are released.
 ### Changed
 
 - 对齐 salias/Aeron 最终基准的 64B payload、`try_claim`/`tryClaim` 零拷贝发布与空转/背压 `yield` 策略，新增可选 `--aligned` 模式，减少测试策略差异对 MPSC/扇出结论的干扰。
-- 优化跨进程 `SharedHybridMpscChannel::Tx` 热路径：在发送端本地维护预留尾位置与已发布尾位置，避免每条 claim 重读共享可见位置，并改为帧 commit 后再发布可见 tail，减少 consumer 提前撞到未提交帧的无效轮询。
+- 优化进程内与跨进程 MPSC 热路径：用连续已提交水位统一发布帧头与 payload，为乱序 commit 保留空洞保护，并缓存 ring 几何信息以减少原子操作、取模和重复共享状态读取。
+- 扩展 FIFO/Ordered 批量接收与轮询逻辑，在三生产者、稀疏 ring、跨 ring 空洞、部分批次和 fanout 背压下保持顺序、公平性与 payload 生命期。
+- 新增 `salias_hotpath_ab`、`salias_receiver_scan` 及 ABBA 对照脚本，并保留 2026-09-25 的热路径、扫描、多生产者与被拒绝方案原始结果。
 
 ### Tests
 
 - 新增 commit 可见性契约测试，覆盖同一 producer 连续 claim 后乱序 commit，验证 consumer 不会越过未提交空洞且共享可见位置不会回退。
+- 新增 FIFO 三 ring 公平扫描、Ordered 跨 ring 批量、fanout 慢消费者保留、并发回绕背压与 SPSC 本地游标回归测试。
+
+### Docs
+
+- 更新 L7 API、优化复盘与低延迟窗口建议，新增 2026-09-25 性能优化验证报告和可复核的基准原始记录。
 
 ## [v2.0.0] - 2026-07-12
 

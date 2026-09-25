@@ -1,0 +1,128 @@
+--- a/src/core/channel/hybrid_mpsc.hpp
++++ b/src/core/channel/hybrid_mpsc.hpp
+@@ -877,22 +877,46 @@
+         }
+ 
+         std::uint32_t produced = 0;
+-        while (produced < cap) {
+-          const std::uint64_t target_sequence =
+-              Ordering == Order::Ordered ? expected_sequence_ : next_sequences_[producer_id];
+-          auto message = channel_->try_read_from_ring(producer_id, read_positions_[producer_id],
+-                                                      target_sequence,
+-                                                      cached_visible_pos_[producer_id]);
+-          if (!message.has_value()) {
+-            break;
++        if constexpr (Ordering == Order::Fifo) {
++          // 同环 FIFO 批量读取只在批末回写本地游标，省去逐帧 consume 校验。
++          // 共享进度仍由调用方在回调完成后 flush，不能提前回收 payload。
++          auto position = read_positions_[producer_id];
++          auto sequence = next_sequences_[producer_id];
++          const auto visible_bound = cached_visible_pos_[producer_id];
++          while (produced < cap) {
++            auto message =
++                channel_->try_read_from_ring(producer_id, position, sequence, visible_bound);
++            if (!message.has_value()) {
++              break;
++            }
++            if (message->next_position < visible_bound) {
++              hybrid_detail::prefetch_header(channel_->producer_rings_[producer_id].ring,
++                                             message->next_position);
++            }
++            out[produced++] = *message;
++            position = message->next_position;
++            ++sequence;
+           }
+-          if (message->next_position < cached_visible_pos_[producer_id]) {
+-            // 下一帧仍在可见范围内则预取其帧头，隐藏后续读的缓存延迟。
+-            hybrid_detail::prefetch_header(channel_->producer_rings_[producer_id].ring,
+-                                           message->next_position);
++          if (produced > 0) {
++            read_positions_[producer_id] = position;
++            next_sequences_[producer_id] = sequence;
+           }
+-          out[produced++] = *message;
+-          consume(*message);
++        } else {
++          // 全序流常因下一序号位于其他环而截断，保留原有逐帧推进路径。
++          while (produced < cap) {
++            auto message = channel_->try_read_from_ring(
++                producer_id, read_positions_[producer_id], expected_sequence_,
++                cached_visible_pos_[producer_id]);
++            if (!message.has_value()) {
++              break;
++            }
++            if (message->next_position < cached_visible_pos_[producer_id]) {
++              hybrid_detail::prefetch_header(channel_->producer_rings_[producer_id].ring,
++                                             message->next_position);
++            }
++            out[produced++] = *message;
++            consume(*message);
++          }
+         }
+ 
+         if (produced > 0) {
+--- a/src/core/channel/shared_hybrid_mpsc.hpp
++++ b/src/core/channel/shared_hybrid_mpsc.hpp
+@@ -679,24 +679,47 @@
+           }
+         }
+ 
+-        // 同环内紧循环连续排空，直到填满 cap 或无可读帧。
+         std::uint32_t produced = 0;
+-        while (produced < cap) {
+-          const std::uint64_t target_sequence =
+-              Ordering == Order::Ordered ? expected_sequence_ : next_sequences_[producer_id];
+-          auto message = channel_->try_read_from_ring(producer_id, read_positions_[producer_id],
+-                                                      target_sequence,
+-                                                      cached_visible_pos_[producer_id]);
+-          if (!message.has_value()) {
+-            break;
++        if constexpr (Ordering == Order::Fifo) {
++          // 同环 FIFO 批量读取只在批末回写本地游标，省去逐帧 consume 校验。
++          // 共享进度仍由调用方在回调完成后 flush，不能提前回收 payload。
++          auto position = read_positions_[producer_id];
++          auto sequence = next_sequences_[producer_id];
++          const auto visible_bound = cached_visible_pos_[producer_id];
++          while (produced < cap) {
++            auto message =
++                channel_->try_read_from_ring(producer_id, position, sequence, visible_bound);
++            if (!message.has_value()) {
++              break;
++            }
++            if (message->next_position < visible_bound) {
++              hybrid_detail::prefetch_header(channel_->producer_rings_[producer_id].ring,
++                                             message->next_position);
++            }
++            out[produced++] = *message;
++            position = message->next_position;
++            ++sequence;
+           }
+-          // 下一帧仍在可见范围内时 prefetch 其帧头，隐藏后续解码延迟。
+-          if (message->next_position < cached_visible_pos_[producer_id]) {
+-            hybrid_detail::prefetch_header(channel_->producer_rings_[producer_id].ring,
+-                                           message->next_position);
++          if (produced > 0) {
++            read_positions_[producer_id] = position;
++            next_sequences_[producer_id] = sequence;
+           }
+-          out[produced++] = *message;
+-          consume(*message);
++        } else {
++          // 全序流常因下一序号位于其他环而截断，保留原有逐帧推进路径。
++          while (produced < cap) {
++            auto message = channel_->try_read_from_ring(
++                producer_id, read_positions_[producer_id], expected_sequence_,
++                cached_visible_pos_[producer_id]);
++            if (!message.has_value()) {
++              break;
++            }
++            if (message->next_position < cached_visible_pos_[producer_id]) {
++              hybrid_detail::prefetch_header(channel_->producer_rings_[producer_id].ring,
++                                             message->next_position);
++            }
++            out[produced++] = *message;
++            consume(*message);
++          }
+         }
+ 
+         if (produced > 0) {

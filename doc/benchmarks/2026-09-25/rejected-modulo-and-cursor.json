@@ -1,0 +1,496 @@
+{
+  "kind": "hotpath",
+  "cpu": null,
+  "reps": 7,
+  "order": "ABBA",
+  "runs": [
+    {
+      "version": "before",
+      "command": [
+        "/tmp/salias-perf-before/build/bench/salias_hotpath_ab",
+        "--reps",
+        "7",
+        "--messages",
+        "2000000"
+      ],
+      "rows": [
+        {
+          "case": "fifo_producer_side",
+          "reps": "7",
+          "median_ns": "54.5762",
+          "median_mmsgs": "18.323",
+          "min_ns": "24.5646",
+          "max_ns": "67.2897",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "ordered_producer_side",
+          "reps": "7",
+          "median_ns": "30.2323",
+          "median_mmsgs": "33.0772",
+          "min_ns": "29.6996",
+          "max_ns": "57.3217",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_spsc_poll",
+          "reps": "7",
+          "median_ns": "62.206",
+          "median_mmsgs": "16.0756",
+          "min_ns": "30.2225",
+          "max_ns": "90.9263",
+          "median_backpressure": "1857452"
+        },
+        {
+          "case": "ordered_spsc_poll",
+          "reps": "7",
+          "median_ns": "30.9708",
+          "median_mmsgs": "32.2885",
+          "min_ns": "28.7247",
+          "max_ns": "90.3019",
+          "median_backpressure": "20432"
+        },
+        {
+          "case": "fifo_spsc_try_recv",
+          "reps": "7",
+          "median_ns": "191.961",
+          "median_mmsgs": "5.2094",
+          "min_ns": "182.491",
+          "max_ns": "224.416",
+          "median_backpressure": "24329417"
+        },
+        {
+          "case": "fifo_offer_only",
+          "reps": "7",
+          "median_ns": "21.537",
+          "median_mmsgs": "46.4318",
+          "min_ns": "20.2043",
+          "max_ns": "22.4458",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_spsc_roundtrip",
+          "reps": "7",
+          "median_ns": "40.831",
+          "median_mmsgs": "24.4912",
+          "min_ns": "38.5298",
+          "max_ns": "44.2482",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_4p1c",
+          "reps": "7",
+          "median_ns": "90.7002",
+          "median_mmsgs": "11.0253",
+          "min_ns": "75.761",
+          "max_ns": "210.925",
+          "median_backpressure": "66779887"
+        },
+        {
+          "case": "fifo_4p1c_poll",
+          "reps": "7",
+          "median_ns": "72.2803",
+          "median_mmsgs": "13.835",
+          "min_ns": "69.026",
+          "max_ns": "77.7849",
+          "median_backpressure": "68391987"
+        },
+        {
+          "case": "ordered_4p1c_poll",
+          "reps": "7",
+          "median_ns": "79.2003",
+          "median_mmsgs": "12.6262",
+          "min_ns": "77.3553",
+          "max_ns": "89.2221",
+          "median_backpressure": "63938758"
+        },
+        {
+          "case": "l3_spsc_xthread",
+          "reps": "7",
+          "median_ns": "90.8906",
+          "median_mmsgs": "11.0022",
+          "min_ns": "86.2267",
+          "max_ns": "120.328",
+          "median_backpressure": "1001222"
+        },
+        {
+          "case": "l3_spsc_roundtrip",
+          "reps": "7",
+          "median_ns": "13.7299",
+          "median_mmsgs": "72.8336",
+          "min_ns": "13.1821",
+          "max_ns": "14.2399",
+          "median_backpressure": "0"
+        }
+      ],
+      "stdout": "INFO threads=12 messages=2000000 payload=64 ring=4194304 reps=7 warmup=1\nRESULT case=fifo_producer_side reps=7 median_ns=54.5762 median_mmsgs=18.323 min_ns=24.5646 max_ns=67.2897 median_backpressure=0\nRESULT case=ordered_producer_side reps=7 median_ns=30.2323 median_mmsgs=33.0772 min_ns=29.6996 max_ns=57.3217 median_backpressure=0\nRESULT case=fifo_spsc_poll reps=7 median_ns=62.206 median_mmsgs=16.0756 min_ns=30.2225 max_ns=90.9263 median_backpressure=1857452\nRESULT case=ordered_spsc_poll reps=7 median_ns=30.9708 median_mmsgs=32.2885 min_ns=28.7247 max_ns=90.3019 median_backpressure=20432\nRESULT case=fifo_spsc_try_recv reps=7 median_ns=191.961 median_mmsgs=5.2094 min_ns=182.491 max_ns=224.416 median_backpressure=24329417\nRESULT case=fifo_offer_only reps=7 median_ns=21.537 median_mmsgs=46.4318 min_ns=20.2043 max_ns=22.4458 median_backpressure=0\nRESULT case=fifo_spsc_roundtrip reps=7 median_ns=40.831 median_mmsgs=24.4912 min_ns=38.5298 max_ns=44.2482 median_backpressure=0\nRESULT case=fifo_4p1c reps=7 median_ns=90.7002 median_mmsgs=11.0253 min_ns=75.761 max_ns=210.925 median_backpressure=66779887\nRESULT case=fifo_4p1c_poll reps=7 median_ns=72.2803 median_mmsgs=13.835 min_ns=69.026 max_ns=77.7849 median_backpressure=68391987\nRESULT case=ordered_4p1c_poll reps=7 median_ns=79.2003 median_mmsgs=12.6262 min_ns=77.3553 max_ns=89.2221 median_backpressure=63938758\nRESULT case=l3_spsc_xthread reps=7 median_ns=90.8906 median_mmsgs=11.0022 min_ns=86.2267 max_ns=120.328 median_backpressure=1001222\nRESULT case=l3_spsc_roundtrip reps=7 median_ns=13.7299 median_mmsgs=72.8336 min_ns=13.1821 max_ns=14.2399 median_backpressure=0\n",
+      "stderr": ""
+    },
+    {
+      "version": "after",
+      "command": [
+        "/home/gong/\u684c\u9762/projects/salias-main/build-rel/bench/salias_hotpath_ab",
+        "--reps",
+        "7",
+        "--messages",
+        "2000000"
+      ],
+      "rows": [
+        {
+          "case": "fifo_producer_side",
+          "reps": "7",
+          "median_ns": "65.3862",
+          "median_mmsgs": "15.2938",
+          "min_ns": "26.9874",
+          "max_ns": "68.2557",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "ordered_producer_side",
+          "reps": "7",
+          "median_ns": "45.3195",
+          "median_mmsgs": "22.0655",
+          "min_ns": "28.8349",
+          "max_ns": "69.9954",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_spsc_poll",
+          "reps": "7",
+          "median_ns": "45.5822",
+          "median_mmsgs": "21.9384",
+          "min_ns": "41.0546",
+          "max_ns": "63.6364",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "ordered_spsc_poll",
+          "reps": "7",
+          "median_ns": "55.7087",
+          "median_mmsgs": "17.9505",
+          "min_ns": "48.7055",
+          "max_ns": "62.5387",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_spsc_try_recv",
+          "reps": "7",
+          "median_ns": "192.206",
+          "median_mmsgs": "5.20276",
+          "min_ns": "184.913",
+          "max_ns": "200.228",
+          "median_backpressure": "29157063"
+        },
+        {
+          "case": "fifo_offer_only",
+          "reps": "7",
+          "median_ns": "21.5033",
+          "median_mmsgs": "46.5045",
+          "min_ns": "20.6939",
+          "max_ns": "22.412",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_spsc_roundtrip",
+          "reps": "7",
+          "median_ns": "43.9101",
+          "median_mmsgs": "22.7738",
+          "min_ns": "40.8553",
+          "max_ns": "49.4092",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_4p1c",
+          "reps": "7",
+          "median_ns": "228.979",
+          "median_mmsgs": "4.36722",
+          "min_ns": "214.709",
+          "max_ns": "308.256",
+          "median_backpressure": "286870693"
+        },
+        {
+          "case": "fifo_4p1c_poll",
+          "reps": "7",
+          "median_ns": "57.4787",
+          "median_mmsgs": "17.3977",
+          "min_ns": "53.5363",
+          "max_ns": "60.8381",
+          "median_backpressure": "47900653"
+        },
+        {
+          "case": "ordered_4p1c_poll",
+          "reps": "7",
+          "median_ns": "42.1764",
+          "median_mmsgs": "23.7099",
+          "min_ns": "41.8663",
+          "max_ns": "75.9457",
+          "median_backpressure": "669724"
+        },
+        {
+          "case": "l3_spsc_xthread",
+          "reps": "7",
+          "median_ns": "92.5947",
+          "median_mmsgs": "10.7998",
+          "min_ns": "82.042",
+          "max_ns": "109.397",
+          "median_backpressure": "589536"
+        },
+        {
+          "case": "l3_spsc_roundtrip",
+          "reps": "7",
+          "median_ns": "13.732",
+          "median_mmsgs": "72.8224",
+          "min_ns": "13.3892",
+          "max_ns": "15.121",
+          "median_backpressure": "0"
+        }
+      ],
+      "stdout": "INFO threads=12 messages=2000000 payload=64 ring=4194304 reps=7 warmup=1\nRESULT case=fifo_producer_side reps=7 median_ns=65.3862 median_mmsgs=15.2938 min_ns=26.9874 max_ns=68.2557 median_backpressure=0\nRESULT case=ordered_producer_side reps=7 median_ns=45.3195 median_mmsgs=22.0655 min_ns=28.8349 max_ns=69.9954 median_backpressure=0\nRESULT case=fifo_spsc_poll reps=7 median_ns=45.5822 median_mmsgs=21.9384 min_ns=41.0546 max_ns=63.6364 median_backpressure=0\nRESULT case=ordered_spsc_poll reps=7 median_ns=55.7087 median_mmsgs=17.9505 min_ns=48.7055 max_ns=62.5387 median_backpressure=0\nRESULT case=fifo_spsc_try_recv reps=7 median_ns=192.206 median_mmsgs=5.20276 min_ns=184.913 max_ns=200.228 median_backpressure=29157063\nRESULT case=fifo_offer_only reps=7 median_ns=21.5033 median_mmsgs=46.5045 min_ns=20.6939 max_ns=22.412 median_backpressure=0\nRESULT case=fifo_spsc_roundtrip reps=7 median_ns=43.9101 median_mmsgs=22.7738 min_ns=40.8553 max_ns=49.4092 median_backpressure=0\nRESULT case=fifo_4p1c reps=7 median_ns=228.979 median_mmsgs=4.36722 min_ns=214.709 max_ns=308.256 median_backpressure=286870693\nRESULT case=fifo_4p1c_poll reps=7 median_ns=57.4787 median_mmsgs=17.3977 min_ns=53.5363 max_ns=60.8381 median_backpressure=47900653\nRESULT case=ordered_4p1c_poll reps=7 median_ns=42.1764 median_mmsgs=23.7099 min_ns=41.8663 max_ns=75.9457 median_backpressure=669724\nRESULT case=l3_spsc_xthread reps=7 median_ns=92.5947 median_mmsgs=10.7998 min_ns=82.042 max_ns=109.397 median_backpressure=589536\nRESULT case=l3_spsc_roundtrip reps=7 median_ns=13.732 median_mmsgs=72.8224 min_ns=13.3892 max_ns=15.121 median_backpressure=0\n",
+      "stderr": ""
+    },
+    {
+      "version": "after",
+      "command": [
+        "/home/gong/\u684c\u9762/projects/salias-main/build-rel/bench/salias_hotpath_ab",
+        "--reps",
+        "7",
+        "--messages",
+        "2000000"
+      ],
+      "rows": [
+        {
+          "case": "fifo_producer_side",
+          "reps": "7",
+          "median_ns": "65.2859",
+          "median_mmsgs": "15.3172",
+          "min_ns": "32.4713",
+          "max_ns": "112.519",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "ordered_producer_side",
+          "reps": "7",
+          "median_ns": "71.4987",
+          "median_mmsgs": "13.9863",
+          "min_ns": "49.7375",
+          "max_ns": "88.1999",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_spsc_poll",
+          "reps": "7",
+          "median_ns": "52.2348",
+          "median_mmsgs": "19.1443",
+          "min_ns": "37.804",
+          "max_ns": "58.5871",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "ordered_spsc_poll",
+          "reps": "7",
+          "median_ns": "56.4537",
+          "median_mmsgs": "17.7136",
+          "min_ns": "49.7835",
+          "max_ns": "66.4263",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_spsc_try_recv",
+          "reps": "7",
+          "median_ns": "205.139",
+          "median_mmsgs": "4.87474",
+          "min_ns": "177.42",
+          "max_ns": "230.641",
+          "median_backpressure": "34897386"
+        },
+        {
+          "case": "fifo_offer_only",
+          "reps": "7",
+          "median_ns": "21.3356",
+          "median_mmsgs": "46.87",
+          "min_ns": "20.0939",
+          "max_ns": "24.3409",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_spsc_roundtrip",
+          "reps": "7",
+          "median_ns": "43.7293",
+          "median_mmsgs": "22.8679",
+          "min_ns": "41.5171",
+          "max_ns": "44.6425",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_4p1c",
+          "reps": "7",
+          "median_ns": "223.218",
+          "median_mmsgs": "4.47993",
+          "min_ns": "201.2",
+          "max_ns": "322.048",
+          "median_backpressure": "271738812"
+        },
+        {
+          "case": "fifo_4p1c_poll",
+          "reps": "7",
+          "median_ns": "59.2631",
+          "median_mmsgs": "16.8739",
+          "min_ns": "54.6312",
+          "max_ns": "62.3831",
+          "median_backpressure": "47651209"
+        },
+        {
+          "case": "ordered_4p1c_poll",
+          "reps": "7",
+          "median_ns": "43.6763",
+          "median_mmsgs": "22.8957",
+          "min_ns": "40.2907",
+          "max_ns": "58.4188",
+          "median_backpressure": "695038"
+        },
+        {
+          "case": "l3_spsc_xthread",
+          "reps": "7",
+          "median_ns": "92.4183",
+          "median_mmsgs": "10.8204",
+          "min_ns": "89.4475",
+          "max_ns": "99.8918",
+          "median_backpressure": "213124"
+        },
+        {
+          "case": "l3_spsc_roundtrip",
+          "reps": "7",
+          "median_ns": "13.5262",
+          "median_mmsgs": "73.9307",
+          "min_ns": "13.3969",
+          "max_ns": "14.0876",
+          "median_backpressure": "0"
+        }
+      ],
+      "stdout": "INFO threads=12 messages=2000000 payload=64 ring=4194304 reps=7 warmup=1\nRESULT case=fifo_producer_side reps=7 median_ns=65.2859 median_mmsgs=15.3172 min_ns=32.4713 max_ns=112.519 median_backpressure=0\nRESULT case=ordered_producer_side reps=7 median_ns=71.4987 median_mmsgs=13.9863 min_ns=49.7375 max_ns=88.1999 median_backpressure=0\nRESULT case=fifo_spsc_poll reps=7 median_ns=52.2348 median_mmsgs=19.1443 min_ns=37.804 max_ns=58.5871 median_backpressure=0\nRESULT case=ordered_spsc_poll reps=7 median_ns=56.4537 median_mmsgs=17.7136 min_ns=49.7835 max_ns=66.4263 median_backpressure=0\nRESULT case=fifo_spsc_try_recv reps=7 median_ns=205.139 median_mmsgs=4.87474 min_ns=177.42 max_ns=230.641 median_backpressure=34897386\nRESULT case=fifo_offer_only reps=7 median_ns=21.3356 median_mmsgs=46.87 min_ns=20.0939 max_ns=24.3409 median_backpressure=0\nRESULT case=fifo_spsc_roundtrip reps=7 median_ns=43.7293 median_mmsgs=22.8679 min_ns=41.5171 max_ns=44.6425 median_backpressure=0\nRESULT case=fifo_4p1c reps=7 median_ns=223.218 median_mmsgs=4.47993 min_ns=201.2 max_ns=322.048 median_backpressure=271738812\nRESULT case=fifo_4p1c_poll reps=7 median_ns=59.2631 median_mmsgs=16.8739 min_ns=54.6312 max_ns=62.3831 median_backpressure=47651209\nRESULT case=ordered_4p1c_poll reps=7 median_ns=43.6763 median_mmsgs=22.8957 min_ns=40.2907 max_ns=58.4188 median_backpressure=695038\nRESULT case=l3_spsc_xthread reps=7 median_ns=92.4183 median_mmsgs=10.8204 min_ns=89.4475 max_ns=99.8918 median_backpressure=213124\nRESULT case=l3_spsc_roundtrip reps=7 median_ns=13.5262 median_mmsgs=73.9307 min_ns=13.3969 max_ns=14.0876 median_backpressure=0\n",
+      "stderr": ""
+    },
+    {
+      "version": "before",
+      "command": [
+        "/tmp/salias-perf-before/build/bench/salias_hotpath_ab",
+        "--reps",
+        "7",
+        "--messages",
+        "2000000"
+      ],
+      "rows": [
+        {
+          "case": "fifo_producer_side",
+          "reps": "7",
+          "median_ns": "59.342",
+          "median_mmsgs": "16.8515",
+          "min_ns": "23.6088",
+          "max_ns": "68.8659",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "ordered_producer_side",
+          "reps": "7",
+          "median_ns": "32.5167",
+          "median_mmsgs": "30.7534",
+          "min_ns": "26.3243",
+          "max_ns": "57.6433",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_spsc_poll",
+          "reps": "7",
+          "median_ns": "71.6222",
+          "median_mmsgs": "13.9622",
+          "min_ns": "27.844",
+          "max_ns": "75.3622",
+          "median_backpressure": "502405"
+        },
+        {
+          "case": "ordered_spsc_poll",
+          "reps": "7",
+          "median_ns": "29.5314",
+          "median_mmsgs": "33.8623",
+          "min_ns": "27.1423",
+          "max_ns": "87.4122",
+          "median_backpressure": "106797"
+        },
+        {
+          "case": "fifo_spsc_try_recv",
+          "reps": "7",
+          "median_ns": "213.487",
+          "median_mmsgs": "4.68414",
+          "min_ns": "195.446",
+          "max_ns": "245.735",
+          "median_backpressure": "32690422"
+        },
+        {
+          "case": "fifo_offer_only",
+          "reps": "7",
+          "median_ns": "21.6734",
+          "median_mmsgs": "46.1394",
+          "min_ns": "20.9443",
+          "max_ns": "22.4552",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_spsc_roundtrip",
+          "reps": "7",
+          "median_ns": "40.2777",
+          "median_mmsgs": "24.8276",
+          "min_ns": "39.4518",
+          "max_ns": "42.1814",
+          "median_backpressure": "0"
+        },
+        {
+          "case": "fifo_4p1c",
+          "reps": "7",
+          "median_ns": "136.293",
+          "median_mmsgs": "7.33713",
+          "min_ns": "129.428",
+          "max_ns": "247.477",
+          "median_backpressure": "130610266"
+        },
+        {
+          "case": "fifo_4p1c_poll",
+          "reps": "7",
+          "median_ns": "67.3787",
+          "median_mmsgs": "14.8415",
+          "min_ns": "64.4801",
+          "max_ns": "81.858",
+          "median_backpressure": "56192834"
+        },
+        {
+          "case": "ordered_4p1c_poll",
+          "reps": "7",
+          "median_ns": "125.783",
+          "median_mmsgs": "7.95017",
+          "min_ns": "121.367",
+          "max_ns": "132.394",
+          "median_backpressure": "126630262"
+        },
+        {
+          "case": "l3_spsc_xthread",
+          "reps": "7",
+          "median_ns": "118.997",
+          "median_mmsgs": "8.40356",
+          "min_ns": "99.6659",
+          "max_ns": "127.349",
+          "median_backpressure": "535043"
+        },
+        {
+          "case": "l3_spsc_roundtrip",
+          "reps": "7",
+          "median_ns": "14.2055",
+          "median_mmsgs": "70.3954",
+          "min_ns": "13.4762",
+          "max_ns": "14.4872",
+          "median_backpressure": "0"
+        }
+      ],
+      "stdout": "INFO threads=12 messages=2000000 payload=64 ring=4194304 reps=7 warmup=1\nRESULT case=fifo_producer_side reps=7 median_ns=59.342 median_mmsgs=16.8515 min_ns=23.6088 max_ns=68.8659 median_backpressure=0\nRESULT case=ordered_producer_side reps=7 median_ns=32.5167 median_mmsgs=30.7534 min_ns=26.3243 max_ns=57.6433 median_backpressure=0\nRESULT case=fifo_spsc_poll reps=7 median_ns=71.6222 median_mmsgs=13.9622 min_ns=27.844 max_ns=75.3622 median_backpressure=502405\nRESULT case=ordered_spsc_poll reps=7 median_ns=29.5314 median_mmsgs=33.8623 min_ns=27.1423 max_ns=87.4122 median_backpressure=106797\nRESULT case=fifo_spsc_try_recv reps=7 median_ns=213.487 median_mmsgs=4.68414 min_ns=195.446 max_ns=245.735 median_backpressure=32690422\nRESULT case=fifo_offer_only reps=7 median_ns=21.6734 median_mmsgs=46.1394 min_ns=20.9443 max_ns=22.4552 median_backpressure=0\nRESULT case=fifo_spsc_roundtrip reps=7 median_ns=40.2777 median_mmsgs=24.8276 min_ns=39.4518 max_ns=42.1814 median_backpressure=0\nRESULT case=fifo_4p1c reps=7 median_ns=136.293 median_mmsgs=7.33713 min_ns=129.428 max_ns=247.477 median_backpressure=130610266\nRESULT case=fifo_4p1c_poll reps=7 median_ns=67.3787 median_mmsgs=14.8415 min_ns=64.4801 max_ns=81.858 median_backpressure=56192834\nRESULT case=ordered_4p1c_poll reps=7 median_ns=125.783 median_mmsgs=7.95017 min_ns=121.367 max_ns=132.394 median_backpressure=126630262\nRESULT case=l3_spsc_xthread reps=7 median_ns=118.997 median_mmsgs=8.40356 min_ns=99.6659 max_ns=127.349 median_backpressure=535043\nRESULT case=l3_spsc_roundtrip reps=7 median_ns=14.2055 median_mmsgs=70.3954 min_ns=13.4762 max_ns=14.4872 median_backpressure=0\n",
+      "stderr": ""
+    }
+  ]
+}

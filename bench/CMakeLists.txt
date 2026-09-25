@@ -1,3 +1,15 @@
+find_package(Threads REQUIRED)
+
+add_executable(salias_hotpath_ab hotpath_ab.cpp)
+target_link_libraries(salias_hotpath_ab PRIVATE salias Threads::Threads)
+salias_enable_warnings(salias_hotpath_ab)
+salias_enable_sanitizers(salias_hotpath_ab)
+
+add_executable(salias_receiver_scan receiver_scan.cpp)
+target_link_libraries(salias_receiver_scan PRIVATE salias)
+salias_enable_warnings(salias_receiver_scan)
+salias_enable_sanitizers(salias_receiver_scan)
+
 find_package(benchmark CONFIG QUIET)
 
 if(benchmark_FOUND)

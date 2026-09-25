@@ -1,0 +1,108 @@
+{
+  "kind": "hotpath",
+  "cpu": null,
+  "reps": 9,
+  "order": "ABBA",
+  "runs": [
+    {
+      "version": "before",
+      "command": [
+        "/tmp/salias-perf-before/build/bench/salias_hotpath_ab",
+        "--reps",
+        "9",
+        "--messages",
+        "2000000",
+        "--case",
+        "ordered_4p1c_poll"
+      ],
+      "rows": [
+        {
+          "case": "ordered_4p1c_poll",
+          "reps": "9",
+          "median_ns": "68.2064",
+          "median_mmsgs": "14.6614",
+          "min_ns": "61.6626",
+          "max_ns": "123.013",
+          "median_backpressure": "52570231"
+        }
+      ],
+      "stdout": "INFO threads=12 messages=2000000 payload=64 ring=4194304 reps=9 warmup=1\nRESULT case=ordered_4p1c_poll reps=9 median_ns=68.2064 median_mmsgs=14.6614 min_ns=61.6626 max_ns=123.013 median_backpressure=52570231\n",
+      "stderr": ""
+    },
+    {
+      "version": "after",
+      "command": [
+        "/home/gong/\u684c\u9762/projects/salias-main/build-rel/bench/salias_hotpath_ab",
+        "--reps",
+        "9",
+        "--messages",
+        "2000000",
+        "--case",
+        "ordered_4p1c_poll"
+      ],
+      "rows": [
+        {
+          "case": "ordered_4p1c_poll",
+          "reps": "9",
+          "median_ns": "71.0275",
+          "median_mmsgs": "14.0791",
+          "min_ns": "66.7616",
+          "max_ns": "108.101",
+          "median_backpressure": "46058740"
+        }
+      ],
+      "stdout": "INFO threads=12 messages=2000000 payload=64 ring=4194304 reps=9 warmup=1\nRESULT case=ordered_4p1c_poll reps=9 median_ns=71.0275 median_mmsgs=14.0791 min_ns=66.7616 max_ns=108.101 median_backpressure=46058740\n",
+      "stderr": ""
+    },
+    {
+      "version": "after",
+      "command": [
+        "/home/gong/\u684c\u9762/projects/salias-main/build-rel/bench/salias_hotpath_ab",
+        "--reps",
+        "9",
+        "--messages",
+        "2000000",
+        "--case",
+        "ordered_4p1c_poll"
+      ],
+      "rows": [
+        {
+          "case": "ordered_4p1c_poll",
+          "reps": "9",
+          "median_ns": "78.3438",
+          "median_mmsgs": "12.7642",
+          "min_ns": "74.7345",
+          "max_ns": "130.056",
+          "median_backpressure": "63789062"
+        }
+      ],
+      "stdout": "INFO threads=12 messages=2000000 payload=64 ring=4194304 reps=9 warmup=1\nRESULT case=ordered_4p1c_poll reps=9 median_ns=78.3438 median_mmsgs=12.7642 min_ns=74.7345 max_ns=130.056 median_backpressure=63789062\n",
+      "stderr": ""
+    },
+    {
+      "version": "before",
+      "command": [
+        "/tmp/salias-perf-before/build/bench/salias_hotpath_ab",
+        "--reps",
+        "9",
+        "--messages",
+        "2000000",
+        "--case",
+        "ordered_4p1c_poll"
+      ],
+      "rows": [
+        {
+          "case": "ordered_4p1c_poll",
+          "reps": "9",
+          "median_ns": "70.5555",
+          "median_mmsgs": "14.1732",
+          "min_ns": "65.2665",
+          "max_ns": "125.493",
+          "median_backpressure": "53185792"
+        }
+      ],
+      "stdout": "INFO threads=12 messages=2000000 payload=64 ring=4194304 reps=9 warmup=1\nRESULT case=ordered_4p1c_poll reps=9 median_ns=70.5555 median_mmsgs=14.1732 min_ns=65.2665 max_ns=125.493 median_backpressure=53185792\n",
+      "stderr": ""
+    }
+  ]
+}

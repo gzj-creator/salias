@@ -11,6 +11,7 @@
 #include "core/flow/producer.hpp"
 
 #include <array>
+#include <bit>
 #include <cstring>
 
 #include "core/frame/codec.hpp"
@@ -25,13 +26,14 @@ namespace {  // 匿名命名空间：仅本翻译单元可见的内部辅助函�
 /// @param start_pos 帧在 ring 中的起始字节偏移。
 /// @param cap ring 容量(字节)，用于推算 generation(环绕世代号)。
 /// @return 编码后的 32 位 metadata：generation 占高 24 位，标志位占低 8 位。
-/// @details generation = start_pos / cap，表示该位置经历过多少次环绕写，
-///          消费者可据此校验读到的帧是否为最新世代(检测覆盖)。低 8 位同时置
-///          BEGIN/END/COMMITTED 标志，表示单帧完整且已提交。
-std::uint32_t standard_meta(std::uint64_t start_pos, std::size_t cap) noexcept {
-  // generation 取低 24 位，足以表示约 1600 万次环绕(2^24)。
-  const auto generation = static_cast<std::uint32_t>((start_pos / cap) & 0x00FF'FFFFu);
-  return (generation << 8) | frame::FLAG_BEGIN | frame::FLAG_END | frame::FLAG_COMMITTED;
+/// @details generation = start_pos / cap。cap 为 2 的幂时改为右移，避免热路径
+///          整数除法。generation 表示该位置经历过多少次环绕写，消费者可据此校验
+///          读到的帧是否为最新世代。低 8 位同时置 BEGIN/END/COMMITTED。
+std::uint32_t standard_meta(std::uint64_t start_pos, std::size_t cap, std::uint32_t cap_shift,
+                            bool cap_pow2) noexcept {
+  const std::uint64_t generation = cap_pow2 ? (start_pos >> cap_shift) : (start_pos / cap);
+  return (static_cast<std::uint32_t>(generation & 0x00FF'FFFFu) << 8) | frame::FLAG_BEGIN |
+         frame::FLAG_END | frame::FLAG_COMMITTED;
 }
 
 /// @brief 判断 tail/head 窗口是否还能容纳请求的帧大小。
@@ -53,7 +55,10 @@ bool has_capacity(std::size_t capacity, std::uint64_t tail, std::uint64_t head,
 
 /// @brief 保存非持有的 ring 引用和共享位置单元。
 Producer::Producer(ring::MagicRing& ring, Positions positions) noexcept
-    : ring_(&ring), positions_(positions) {}
+    : ring_(&ring),
+      positions_(positions),
+      cap_pow2_(positions.cap != 0 && std::has_single_bit(positions.cap)),
+      cap_shift_(cap_pow2_ ? static_cast<std::uint32_t>(std::countr_zero(positions.cap)) : 0) {}
 
 /// @brief 在 ring 剩余容量足够时预留可写 payload 区域。
 Producer::ClaimResult Producer::claim(std::uint32_t payload_len) noexcept {
@@ -85,7 +90,7 @@ Producer::ClaimResult Producer::claim(std::uint32_t payload_len) noexcept {
       .payload = ring_->slice_mut(tail + frame::kHeaderSize, payload_len),
       .start_pos = tail,
       .payload_len = payload_len,
-      .meta = standard_meta(tail, positions_.cap),
+      .meta = standard_meta(tail, positions_.cap, cap_shift_, cap_pow2_),
   };
 }
 

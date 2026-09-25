@@ -1,0 +1,772 @@
+{
+  "kind": "receiver",
+  "cpu": 0,
+  "reps": 11,
+  "order": "ABBA",
+  "runs": [
+    {
+      "version": "before",
+      "command": [
+        "/tmp/salias-perf-before/build/bench/salias_receiver_scan",
+        "11"
+      ],
+      "rows": [
+        {
+          "mode": "fifo",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "33.3581",
+          "min_ns": "31.0618",
+          "max_ns": "62.0435"
+        },
+        {
+          "mode": "ordered",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "35.1952",
+          "min_ns": "33.9852",
+          "max_ns": "38.9539"
+        },
+        {
+          "mode": "fifo",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "15.4454",
+          "min_ns": "13.8915",
+          "max_ns": "26.5753"
+        },
+        {
+          "mode": "ordered",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "15.6125",
+          "min_ns": "13.7808",
+          "max_ns": "19.2729"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "32.2771",
+          "min_ns": "30.5703",
+          "max_ns": "36.309"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "33.5082",
+          "min_ns": "32.4584",
+          "max_ns": "42.1047"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "12.9539",
+          "min_ns": "12.6383",
+          "max_ns": "13.9723"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "28.8408",
+          "min_ns": "27.1716",
+          "max_ns": "35.037"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "41.1435",
+          "min_ns": "38.4016",
+          "max_ns": "45.4004"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "44.4536",
+          "min_ns": "40.4019",
+          "max_ns": "64.5588"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "15.3189",
+          "min_ns": "13.9769",
+          "max_ns": "18.4345"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "15.8323",
+          "min_ns": "14.0379",
+          "max_ns": "19.9068"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "32.2803",
+          "min_ns": "31.3412",
+          "max_ns": "34.96"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "33.361",
+          "min_ns": "32.4714",
+          "max_ns": "36.2124"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "13.6354",
+          "min_ns": "13.1408",
+          "max_ns": "19.2888"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "30.7013",
+          "min_ns": "29.6725",
+          "max_ns": "33.7018"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "51.2396",
+          "min_ns": "46.2045",
+          "max_ns": "55.0304"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "51.5989",
+          "min_ns": "47.2283",
+          "max_ns": "63.1704"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "16.2809",
+          "min_ns": "13.6352",
+          "max_ns": "18.1683"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "15.9803",
+          "min_ns": "15.1105",
+          "max_ns": "19.9465"
+        }
+      ],
+      "stdout": "RESULT mode=fifo producers=1 sparse=0 batch=0 median_ns=33.3581 min_ns=31.0618 max_ns=62.0435\nRESULT mode=ordered producers=1 sparse=0 batch=0 median_ns=35.1952 min_ns=33.9852 max_ns=38.9539\nRESULT mode=fifo producers=1 sparse=0 batch=1 median_ns=15.4454 min_ns=13.8915 max_ns=26.5753\nRESULT mode=ordered producers=1 sparse=0 batch=1 median_ns=15.6125 min_ns=13.7808 max_ns=19.2729\nRESULT mode=fifo producers=3 sparse=0 batch=0 median_ns=32.2771 min_ns=30.5703 max_ns=36.309\nRESULT mode=ordered producers=3 sparse=0 batch=0 median_ns=33.5082 min_ns=32.4584 max_ns=42.1047\nRESULT mode=fifo producers=3 sparse=0 batch=1 median_ns=12.9539 min_ns=12.6383 max_ns=13.9723\nRESULT mode=ordered producers=3 sparse=0 batch=1 median_ns=28.8408 min_ns=27.1716 max_ns=35.037\nRESULT mode=fifo producers=3 sparse=1 batch=0 median_ns=41.1435 min_ns=38.4016 max_ns=45.4004\nRESULT mode=ordered producers=3 sparse=1 batch=0 median_ns=44.4536 min_ns=40.4019 max_ns=64.5588\nRESULT mode=fifo producers=3 sparse=1 batch=1 median_ns=15.3189 min_ns=13.9769 max_ns=18.4345\nRESULT mode=ordered producers=3 sparse=1 batch=1 median_ns=15.8323 min_ns=14.0379 max_ns=19.9068\nRESULT mode=fifo producers=8 sparse=0 batch=0 median_ns=32.2803 min_ns=31.3412 max_ns=34.96\nRESULT mode=ordered producers=8 sparse=0 batch=0 median_ns=33.361 min_ns=32.4714 max_ns=36.2124\nRESULT mode=fifo producers=8 sparse=0 batch=1 median_ns=13.6354 min_ns=13.1408 max_ns=19.2888\nRESULT mode=ordered producers=8 sparse=0 batch=1 median_ns=30.7013 min_ns=29.6725 max_ns=33.7018\nRESULT mode=fifo producers=8 sparse=1 batch=0 median_ns=51.2396 min_ns=46.2045 max_ns=55.0304\nRESULT mode=ordered producers=8 sparse=1 batch=0 median_ns=51.5989 min_ns=47.2283 max_ns=63.1704\nRESULT mode=fifo producers=8 sparse=1 batch=1 median_ns=16.2809 min_ns=13.6352 max_ns=18.1683\nRESULT mode=ordered producers=8 sparse=1 batch=1 median_ns=15.9803 min_ns=15.1105 max_ns=19.9465\n",
+      "stderr": ""
+    },
+    {
+      "version": "after",
+      "command": [
+        "/home/gong/\u684c\u9762/projects/salias-main/build-rel/bench/salias_receiver_scan",
+        "11"
+      ],
+      "rows": [
+        {
+          "mode": "fifo",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "34.7535",
+          "min_ns": "31.5898",
+          "max_ns": "39.4896"
+        },
+        {
+          "mode": "ordered",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "36.2671",
+          "min_ns": "34.0951",
+          "max_ns": "67.6967"
+        },
+        {
+          "mode": "fifo",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "11.8179",
+          "min_ns": "10.6301",
+          "max_ns": "15.7278"
+        },
+        {
+          "mode": "ordered",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "14.675",
+          "min_ns": "13.3628",
+          "max_ns": "19.3195"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "33.2972",
+          "min_ns": "31.0532",
+          "max_ns": "38.2999"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "34.6152",
+          "min_ns": "34.1486",
+          "max_ns": "35.9459"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "11.3043",
+          "min_ns": "10.4664",
+          "max_ns": "21.097"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "28.0592",
+          "min_ns": "26.0523",
+          "max_ns": "31.526"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "40.9566",
+          "min_ns": "37.6731",
+          "max_ns": "48.3429"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "40.8056",
+          "min_ns": "39.089",
+          "max_ns": "64.1782"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "12.8982",
+          "min_ns": "11.8614",
+          "max_ns": "16.0634"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "14.7436",
+          "min_ns": "13.9205",
+          "max_ns": "17.4077"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "32.2456",
+          "min_ns": "31.9104",
+          "max_ns": "35.4449"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "34.1803",
+          "min_ns": "33.4981",
+          "max_ns": "37.7085"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "11.4592",
+          "min_ns": "10.5754",
+          "max_ns": "12.1399"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "29.0853",
+          "min_ns": "28.7096",
+          "max_ns": "32.6794"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "53.0905",
+          "min_ns": "50.7415",
+          "max_ns": "85.2647"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "51.1283",
+          "min_ns": "47.2269",
+          "max_ns": "55.3517"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "13.1866",
+          "min_ns": "12.2192",
+          "max_ns": "15.3189"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "15.2701",
+          "min_ns": "13.887",
+          "max_ns": "17.6068"
+        }
+      ],
+      "stdout": "RESULT mode=fifo producers=1 sparse=0 batch=0 median_ns=34.7535 min_ns=31.5898 max_ns=39.4896\nRESULT mode=ordered producers=1 sparse=0 batch=0 median_ns=36.2671 min_ns=34.0951 max_ns=67.6967\nRESULT mode=fifo producers=1 sparse=0 batch=1 median_ns=11.8179 min_ns=10.6301 max_ns=15.7278\nRESULT mode=ordered producers=1 sparse=0 batch=1 median_ns=14.675 min_ns=13.3628 max_ns=19.3195\nRESULT mode=fifo producers=3 sparse=0 batch=0 median_ns=33.2972 min_ns=31.0532 max_ns=38.2999\nRESULT mode=ordered producers=3 sparse=0 batch=0 median_ns=34.6152 min_ns=34.1486 max_ns=35.9459\nRESULT mode=fifo producers=3 sparse=0 batch=1 median_ns=11.3043 min_ns=10.4664 max_ns=21.097\nRESULT mode=ordered producers=3 sparse=0 batch=1 median_ns=28.0592 min_ns=26.0523 max_ns=31.526\nRESULT mode=fifo producers=3 sparse=1 batch=0 median_ns=40.9566 min_ns=37.6731 max_ns=48.3429\nRESULT mode=ordered producers=3 sparse=1 batch=0 median_ns=40.8056 min_ns=39.089 max_ns=64.1782\nRESULT mode=fifo producers=3 sparse=1 batch=1 median_ns=12.8982 min_ns=11.8614 max_ns=16.0634\nRESULT mode=ordered producers=3 sparse=1 batch=1 median_ns=14.7436 min_ns=13.9205 max_ns=17.4077\nRESULT mode=fifo producers=8 sparse=0 batch=0 median_ns=32.2456 min_ns=31.9104 max_ns=35.4449\nRESULT mode=ordered producers=8 sparse=0 batch=0 median_ns=34.1803 min_ns=33.4981 max_ns=37.7085\nRESULT mode=fifo producers=8 sparse=0 batch=1 median_ns=11.4592 min_ns=10.5754 max_ns=12.1399\nRESULT mode=ordered producers=8 sparse=0 batch=1 median_ns=29.0853 min_ns=28.7096 max_ns=32.6794\nRESULT mode=fifo producers=8 sparse=1 batch=0 median_ns=53.0905 min_ns=50.7415 max_ns=85.2647\nRESULT mode=ordered producers=8 sparse=1 batch=0 median_ns=51.1283 min_ns=47.2269 max_ns=55.3517\nRESULT mode=fifo producers=8 sparse=1 batch=1 median_ns=13.1866 min_ns=12.2192 max_ns=15.3189\nRESULT mode=ordered producers=8 sparse=1 batch=1 median_ns=15.2701 min_ns=13.887 max_ns=17.6068\n",
+      "stderr": ""
+    },
+    {
+      "version": "after",
+      "command": [
+        "/home/gong/\u684c\u9762/projects/salias-main/build-rel/bench/salias_receiver_scan",
+        "11"
+      ],
+      "rows": [
+        {
+          "mode": "fifo",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "34.9901",
+          "min_ns": "32.4474",
+          "max_ns": "42.0468"
+        },
+        {
+          "mode": "ordered",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "36.8134",
+          "min_ns": "33.8305",
+          "max_ns": "61.7607"
+        },
+        {
+          "mode": "fifo",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "11.4617",
+          "min_ns": "10.6447",
+          "max_ns": "46.4334"
+        },
+        {
+          "mode": "ordered",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "14.7811",
+          "min_ns": "13.0325",
+          "max_ns": "17.2345"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "32.6635",
+          "min_ns": "31.3643",
+          "max_ns": "36.1207"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "35.0709",
+          "min_ns": "33.8002",
+          "max_ns": "39.1377"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "11.0571",
+          "min_ns": "9.46573",
+          "max_ns": "11.8012"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "27.0003",
+          "min_ns": "25.4468",
+          "max_ns": "37.3029"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "41.0703",
+          "min_ns": "37.4634",
+          "max_ns": "43.356"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "41.0398",
+          "min_ns": "37.4687",
+          "max_ns": "46.0559"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "11.8317",
+          "min_ns": "9.25846",
+          "max_ns": "14.1479"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "14.4347",
+          "min_ns": "13.5063",
+          "max_ns": "28.713"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "34.1722",
+          "min_ns": "31.4754",
+          "max_ns": "37.4639"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "34.2791",
+          "min_ns": "32.8048",
+          "max_ns": "39.267"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "10.8928",
+          "min_ns": "10.4512",
+          "max_ns": "11.4487"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "29.352",
+          "min_ns": "28.8147",
+          "max_ns": "32.5195"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "51.0544",
+          "min_ns": "46.5945",
+          "max_ns": "81.1376"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "52.3414",
+          "min_ns": "48.2523",
+          "max_ns": "64.492"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "12.7029",
+          "min_ns": "12.1597",
+          "max_ns": "16.5586"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "16.2878",
+          "min_ns": "14.0899",
+          "max_ns": "18.8046"
+        }
+      ],
+      "stdout": "RESULT mode=fifo producers=1 sparse=0 batch=0 median_ns=34.9901 min_ns=32.4474 max_ns=42.0468\nRESULT mode=ordered producers=1 sparse=0 batch=0 median_ns=36.8134 min_ns=33.8305 max_ns=61.7607\nRESULT mode=fifo producers=1 sparse=0 batch=1 median_ns=11.4617 min_ns=10.6447 max_ns=46.4334\nRESULT mode=ordered producers=1 sparse=0 batch=1 median_ns=14.7811 min_ns=13.0325 max_ns=17.2345\nRESULT mode=fifo producers=3 sparse=0 batch=0 median_ns=32.6635 min_ns=31.3643 max_ns=36.1207\nRESULT mode=ordered producers=3 sparse=0 batch=0 median_ns=35.0709 min_ns=33.8002 max_ns=39.1377\nRESULT mode=fifo producers=3 sparse=0 batch=1 median_ns=11.0571 min_ns=9.46573 max_ns=11.8012\nRESULT mode=ordered producers=3 sparse=0 batch=1 median_ns=27.0003 min_ns=25.4468 max_ns=37.3029\nRESULT mode=fifo producers=3 sparse=1 batch=0 median_ns=41.0703 min_ns=37.4634 max_ns=43.356\nRESULT mode=ordered producers=3 sparse=1 batch=0 median_ns=41.0398 min_ns=37.4687 max_ns=46.0559\nRESULT mode=fifo producers=3 sparse=1 batch=1 median_ns=11.8317 min_ns=9.25846 max_ns=14.1479\nRESULT mode=ordered producers=3 sparse=1 batch=1 median_ns=14.4347 min_ns=13.5063 max_ns=28.713\nRESULT mode=fifo producers=8 sparse=0 batch=0 median_ns=34.1722 min_ns=31.4754 max_ns=37.4639\nRESULT mode=ordered producers=8 sparse=0 batch=0 median_ns=34.2791 min_ns=32.8048 max_ns=39.267\nRESULT mode=fifo producers=8 sparse=0 batch=1 median_ns=10.8928 min_ns=10.4512 max_ns=11.4487\nRESULT mode=ordered producers=8 sparse=0 batch=1 median_ns=29.352 min_ns=28.8147 max_ns=32.5195\nRESULT mode=fifo producers=8 sparse=1 batch=0 median_ns=51.0544 min_ns=46.5945 max_ns=81.1376\nRESULT mode=ordered producers=8 sparse=1 batch=0 median_ns=52.3414 min_ns=48.2523 max_ns=64.492\nRESULT mode=fifo producers=8 sparse=1 batch=1 median_ns=12.7029 min_ns=12.1597 max_ns=16.5586\nRESULT mode=ordered producers=8 sparse=1 batch=1 median_ns=16.2878 min_ns=14.0899 max_ns=18.8046\n",
+      "stderr": ""
+    },
+    {
+      "version": "before",
+      "command": [
+        "/tmp/salias-perf-before/build/bench/salias_receiver_scan",
+        "11"
+      ],
+      "rows": [
+        {
+          "mode": "fifo",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "33.4583",
+          "min_ns": "31.5686",
+          "max_ns": "45.29"
+        },
+        {
+          "mode": "ordered",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "35.2167",
+          "min_ns": "33.5323",
+          "max_ns": "41.9279"
+        },
+        {
+          "mode": "fifo",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "14.1342",
+          "min_ns": "13.1225",
+          "max_ns": "17.1232"
+        },
+        {
+          "mode": "ordered",
+          "producers": "1",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "15.1778",
+          "min_ns": "8.43456",
+          "max_ns": "18.5704"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "33.0242",
+          "min_ns": "31.3038",
+          "max_ns": "33.9846"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "35.0059",
+          "min_ns": "33.6609",
+          "max_ns": "41.0531"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "13.0396",
+          "min_ns": "12.4565",
+          "max_ns": "13.7372"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "27.956",
+          "min_ns": "24.8243",
+          "max_ns": "56.6121"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "40.0397",
+          "min_ns": "37.6359",
+          "max_ns": "44.1738"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "41.1475",
+          "min_ns": "39.5759",
+          "max_ns": "58.3675"
+        },
+        {
+          "mode": "fifo",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "14.9993",
+          "min_ns": "14.1921",
+          "max_ns": "17.8449"
+        },
+        {
+          "mode": "ordered",
+          "producers": "3",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "14.6163",
+          "min_ns": "13.3758",
+          "max_ns": "30.2755"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "32.4046",
+          "min_ns": "31.6335",
+          "max_ns": "34.6264"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "0",
+          "median_ns": "35.5986",
+          "min_ns": "33.011",
+          "max_ns": "39.3641"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "13.0667",
+          "min_ns": "12.092",
+          "max_ns": "15.134"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "0",
+          "batch": "1",
+          "median_ns": "29.6136",
+          "min_ns": "28.4075",
+          "max_ns": "33.186"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "52.1668",
+          "min_ns": "49.7698",
+          "max_ns": "73.907"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "0",
+          "median_ns": "52.2812",
+          "min_ns": "47.4116",
+          "max_ns": "62.6063"
+        },
+        {
+          "mode": "fifo",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "16.519",
+          "min_ns": "8.65658",
+          "max_ns": "19.3874"
+        },
+        {
+          "mode": "ordered",
+          "producers": "8",
+          "sparse": "1",
+          "batch": "1",
+          "median_ns": "16.1314",
+          "min_ns": "15.8217",
+          "max_ns": "29.8101"
+        }
+      ],
+      "stdout": "RESULT mode=fifo producers=1 sparse=0 batch=0 median_ns=33.4583 min_ns=31.5686 max_ns=45.29\nRESULT mode=ordered producers=1 sparse=0 batch=0 median_ns=35.2167 min_ns=33.5323 max_ns=41.9279\nRESULT mode=fifo producers=1 sparse=0 batch=1 median_ns=14.1342 min_ns=13.1225 max_ns=17.1232\nRESULT mode=ordered producers=1 sparse=0 batch=1 median_ns=15.1778 min_ns=8.43456 max_ns=18.5704\nRESULT mode=fifo producers=3 sparse=0 batch=0 median_ns=33.0242 min_ns=31.3038 max_ns=33.9846\nRESULT mode=ordered producers=3 sparse=0 batch=0 median_ns=35.0059 min_ns=33.6609 max_ns=41.0531\nRESULT mode=fifo producers=3 sparse=0 batch=1 median_ns=13.0396 min_ns=12.4565 max_ns=13.7372\nRESULT mode=ordered producers=3 sparse=0 batch=1 median_ns=27.956 min_ns=24.8243 max_ns=56.6121\nRESULT mode=fifo producers=3 sparse=1 batch=0 median_ns=40.0397 min_ns=37.6359 max_ns=44.1738\nRESULT mode=ordered producers=3 sparse=1 batch=0 median_ns=41.1475 min_ns=39.5759 max_ns=58.3675\nRESULT mode=fifo producers=3 sparse=1 batch=1 median_ns=14.9993 min_ns=14.1921 max_ns=17.8449\nRESULT mode=ordered producers=3 sparse=1 batch=1 median_ns=14.6163 min_ns=13.3758 max_ns=30.2755\nRESULT mode=fifo producers=8 sparse=0 batch=0 median_ns=32.4046 min_ns=31.6335 max_ns=34.6264\nRESULT mode=ordered producers=8 sparse=0 batch=0 median_ns=35.5986 min_ns=33.011 max_ns=39.3641\nRESULT mode=fifo producers=8 sparse=0 batch=1 median_ns=13.0667 min_ns=12.092 max_ns=15.134\nRESULT mode=ordered producers=8 sparse=0 batch=1 median_ns=29.6136 min_ns=28.4075 max_ns=33.186\nRESULT mode=fifo producers=8 sparse=1 batch=0 median_ns=52.1668 min_ns=49.7698 max_ns=73.907\nRESULT mode=ordered producers=8 sparse=1 batch=0 median_ns=52.2812 min_ns=47.4116 max_ns=62.6063\nRESULT mode=fifo producers=8 sparse=1 batch=1 median_ns=16.519 min_ns=8.65658 max_ns=19.3874\nRESULT mode=ordered producers=8 sparse=1 batch=1 median_ns=16.1314 min_ns=15.8217 max_ns=29.8101\n",
+      "stderr": ""
+    }
+  ]
+}

@@ -58,21 +58,30 @@ class Consumer {
    * @retval Message  调用方应在使用完 payload 后调用 advance() 释放空间。
    * @retval std::nullopt  当前无可消费帧(生产者尚未提交或未绑定)。
    * @note 内存序：内部以 acquire load 读取生产者位置，与生产者 commit() 的
-   *       release store 配对，形成跨线程/进程的 happens-before 边。
+   *       release store 配对，形成跨线程/进程的 happens-before 边。读位置使用
+   *       本地 head，不在每次 poll 重新读取共享消费者位置。
    */
   std::optional<Message> poll() noexcept;
 
   /**
-   * @brief 发布消费者进度，使生产者可以复用已释放的环形空间。
+   * @brief 推进本地读位置并立即发布给生产者。
    * @param new_head 新的消费者 head 位置(通常为上次 poll() 返回的 next_position)。
-   * @note 内存序：以 release store 写入，与生产者 claim() 中的 acquire load 配对，
-   *       确保此前对帧的读取对生产者可见后才允许其覆盖该区域。
+   * @note 等价于更新本地 head 后调用 flush()。内存序：flush 以 release store
+   *       写入，与生产者 claim() 中的 acquire load 配对。
    */
   void advance(std::uint64_t new_head) noexcept;
+
+  /**
+   * @brief 把本地 head 发布到共享消费者位置。
+   * @note 本地值未变化时不写共享槽。release store 与生产者 claim 的 acquire 配对。
+   */
+  void flush() noexcept;
 
  private:
   const ring::MagicRing* ring_;  ///< 非持有的 ring 指针(不拥有)
   Positions positions_;          ///< 生产者/消费者位置单元(非持有)
+  std::uint64_t local_head_ = 0;   ///< 本地读位置，poll 以此为准
+  std::uint64_t flushed_head_ = 0; ///< 已 release 回共享槽的 head
   std::uint64_t cached_tail_ = 0;  ///< 生产者 tail 的本地缓存，减少原子读的缓存行乒乓
 };
 

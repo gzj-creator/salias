@@ -1,4 +1,5 @@
 build/
+build-rel/
 build-macos*/
 .DS_Store
 .cache/

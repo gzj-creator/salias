@@ -96,6 +96,26 @@ TEST(SpscFlowTest, ClaimCommitPollAndAdvanceRoundTripsPayload) {
   EXPECT_FALSE(consumer.poll().has_value());
 }
 
+// poll 使用本地 head。advance 已发布后把共享游标改回 0，下一次 poll 不应重读该槽并重复交付。
+TEST(SpscFlowTest, PollKeepsLocalHeadWhenSharedCursorIsRewound) {
+  FlowFixture fixture = make_fixture();
+  salias::flow::Producer producer(fixture.ring, fixture.positions());
+  salias::flow::Consumer consumer(fixture.ring, fixture.positions());
+
+  auto claim = producer.claim(4);
+  ASSERT_TRUE(claim);
+  producer.commit(claim.value());
+
+  auto message = consumer.poll();
+  ASSERT_TRUE(message);
+  consumer.advance(message->next_position);
+  fixture.consumer_pos = 0;
+
+  EXPECT_FALSE(consumer.poll().has_value());
+  consumer.flush();
+  EXPECT_EQ(fixture.consumer_pos, 0u);
+}
+
 // 验证释放消费者进度后生产者背压会解除。
 TEST(SpscFlowTest, BackPressureClearsImmediatelyAfterAdvance) {
   FlowFixture fixture = make_fixture();
