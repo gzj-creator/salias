@@ -42,7 +42,8 @@ struct Claim {
  * @brief 一次批量 claim 的结果，描述连续预留的多帧区域。
  * @details region 为 ring 中连续可写的内存区，承载 frame_count 个等长帧，
  *          每帧长度为 frame_len(含帧头+payload+对齐 padding)。start_pos 为首帧
- *          起始偏移；base_sequence 为首帧序列号，后续帧依次递增。
+ *          起始偏移；payload_len 保留原始负载长度，不包含对齐 padding；
+ *          base_sequence 为首帧序列号，后续帧依次递增。
  *          批量边界对齐：所有帧等长，便于消费端按定长步进解码。
  *          生命周期与所有权同 Claim：commit 前独占，本结构不持有内存。
  */
@@ -51,6 +52,7 @@ struct BatchClaim {
   std::uint64_t start_pos = 0;    ///< 首帧起始字节偏移
   std::uint32_t frame_len = 0;    ///< 单帧长度(帧头+payload+对齐，定长)
   std::uint32_t frame_count = 0;  ///< 帧数量
+  std::uint32_t payload_len = 0;  ///< 单帧原始负载字节数，不包含帧头或对齐填充
   std::uint64_t base_sequence = 0;  ///< 首帧序列号，后续帧依次 +1
   std::uint32_t producer_id = 0;  ///< 生产者标识
 };

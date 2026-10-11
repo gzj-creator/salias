@@ -48,6 +48,59 @@ target_link_libraries(my_app PRIVATE salias::salias)
 
 配置下游工程时，将安装前缀加入 `CMAKE_PREFIX_PATH`。
 
+## mcpp 与 C++23 模块
+
+原生包身份为 `gzj-creator.salias`，版本 `2.1.0` 与 CMake 一致。`mcpp.toml`
+编译公共库和必要的 core 实现，`src/salias.cppm` 提供 `import salias;`；默认构建不需要
+GTest、Google Benchmark 或 Aeron。模块导出公共配置、枚举、错误和结果类型、Message、
+Channel/Publisher/Subscriber/PublishClaim 模板及四种模式的端点别名。应用专用别名由消费者维护。
+
+安装 mcpp 和 LLVM 工具链后，在仓库中构建和验证：
+
+```bash
+mcpp build --offline --release --jobs 4
+mcpp run test_mcpp_import --offline --release --locked --features mcpp-tests
+python3 tools/check_mcpp.py
+```
+
+本次验证环境为 Linux x86_64、mcpp `2026.10.11.1`、LLVM `22.1.8`。
+代码保留 Linux/macOS 平台实现；macOS 的 mcpp 构建尚未在本机验证。
+`mcpp-tests` 是显式启用的测试 feature，默认不编译测试。
+测试覆盖四种模式的模块与头文件混合消费、实际收发、claim/commit、非对齐 payload 的 offer_batch、
+模板 poll 和共享内存清理。`check_mcpp.py` 在两个临时消费者目录进行离线构建，
+并在生成锁文件后复验 `--locked`。
+
+等长 `offer_batch` 保留每条消息的原始 payload 长度，接收视图不包含 ring 对齐填充。
+批量长度契约测试覆盖空消息、非对齐长度、回绕以及四种模式的跨进程收发和清理。
+
+按共享 [gts-mcpp-dependencies skill](.codex/skills/gts-mcpp-dependencies/SKILL.md)，
+将源码包准备在 `/opt/mcpp-deps/salias/`，消费者使用固定绝对路径：
+
+```toml
+[dependencies]
+"gzj-creator.salias" = { path = "/opt/mcpp-deps/salias" }
+```
+
+本机 `/opt/mcpp-deps` 指向 `/data/disk1/projects`；其他机器也可通过软链接提供同一共享路径。
+共享源码修改后消费者重建即可生效，不需要生成 gts-quote 模块封装。
+头文件消费者需要 `src` 和 `src/salias/include` 两个包含目录；模块消费者使用：
+
+```cpp
+import std;
+import salias;
+
+auto channel = salias::FifoMpscChannel::connect("quotes");
+```
+
+模块入口在全局模块片段包含现有头文件，并重新导出原声明；公共类型仍属于头文件 ABI。
+测试中的头文件编译单元与模块编译单元链接同一个库，传递 `salias::Config` 并实际收发消息。
+CMake 的头文件 API 和安装目标继续保留，CMake 当前不安装 mcpp BMI。
+
+这里完成的是本地共享源码包消费。`namespace` 和版本声明不代表索引发布。
+`MCPP_HOME` 控制 mcpp 工具和注册表存储，不能代替清单中的固定源码路径；
+编译产物和 BMI 由 mcpp 根据工具链及选项生成，共享源码不保证所有消费者复用同一产物，
+也不能跨不兼容的编译器或标准库直接复用 BMI。
+
 ## API
 
 ```cpp

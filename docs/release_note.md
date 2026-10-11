@@ -40,3 +40,18 @@
   - **配置契约**：公共注释和 L7 文档明确 ring 容量必须满足 2 的幂、系统页对齐，以及显式大页大小对齐要求。
   - **版本治理**：CMake 与 vcpkg 包版本统一为 `2.0.0`，新增 CMake/vcpkg/精确 Git tag 一致性测试，修复安装包版本仍为 `0.0.1` 的问题。
   - **测试与文档**：新增配置表面、容量约束、分配失败契约测试，以及 API 契约对齐设计和实施计划。
+
+## v2.1.0 - 2026-10-11
+
+- **版本级别**：次版本（minor），新增原生 mcpp 能力并包含批量长度修复。
+- **Git 提交消息**：feat: 支持原生 mcpp 并修复批量消息长度
+- **git tag**：v2.1.0
+- **自上次 tag（v2.0.0）以来的变更摘要**：
+  - **新增**：固定包身份 `gzj-creator.salias` 的原生 mcpp 清单和 `import salias;` 入口，导出公共类型、端点模板与四种模式别名；默认消费库不依赖测试或基准框架。
+  - **修复**：进程内与跨进程批量 claim 保存原始 `payload_len`，commit 用它写入帧头，对齐 `frame_len` 继续控制 ring 步进；4 字节批量消息接收长度保持 4 字节，填充不进入 payload 视图。
+  - **变更**：累计 MPSC 发布与接收热路径优化，连续已提交水位防止乱序 commit 越过空洞；FIFO/Ordered 批量扫描保持跨 ring 顺序、公平性和慢 fanout 消费者的 payload 生命期。
+  - **基准**：对齐 salias/Aeron claim 路径、空转与背压策略，增加 aligned 模式、hotpath/receiver-scan 工具、ABBA 对照脚本以及 2026-09-25 原始结果和分析。
+  - **测试**：新增 24 种 payload 长度、部分批次、回绕、四种跨进程模式和双消费者 fanout 的长度/内容/清理回归；保留 commit 可见性、跨 ring 空洞、公平扫描与并发背压测试。
+  - **验证**：Linux x86_64 上 release CTest 69 项全部通过；批量长度 ASan/UBSan、四种模式 mcpp 模块/头文件混合消费、两个外部消费者的 offline/locked 构建、CMake 安装消费及 gts-quote 回归通过。
+  - **兼容性**：CMake、vcpkg 与 mcpp 版本统一为 `2.1.0`；`BatchClaim` 新增原始长度字段，相关源码及 BMI 需重新编译；共享帧头和控制段布局保持不变。
+  - **文档与范围**：使用 `/opt/mcpp-deps/salias` 本地共享路径消费，说明模块/头文件 ABI 和缓存边界；macOS mcpp 尚未实测，此 tag 不代表包索引发布。

@@ -17,8 +17,18 @@ if(NOT cmake_version STREQUAL vcpkg_version)
   )
 endif()
 
+if(EXISTS "${SALIAS_SOURCE_DIR}/mcpp.toml")
+  file(READ "${SALIAS_SOURCE_DIR}/mcpp.toml" salias_mcpp)
+  string(REGEX MATCH "version[ \t]*=[ \t]*\"([0-9]+\\.[0-9]+\\.[0-9]+)\""
+    mcpp_version_match "${salias_mcpp}")
+  set(mcpp_version "${CMAKE_MATCH_1}")
+  if(NOT cmake_version STREQUAL mcpp_version)
+    message(FATAL_ERROR "Version mismatch: CMake=${cmake_version}, mcpp=${mcpp_version}")
+  endif()
+endif()
+
 execute_process(
-  COMMAND git diff --quiet HEAD -- CMakeLists.txt vcpkg.json
+  COMMAND git diff --quiet HEAD -- CMakeLists.txt vcpkg.json mcpp.toml
   WORKING_DIRECTORY "${SALIAS_SOURCE_DIR}"
   RESULT_VARIABLE metadata_diff_result
 )

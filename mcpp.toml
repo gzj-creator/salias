@@ -1,0 +1,32 @@
+[package]
+name = "salias"
+namespace = "gzj-creator"
+version = "2.1.0"
+description = "Shared-memory IPC channels"
+standard = "c++23"
+platforms = ["linux", "macos"]
+
+[toolchain]
+default = "llvm@22.1.8"
+
+[lib]
+path = "src/salias.cppm"
+
+[build]
+sources = ["src/salias.cppm", "src/salias/src/channel.cpp", "src/core/platform/mapping.cpp",
+           "src/core/flow/consumer.cpp", "src/core/flow/producer.cpp",
+           "src/core/ring/magic_ring.cpp"]
+include_dirs = ["src", "src/salias/include"]
+cxxflags = ["-Wall", "-Wextra", "-Wpedantic"]
+ldflags = ["-pthread"]
+
+[targets.salias]
+kind = "lib"
+
+[features.mcpp-tests]
+sources = ["test/mcpp/header_probe.cpp"]
+
+[targets.test_mcpp_import]
+kind = "bin"
+main = "test/mcpp/import.cpp"
+required_features = ["mcpp-tests"]

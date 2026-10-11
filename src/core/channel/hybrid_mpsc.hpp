@@ -705,6 +705,7 @@ class HybridMpscChannel {
           .start_pos = position,
           .frame_len = static_cast<std::uint32_t>(per),
           .frame_count = fit,
+          .payload_len = payload_len,
           .base_sequence = base_sequence,
           .producer_id = producer_id_,
       };
@@ -734,7 +735,7 @@ class HybridMpscChannel {
     /**
      * @brief 批量提交：批内帧头普通写，批末一次 release 发布连续水位。
      * @param batch 此前 claim_batch() 返回的批量预留描述，payload 须已写完。
-     * @note 每帧 payload_len = frame_len - kHeaderSize(从定长 frame_len 反推)。
+     * @note 帧头使用原始 payload_len；frame_len 仅用于对齐后的帧步进。
      *       同一线程内批末的 release 覆盖批内全部普通写，建立整批 happens-before。
      */
     void commit_batch(const flow::BatchClaim& batch) noexcept {
@@ -748,8 +749,8 @@ class HybridMpscChannel {
             batch.start_pos + static_cast<std::uint64_t>(batch.frame_len) * i;
         const std::uint32_t committed_meta =
             hybrid_detail::meta_for_sequence(batch.base_sequence + i, true);
-        hybrid_detail::store_header_plain(producer.ring, position,
-                                          batch.frame_len - frame::kHeaderSize, committed_meta);
+        hybrid_detail::store_header_plain(producer.ring, position, batch.payload_len,
+                                          committed_meta);
       }
       const std::uint64_t end =
           batch.start_pos + static_cast<std::uint64_t>(batch.frame_len) * batch.frame_count;

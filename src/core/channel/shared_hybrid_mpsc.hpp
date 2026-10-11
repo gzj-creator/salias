@@ -427,6 +427,7 @@ class SharedHybridMpscChannel {
           .start_pos = tail,
           .frame_len = static_cast<std::uint32_t>(per),
           .frame_count = fit,
+          .payload_len = payload_len,
           .base_sequence = base_sequence,
           .producer_id = producer_id_,
       };
@@ -466,8 +467,8 @@ class SharedHybridMpscChannel {
             batch.start_pos + static_cast<std::uint64_t>(batch.frame_len) * i;
         const std::uint32_t committed_meta =
             hybrid_detail::meta_for_sequence(batch.base_sequence + i, true);
-        hybrid_detail::store_header_plain(producer.ring, position,
-                                          batch.frame_len - frame::kHeaderSize, committed_meta);
+        hybrid_detail::store_header_plain(producer.ring, position, batch.payload_len,
+                                          committed_meta);
       }
       const std::uint64_t committed_end =
           batch.start_pos + static_cast<std::uint64_t>(batch.frame_len) * batch.frame_count;

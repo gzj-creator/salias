@@ -1,3 +1,11 @@
+add_executable(salias_batch_length_contract_test
+  api/batch_length_contract_test.cpp
+)
+target_link_libraries(salias_batch_length_contract_test PRIVATE salias)
+salias_enable_warnings(salias_batch_length_contract_test)
+salias_enable_sanitizers(salias_batch_length_contract_test)
+add_test(NAME salias_batch_length_contract_test COMMAND salias_batch_length_contract_test)
+
 add_executable(salias_config_contract_test
   api/config_contract_test.cpp
 )

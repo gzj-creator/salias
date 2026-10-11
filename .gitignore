@@ -1,4 +1,7 @@
 build/
+target/
+__pycache__/
+*.pyc
 build-rel/
 build-macos*/
 .DS_Store

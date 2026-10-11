@@ -10,11 +10,27 @@ are released.
   formatted as `## [vX.Y.Z] - YYYY-MM-DD`.
 - Group changes by `Added`, `Changed`, `Fixed`, `Docs`, or similar sections.
 - Prefer concise behavioral summaries over mechanical file lists.
+- Use major for breaking or large changes, minor for new capabilities, and patch
+  for fixes; update this file before committing and collect changes since the
+  previous tag when releasing.
 
 ## [Unreleased]
 
+## [v2.1.0] - 2026-10-11
+
+### Added
+
+- 原生 mcpp 包 `gzj-creator.salias` 和 `import salias;` 模块入口，默认编译公共库及必要的 core 实现，不要求 GTest、Google Benchmark 或 Aeron。
+- 提供显式启用的模块/头文件混合消费测试，以及两个独立消费者目录的共享绝对路径、离线与 locked 构建验证。
+
+### Fixed
+
+- 修复进程内和跨进程的等长批量发布丢失原始 payload 长度的问题：`BatchClaim` 保存 `payload_len`，commit 帧头写原始长度，ring 步进保留对齐后的 `frame_len`。例如 4 字节批量消息接收长度保持 4 字节，不再包含 4 字节填充。
+- 新增批量长度契约测试，覆盖 24 种长度（含空消息、非对齐和 800 字节）、部分批次、反复回绕、FIFO/Ordered、四种跨进程通道和双消费者 fanout，逐条核对长度与内容并验证共享内存清理。
+
 ### Changed
 
+- CMake、vcpkg 和 mcpp 包版本统一为 `2.1.0`，版本一致性检查纳入 mcpp 清单。使用 `BatchClaim` 的源码和模块消费者需要重新编译；共享帧头和控制段布局保持不变。
 - 对齐 salias/Aeron 最终基准的 64B payload、`try_claim`/`tryClaim` 零拷贝发布与空转/背压 `yield` 策略，新增可选 `--aligned` 模式，减少测试策略差异对 MPSC/扇出结论的干扰。
 - 优化进程内与跨进程 MPSC 热路径：用连续已提交水位统一发布帧头与 payload，为乱序 commit 保留空洞保护，并缓存 ring 几何信息以减少原子操作、取模和重复共享状态读取。
 - 扩展 FIFO/Ordered 批量接收与轮询逻辑，在三生产者、稀疏 ring、跨 ring 空洞、部分批次和 fanout 背压下保持顺序、公平性与 payload 生命期。
@@ -22,11 +38,13 @@ are released.
 
 ### Tests
 
+- 修复前批量长度测试失败，修复后通过；release CTest 全量、ASan/UBSan 批量长度测试、mcpp 混合消费和外部消费者、gts-quote 契约与跨进程背压/清理验证通过。macOS mcpp 构建尚未实测。
 - 新增 commit 可见性契约测试，覆盖同一 producer 连续 claim 后乱序 commit，验证 consumer 不会越过未提交空洞且共享可见位置不会回退。
 - 新增 FIFO 三 ring 公平扫描、Ordered 跨 ring 批量、fanout 慢消费者保留、并发回绕背压与 SPSC 本地游标回归测试。
 
 ### Docs
 
+- 说明固定 `/opt/mcpp-deps/salias` 路径消费、模块导出边界、源码与 BMI 缓存关系、版本和平台验证范围；共享 `.codex` 使用指向 gts-ai 的链接。
 - 更新 L7 API、优化复盘与低延迟窗口建议，新增 2026-09-25 性能优化验证报告和可复核的基准原始记录。
 
 ## [v2.0.0] - 2026-07-12
