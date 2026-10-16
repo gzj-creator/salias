@@ -55,7 +55,7 @@ namespace {
 /// @brief 匿名命名空间，仅本翻译单元可见的具名通道辅助类型与函数。
 
 inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;  // ASCII "SALC"，校验控制段归属。
-inline constexpr std::uint32_t kNamedVersion = 7;  // 控制段布局版本号，connect 须严格匹配。
+inline constexpr std::uint32_t kNamedVersion = 8;  // 控制段布局版本号，connect 须严格匹配。
 inline constexpr std::size_t kControlSize = 16u * 1024u;  // 控制段固定 16 KiB。
 inline constexpr std::size_t kCacheLineGuard = 128;  // 双 cache line 填充宽度，规避伪共享。
 inline constexpr std::size_t kMaxProducers = 16;  // 单 channel 最大 producer 数。
@@ -114,7 +114,9 @@ struct alignas(64) NamedConsumerCursorSlot {
   std::uint64_t sequence = 0;  ///< consumer 已消费到的序列号。
   std::uint64_t lease_start = std::numeric_limits<std::uint64_t>::max();  ///< 借用区间起点。
   std::uint64_t lease_end = 0;  ///< 借用区间末端；仅在 lease_start 有效时读取。
-  std::byte pad[64 - (4 * sizeof(std::uint64_t))]{};  ///< 填充至 64 字节。
+  std::uint64_t lagged_messages = 0;  ///< 该 consumer 在此 ring 观测到的淘汰消息数。
+  std::uint64_t skipped_messages = 0;  ///< 该 consumer 在此 ring 主动跳过的消息数。
+  std::byte pad[64 - (6 * sizeof(std::uint64_t))]{};  ///< 填充至 64 字节。
 };
 
 /// @brief 单个 producer 的共享状态槽，双 cache line 对齐。
@@ -604,6 +606,18 @@ Error map_flow_error(flow::FlowError error) noexcept {
   return Error::BadConfig;
 }
 
+Error map_receive_error(channel::ReceiveError error) noexcept {
+  switch (error) {
+    case channel::ReceiveError::BadConfig:
+      return Error::BadConfig;
+    case channel::ReceiveError::BackPressured:
+      return Error::BackPressured;
+    case channel::ReceiveError::Lagged:
+      return Error::Lagged;
+  }
+  return Error::BadConfig;
+}
+
 /// @brief 将平台层错误映射为公共 API 层 Error：尺寸非法→BadConfig，其余→PlatformFail。
 Error map_platform_error(platform::PlatformError error) noexcept {
   return error == platform::PlatformError::InvalidSize ? Error::BadConfig : Error::PlatformFail;
@@ -749,6 +763,9 @@ std::vector<typename SharedChannel<M>::ProducerSharedState> make_producer_states
           .lease_end = &control.producers[producer_id].consumers[consumer_id].lease_end,
           .process_id = &control.consumers[consumer_id].pid,
           .process_start = &control.consumers[consumer_id].process_start,
+          .lagged_messages = &control.producers[producer_id].consumers[consumer_id].lagged_messages,
+          .skipped_messages =
+              &control.producers[producer_id].consumers[consumer_id].skipped_messages,
       });
     }
     states.push_back(std::move(state));
@@ -1361,6 +1378,40 @@ Subscriber<M>::Subscriber(std::shared_ptr<SubscriberEndpoint<M>> endpoint) noexc
 template <Mode M>
 std::optional<Message> Subscriber<M>::try_recv() noexcept {
   return endpoint_ == nullptr || !endpoint_->valid ? std::nullopt : endpoint_->rx.try_recv();
+}
+
+template <Mode M>
+Result<std::optional<Message>> Subscriber<M>::try_recv_checked() noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return std::unexpected(Error::BadConfig);
+  }
+  auto received = endpoint_->rx.try_recv_checked();
+  if (!received) {
+    return std::unexpected(map_receive_error(received.error()));
+  }
+  return *received;
+}
+
+template <Mode M>
+std::uint64_t Subscriber<M>::lagged_messages() const noexcept {
+  return endpoint_ == nullptr || !endpoint_->valid ? 0 : endpoint_->rx.lagged_messages();
+}
+
+template <Mode M>
+std::uint64_t Subscriber<M>::skipped_messages() const noexcept {
+  return endpoint_ == nullptr || !endpoint_->valid ? 0 : endpoint_->rx.skipped_messages();
+}
+
+template <Mode M>
+Result<std::uint64_t> Subscriber<M>::skip_to_latest(std::uint32_t producer_id) noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return std::unexpected(Error::BadConfig);
+  }
+  auto skipped = endpoint_->rx.skip_to_latest(producer_id);
+  if (!skipped) {
+    return std::unexpected(map_receive_error(skipped.error()));
+  }
+  return *skipped;
 }
 
 /// @brief 批量接收消息到输出数组，但不刷新消费进度（需配合 flush_batch 提交进度）。

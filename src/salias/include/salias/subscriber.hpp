@@ -21,6 +21,7 @@
 #include <type_traits>
 
 #include "salias/config.hpp"
+#include "salias/error.hpp"
 #include "salias/message.hpp"
 
 /// salias 公共 API 命名空间，聚合 L7 用户可见的通道、发布者、订阅者与消息类型。
@@ -54,6 +55,28 @@ class Subscriber {
    *       LatestFanout 在同一 producer ring 有未释放借用时跳过该 ring，仍可读取其他 ring。
    */
   std::optional<Message> try_recv() noexcept;
+
+  /**
+   * @brief 显式报告 LatestFanout 丢旧的非阻塞接收。
+   * @return Message、成功但为空（暂无消息），或 Error::Lagged / Error::BadConfig。
+   * @note Lagged 会推进到保留窗口起点，但不返回或借用消息；调用方重试即可接收。
+   *       其他模式保持可靠接收语义，不会生成 Lagged。无效端点返回 BadConfig。
+   */
+  Result<std::optional<Message>> try_recv_checked() noexcept;
+
+  /// @return 本端点已观测到的淘汰条数；普通接收、poll 与 checked 接收共用计数。
+  std::uint64_t lagged_messages() const noexcept;
+  /// @return 本端点通过 skip_to_latest 主动跳过的保留消息条数，不含淘汰条数。
+  std::uint64_t skipped_messages() const noexcept;
+
+  /**
+   * @brief 将 LatestFanout 的指定 producer ring 推进到当前最新已提交帧，保留该帧未读。
+   * @return 推进的消息条数（淘汰 + 主动跳过），或 BackPressured / BadConfig。
+   * @note 有未释放借用或淘汰竞争时返回 BackPressured，不改变进度或计数。
+   *       仅支持 LatestFanout；非法索引、无效端点和其他模式返回 BadConfig。
+   *       仅对该 ring 的已发布快照生效，后续写入仍可能淘汰目标帧。
+   */
+  Result<std::uint64_t> skip_to_latest(std::uint32_t producer_id = 0) noexcept;
 
   /**
    * @brief 阻塞等待直到有一条已提交消息可读，并返回借用的 payload 视图。

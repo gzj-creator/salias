@@ -84,7 +84,13 @@ python3 tools/check_mcpp.py
 `LatestFanout` 另覆盖跨进程慢消费者跳过旧消息、借用消息 pin 以及异常退出 lease 回收。
 专项回归还覆盖 1%/50%/90%/100% 水位、完整帧边界、空消息、超限消息、部分批次、混合长度回绕、
 序列号低位回绕、三生产者与单条/批量订阅者并发、批内 payload 保留及 `SIGKILL` 后的 lease 回收。
-共享控制段当前为 v7；旧布局通道需重建，发布端和订阅端需一起升级。
+共享控制段当前为 v8；旧布局通道需重建，发布端和订阅端需一起升级。
+
+LatestFanout 可使用 `Subscriber::try_recv_checked()` 显式识别丢旧：首次观察到保留窗口已经
+越过本地游标时返回 `Error::Lagged`，随后重试从保留窗口读取。`lagged_messages()` 和
+`skipped_messages()` 分别统计被淘汰和主动跳过的消息；`skip_to_latest(producer_id)` 跳过
+指定 producer ring 的当前保留帧到最新已提交帧，但保留最新帧未读。可靠 FIFO/Ordered 模式
+不会产生 `Lagged`，也不支持丢旧跳读。
 
 LatestFanout 专项压测分别测量即时消费、停滞消费者持续丢旧和一快一停滞消费者的并发扇出，
 每种场景比较 50% 与默认 90% 水位；停滞场景输出保留/丢弃计数，并发场景输出接收/丢弃/背压重试计数，

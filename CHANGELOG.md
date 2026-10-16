@@ -20,8 +20,9 @@ are released.
 
 - 新增编译期定容量的 `salias::Ringbuffer<T, Capacity, HighWatermarkPercent>`，默认以 90% 高水位丢弃最旧元素并保留最新数据；明确该类型为进程内单线程容器，不改变 IPC channel 的背压语义。
 - 新增 `Channel::connected_consumer_count()`，按共享注册槽记录的 PID 与进程启动标识统计仍存活的消费者，并在跨进程消费者退出后将其排除；该诊断能力不回收槽位，也不改变背压语义。
-- 新增 `LatestFanout` IPC 通道策略及对应 Publisher / Subscriber 端点；`LatestFanoutChannel<Capacity, HighWatermarkPercent>` 在编译期固定 ring 容量与保留水位（默认 90%），慢消费者可跳过保留窗口外的消息，连接时校验模板配置，并在借用 payload 时防止覆盖、在订阅进程退出后回收失效 lease。共享控制段版本升至 v7，旧布局通道不能与新版本交叉连接。
+- 新增 `LatestFanout` IPC 通道策略及对应 Publisher / Subscriber 端点；`LatestFanoutChannel<Capacity, HighWatermarkPercent>` 在编译期固定 ring 容量与保留水位（默认 90%），慢消费者可跳过保留窗口外的消息，连接时校验模板配置，并在借用 payload 时防止覆盖、在订阅进程退出后回收失效 lease。共享控制段版本升至 v8，旧布局通道不能与新版本交叉连接。
 - 新增 6 项 LatestFanout 专项压测，覆盖 50%/90% 水位下的即时消费、停滞持续丢旧和并发扇出，校验保留后缀与消息顺序，并输出接收、丢弃和背压重试计数；并发场景按实际经过时间计量，README 补充复跑命令。
+- `Subscriber::try_recv_checked()` 在 LatestFanout 观测到消费者进度被淘汰时返回 `Error::Lagged`，并推进到可读保留窗口；新增 `skip_to_latest()`、`lagged_messages()` 和 `skipped_messages()`，支持显式跳到指定 producer ring 的最新已提交帧，同时保留缺口计数。
 
 ### Fixed
 
@@ -32,7 +33,7 @@ are released.
 
 ### Changed
 
-- 共享控制段协议升级为 v7，以支持独立淘汰意图字；旧布局返回 `VersionMismatch`，需重建通道并同时升级发布端与订阅端。
+- 共享控制段协议升级为 v8，以支持独立淘汰意图字、LatestFanout 丢旧/主动跳过计数；旧布局返回 `VersionMismatch`，需重建通道并同时升级发布端与订阅端。
 
 ### Tests
 
@@ -44,6 +45,7 @@ are released.
 ### Docs
 
 - 补充完整帧水位计算、失败写入不淘汰、每环借用限制、批量回调 pin 和协议兼容要求。
+- 补充 checked 接收、LatestFanout 主动跳读、缺口计数和可靠模式不丢失的 API 语义。
 
 ## [v2.1.0] - 2026-10-11
 

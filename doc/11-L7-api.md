@@ -46,6 +46,15 @@ HighWatermarkPercent>` 将每个 producer ring 的字节容量和保留比例固
 最多借用一条消息；未 release 时该 ring 暂不返回新消息，其他 producer ring 不受影响。
 `poll` 按最多 32 条的内部批次 pin payload，每批的最后一个回调返回后统一释放。
 
+LatestFanout 还提供 `try_recv_checked()`，用于把丢旧从静默跳过变成可观测事件。若本地游标
+已落在保留水位之前，第一次 checked 接收返回 `Error::Lagged`，同时把游标推进到保留窗口
+起点且不借用消息；调用方重试后即可收到该窗口的第一条消息。`lagged_messages()` 统计
+已被淘汰的消息数，`skipped_messages()` 统计主动跳过的保留消息数；
+`skip_to_latest(producer_id)` 会将指定 producer ring 推进到最新已提交帧的起点，保留该帧
+未读，返回淘汰与主动跳过的总数。持有该 ring 的单条或批量借用时跳读返回 `BackPressured`。
+可靠 FIFO/Ordered 模式的 checked 接收只返回普通消息或空结果，不会生成 `Lagged`，也拒绝
+`skip_to_latest()`。
+
 ```cpp
 using QuoteChannel = salias::LatestFanoutChannel<1u << 20>;  // 默认保留水位为 90%
 auto owner = QuoteChannel::create(config);

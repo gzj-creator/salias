@@ -416,6 +416,76 @@ void BM_latest_concurrent_fanout_64b(benchmark::State& state) {
   state.SetBytesProcessed(published * static_cast<std::int64_t>(sizeof(SmallPayload)));
 }
 
+void BM_latest_checked_roundtrip_64b(benchmark::State& state) {
+  auto created = salias::LatestFanoutChannel<1u << 16>::create(
+      config_for(salias::Mode::LatestFanout));
+  if (!created) {
+    state.SkipWithError("failed to create checked latest channel");
+    return;
+  }
+  auto publisher = created->publisher();
+  auto subscriber = created->subscriber();
+  SmallPayload payload{};
+  for (auto _ : state) {
+    if (!publisher.offer(std::as_bytes(std::span{&payload, 1}))) {
+      state.SkipWithError("checked roundtrip offer failed");
+      return;
+    }
+    auto message = subscriber.try_recv_checked();
+    if (!message || !*message || decode_small((**message).payload).seq != payload.seq) {
+      state.SkipWithError("checked roundtrip receive failed");
+      return;
+    }
+    benchmark::DoNotOptimize((**message).payload.data());
+    subscriber.release(**message);
+    ++payload.seq;
+  }
+  state.SetItemsProcessed(state.iterations());
+  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
+}
+
+// Seek after each burst, checking that loss + skips + delivery account for every frame.
+void BM_latest_seek_64b(benchmark::State& state) {
+  auto created = salias::LatestFanoutChannel<1u << 16>::create(
+      config_for(salias::Mode::LatestFanout));
+  if (!created) {
+    state.SkipWithError("failed to create latest seek channel");
+    return;
+  }
+  auto publisher = created->publisher();
+  auto subscriber = created->subscriber();
+  const auto burst = static_cast<std::uint32_t>(state.range(0));
+  std::uint64_t published = 0;
+  for (auto _ : state) {
+    for (std::uint32_t index = 0; index < burst; ++index) {
+      const SmallPayload payload{.seq = static_cast<std::uint32_t>(published)};
+      if (!publisher.offer(std::as_bytes(std::span{&payload, 1}))) {
+        state.SkipWithError("latest seek offer failed");
+        return;
+      }
+      ++published;
+    }
+    auto skipped = subscriber.skip_to_latest();
+    auto message = subscriber.try_recv_checked();
+    if (!skipped || *skipped != burst - 1 || !message || !*message ||
+        (**message).sequence != published - 1 ||
+        decode_small((**message).payload).seq != static_cast<std::uint32_t>(published - 1)) {
+      state.SkipWithError("latest seek suffix mismatch");
+      return;
+    }
+    subscriber.release(**message);
+  }
+  if (subscriber.lagged_messages() + subscriber.skipped_messages() + state.iterations() !=
+      published) {
+    state.SkipWithError("latest seek loss accounting mismatch");
+    return;
+  }
+  state.counters["lagged"] = static_cast<double>(subscriber.lagged_messages());
+  state.counters["skipped"] = static_cast<double>(subscriber.skipped_messages());
+  state.SetItemsProcessed(static_cast<std::int64_t>(published));
+  state.SetBytesProcessed(static_cast<std::int64_t>(published * sizeof(SmallPayload)));
+}
+
 }  // namespace
 
 // 注册各 stress benchmark：SPSC 往返以微秒级单位度量，MPSC 多生产者吞吐以毫秒级度量。
@@ -441,6 +511,8 @@ BENCHMARK_TEMPLATE(BM_latest_concurrent_fanout_64b, 90)
     ->Arg(65536)
     ->UseRealTime()
     ->Unit(benchmark::kMillisecond);
+BENCHMARK(BM_latest_checked_roundtrip_64b)->Unit(benchmark::kNanosecond);
+BENCHMARK(BM_latest_seek_64b)->Arg(4096)->Unit(benchmark::kMicrosecond);
 
 // Google Benchmark 主入口：解析命令行参数并运行上述所有已注册 benchmark。
 BENCHMARK_MAIN();

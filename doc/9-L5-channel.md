@@ -17,7 +17,10 @@ L5 以一个 per-producer magic-ring 引擎承载 FIFO、Ordered 与 LatestFanou
   保留头；失败不淘汰消息，也不消耗序列号。消费者先公布 lease，再依次核对 intent 与保留头，
   防止在检查与覆盖之间借用旧帧；这条握手路径不使用共享自旋锁。
 - LatestFanout 单帧（含帧头与对齐）不得超过保留水位；淘汰只跨完整已提交帧。新增 intent
-  字段后共享控制段版本为 v7，连接旧布局返回 `VersionMismatch`，须重建通道并重启两端。
+  字段及丢旧计数后共享控制段版本为 v8，连接旧布局返回 `VersionMismatch`，须重建通道并重启两端。
+- LatestFanout consumer 可显式使用 checked receive 观察 `Lagged`，并用 per-ring seek 跳到最新
+  已提交帧；淘汰和主动跳过计数保存在共享 consumer cursor 中，同一端点的副本共享计数，
+  独立订阅者之间互不影响。
 - `SpinPause::needs_wake()` 为 false，commit 不更新通知 word。
 
 本地实现位于 `hybrid_mpsc.hpp`，具名 IPC 实现位于 `shared_hybrid_mpsc.hpp`。公共 facade

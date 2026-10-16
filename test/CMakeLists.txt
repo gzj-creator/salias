@@ -174,6 +174,7 @@ endif()
 
 add_executable(salias_api_tests
   api/channel_api_test.cpp
+  api/latest_subscription_test.cpp
 )
 target_link_libraries(salias_api_tests PRIVATE salias GTest::gtest_main)
 

@@ -83,7 +83,20 @@ int main() {
     require(latest_message && std::ranges::equal(latest_message->payload, latest_payload));
     latest_subscriber.release(*latest_message);
 
-    std::cout << "Module/header IPC, claim, batch, template poll and cleanup passed for 5 modes\n";
+    for (std::uint32_t sequence = 0; sequence < 300; ++sequence) {
+      require(latest_publisher.offer(latest_payload).has_value());
+    }
+    auto lagged = latest_subscriber.try_recv_checked();
+    require(!lagged && lagged.error() == salias::Error::Lagged);
+    require(latest_subscriber.lagged_messages() == 108);
+    auto skipped = latest_subscriber.skip_to_latest();
+    require(skipped && *skipped == 191);
+    require(latest_subscriber.skipped_messages() == 191);
+    auto checked_latest = latest_subscriber.try_recv_checked();
+    require(checked_latest && *checked_latest && (**checked_latest).sequence == 300);
+    latest_subscriber.release(**checked_latest);
+
+    std::cout << "Module/header IPC, claim, batch, poll, checked lag and seek passed for 5 modes\n";
     return 0;
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';

@@ -20,4 +20,7 @@ namespace salias::channel {
  */
 enum class ChannelError { Ok = 0, BadConfig, PlatformFail, RingFail };
 
+/// Nonblocking receive/seek failures; an empty successful receive is not an error.
+enum class ReceiveError { BadConfig, BackPressured, Lagged };
+
 }  // namespace salias::channel

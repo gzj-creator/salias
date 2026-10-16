@@ -33,6 +33,8 @@ class SharedLatestChannelTest : public ::testing::Test {
     std::uint64_t sequence = 0;
     std::uint64_t lease_start = kInactive;
     std::uint64_t lease_end = 0;
+    std::uint64_t lagged_messages = 0;
+    std::uint64_t skipped_messages = 0;
   };
 
   void SetUp() override { reset_channel(); }
@@ -58,6 +60,8 @@ class SharedLatestChannelTest : public ::testing::Test {
           .sequence = &cursor.sequence,
           .lease_start = &cursor.lease_start,
           .lease_end = &cursor.lease_end,
+          .lagged_messages = &cursor.lagged_messages,
+          .skipped_messages = &cursor.skipped_messages,
       });
     }
     auto mapping = salias::platform::Mapping::create({.size = kCapacity});
@@ -275,6 +279,142 @@ TEST_F(SharedLatestChannelTest, MalformedLeaseBoundsCannotEvictRetainedMessages)
   }
   cursors_[0].lease_start = kInactive;
   EXPECT_TRUE(offer(tx, 256));
+}
+
+TEST_F(SharedLatestChannelTest, CheckedLagPublishesFloorWithoutBorrowingOrDoubleCounting) {
+  auto tx = channel_->tx(0);
+  auto rx = channel_->rx(0);
+  for (std::uint64_t sequence = 0; sequence < 300; ++sequence) {
+    ASSERT_TRUE(offer(tx, sequence));
+  }
+  auto lagged = rx.try_recv_checked();
+  ASSERT_FALSE(lagged);
+  EXPECT_EQ(lagged.error(), salias::channel::ReceiveError::Lagged);
+  EXPECT_EQ(rx.lagged_messages(), 172u);
+  EXPECT_EQ(cursors_[0].position, retained_);
+  EXPECT_EQ(cursors_[0].sequence, 172u);
+  EXPECT_EQ(cursors_[0].lease_start, kInactive);
+  auto message = rx.try_recv_checked();
+  ASSERT_TRUE(message);
+  ASSERT_TRUE(*message);
+  EXPECT_EQ((**message).sequence, 172u);
+  EXPECT_EQ(rx.lagged_messages(), 172u);
+  rx.release(**message);
+}
+
+TEST_F(SharedLatestChannelTest, SeekAgainstEvictionIntentPreservesProgressAndCounters) {
+  auto tx = channel_->tx(0);
+  auto rx = channel_->rx(0);
+  for (std::uint64_t sequence = 0; sequence < 4; ++sequence) {
+    ASSERT_TRUE(offer(tx, sequence));
+  }
+  intent_ = 16;
+  auto blocked = rx.skip_to_latest(0);
+  ASSERT_FALSE(blocked);
+  EXPECT_EQ(blocked.error(), salias::channel::ReceiveError::BackPressured);
+  EXPECT_EQ(cursors_[0].position, 0u);
+  EXPECT_EQ(cursors_[0].lease_start, kInactive);
+  EXPECT_EQ(rx.lagged_messages(), 0u);
+  EXPECT_EQ(rx.skipped_messages(), 0u);
+  intent_ = kInactive;
+  auto skipped = rx.skip_to_latest(0);
+  ASSERT_TRUE(skipped);
+  EXPECT_EQ(*skipped, 3u);
+  EXPECT_EQ(cursors_[0].position, 48u);
+  EXPECT_EQ(cursors_[0].sequence, 3u);
+  EXPECT_EQ(cursors_[0].lease_start, kInactive);
+}
+
+TEST_F(SharedLatestChannelTest, SeekMalformedFramesRollsBackAndClearsItsLease) {
+  auto tx = channel_->tx(0);
+  auto rx = channel_->rx(0);
+  for (std::uint64_t sequence = 0; sequence < 128; ++sequence) {
+    ASSERT_TRUE(offer(tx, sequence));
+  }
+  std::uint64_t original_header = 0;
+  std::memcpy(&original_header, bytes_ + 16, sizeof(original_header));
+  const auto invalid_header =
+      (original_header & 0xffffffff00000000ull) | static_cast<std::uint64_t>(kCapacity);
+  std::memcpy(bytes_ + 16, &invalid_header, sizeof(invalid_header));
+  auto rejected = rx.skip_to_latest(0);
+  ASSERT_FALSE(rejected);
+  EXPECT_EQ(rejected.error(), salias::channel::ReceiveError::BadConfig);
+  EXPECT_EQ(cursors_[0].lease_start, kInactive);
+  EXPECT_EQ(cursors_[0].position, 0u);
+  EXPECT_EQ(rx.lagged_messages(), 0u);
+  EXPECT_EQ(rx.skipped_messages(), 0u);
+  std::memcpy(bytes_ + 16, &original_header, sizeof(original_header));
+  auto skipped = rx.skip_to_latest(0);
+  ASSERT_TRUE(skipped);
+  EXPECT_EQ(*skipped, 127u);
+}
+
+TEST_F(SharedLatestChannelTest, SeekAndCheckedReceiveCountAcrossLowBitWrap) {
+  constexpr auto kInitialSequence =
+      (std::uint64_t{1} << salias::frame::kSequenceLowBits) - 260;
+  ASSERT_NO_FATAL_FAILURE(reset_channel(kInitialSequence));
+  auto tx = channel_->tx(0);
+  auto rx = channel_->rx(0);
+  for (std::uint64_t index = 0; index < 300; ++index) {
+    ASSERT_TRUE(offer(tx, kInitialSequence + index));
+  }
+  auto checked = channel_->rx(1);
+  auto lagged = checked.try_recv_checked();
+  ASSERT_FALSE(lagged);
+  EXPECT_EQ(lagged.error(), salias::channel::ReceiveError::Lagged);
+  EXPECT_EQ(checked.lagged_messages(), 172u);
+  auto oldest = checked.try_recv_checked();
+  ASSERT_TRUE(oldest);
+  ASSERT_TRUE(*oldest);
+  EXPECT_EQ((**oldest).sequence, kInitialSequence + 172);
+  checked.release(**oldest);
+  auto skipped = rx.skip_to_latest(0);
+  ASSERT_TRUE(skipped);
+  EXPECT_EQ(*skipped, 299u);
+  EXPECT_EQ(rx.lagged_messages(), 172u);
+  EXPECT_EQ(rx.skipped_messages(), 127u);
+  auto message = rx.try_recv_checked();
+  ASSERT_TRUE(message);
+  ASSERT_TRUE(*message);
+  EXPECT_EQ((**message).sequence, kInitialSequence + 299);
+  EXPECT_EQ(decode(**message), kInitialSequence + 299);
+  rx.release(**message);
+}
+
+TEST_F(SharedLatestChannelTest, SeekCannotReleaseAnOutstandingBatchLease) {
+  auto tx = channel_->tx(0);
+  auto rx = channel_->rx(0);
+  for (std::uint64_t sequence = 0; sequence < 256; ++sequence) {
+    ASSERT_TRUE(offer(tx, sequence));
+  }
+  std::array<salias::flow::Message, 16> messages{};
+  ASSERT_EQ(rx.try_recv_run(messages.data(), 16), 16u);
+  auto blocked = rx.skip_to_latest(0);
+  ASSERT_FALSE(blocked);
+  EXPECT_EQ(blocked.error(), salias::channel::ReceiveError::BackPressured);
+  EXPECT_NE(cursors_[0].lease_start, kInactive);
+  EXPECT_EQ(rx.lagged_messages(), 128u);
+  EXPECT_EQ(rx.skipped_messages(), 0u);
+  rx.flush_progress();
+  auto skipped = rx.skip_to_latest(0);
+  ASSERT_TRUE(skipped);
+  EXPECT_EQ(*skipped, 111u);
+  EXPECT_EQ(rx.lagged_messages(), 128u);
+  EXPECT_EQ(rx.skipped_messages(), 111u);
+}
+
+TEST_F(SharedLatestChannelTest, CheckedAndSeekRejectInvalidConsumerAndProducerIndices) {
+  auto invalid = channel_->rx(2);
+  auto received = invalid.try_recv_checked();
+  ASSERT_FALSE(received);
+  EXPECT_EQ(received.error(), salias::channel::ReceiveError::BadConfig);
+  auto invalid_consumer = invalid.skip_to_latest(0);
+  ASSERT_FALSE(invalid_consumer);
+  EXPECT_EQ(invalid_consumer.error(), salias::channel::ReceiveError::BadConfig);
+  auto rx = channel_->rx(0);
+  auto invalid_producer = rx.skip_to_latest(1);
+  ASSERT_FALSE(invalid_producer);
+  EXPECT_EQ(invalid_producer.error(), salias::channel::ReceiveError::BadConfig);
 }
 
 }  // namespace
