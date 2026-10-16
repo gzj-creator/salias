@@ -87,6 +87,11 @@ class Channel {
    */
   std::uint32_t connected_consumer_count() const noexcept;
 
+  /// @return 共享通道中每个 producer ring 的字节容量。
+  std::size_t capacity() const noexcept;
+  /// @return LatestFanout 通道的编译配置水位比例；其他模式返回 0。
+  std::uint32_t high_watermark_percent() const noexcept;
+
   /**
    * @brief 创建绑定到当前通道的订阅端。
    * @return 绑定该通道共享状态的 Subscriber<M>。

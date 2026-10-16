@@ -66,4 +66,4 @@ concept WaitStrategy = requires(S strategy, std::uint32_t* word, std::uint32_t e
 
 - `SpinPause::needs_wake()` 恒为 `false`，提交路径不产生通知流量。
 - 等待策略接口可静态内联，无虚调用和运行时分派。
-- sanitizer 与 IPC 冒烟测试覆盖所有四种公共通道模式。
+- sanitizer 与 IPC 冒烟测试覆盖所有五种公共通道模式。

@@ -141,5 +141,6 @@ using FifoMpscSubscriber = Subscriber<Mode::FifoMpsc>;      ///< FIFO MPSC 订�
 using FifoFanoutSubscriber = Subscriber<Mode::FifoFanout>;  ///< FIFO fanout 订阅端别名。
 using OrderedMpscSubscriber = Subscriber<Mode::OrderedMpsc>;      ///< 保序 MPSC 订阅端别名。
 using OrderedFanoutSubscriber = Subscriber<Mode::OrderedFanout>;  ///< 保序 fanout 订阅端别名。
+using LatestFanoutSubscriber = Subscriber<Mode::LatestFanout>;  ///< 丢旧 fanout 订阅端别名。
 
 }  // namespace salias

@@ -1,7 +1,7 @@
 /** @file test/api/channel_api_test.cpp
  * @brief salias L7 公共 API（channel 层）的端到端集成测试。
  * @details 本文件位于 L5 channel / L7 salias 公共 API 层，验证各类 channel
- *   （FifoMpsc/OrderedMpsc/FifoFanout/OrderedFanout）在 claim/commit、offer、
+ *   （FifoMpsc/OrderedMpsc/FifoFanout/OrderedFanout/LatestFanout）在 claim/commit、offer、
  *   offer_batch、subscriber 轮询与 release 等关键路径上的正确性。覆盖面包括：
  *   FIFO 与全局有序两种交付语义、fanout 多消费者广播、生产者/消费者槽位
  *   耗尽与大页对齐校验，以及多进程（fork）共享 producer 槽位的 IPC 场景。
@@ -583,6 +583,246 @@ TEST(ChannelApiTest, ConnectRejectsDifferentMode) {
   auto connected = salias::OrderedMpscChannel::connect(config.name);
   ASSERT_FALSE(connected);
   EXPECT_EQ(connected.error(), salias::Error::BadConfig);
+}
+
+TEST(ChannelApiTest, LatestFanoutUsesStaticCapacityAndWatermark) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestFanout, "latest-static-config");
+  config.capacity = 8192;
+  config.high_watermark_percent = 90;
+
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  EXPECT_EQ(TypedChannel::capacity(), 4096u);
+  EXPECT_EQ(TypedChannel::high_watermark_percent(), 50u);
+  EXPECT_EQ(created->capacity(), 4096u);
+  EXPECT_EQ(created->high_watermark_percent(), 50u);
+
+  auto connected = TypedChannel::connect(config.name);
+  ASSERT_TRUE(connected);
+  EXPECT_EQ(connected->capacity(), 4096u);
+  EXPECT_EQ(connected->high_watermark_percent(), 50u);
+
+  auto wrong_capacity = salias::LatestFanoutChannel<8192, 50>::connect(config.name);
+  ASSERT_FALSE(wrong_capacity);
+  EXPECT_EQ(wrong_capacity.error(), salias::Error::BadConfig);
+
+  auto wrong_watermark = salias::LatestFanoutChannel<4096, 90>::connect(config.name);
+  ASSERT_FALSE(wrong_watermark);
+  EXPECT_EQ(wrong_watermark.error(), salias::Error::BadConfig);
+}
+
+TEST(ChannelApiTest, LatestFanoutRejectsIncompatibleFlowControlConfig) {
+  auto invalid_watermark = config_for(salias::Mode::LatestFanout, "latest-invalid-watermark");
+  invalid_watermark.high_watermark_percent = 101;
+  auto bad_watermark = salias::Channel<salias::Mode::LatestFanout>::create(invalid_watermark);
+  ASSERT_FALSE(bad_watermark);
+  EXPECT_EQ(bad_watermark.error(), salias::Error::BadConfig);
+
+  auto publication_window = config_for(salias::Mode::LatestFanout, "latest-publication-window");
+  publication_window.publication_window = publication_window.capacity;
+  auto bad_window = salias::Channel<salias::Mode::LatestFanout>::create(publication_window);
+  ASSERT_FALSE(bad_window);
+  EXPECT_EQ(bad_window.error(), salias::Error::BadConfig);
+}
+
+TEST(ChannelApiTest, LatestFanoutDropsOldMessagesAndPinsBorrowedPayload) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestFanout, "latest-drop-oldest");
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 0})));
+  auto borrowed = subscriber.try_recv();
+  ASSERT_TRUE(borrowed);
+
+  for (std::uint32_t sequence = 1; sequence < 256; ++sequence) {
+    ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = sequence}))) << sequence;
+  }
+  EXPECT_EQ(decode(borrowed->payload).sequence, 0u);
+
+  auto pinned_write = publisher.offer(encode(Payload{.sequence = 256}));
+  ASSERT_FALSE(pinned_write);
+  EXPECT_EQ(pinned_write.error(), salias::Error::BackPressured);
+  EXPECT_EQ(decode(borrowed->payload).sequence, 0u);
+
+  subscriber.release(*borrowed);
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 256})));
+
+  auto latest = subscriber.try_recv();
+  ASSERT_TRUE(latest);
+  EXPECT_EQ(decode(latest->payload).sequence, 129u);
+  subscriber.release(*latest);
+}
+
+TEST(ChannelApiTest, LatestFanoutPollReleasesBatchLease) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestFanout, "latest-poll-release");
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  for (std::uint32_t sequence = 0; sequence < 256; ++sequence) {
+    ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = sequence}))) << sequence;
+  }
+
+  std::uint32_t expected_sequence = 128;
+  EXPECT_EQ(subscriber.poll(2,
+                            [&expected_sequence](const salias::Message& message) noexcept {
+                              EXPECT_EQ(decode(message.payload).sequence, expected_sequence++);
+                            }),
+            2u);
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 256})));
+}
+
+TEST(ChannelApiTest, LatestFanoutSkipsOldMessagesAcrossProcesses) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestFanout, "latest-fork-subscriber");
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  auto owner = std::move(*created);
+
+  int ready_pipe[2]{};
+  int release_pipe[2]{};
+  ASSERT_EQ(::pipe(ready_pipe), 0);
+  ASSERT_EQ(::pipe(release_pipe), 0);
+
+  const pid_t child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    static_cast<void>(::close(ready_pipe[0]));
+    static_cast<void>(::close(release_pipe[1]));
+    auto connected = TypedChannel::connect(config.name);
+    if (!connected) {
+      ::_exit(10);
+    }
+    auto subscriber = connected->subscriber();
+    const char ready = 'r';
+    if (::write(ready_pipe[1], &ready, sizeof(ready)) != sizeof(ready)) {
+      ::_exit(11);
+    }
+    char release = 0;
+    if (::read(release_pipe[0], &release, sizeof(release)) != sizeof(release)) {
+      ::_exit(12);
+    }
+    auto message = wait_for_message(subscriber);
+    if (message.payload.empty() || decode(message.payload).sequence != 172u) {
+      ::_exit(13);
+    }
+    subscriber.release(message);
+    ::_exit(0);
+  }
+
+  static_cast<void>(::close(ready_pipe[1]));
+  static_cast<void>(::close(release_pipe[0]));
+  char ready = 0;
+  ASSERT_EQ(::read(ready_pipe[0], &ready, sizeof(ready)), sizeof(ready));
+  ASSERT_EQ(ready, 'r');
+
+  auto publisher = owner.publisher();
+  bool all_published = true;
+  for (std::uint32_t sequence = 0; sequence < 300; ++sequence) {
+    if (!publisher.offer(encode(Payload{.sequence = sequence}))) {
+      all_published = false;
+      break;
+    }
+  }
+
+  const char release = 'x';
+  const ssize_t release_bytes = ::write(release_pipe[1], &release, sizeof(release));
+  static_cast<void>(::close(ready_pipe[0]));
+  static_cast<void>(::close(release_pipe[1]));
+
+  int child_status = 0;
+  ASSERT_EQ(::waitpid(child, &child_status, 0), child);
+  EXPECT_TRUE(all_published);
+  EXPECT_EQ(release_bytes, sizeof(release));
+  ASSERT_TRUE(WIFEXITED(child_status));
+  EXPECT_EQ(WEXITSTATUS(child_status), 0);
+}
+
+TEST(ChannelApiTest, LatestFanoutReclaimsLeaseFromExitedConsumer) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestFanout, "latest-dead-lease");
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  auto owner = std::move(*created);
+  auto publisher = owner.publisher();
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 0})));
+
+  int acquired_pipe[2]{};
+  int exit_pipe[2]{};
+  ASSERT_EQ(::pipe(acquired_pipe), 0);
+  ASSERT_EQ(::pipe(exit_pipe), 0);
+
+  const pid_t child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    static_cast<void>(::close(acquired_pipe[0]));
+    static_cast<void>(::close(exit_pipe[1]));
+    auto connected = TypedChannel::connect(config.name);
+    if (!connected) {
+      ::_exit(10);
+    }
+    auto subscriber = connected->subscriber();
+    const auto held = subscriber.try_recv();
+    if (!held || decode(held->payload).sequence != 0u) {
+      ::_exit(11);
+    }
+    const char acquired = 'a';
+    if (::write(acquired_pipe[1], &acquired, sizeof(acquired)) != sizeof(acquired)) {
+      ::_exit(12);
+    }
+    char exit = 0;
+    if (::read(exit_pipe[0], &exit, sizeof(exit)) != sizeof(exit)) {
+      ::_exit(13);
+    }
+    ::_exit(0);
+  }
+
+  static_cast<void>(::close(acquired_pipe[1]));
+  static_cast<void>(::close(exit_pipe[0]));
+  char acquired = 0;
+  const ssize_t acquired_bytes = ::read(acquired_pipe[0], &acquired, sizeof(acquired));
+
+  bool all_published = acquired_bytes == sizeof(acquired) && acquired == 'a';
+  for (std::uint32_t sequence = 1; all_published && sequence < 256; ++sequence) {
+    all_published = publisher.offer(encode(Payload{.sequence = sequence})).has_value();
+  }
+
+  const char exit = 'x';
+  const ssize_t exit_bytes = ::write(exit_pipe[1], &exit, sizeof(exit));
+  static_cast<void>(::close(acquired_pipe[0]));
+  static_cast<void>(::close(exit_pipe[1]));
+
+#if defined(__linux__)
+  siginfo_t child_info{};
+  ASSERT_EQ(::waitid(P_PID, static_cast<id_t>(child), &child_info, WEXITED | WNOWAIT), 0);
+  ASSERT_EQ(child_info.si_code, CLD_EXITED);
+  ASSERT_EQ(child_info.si_status, 0);
+#else
+  int child_status = 0;
+  ASSERT_EQ(::waitpid(child, &child_status, 0), child);
+  ASSERT_TRUE(WIFEXITED(child_status));
+  ASSERT_EQ(WEXITSTATUS(child_status), 0);
+#endif
+  EXPECT_EQ(exit_bytes, sizeof(exit));
+  EXPECT_TRUE(all_published);
+  EXPECT_EQ(owner.connected_consumer_count(), 0u);
+
+  auto resumed = publisher.offer(encode(Payload{.sequence = 256}));
+  ASSERT_TRUE(resumed);
+#if defined(__linux__)
+  int child_status = 0;
+  ASSERT_EQ(::waitpid(child, &child_status, 0), child);
+  ASSERT_TRUE(WIFEXITED(child_status));
+  EXPECT_EQ(WEXITSTATUS(child_status), 0);
+#endif
 }
 
 /// @brief 验证非法的 producer/consumer 数量会被拒绝：零 producer、

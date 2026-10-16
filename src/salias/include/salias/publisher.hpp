@@ -134,5 +134,6 @@ using FifoMpscPublisher = Publisher<Mode::FifoMpsc>;      ///< FIFO MPSC 发布�
 using FifoFanoutPublisher = Publisher<Mode::FifoFanout>;  ///< FIFO fanout 发布端别名。
 using OrderedMpscPublisher = Publisher<Mode::OrderedMpsc>;      ///< 保序 MPSC 发布端别名。
 using OrderedFanoutPublisher = Publisher<Mode::OrderedFanout>;  ///< 保序 fanout 发布端别名。
+using LatestFanoutPublisher = Publisher<Mode::LatestFanout>;  ///< 丢旧 fanout 发布端别名。
 
 }  // namespace salias

@@ -4,9 +4,9 @@
 
 ## 1. 已完成基线
 
-- Linux `memfd`/具名共享内存双映射 magic ring。
+- Linux/macOS 共享内存双映射 magic ring。
 - 8 字节帧头、对齐、零拷贝 claim/commit 与 poll/release。
-- 一个 per-producer-ring 引擎，支持 `fifo|ordered` 与 `single|fanout` 正交组合。
+- 一个 per-producer-ring 引擎，支持 `fifo|ordered` 与 `single|fanout` 组合，以及 LatestFanout 保留窗口策略。
 - 持久 `PublisherEndpoint` / `SubscriberEndpoint`，避免每次 API 调用重建端点。
 - 固定共享控制块 ABI，支持最多 16 个生产者与 8 个消费者。
 - 普通页、2 MiB、1 GiB 大页配置与映射 prefault。
@@ -20,6 +20,7 @@
 | `FifoFanout` | 多生产者各自 FIFO，多消费者扇出 | 独立游标与最慢消费者背压 |
 | `OrderedMpsc` | 多生产者全局全序，单消费者 | 跨生产者序列严格递增 |
 | `OrderedFanout` | 多生产者全局全序，多消费者扇出 | 每个消费者看到相同全序 |
+| `LatestFanout` | 每生产者 FIFO，多消费者扇出 | 慢消费者跳过窗口外旧消息，借用数据不被覆盖，异常退出 lease 可回收 |
 
 ## 3. 交付验证
 

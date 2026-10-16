@@ -2,8 +2,9 @@
 
 > 配套：`2-implementation-plan.md` 与 `plans/2026-07-10-dual-engine-architecture.md`。
 
-salias 是 Linux 上的 driverless 共享内存消息通道。当前架构只保留一个 per-producer magic-ring 引擎，
-通过排序模式与消费者拓扑组合出四种公共通道。
+salias 是支持 Linux 与 macOS 的 driverless 共享内存消息通道。当前架构只保留一个
+per-producer magic-ring 引擎，通过排序模式与消费者拓扑组合出四种基础通道，并提供
+LatestFanout 保留窗口策略。
 
 ---
 
@@ -24,7 +25,7 @@ L7  salias 公共 API
     Channel / Publisher / Subscriber / Config / Message
                          ↓
 L5  双模通道引擎
-    per-producer rings / fifo|ordered / single|fanout / shared control block
+    per-producer rings / fifo|ordered / single|fanout / latest retention / shared control block
                          ↓
 L4  等待策略
     SpinPause / needs_wake()
@@ -38,7 +39,7 @@ L2  帧格式
 L1  环与原子单元
     magic ring / atomic cell
                          ↓
-L0  Linux 平台
+L0  Linux / macOS 平台
     memfd / named shm / double mmap / huge pages / MAP_POPULATE
 ```
 
@@ -54,9 +55,11 @@ L0  Linux 平台
 | `FifoFanout` | 每生产者 FIFO | 多消费者独立游标 | 0 |
 | `OrderedMpsc` | 跨生产者全局全序 | 单消费者 | 每消息 1 次序列分配 |
 | `OrderedFanout` | 跨生产者全局全序 | 多消费者独立游标 | 每消息 1 次序列分配 |
+| `LatestFanout` | 每生产者 FIFO | 多消费者独立游标，可跳过窗口外旧数据 | 0 |
 
-每个生产者拥有独立 ring 和可见位置。fanout 模式下，每个消费者持有独立的每生产者游标；生产者以所有消费者
-的最小位置作为回收边界，慢消费者不会被快消费者覆盖。
+每个生产者拥有独立 ring 和可见位置。普通 fanout 下，每个消费者持有独立的每生产者游标，生产者以所有消费
+者的最小位置作为回收边界；LatestFanout 改用每环保留头，慢消费者追赶时可跳过窗口之外的数据。尚未释放的
+借用消息由共享 lease pin；持有该 lease 的订阅进程退出后，生产者在需要覆盖该位置时校验其进程身份并回收。
 
 ---
 

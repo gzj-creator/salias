@@ -1,6 +1,6 @@
 # L7 公共 API
 
-公共 API 只暴露单一 per-producer-ring 引擎的四种组合：
+公共 API 暴露单一 per-producer-ring 引擎的四种排序/拓扑组合，并增加 `LatestFanout` 保留窗口模式：
 
 ```cpp
 enum class Mode {
@@ -8,6 +8,7 @@ enum class Mode {
   FifoFanout,
   OrderedMpsc,
   OrderedFanout,
+  LatestFanout,
 };
 
 struct Config {
@@ -18,6 +19,7 @@ struct Config {
   std::uint32_t num_consumers = 1;
   HugePage huge = HugePage::None;
   std::size_t publication_window = 0;
+  std::uint32_t high_watermark_percent = 90;
 };
 ```
 
@@ -28,6 +30,22 @@ single 模式要求 `num_consumers == 1`；fanout 模式允许 1–8 个消费�
 从而把排队延迟压到同一量级。128KiB 对照满 4MiB 环时，p99 从约 5.7ms 降到约 350us，吞吐约少一成。
 窗口越小，生产者越常刷新消费者位置，需要按消息大小复测吞吐拐点。
 当前公共协议只支持变长帧，不提供 fixed-size 配置模式。
+
+`LatestFanout` 使用 FIFO 顺序和 fanout 拓扑。`salias::LatestFanoutChannel<Capacity,
+HighWatermarkPercent>` 将每个 producer ring 的字节容量和保留比例固定在模板参数中，水位默认
+为 90%；创建时模板参数覆盖 `Config::capacity` 与 `Config::high_watermark_percent`，连接时会
+校验共享通道参数，不一致返回 `Error::BadConfig`。达到保留水位后，慢消费者会在下一次读取时
+跳过已淘汰的旧消息。未 `release()` 的消息 payload 会被 pin；若生产者写入将覆盖借用内存，发布
+暂时返回 `Error::BackPressured`，释放该消息后恢复。
+`LatestFanout` 不支持非零 `publication_window`；该模式以保留水位而非消费者游标控制排队量。
+订阅进程若在持有借用时退出，生产者会在需要复用对应物理区间时检查注册进程身份并回收失效 lease。
+
+```cpp
+using QuoteChannel = salias::LatestFanoutChannel<1u << 20>;  // 默认保留水位为 90%
+auto owner = QuoteChannel::create(config);
+auto publisher = owner->publisher();
+auto subscriber = owner->subscriber();
+```
 
 `create` 和 `connect` 会把动态内存分配失败转换为 `Error::OutOfMemory`。`publisher()` 和
 `subscriber()` 需要分配端点共享状态，因此分配失败时仍可能抛出 `std::bad_alloc`。

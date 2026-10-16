@@ -63,7 +63,27 @@ int main() {
     roundtrip<salias::Mode::FifoFanout>();
     roundtrip<salias::Mode::OrderedMpsc>();
     roundtrip<salias::Mode::OrderedFanout>();
-    std::cout << "Module/header IPC, claim, batch, template poll and cleanup passed for 4 modes\n";
+    roundtrip<salias::Mode::LatestFanout>();
+
+    salias::Config latest_config;
+    latest_config.name =
+        "salias-mcpp-latest-typed-" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    latest_config.mode = salias::Mode::LatestFanout;
+    latest_config.capacity = 8192;
+    using LatestChannel = salias::LatestFanoutChannel<4096, 75>;
+    auto latest = LatestChannel::create(latest_config);
+    require(latest.has_value());
+    require(latest->capacity() == 4096 && latest->high_watermark_percent() == 75);
+    auto latest_publisher = latest->publisher();
+    auto latest_subscriber = latest->subscriber();
+    const std::array latest_payload{std::byte{5}, std::byte{6}};
+    require(latest_publisher.offer(latest_payload).has_value());
+    auto latest_message = latest_subscriber.try_recv();
+    require(latest_message && std::ranges::equal(latest_message->payload, latest_payload));
+    latest_subscriber.release(*latest_message);
+
+    std::cout << "Module/header IPC, claim, batch, template poll and cleanup passed for 5 modes\n";
     return 0;
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';

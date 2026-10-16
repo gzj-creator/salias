@@ -55,7 +55,7 @@ namespace {
 /// @brief 匿名命名空间，仅本翻译单元可见的具名通道辅助类型与函数。
 
 inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;  // ASCII "SALC"，校验控制段归属。
-inline constexpr std::uint32_t kNamedVersion = 5;  // 控制段布局版本号，connect 须严格匹配。
+inline constexpr std::uint32_t kNamedVersion = 6;  // 控制段布局版本号，connect 须严格匹配。
 inline constexpr std::size_t kControlSize = 16u * 1024u;  // 控制段固定 16 KiB。
 inline constexpr std::size_t kCacheLineGuard = 128;  // 双 cache line 填充宽度，规避伪共享。
 inline constexpr std::size_t kMaxProducers = 16;  // 单 channel 最大 producer 数。
@@ -67,6 +67,7 @@ inline constexpr std::uint32_t kNamedHugeShift = 1u;  // huge page 编码起始�
 inline constexpr std::uint32_t kNamedHugeMask = 0x6u;  // huge page 编码 2 位掩码。
 // 非法端点哨兵值，用于标记未分配或无效的 producer/consumer id。
 inline constexpr std::uint32_t kInvalidEndpoint = std::numeric_limits<std::uint32_t>::max();
+inline constexpr std::uint64_t kDeadProcessStartToken = std::numeric_limits<std::uint64_t>::max();
 inline constexpr const char* kDefaultHugetlbfsDir = "/dev/hugepages";  // hugetlbfs 默认挂载点。
 // 发布窗口下限（字节）：非 0 窗口须不小于一页，避免小于一次 poll 批量导致长期回压。
 inline constexpr std::size_t kMinPublicationWindow = 4096;
@@ -111,7 +112,9 @@ struct alignas(64) NamedConsumerSlot {
 struct alignas(64) NamedConsumerCursorSlot {
   std::uint64_t position = 0;  ///< consumer 在该 producer ring 内的消费位置（字节偏移）。
   std::uint64_t sequence = 0;  ///< consumer 已消费到的序列号。
-  std::byte pad[64 - (2 * sizeof(std::uint64_t))]{};  ///< 填充至 64 字节。
+  std::uint64_t lease_start = std::numeric_limits<std::uint64_t>::max();  ///< 借用区间起点。
+  std::uint64_t lease_end = 0;  ///< 借用区间末端；仅在 lease_start 有效时读取。
+  std::byte pad[64 - (4 * sizeof(std::uint64_t))]{};  ///< 填充至 64 字节。
 };
 
 /// @brief 单个 producer 的共享状态槽，双 cache line 对齐。
@@ -121,7 +124,8 @@ struct alignas(64) NamedConsumerCursorSlot {
 struct alignas(kCacheLineGuard) NamedProducerSlot {
   std::uint64_t visible_producer_pos = 0;  ///< 已对外可见（已发布）的 position。
   std::uint64_t local_sequence = 0;  ///< 本地已 claim 的序列号（可能尚未发布）。
-  std::byte pad[kCacheLineGuard - (2 * sizeof(std::uint64_t))]{};  ///< 头部填充。
+  std::uint64_t retained_position = 0;  ///< 丢旧模式下最早仍可读取的帧位置。
+  std::byte pad[kCacheLineGuard - (3 * sizeof(std::uint64_t))]{};  ///< 头部填充。
   std::array<NamedConsumerCursorSlot, kMaxConsumers> consumers{};  ///< 各 consumer 游标。
 };
 
@@ -140,7 +144,8 @@ struct alignas(kCacheLineGuard) NamedControl {
   std::uint32_t ready = 0;  ///< 就绪标志：创建端置 1（release），连接端等 1（acquire）。
   std::uint32_t wait_word = 0;  ///< 等待策略唤醒字（wait strategy 回填）。
   std::uint64_t publication_window = 0;  ///< 发布流控窗口（0 表示不限流）。
-  std::byte pad[kCacheLineGuard - 48]{};  ///< 头部填充，隔离后续热字段。
+  std::uint32_t high_watermark_percent = 90;  ///< 丢旧模式的保留水位比例。
+  std::byte pad[kCacheLineGuard - 52]{};  ///< 头部填充，隔离后续热字段。
 
   alignas(kCacheLineGuard) std::uint64_t global_sequence = 0;  ///< 全局单调序列号。
   alignas(kCacheLineGuard) std::uint32_t next_producer = 0;  ///< 下一个待分配 producer id。
@@ -166,11 +171,18 @@ static_assert(sizeof(NamedControl) <= kControlSize);
 /// 序列号）语义。
 template <Mode M>
 inline constexpr channel::Order kOrdering =
-    M == Mode::FifoMpsc || M == Mode::FifoFanout ? channel::Order::Fifo : channel::Order::Ordered;
+    M == Mode::FifoMpsc || M == Mode::FifoFanout || M == Mode::LatestFanout
+        ? channel::Order::Fifo
+        : channel::Order::Ordered;
 
 /// @brief 依据 channel 模式判断是否为 fanout（多消费者广播）模式。
 template <Mode M>
-inline constexpr bool kFanout = M == Mode::FifoFanout || M == Mode::OrderedFanout;
+inline constexpr bool kFanout =
+    M == Mode::FifoFanout || M == Mode::OrderedFanout || M == Mode::LatestFanout;
+
+/// @brief 依据 channel 模式判断是否启用覆盖旧数据的保留窗口。
+template <Mode M>
+inline constexpr bool kDropOldest = M == Mode::LatestFanout;
 
 /// @brief 校验具名 channel 名称合法性，仅允许字母数字与 -_. 且长度在 [1,128]。
 /// @param name 待校验的名称。
@@ -201,7 +213,7 @@ std::uint64_t channel_name_hash(std::string_view name) noexcept {
 
 std::string encoded_channel_name(std::string_view name) {
   constexpr std::array<char, 16> hex_digits = {'0', '1', '2', '3', '4', '5', '6', '7',
-                                                '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+                                               '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
   std::array<char, 16> encoded{};
   std::uint64_t hash = channel_name_hash(name);
   for (std::size_t index = encoded.size(); index != 0; --index) {
@@ -220,6 +232,11 @@ bool is_power_of_two(std::size_t value) noexcept {
 // 发布窗口合法性：0 表示不限流；非 0 时必须落在 [一页, capacity] 之内。
 bool is_valid_publication_window(std::uint64_t window, std::uint64_t capacity) noexcept {
   return window == 0 || (window >= kMinPublicationWindow && window <= capacity);
+}
+
+/// 丢旧水位为容量的静态百分比，必须落在 [1, 100]。
+bool is_valid_high_watermark_percent(std::uint32_t percent) noexcept {
+  return percent >= 1 && percent <= 100;
 }
 
 /// @brief 读取指定进程启动标识，避免仅凭 PID 将复用后的新进程误认为旧订阅者。
@@ -250,6 +267,12 @@ std::uint64_t process_start_token(std::uint32_t pid) noexcept {
     return 0;
   }
   ++field;
+  while (*field == ' ') {
+    ++field;
+  }
+  if (*field == 'Z' || *field == 'X' || *field == 'x') {
+    return kDeadProcessStartToken;
+  }
   for (int index = 3; index < 22; ++index) {
     while (*field == ' ') {
       ++field;
@@ -285,6 +308,9 @@ bool is_registered_process_alive(std::uint32_t pid, std::uint64_t start_token) n
     return false;
   }
   const std::uint64_t current_token = process_start_token(pid);
+  if (current_token == kDeadProcessStartToken) {
+    return false;
+  }
   if (start_token != 0 && current_token != 0) {
     return current_token == start_token;
   }
@@ -528,6 +554,10 @@ class ControlMapping {
 
   /// @brief 返回映射为控制段布局的可写指针。
   NamedControl* control() noexcept { return reinterpret_cast<NamedControl*>(base_); }
+  /// @brief 返回映射为控制段布局的只读指针。
+  const NamedControl* control() const noexcept {
+    return reinterpret_cast<const NamedControl*>(base_);
+  }
 
  private:
   /// @brief 将已打开的 fd 以 MAP_SHARED|MAP_POPULATE 映射，失败时关闭 fd。
@@ -556,8 +586,8 @@ class ControlMapping {
   }
 
   std::byte* base_ = nullptr;  ///< mmap 基址，nullptr 表示未映射。
-  std::size_t len_ = 0;  ///< 映射长度。
-  int fd_ = -1;  ///< 文件描述符，-1 表示无效。
+  std::size_t len_ = 0;        ///< 映射长度。
+  int fd_ = -1;                ///< 文件描述符，-1 表示无效。
 };
 
 /// @brief 将 flow 层错误映射为公共 API 层 Error。
@@ -666,7 +696,8 @@ Result<ControlMapping> open_control_when_ready(const std::string& name) {
 
 /// @brief 按 Mode 选定底层 SharedHybridMpscChannel 的 ordering 类型的别名。
 template <Mode M>
-using SharedChannel = channel::SharedHybridMpscChannel<kOrdering<M>>;
+using SharedChannel =
+    channel::SharedHybridMpscChannel<kOrdering<M>, wait::SpinPause, kDropOldest<M>>;
 
 /// @brief 从控制段提取 channel 级共享状态（全局序列号、consumer sequences 等）。
 /// @param control 控制段引用。
@@ -678,7 +709,15 @@ typename SharedChannel<M>::SharedControl make_shared_control(NamedControl& contr
   shared.wait_word = &control.wait_word;
   shared.num_producers = &control.num_producers;
   shared.num_consumers = &control.num_consumers;
+  shared.is_process_alive = is_registered_process_alive;
   shared.publication_window = control.publication_window;
+  if constexpr (kDropOldest<M>) {
+    const std::size_t capacity = static_cast<std::size_t>(control.capacity);
+    const std::size_t percent = control.high_watermark_percent;
+    const std::size_t whole = (capacity / 100) * percent;
+    const std::size_t fraction = ((capacity % 100) * percent) / 100;
+    shared.retention_capacity = std::max<std::size_t>(1, whole + fraction);
+  }
   shared.consumer_sequences.reserve(control.num_consumers);
   for (std::uint32_t consumer_id = 0; consumer_id < control.num_consumers; ++consumer_id) {
     shared.consumer_sequences.push_back(&control.consumer_sequences[consumer_id].value);
@@ -698,11 +737,16 @@ std::vector<typename SharedChannel<M>::ProducerSharedState> make_producer_states
     typename SharedChannel<M>::ProducerSharedState state{};
     state.visible_producer_pos = &control.producers[producer_id].visible_producer_pos;
     state.local_sequence = &control.producers[producer_id].local_sequence;
+    state.retained_position = &control.producers[producer_id].retained_position;
     state.consumers.reserve(control.num_consumers);
     for (std::uint32_t consumer_id = 0; consumer_id < control.num_consumers; ++consumer_id) {
       state.consumers.push_back(typename SharedChannel<M>::ConsumerSharedState{
           .position = &control.producers[producer_id].consumers[consumer_id].position,
           .sequence = &control.producers[producer_id].consumers[consumer_id].sequence,
+          .lease_start = &control.producers[producer_id].consumers[consumer_id].lease_start,
+          .lease_end = &control.producers[producer_id].consumers[consumer_id].lease_end,
+          .process_id = &control.consumers[consumer_id].pid,
+          .process_start = &control.consumers[consumer_id].process_start,
       });
     }
     states.push_back(std::move(state));
@@ -785,6 +829,18 @@ class NamedChannelState {
     return connected;
   }
 
+  std::size_t capacity() const noexcept {
+    const NamedControl* control = control_.control();
+    return control == nullptr ? 0 : static_cast<std::size_t>(control->capacity);
+  }
+
+  std::uint32_t high_watermark_percent() const noexcept {
+    const NamedControl* control = control_.control();
+    return control == nullptr || control->mode != static_cast<std::uint32_t>(Mode::LatestFanout)
+               ? 0
+               : control->high_watermark_percent;
+  }
+
   /// @brief 跨进程原子分配一个 producer id，耗尽则返回 nullopt。
   /// @retval std::optional<producer_id> 成功分配。
   /// @retval std::nullopt 超出 num_producers 上限。
@@ -865,6 +921,8 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
       config.num_producers > kMaxProducers || config.num_consumers == 0 ||
       config.num_consumers > kMaxConsumers || (!kFanout<M> && config.num_consumers != 1) ||
       !is_valid_publication_window(config.publication_window, config.capacity) ||
+      (kDropOldest<M> && (!is_valid_high_watermark_percent(config.high_watermark_percent) ||
+                          config.publication_window != 0)) ||
       !channel::hybrid_detail::sequence_low_window_fits(sequence_domains, config.capacity)) {
     return std::unexpected(Error::BadConfig);
   }
@@ -923,6 +981,7 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
     control->num_producers = config.num_producers;
     control->num_consumers = config.num_consumers;
     control->publication_window = config.publication_window;
+    control->high_watermark_percent = config.high_watermark_percent;
 
     SharedChannel<M> channel(std::move(rings), make_producer_states<M>(*control),
                              make_shared_control<M>(*control));
@@ -966,6 +1025,8 @@ Result<NamedChannelState<M>> connect_named_state(std::string_view name) {
       control->num_consumers == 0 || control->num_consumers > kMaxConsumers ||
       (!kFanout<M> && control->num_consumers != 1) ||
       !is_valid_publication_window(control->publication_window, control->capacity) ||
+      (kDropOldest<M> && (!is_valid_high_watermark_percent(control->high_watermark_percent) ||
+                          control->publication_window != 0)) ||
       !channel::hybrid_detail::sequence_low_window_fits(sequence_domains, control->capacity)) {
     return std::unexpected(Error::BadConfig);
   }
@@ -1118,6 +1179,16 @@ Publisher<M> Channel<M>::publisher() {
 template <Mode M>
 std::uint32_t Channel<M>::connected_consumer_count() const noexcept {
   return state_ == nullptr ? 0 : state_->channel.connected_consumer_count();
+}
+
+template <Mode M>
+std::size_t Channel<M>::capacity() const noexcept {
+  return state_ == nullptr ? 0 : state_->channel.capacity();
+}
+
+template <Mode M>
+std::uint32_t Channel<M>::high_watermark_percent() const noexcept {
+  return state_ == nullptr ? 0 : state_->channel.high_watermark_percent();
 }
 
 /// @brief 分配一个 consumer 并返回其 Subscriber。
@@ -1370,6 +1441,7 @@ SALIAS_INSTANTIATE_MODE(FifoMpsc);  // 多生产者单消费者，FIFO 顺序。
 SALIAS_INSTANTIATE_MODE(FifoFanout);  // 多生产者多消费者广播，FIFO 顺序。
 SALIAS_INSTANTIATE_MODE(OrderedMpsc);  // 多生产者单消费者，按序列号有序。
 SALIAS_INSTANTIATE_MODE(OrderedFanout);  // 多生产者多消费者广播，按序列号有序。
+SALIAS_INSTANTIATE_MODE(LatestFanout);   // 慢消费者跳过保留窗口外的旧数据。
 
 #undef SALIAS_INSTANTIATE_MODE
 

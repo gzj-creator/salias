@@ -23,6 +23,8 @@ bool header_publish(const salias::Config& config) {
       return publish_from_header<salias::Mode::OrderedMpsc>(config);
     case salias::Mode::OrderedFanout:
       return publish_from_header<salias::Mode::OrderedFanout>(config);
+    case salias::Mode::LatestFanout:
+      return publish_from_header<salias::Mode::LatestFanout>(config);
   }
   return false;
 }

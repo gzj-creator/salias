@@ -1,7 +1,8 @@
 # salias
 
 `salias` 是支持 Linux 与 macOS 的 C++23 低延迟具名 IPC 消息通道。当前实现收敛为一个
-per-producer magic-ring 引擎，并通过排序模式与消费者拓扑提供四种公共通道：
+per-producer magic-ring 引擎，并通过排序模式与消费者拓扑提供四种基础通道，以及
+面向低延迟 fanout 的 `LatestFanout` 保留窗口策略：
 
 | Mode | 排序语义 | 消费者拓扑 |
 |---|---|---|
@@ -9,10 +10,17 @@ per-producer magic-ring 引擎，并通过排序模式与消费者拓扑提供�
 | `FifoFanout` | 每生产者 FIFO，不保证跨生产者顺序 | 多消费者 fanout |
 | `OrderedMpsc` | 跨生产者全局全序 | 单消费者 |
 | `OrderedFanout` | 跨生产者全局全序 | 多消费者 fanout |
+| `LatestFanout` | 每个生产者内 FIFO；慢消费者跳过保留窗口外的旧消息 | 多消费者 fanout |
 
 FIFO 模式的生产者热路径不执行共享 RMW；ordered 模式通过单个全局 sequence
 `fetch_add` 建立跨生产者全序。每个生产者拥有独立 ring，每个 fanout 消费者拥有独立的
 per-producer 游标。
+
+`LatestFanoutChannel<Capacity, HighWatermarkPercent>` 将每个 producer ring 的字节容量和
+保留水位固定为模板参数，水位默认是容量的 90%。达到水位后淘汰最旧消息；每个订阅者独立
+追赶保留窗口。`connect()` 会校验共享通道与模板参数一致。尚未 `release()` 的借用消息会
+pin 住对应 payload；若写入会覆盖仍借用的字节，发布暂时返回 `BackPressured`，释放后即可继续。
+若订阅进程在持有借用时退出，生产者会在需要复用该槽位时校验进程身份并清除失效 lease。
 
 ## 构建
 
@@ -53,7 +61,8 @@ target_link_libraries(my_app PRIVATE salias::salias)
 原生包身份为 `gzj-creator.salias`，版本 `2.1.0` 与 CMake 一致。`mcpp.toml`
 编译公共库和必要的 core 实现，`src/salias.cppm` 提供 `import salias;`；默认构建不需要
 GTest、Google Benchmark 或 Aeron。模块导出公共配置、枚举、错误和结果类型、Message、
-Channel/Publisher/Subscriber/PublishClaim 模板及四种模式的端点别名。应用专用别名由消费者维护。
+Channel/Publisher/Subscriber/PublishClaim 模板、五种模式的端点别名及静态配置的
+`LatestFanoutChannel`。应用专用别名由消费者维护。
 
 安装 mcpp 和 LLVM 工具链后，在仓库中构建和验证：
 
@@ -66,12 +75,13 @@ python3 tools/check_mcpp.py
 本次验证环境为 Linux x86_64、mcpp `2026.10.11.1`、LLVM `22.1.8`。
 代码保留 Linux/macOS 平台实现；macOS 的 mcpp 构建尚未在本机验证。
 `mcpp-tests` 是显式启用的测试 feature，默认不编译测试。
-测试覆盖四种模式的模块与头文件混合消费、实际收发、claim/commit、非对齐 payload 的 offer_batch、
+测试覆盖五种模式的模块与头文件混合消费、实际收发、claim/commit、非对齐 payload 的 offer_batch、
 模板 poll 和共享内存清理。`check_mcpp.py` 在两个临时消费者目录进行离线构建，
 并在生成锁文件后复验 `--locked`。
 
 等长 `offer_batch` 保留每条消息的原始 payload 长度，接收视图不包含 ring 对齐填充。
-批量长度契约测试覆盖空消息、非对齐长度、回绕以及四种模式的跨进程收发和清理。
+批量长度契约测试覆盖空消息、非对齐长度、回绕以及四种基础模式的跨进程收发和清理；
+`LatestFanout` 另覆盖跨进程慢消费者跳过旧消息、借用消息 pin 以及异常退出 lease 回收。
 
 按共享 [gts-mcpp-dependencies skill](.codex/skills/gts-mcpp-dependencies/SKILL.md)，
 将源码包准备在 `/opt/mcpp-deps/salias/`，消费者使用固定绝对路径：
@@ -215,7 +225,7 @@ src/core/frame/      frame header、codec、sequence
 src/core/flow/       基础 producer/consumer
 src/core/wait/       SpinPause 与 WaitStrategy concept
 src/core/channel/    单一 hybrid per-producer-ring 引擎
-src/salias/          四种公共 Mode 与具名 IPC facade
+src/salias/          五种公共 Mode 与具名 IPC facade
 test/                platform/ring/frame/flow/channel/API 测试
 bench/               stress 与 IPC compare 目标
 example/             FIFO MPSC 示例

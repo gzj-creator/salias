@@ -18,13 +18,13 @@ namespace salias {
 
 /**
  * @brief 通道传输协议模式枚举。
- * @details 四种模式按两个正交维度组合：投递语义（FIFO 先进先出 / Ordered 保序）与
- *          拓扑（MPSC 多生产者单消费者 / Fanout 多消费者扇出）。
+ * @details FIFO/Ordered 模式按投递顺序与消费者拓扑组合；LatestFanout 保留每个 producer
+ *          ring 的最新有界窗口，允许慢消费者跳过被覆盖的数据。
  *          - FIFO：生产者侧按 claim 顺序提交，适合日志类场景。
  *          - Ordered：进一步保证跨生产者的全局有序，适合事件溯源。
  *          模式一经创建不可变更。
  */
-enum class Mode { FifoMpsc, FifoFanout, OrderedMpsc, OrderedFanout };
+enum class Mode { FifoMpsc, FifoFanout, OrderedMpsc, OrderedFanout, LatestFanout };
 
 /**
  * @brief 透明大页（huge page）配置枚举。
@@ -50,6 +50,7 @@ struct Config {
   // 实测 p99 排队从满环约 5.7ms 降到约 350us，吞吐下降约一成。窗口再小会让
   // cached_consumer_pos 更频繁失效，拐点需要按负载复测。
   std::size_t publication_window = 0;
+  std::uint32_t high_watermark_percent = 90;  ///< LatestFanout 的丢旧水位比例。
 };
 
 }  // namespace salias
