@@ -41,6 +41,11 @@ auto subscriber = owner->subscriber();
 每次 `publisher()` 分配独占 producer slot；每次 fanout `subscriber()` 分配独立 consumer
 slot。slot 耗尽后的端点操作返回 `BadConfig` 或无消息。
 
+`Channel::connected_consumer_count()` 返回当前注册槽中仍存活的订阅者数，统计的是订阅槽而非
+不同进程数或仍存活的 `Subscriber` C++ 对象。跨进程消费者须在连接后调用 `subscriber()` 注册；
+`fork()` 继承的端点仍归属于注册它的原进程，不会自动产生新的订阅槽。进程退出后该接口会
+检测到槽位对应进程已退出，但此阶段不会回收槽位或改变生产者背压；槽位注销与回收由后续能力提供。
+
 `Publisher` 持有 Tx，`Subscriber` 持有 Rx。端点不会在 `offer`、`try_recv`、`poll`、`release`
 调用中重建，因此缓存与游标跨调用保留。
 

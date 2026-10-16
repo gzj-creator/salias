@@ -631,6 +631,70 @@ TEST(ChannelApiTest, ExhaustedEndpointSlotsReturnBadConfigOnUse) {
   first_subscriber.release(*message);
 }
 
+/// @brief 验证订阅者存活数按已注册槽位和注册进程状态统计。
+TEST(ChannelApiTest, ConnectedConsumerCountTracksRegisteredProcessLiveness) {
+  auto config = config_for(salias::Mode::FifoFanout, "consumer-liveness");
+  config.num_consumers = 2;
+  auto created = salias::FifoFanoutChannel::create(config);
+  ASSERT_TRUE(created);
+  auto owner = std::move(*created);
+  EXPECT_EQ(owner.connected_consumer_count(), 0u);
+
+  auto parent_subscriber = owner.subscriber();
+  EXPECT_EQ(owner.connected_consumer_count(), 1u);
+
+  int ready_pipe[2]{};
+  int release_pipe[2]{};
+  ASSERT_EQ(::pipe(ready_pipe), 0);
+  ASSERT_EQ(::pipe(release_pipe), 0);
+  const pid_t child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    static_cast<void>(::close(ready_pipe[0]));
+    static_cast<void>(::close(release_pipe[1]));
+    auto connected = salias::FifoFanoutChannel::connect(config.name);
+    if (!connected) {
+      ::_exit(10);
+    }
+    auto child_subscriber = connected->subscriber();
+    const char ready = 'r';
+    if (::write(ready_pipe[1], &ready, sizeof(ready)) != sizeof(ready)) {
+      ::_exit(11);
+    }
+    char release = 0;
+    if (::read(release_pipe[0], &release, sizeof(release)) != sizeof(release)) {
+      ::_exit(12);
+    }
+    ::_exit(0);
+  }
+
+  static_cast<void>(::close(ready_pipe[1]));
+  static_cast<void>(::close(release_pipe[0]));
+  char ready = 0;
+  const ssize_t ready_bytes = ::read(ready_pipe[0], &ready, sizeof(ready));
+  if (ready_bytes != sizeof(ready)) {
+    const char release = 'x';
+    const ssize_t release_bytes = ::write(release_pipe[1], &release, sizeof(release));
+    static_cast<void>(release_bytes);
+    int child_status = 0;
+    static_cast<void>(::waitpid(child, &child_status, 0));
+    FAIL() << "child failed to register its subscriber";
+  }
+
+  EXPECT_EQ(owner.connected_consumer_count(), 2u);
+  const char release = 'x';
+  ASSERT_EQ(::write(release_pipe[1], &release, sizeof(release)), sizeof(release));
+  int child_status = 0;
+  ASSERT_EQ(::waitpid(child, &child_status, 0), child);
+  EXPECT_TRUE(WIFEXITED(child_status));
+  EXPECT_EQ(WEXITSTATUS(child_status), 0);
+  EXPECT_EQ(owner.connected_consumer_count(), 1u);
+
+  static_cast<void>(::close(ready_pipe[0]));
+  static_cast<void>(::close(release_pipe[1]));
+  static_cast<void>(parent_subscriber);
+}
+
 /// @brief 验证启用大页（huge page）时 capacity 必须与 2MB 对齐，
 ///   未对齐的配置应在 create 阶段被拒绝并返回 BadConfig。
 TEST(ChannelApiTest, HugePageCapacityMustBeAligned) {

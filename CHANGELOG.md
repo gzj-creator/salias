@@ -19,6 +19,7 @@ are released.
 ### Added
 
 - 新增编译期定容量的 `salias::Ringbuffer<T, Capacity, HighWatermarkPercent>`，默认以 90% 高水位丢弃最旧元素并保留最新数据；明确该类型为进程内单线程容器，不改变 IPC channel 的背压语义。
+- 新增 `Channel::connected_consumer_count()`，按共享注册槽记录的 PID 与进程启动标识统计仍存活的消费者，并在跨进程消费者退出后将其排除；该诊断能力不回收槽位，也不改变背压语义。
 
 ## [v2.1.0] - 2026-10-11
 

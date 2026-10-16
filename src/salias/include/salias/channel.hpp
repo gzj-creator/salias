@@ -78,6 +78,15 @@ class Channel {
    * @note 返回值按值传递并持有 endpoint 的 shared_ptr；分配失败时可能抛出 std::bad_alloc。
    */
   Publisher<M> publisher();
+
+  /**
+   * @brief 返回当前仍存活的已注册订阅者数量。
+   * @return 共享控制块中进程仍存活的已注册订阅槽数。
+   * @note 该值不等于可分配槽位数；已退出进程的槽位在注销回收能力完成前仍不可复用。
+   *       进程身份按 PID 与启动标识核对，操作系统暂时无法读取启动标识时退化为 PID 存活检查。
+   */
+  std::uint32_t connected_consumer_count() const noexcept;
+
   /**
    * @brief 创建绑定到当前通道的订阅端。
    * @return 绑定该通道共享状态的 Subscriber<M>。

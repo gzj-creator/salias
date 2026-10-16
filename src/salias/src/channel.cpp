@@ -14,14 +14,22 @@
 #include "salias/channel.hpp"
 
 #include <fcntl.h>
+#include <signal.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#if defined(__APPLE__)
+#include <libproc.h>
+#include <sys/proc_info.h>
+#endif
+
 #include <array>
 #include <algorithm>
 #include <atomic>
+#include <charconv>
 #include <cctype>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -47,7 +55,7 @@ namespace {
 /// @brief 匿名命名空间，仅本翻译单元可见的具名通道辅助类型与函数。
 
 inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;  // ASCII "SALC"，校验控制段归属。
-inline constexpr std::uint32_t kNamedVersion = 4;  // 控制段布局版本号，connect 须严格匹配。
+inline constexpr std::uint32_t kNamedVersion = 5;  // 控制段布局版本号，connect 须严格匹配。
 inline constexpr std::size_t kControlSize = 16u * 1024u;  // 控制段固定 16 KiB。
 inline constexpr std::size_t kCacheLineGuard = 128;  // 双 cache line 填充宽度，规避伪共享。
 inline constexpr std::size_t kMaxProducers = 16;  // 单 channel 最大 producer 数。
@@ -87,6 +95,14 @@ struct NamedRingSpec {
 struct alignas(64) NamedPositionSlot {
   std::uint64_t value = 0;  ///< consumer 当前的消费 position/sequence。
   std::byte pad[64 - sizeof(std::uint64_t)]{};  ///< 填充至 64 字节。
+};
+
+/// @brief 一个订阅者注册槽，记录进程身份以区分存活与已退出的消费者。
+struct alignas(64) NamedConsumerSlot {
+  std::uint32_t state = 0;  ///< 0 未分配，1 正在注册，2 已发布进程身份。
+  std::uint32_t pid = 0;  ///< 注册该订阅者的进程 ID。
+  std::uint64_t process_start = 0;  ///< 进程启动标识，用于识别 PID 复用。
+  std::byte pad[64 - (2 * sizeof(std::uint32_t) + sizeof(std::uint64_t))]{};  ///< 缓存行填充。
 };
 
 /// @brief 某 producer 视角下一个 consumer 的游标（position + sequence），64 字节对齐。
@@ -131,6 +147,7 @@ struct alignas(kCacheLineGuard) NamedControl {
   alignas(kCacheLineGuard) std::uint32_t num_producers = 0;  ///< 预设 producer 总数。
   alignas(kCacheLineGuard) std::uint32_t next_consumer = 0;  ///< 下一个待分配 consumer id。
   alignas(kCacheLineGuard) std::uint32_t num_consumers = 0;  ///< 预设 consumer 总数。
+  alignas(kCacheLineGuard) std::array<NamedConsumerSlot, kMaxConsumers> consumers{};
   // 各 consumer 的消费 sequence 槽。
   alignas(kCacheLineGuard) std::array<NamedPositionSlot, kMaxConsumers> consumer_sequences{};
   // 各 producer 的共享状态槽（含其 consumer 游标）。
@@ -139,6 +156,7 @@ struct alignas(kCacheLineGuard) NamedControl {
 
 // 布局断言：确保 cache line 填充正确，槽大小符合预期，控制段不超过 16 KiB。
 static_assert(sizeof(NamedPositionSlot) == 64);
+static_assert(sizeof(NamedConsumerSlot) == 64);
 static_assert(sizeof(NamedConsumerCursorSlot) == 64);
 static_assert(sizeof(NamedProducerSlot) == kCacheLineGuard + 64 * kMaxConsumers);
 static_assert(sizeof(NamedControl) <= kControlSize);
@@ -202,6 +220,78 @@ bool is_power_of_two(std::size_t value) noexcept {
 // 发布窗口合法性：0 表示不限流；非 0 时必须落在 [一页, capacity] 之内。
 bool is_valid_publication_window(std::uint64_t window, std::uint64_t capacity) noexcept {
   return window == 0 || (window >= kMinPublicationWindow && window <= capacity);
+}
+
+/// @brief 读取指定进程启动标识，避免仅凭 PID 将复用后的新进程误认为旧订阅者。
+std::uint64_t process_start_token(std::uint32_t pid) noexcept {
+#if defined(__linux__)
+  char pid_text[16]{};
+  const auto conversion = std::to_chars(pid_text, pid_text + sizeof(pid_text) - 1, pid);
+  if (conversion.ec != std::errc{}) {
+    return 0;
+  }
+  char path[32] = "/proc/";
+  const std::size_t pid_length = static_cast<std::size_t>(conversion.ptr - pid_text);
+  std::memcpy(path + 6, pid_text, pid_length);
+  std::memcpy(path + 6 + pid_length, "/stat", 6);
+  const int fd = ::open(path, O_RDONLY | O_CLOEXEC);
+  if (fd < 0) {
+    return 0;
+  }
+  char content[4096]{};
+  const ssize_t length = ::read(fd, content, sizeof(content) - 1);
+  static_cast<void>(::close(fd));
+  if (length <= 0) {
+    return 0;
+  }
+
+  char* field = std::strrchr(content, ')');
+  if (field == nullptr) {
+    return 0;
+  }
+  ++field;
+  for (int index = 3; index < 22; ++index) {
+    while (*field == ' ') {
+      ++field;
+    }
+    while (*field != '\0' && *field != ' ') {
+      ++field;
+    }
+  }
+  while (*field == ' ') {
+    ++field;
+  }
+  std::uint64_t token = 0;
+  const char* end = content + length;
+  const auto parsed = std::from_chars(field, end, token);
+  return parsed.ec == std::errc{} ? token : 0;
+#elif defined(__APPLE__)
+  proc_bsdinfo info{};
+  if (::proc_pidinfo(static_cast<int>(pid), PROC_PIDTBSDINFO, 0, &info, sizeof(info)) !=
+      static_cast<int>(sizeof(info))) {
+    return 0;
+  }
+  return static_cast<std::uint64_t>(info.pbi_start_tvsec) * 1'000'000u +
+         static_cast<std::uint64_t>(info.pbi_start_tvusec) + 1u;
+#else
+  static_cast<void>(pid);
+  return 0;
+#endif
+}
+
+/// @brief 校验 consumer 注册时的进程仍是当前占用该 PID 的同一进程。
+bool is_registered_process_alive(std::uint32_t pid, std::uint64_t start_token) noexcept {
+  if (pid == 0) {
+    return false;
+  }
+  const std::uint64_t current_token = process_start_token(pid);
+  if (start_token != 0 && current_token != 0) {
+    return current_token == start_token;
+  }
+  if (::kill(static_cast<pid_t>(pid), 0) == 0) {
+    return true;
+  }
+  return errno == EPERM;
 }
 
 /// @brief 校验 ring 容量合法性：非 0、2 的幂、不超过 size_t 一半、且对齐到系统页大小。
@@ -673,6 +763,28 @@ class NamedChannelState {
   /// @brief 获取指定 consumer 的接收端句柄。
   auto rx(std::uint32_t consumer_id) noexcept { return channel_.rx(consumer_id); }
 
+  /// @brief 统计注册槽位中仍由原进程持有的订阅者数量。
+  std::uint32_t connected_consumer_count() noexcept {
+    NamedControl* control = control_.control();
+    if (control == nullptr) {
+      return 0;
+    }
+    std::uint32_t connected = 0;
+    for (std::uint32_t consumer_id = 0; consumer_id < control->num_consumers; ++consumer_id) {
+      auto& slot = control->consumers[consumer_id];
+      if (std::atomic_ref<std::uint32_t>(slot.state).load(std::memory_order_acquire) != 2) {
+        continue;
+      }
+      const auto pid = std::atomic_ref<std::uint32_t>(slot.pid).load(std::memory_order_relaxed);
+      const auto start_token =
+          std::atomic_ref<std::uint64_t>(slot.process_start).load(std::memory_order_relaxed);
+      if (is_registered_process_alive(pid, start_token)) {
+        ++connected;
+      }
+    }
+    return connected;
+  }
+
   /// @brief 跨进程原子分配一个 producer id，耗尽则返回 nullopt。
   /// @retval std::optional<producer_id> 成功分配。
   /// @retval std::nullopt 超出 num_producers 上限。
@@ -689,13 +801,27 @@ class NamedChannelState {
   /// @retval std::nullopt 超出 num_consumers 上限。
   /// @note 非 fanout（单消费者）模式下无需分配，直接返回唯一 consumer id 0。
   std::optional<std::uint32_t> acquire_consumer_id() noexcept {
-    if constexpr (!kFanout<M>) {
-      return 0;
-    }
     NamedControl* control = control_.control();
-    const std::uint32_t consumer_id = std::atomic_ref<std::uint32_t>(control->next_consumer)
-                                          .fetch_add(1, std::memory_order_acq_rel);
-    return consumer_id < control->num_consumers ? std::optional{consumer_id} : std::nullopt;
+    const std::uint32_t consumer_id = [&] {
+      if constexpr (!kFanout<M>) {
+        return std::uint32_t{0};
+      }
+      return std::atomic_ref<std::uint32_t>(control->next_consumer)
+          .fetch_add(1, std::memory_order_acq_rel);
+    }();
+    if (consumer_id >= control->num_consumers) {
+      return std::nullopt;
+    }
+
+    auto& slot = control->consumers[consumer_id];
+    std::atomic_ref<std::uint32_t>(slot.state).store(1, std::memory_order_relaxed);
+    std::atomic_ref<std::uint32_t>(slot.pid)
+        .store(static_cast<std::uint32_t>(::getpid()), std::memory_order_relaxed);
+    std::atomic_ref<std::uint64_t>(slot.process_start)
+        .store(process_start_token(static_cast<std::uint32_t>(::getpid())),
+               std::memory_order_relaxed);
+    std::atomic_ref<std::uint32_t>(slot.state).store(2, std::memory_order_release);
+    return consumer_id;
   }
 
  private:
@@ -986,6 +1112,12 @@ Publisher<M> Channel<M>::publisher() {
   const std::uint32_t producer_id =
       state_->channel.acquire_producer_id().value_or(kInvalidEndpoint);
   return Publisher<M>(std::make_shared<PublisherEndpoint<M>>(state_, producer_id));
+}
+
+/// @brief 查询共享控制块中进程仍存活的订阅注册数量。
+template <Mode M>
+std::uint32_t Channel<M>::connected_consumer_count() const noexcept {
+  return state_ == nullptr ? 0 : state_->channel.connected_consumer_count();
 }
 
 /// @brief 分配一个 consumer 并返回其 Subscriber。
