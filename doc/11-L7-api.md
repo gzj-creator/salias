@@ -54,3 +54,8 @@ claim->commit();
 
 `Subscriber::poll` 在回调返回后自动 release。回调必须 `noexcept`，消息 payload 不能在 release
 后继续持有。
+
+进程内有界队列可使用 `salias::Ringbuffer<T, Capacity, HighWatermarkPercent>`。默认
+`HighWatermarkPercent = 90`，即最多保留 `floor(Capacity * 0.9)` 项（最少一项）；入队超出
+高水位时淘汰最旧项、保留最新项。`push()` 返回本次是否发生淘汰，`dropped_count()` 提供
+累计数。它是单线程容器，不改变 IPC Channel 的背压、借用消息或 fanout 语义。

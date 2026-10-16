@@ -16,6 +16,10 @@ are released.
 
 ## [Unreleased]
 
+### Added
+
+- 新增编译期定容量的 `salias::Ringbuffer<T, Capacity, HighWatermarkPercent>`，默认以 90% 高水位丢弃最旧元素并保留最新数据；明确该类型为进程内单线程容器，不改变 IPC channel 的背压语义。
+
 ## [v2.1.0] - 2026-10-11
 
 ### Added

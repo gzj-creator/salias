@@ -95,8 +95,10 @@ endif()
 add_executable(salias_ring_tests
   ring/atomic_cell_test.cpp
   ring/magic_ring_test.cpp
+  ring/ringbuffer_test.cpp
 )
 target_link_libraries(salias_ring_tests PRIVATE salias_core GTest::gtest_main)
+target_include_directories(salias_ring_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/salias/include")
 
 salias_enable_warnings(salias_ring_tests)
 salias_enable_sanitizers(salias_ring_tests)

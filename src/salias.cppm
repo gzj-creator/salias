@@ -26,5 +26,6 @@ using ::salias::OrderedMpscSubscriber;
 using ::salias::PublishClaim;
 using ::salias::Publisher;
 using ::salias::Result;
+using ::salias::Ringbuffer;
 using ::salias::Subscriber;
 }  // namespace salias

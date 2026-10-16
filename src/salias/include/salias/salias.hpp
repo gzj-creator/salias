@@ -14,4 +14,5 @@
 #include "salias/error.hpp"
 #include "salias/message.hpp"
 #include "salias/publisher.hpp"
+#include "salias/ringbuffer.hpp"
 #include "salias/subscriber.hpp"
