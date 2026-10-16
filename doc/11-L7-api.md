@@ -63,7 +63,8 @@ auto subscriber = owner->subscriber();
 ```
 
 `create` 和 `connect` 会把动态内存分配失败转换为 `Error::OutOfMemory`。`publisher()` 和
-`subscriber()` 需要分配端点共享状态，因此分配失败时仍可能抛出 `std::bad_alloc`。
+`subscriber()` 需要分配端点共享状态，因此分配失败时仍可能抛出 `std::bad_alloc`；也可用
+`try_subscriber()` 将分配失败转换为 `Error::OutOfMemory`。
 
 ```cpp
 auto owner = salias::FifoFanoutChannel::create(config);
@@ -71,13 +72,19 @@ auto publisher = owner->publisher();
 auto subscriber = owner->subscriber();
 ```
 
-每次 `publisher()` 分配独占 producer slot；每次 fanout `subscriber()` 分配独立 consumer
-slot。slot 耗尽后的端点操作返回 `BadConfig` 或无消息。
+每次 `publisher()` 分配独占 producer slot；每个 `subscriber()` 注册一个 consumer slot。
+`try_subscriber()` 在槽位耗尽时返回 `Error::NoSubscriberSlots`，OOM 时返回
+`Error::OutOfMemory`；兼容工厂 `subscriber()` 在槽位耗尽时返回无效端点，其操作返回
+`BadConfig` 或无消息。`Subscriber` 的副本共享同一注册，最后一个副本析构时才注销槽位。
+注册期间会暂停新的 claim，并从稳定的 producer reservation 尾初始化游标，因此 late join
+不会重放加入前的消息；旧 endpoint 的 generation 与复用后的槽位不匹配，不能读写新订阅者游标。
 
 `Channel::connected_consumer_count()` 返回当前注册槽中仍存活的订阅者数，统计的是订阅槽而非
 不同进程数或仍存活的 `Subscriber` C++ 对象。跨进程消费者须在连接后调用 `subscriber()` 注册；
 `fork()` 继承的端点仍归属于注册它的原进程，不会自动产生新的订阅槽。进程退出后该接口会
-检测到槽位对应进程已退出，但此阶段不会回收槽位或改变生产者背压；槽位注销与回收由后续能力提供。
+排除死亡注册；后续订阅注册会回收死亡进程留下的槽位和 LatestFanout lease。正常析构则立即
+注销槽位；fork 子进程销毁继承的 `Subscriber` 副本不会注销父进程的注册。槽位回收不使旧
+endpoint 复活，也不放宽可靠通道的数据保留语义。
 
 `Publisher` 持有 Tx，`Subscriber` 持有 Rx。端点不会在 `offer`、`try_recv`、`poll`、`release`
 调用中重建，因此缓存与游标跨调用保留。

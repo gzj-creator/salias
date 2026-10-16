@@ -984,6 +984,14 @@ TEST(ChannelApiTest, LatestFanoutDestroyingOneSubscriberDoesNotReleaseAnotherLea
   EXPECT_EQ(decode(second_message->payload).sequence, 0u);
   second.reset();
   EXPECT_TRUE(publisher.offer(encode(Payload{.sequence = 256})));
+
+  auto replacement = channel.try_subscriber();
+  ASSERT_TRUE(replacement);
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 257})));
+  auto latest = replacement->try_recv();
+  ASSERT_TRUE(latest);
+  EXPECT_EQ(decode(latest->payload).sequence, 257u);
+  replacement->release(*latest);
 }
 
 template <std::uint32_t Watermark>
@@ -1250,16 +1258,18 @@ TEST(ChannelApiTest, LatestFanoutReclaimsLeaseFromExitedConsumer) {
   ASSERT_TRUE(created);
   auto owner = std::move(*created);
   auto publisher = owner.publisher();
-  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 0})));
 
+  int registered_pipe[2]{};
   int acquired_pipe[2]{};
   int exit_pipe[2]{};
+  ASSERT_EQ(::pipe(registered_pipe), 0);
   ASSERT_EQ(::pipe(acquired_pipe), 0);
   ASSERT_EQ(::pipe(exit_pipe), 0);
 
   const pid_t child = ::fork();
   ASSERT_GE(child, 0);
   if (child == 0) {
+    static_cast<void>(::close(registered_pipe[0]));
     static_cast<void>(::close(acquired_pipe[0]));
     static_cast<void>(::close(exit_pipe[1]));
     auto connected = TypedChannel::connect(config.name);
@@ -1267,29 +1277,49 @@ TEST(ChannelApiTest, LatestFanoutReclaimsLeaseFromExitedConsumer) {
       ::_exit(10);
     }
     auto subscriber = connected->subscriber();
-    const auto held = subscriber.try_recv();
-    if (!held || decode(held->payload).sequence != 0u) {
+    const char registered = 'r';
+    if (::write(registered_pipe[1], &registered, sizeof(registered)) != sizeof(registered)) {
       ::_exit(11);
+    }
+    auto held = wait_for_message(subscriber);
+    if (held.payload.empty() || decode(held.payload).sequence != 0u) {
+      ::_exit(12);
     }
     const char acquired = 'a';
     if (::write(acquired_pipe[1], &acquired, sizeof(acquired)) != sizeof(acquired)) {
-      ::_exit(12);
+      ::_exit(13);
     }
     char exit = 0;
     if (::read(exit_pipe[0], &exit, sizeof(exit)) != sizeof(exit)) {
-      ::_exit(13);
+      ::_exit(14);
     }
     ::_exit(0);
   }
 
+  static_cast<void>(::close(registered_pipe[1]));
   static_cast<void>(::close(acquired_pipe[1]));
   static_cast<void>(::close(exit_pipe[0]));
+  char registered = 0;
+  ASSERT_EQ(::read(registered_pipe[0], &registered, sizeof(registered)), sizeof(registered));
+  ASSERT_EQ(registered, 'r');
+  static_cast<void>(::close(registered_pipe[0]));
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 0})));
   char acquired = 0;
   const ssize_t acquired_bytes = ::read(acquired_pipe[0], &acquired, sizeof(acquired));
 
-  bool all_published = acquired_bytes == sizeof(acquired) && acquired == 'a';
-  for (std::uint32_t sequence = 1; all_published && sequence < 256; ++sequence) {
-    all_published = publisher.offer(encode(Payload{.sequence = sequence})).has_value();
+  bool acquired_lease = acquired_bytes == sizeof(acquired) && acquired == 'a';
+  std::uint32_t resume_sequence = 1;
+  bool blocked_by_lease = false;
+  for (; acquired_lease && resume_sequence < 256; ++resume_sequence) {
+    auto offered = publisher.offer(encode(Payload{.sequence = resume_sequence}));
+    if (!offered) {
+      blocked_by_lease = offered.error() == salias::Error::BackPressured;
+      break;
+    }
+  }
+  if (acquired_lease && !blocked_by_lease) {
+    auto offered = publisher.offer(encode(Payload{.sequence = resume_sequence}));
+    blocked_by_lease = !offered && offered.error() == salias::Error::BackPressured;
   }
 
   const char exit = 'x';
@@ -1309,11 +1339,19 @@ TEST(ChannelApiTest, LatestFanoutReclaimsLeaseFromExitedConsumer) {
   ASSERT_EQ(WEXITSTATUS(child_status), 0);
 #endif
   EXPECT_EQ(exit_bytes, sizeof(exit));
-  EXPECT_TRUE(all_published);
+  EXPECT_TRUE(acquired_lease);
+  EXPECT_TRUE(blocked_by_lease);
   EXPECT_EQ(owner.connected_consumer_count(), 0u);
 
-  auto resumed = publisher.offer(encode(Payload{.sequence = 256}));
+  auto replacement = owner.try_subscriber();
+  ASSERT_TRUE(replacement);
+  EXPECT_EQ(owner.connected_consumer_count(), 1u);
+  auto resumed = publisher.offer(encode(Payload{.sequence = resume_sequence}));
   ASSERT_TRUE(resumed);
+  auto next = replacement->try_recv();
+  ASSERT_TRUE(next);
+  EXPECT_EQ(decode(next->payload).sequence, resume_sequence);
+  replacement->release(*next);
 #if defined(__linux__)
   int child_status = 0;
   ASSERT_EQ(::waitpid(child, &child_status, 0), child);
@@ -1329,38 +1367,59 @@ TEST(ChannelApiTest, LatestFanoutReclaimsLeaseAfterConsumerIsKilled) {
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
-  ASSERT_TRUE(publisher.offer(encode(Payload{})));
-  int ready_pipe[2]{};
-  ASSERT_EQ(::pipe(ready_pipe), 0);
+  int registered_pipe[2]{};
+  int acquired_pipe[2]{};
+  ASSERT_EQ(::pipe(registered_pipe), 0);
+  ASSERT_EQ(::pipe(acquired_pipe), 0);
   const auto child = ::fork();
   ASSERT_GE(child, 0);
   if (child == 0) {
-    static_cast<void>(::close(ready_pipe[0]));
+    static_cast<void>(::close(registered_pipe[0]));
+    static_cast<void>(::close(acquired_pipe[0]));
     auto connected = TypedChannel::connect(config.name);
     if (!connected) {
       ::_exit(10);
     }
     auto subscriber = connected->subscriber();
-    if (!subscriber.try_recv()) {
+    const char registered = 'r';
+    if (::write(registered_pipe[1], &registered, sizeof(registered)) != sizeof(registered)) {
       ::_exit(11);
     }
-    const char ready = 'r';
-    if (::write(ready_pipe[1], &ready, sizeof(ready)) != sizeof(ready)) {
+    const auto held = wait_for_message(subscriber);
+    if (held.payload.empty() || decode(held.payload).sequence != 0u) {
       ::_exit(12);
+    }
+    const char acquired = 'a';
+    if (::write(acquired_pipe[1], &acquired, sizeof(acquired)) != sizeof(acquired)) {
+      ::_exit(13);
     }
     for (;;) {
       ::pause();
     }
   }
-  static_cast<void>(::close(ready_pipe[1]));
-  char ready = 0;
-  const auto ready_bytes = ::read(ready_pipe[0], &ready, sizeof(ready));
-  static_cast<void>(::close(ready_pipe[0]));
-  bool all_published = ready_bytes == sizeof(ready) && ready == 'r';
-  for (std::uint32_t sequence = 1; all_published && sequence < 256; ++sequence) {
-    all_published = publisher.offer(encode(Payload{.sequence = sequence})).has_value();
+  static_cast<void>(::close(registered_pipe[1]));
+  static_cast<void>(::close(acquired_pipe[1]));
+  char registered = 0;
+  const auto registered_bytes = ::read(registered_pipe[0], &registered, sizeof(registered));
+  static_cast<void>(::close(registered_pipe[0]));
+  ASSERT_EQ(registered_bytes, sizeof(registered));
+  ASSERT_EQ(registered, 'r');
+  ASSERT_TRUE(publisher.offer(encode(Payload{})));
+  char acquired = 0;
+  const auto acquired_bytes = ::read(acquired_pipe[0], &acquired, sizeof(acquired));
+  static_cast<void>(::close(acquired_pipe[0]));
+  bool acquired_lease = acquired_bytes == sizeof(acquired) && acquired == 'a';
+  std::uint32_t resume_sequence = 1;
+  bool blocked_by_lease = false;
+  for (; acquired_lease && resume_sequence < 256; ++resume_sequence) {
+    auto offered = publisher.offer(encode(Payload{.sequence = resume_sequence}));
+    if (!offered) {
+      blocked_by_lease = offered.error() == salias::Error::BackPressured;
+      break;
+    }
   }
-  auto blocked = publisher.offer(encode(Payload{.sequence = 256}));
+  auto blocked = publisher.offer(encode(Payload{.sequence = resume_sequence}));
+  blocked_by_lease = !blocked && blocked.error() == salias::Error::BackPressured;
   const auto killed = ::kill(child, SIGKILL);
   int status = 0;
   const auto waited = ::waitpid(child, &status, 0);
@@ -1368,11 +1427,18 @@ TEST(ChannelApiTest, LatestFanoutReclaimsLeaseAfterConsumerIsKilled) {
   ASSERT_EQ(waited, child);
   ASSERT_TRUE(WIFSIGNALED(status));
   EXPECT_EQ(WTERMSIG(status), SIGKILL);
-  EXPECT_TRUE(all_published);
+  EXPECT_TRUE(acquired_lease);
+  EXPECT_TRUE(blocked_by_lease);
   ASSERT_FALSE(blocked);
   EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
   EXPECT_EQ(channel.connected_consumer_count(), 0u);
-  EXPECT_TRUE(publisher.offer(encode(Payload{.sequence = 256})));
+  auto replacement = channel.try_subscriber();
+  ASSERT_TRUE(replacement);
+  EXPECT_TRUE(publisher.offer(encode(Payload{.sequence = resume_sequence})));
+  auto next = replacement->try_recv();
+  ASSERT_TRUE(next);
+  EXPECT_EQ(decode(next->payload).sequence, resume_sequence);
+  replacement->release(*next);
 }
 
 /// @brief 验证非法的 producer/consumer 数量会被拒绝：零 producer、
@@ -1397,8 +1463,8 @@ TEST(ChannelApiTest, RejectsInvalidProducerAndConsumerCounts) {
   EXPECT_EQ(too_many_consumers.error(), salias::Error::BadConfig);
 }
 
-/// @brief 验证 producer/consumer 槽位耗尽后再次申请会在使用时返回 BadConfig。
-TEST(ChannelApiTest, ExhaustedEndpointSlotsReturnBadConfigOnUse) {
+/// @brief 验证订阅槽位耗尽可显式报告，且最后一个端点副本销毁后可复用。
+TEST(ChannelApiTest, SubscriberSlotsReportExhaustionAndAreReusedAfterLastCopyDies) {
   auto config = config_for(salias::Mode::FifoFanout, "slot-exhaustion");
   config.num_producers = 1;
   config.num_consumers = 1;
@@ -1408,17 +1474,271 @@ TEST(ChannelApiTest, ExhaustedEndpointSlotsReturnBadConfigOnUse) {
   auto first_publisher = channel.publisher();
   auto exhausted_publisher = channel.publisher();
   auto first_subscriber = channel.subscriber();
-  auto exhausted_subscriber = channel.subscriber();
+  auto subscriber_copy = first_subscriber;
+  auto exhausted_subscriber = channel.try_subscriber();
+  ASSERT_FALSE(exhausted_subscriber);
+  EXPECT_EQ(exhausted_subscriber.error(), salias::Error::NoSubscriberSlots);
+  auto legacy_subscriber = channel.subscriber();
+  EXPECT_FALSE(legacy_subscriber.try_recv());
+  auto invalid_receive = legacy_subscriber.try_recv_checked();
+  ASSERT_FALSE(invalid_receive);
+  EXPECT_EQ(invalid_receive.error(), salias::Error::BadConfig);
 
   ASSERT_TRUE(first_publisher.offer(encode(Payload{.sequence = 1})));
   auto rejected = exhausted_publisher.offer(encode(Payload{.sequence = 2}));
   ASSERT_FALSE(rejected);
   EXPECT_EQ(rejected.error(), salias::Error::BadConfig);
-  EXPECT_FALSE(exhausted_subscriber.try_recv().has_value());
 
   auto message = first_subscriber.try_recv();
   ASSERT_TRUE(message);
   first_subscriber.release(*message);
+  first_subscriber = {};
+  EXPECT_EQ(channel.connected_consumer_count(), 1u);
+  EXPECT_FALSE(channel.try_subscriber());
+  subscriber_copy = {};
+  EXPECT_EQ(channel.connected_consumer_count(), 0u);
+
+  auto replacement = channel.try_subscriber();
+  ASSERT_TRUE(replacement);
+  ASSERT_TRUE(first_publisher.offer(encode(Payload{.sequence = 3})));
+  auto next = replacement->try_recv();
+  ASSERT_TRUE(next);
+  EXPECT_EQ(decode(next->payload).sequence, 3u);
+  replacement->release(*next);
+}
+
+/// @brief fork 子进程析构继承的 endpoint 时，不得注销父进程的订阅槽。
+TEST(ChannelApiTest, ForkedCopyDoesNotDeregisterParentSubscriber) {
+  auto config = config_for(salias::Mode::FifoFanout, "forked-subscriber-copy");
+  config.num_consumers = 1;
+  auto created = salias::FifoFanoutChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  int exited_pipe[2]{};
+  ASSERT_EQ(::pipe(exited_pipe), 0);
+  const pid_t child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    static_cast<void>(::close(exited_pipe[0]));
+    subscriber = {};
+    const char exited = 'x';
+    const auto written = ::write(exited_pipe[1], &exited, sizeof(exited));
+    ::_exit(written == sizeof(exited) ? 0 : 10);
+  }
+
+  static_cast<void>(::close(exited_pipe[1]));
+  char exited = 0;
+  ASSERT_EQ(::read(exited_pipe[0], &exited, sizeof(exited)), sizeof(exited));
+  EXPECT_EQ(exited, 'x');
+  static_cast<void>(::close(exited_pipe[0]));
+  int status = 0;
+  ASSERT_EQ(::waitpid(child, &status, 0), child);
+  ASSERT_TRUE(WIFEXITED(status));
+  ASSERT_EQ(WEXITSTATUS(status), 0);
+
+  EXPECT_EQ(channel.connected_consumer_count(), 1u);
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 42})));
+  auto message = subscriber.try_recv();
+  ASSERT_TRUE(message);
+  EXPECT_EQ(decode(message->payload).sequence, 42u);
+  subscriber.release(*message);
+}
+
+/// @brief 注册新订阅者时从稳定 reservation 尾开始，不重放加入前的数据。
+TEST(ChannelApiTest, FanoutLateJoinStartsAtReservationBoundary) {
+  auto config = config_for(salias::Mode::FifoFanout, "fanout-late-join");
+  auto created = salias::FifoFanoutChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  for (std::uint32_t sequence = 0; sequence < 8; ++sequence) {
+    ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = sequence})));
+  }
+
+  auto subscriber = channel.subscriber();
+  EXPECT_FALSE(subscriber.try_recv());
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 8})));
+  auto next = subscriber.try_recv();
+  ASSERT_TRUE(next);
+  EXPECT_EQ(decode(next->payload).sequence, 8u);
+  subscriber.release(*next);
+}
+
+/// @brief OrderedFanout late join 从全局序列快照开始，并保留新消息的跨 ring 次序。
+TEST(ChannelApiTest, OrderedFanoutLateJoinStartsAtStableGlobalSequence) {
+  auto config = config_for(salias::Mode::OrderedFanout, "ordered-fanout-late-join");
+  config.num_producers = 2;
+  config.num_consumers = 2;
+  auto created = salias::OrderedFanoutChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  std::array publishers{channel.publisher(), channel.publisher()};
+  for (std::uint32_t sequence = 0; sequence < 4; ++sequence) {
+    ASSERT_TRUE(publishers[sequence % publishers.size()].offer(
+        encode(Payload{.producer = sequence % 2, .sequence = sequence})));
+  }
+
+  auto subscriber = channel.subscriber();
+  EXPECT_FALSE(subscriber.try_recv());
+  ASSERT_TRUE(publishers[1].offer(encode(Payload{.producer = 1, .sequence = 4})));
+  ASSERT_TRUE(publishers[0].offer(encode(Payload{.producer = 0, .sequence = 5})));
+  for (std::uint64_t sequence = 4; sequence < 6; ++sequence) {
+    auto message = subscriber.try_recv();
+    ASSERT_TRUE(message);
+    EXPECT_EQ(message->sequence, sequence);
+    EXPECT_EQ(decode(message->payload).sequence, sequence);
+    subscriber.release(*message);
+  }
+  EXPECT_FALSE(subscriber.try_recv());
+}
+
+/// @brief 旧进程继承的订阅端在槽位复用后不能操作新代际的游标。
+TEST(ChannelApiTest, ReusedSlotRejectsEndpointInheritedByOlderProcess) {
+  auto config = config_for(salias::Mode::FifoFanout, "stale-subscriber-generation");
+  config.num_consumers = 1;
+  auto created = salias::FifoFanoutChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto old_subscriber = channel.subscriber();
+
+  int start_pipe[2]{};
+  int checked_pipe[2]{};
+  ASSERT_EQ(::pipe(start_pipe), 0);
+  ASSERT_EQ(::pipe(checked_pipe), 0);
+  const auto child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    static_cast<void>(::close(start_pipe[1]));
+    static_cast<void>(::close(checked_pipe[0]));
+    char start = 0;
+    if (::read(start_pipe[0], &start, sizeof(start)) != sizeof(start) || start != 's') {
+      ::_exit(10);
+    }
+    const bool received = old_subscriber.try_recv().has_value();
+    const char checked = received ? 'x' : 'c';
+    if (::write(checked_pipe[1], &checked, sizeof(checked)) != sizeof(checked)) {
+      ::_exit(11);
+    }
+    ::_exit(received ? 12 : 0);
+  }
+  static_cast<void>(::close(start_pipe[0]));
+  static_cast<void>(::close(checked_pipe[1]));
+  old_subscriber = {};
+  auto replacement = channel.try_subscriber();
+  ASSERT_TRUE(replacement);
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 42})));
+  const char start = 's';
+  ASSERT_EQ(::write(start_pipe[1], &start, sizeof(start)), sizeof(start));
+  char checked = 0;
+  ASSERT_EQ(::read(checked_pipe[0], &checked, sizeof(checked)), sizeof(checked));
+  EXPECT_EQ(checked, 'c');
+  static_cast<void>(::close(start_pipe[1]));
+  static_cast<void>(::close(checked_pipe[0]));
+  int status = 0;
+  ASSERT_EQ(::waitpid(child, &status, 0), child);
+  ASSERT_TRUE(WIFEXITED(status));
+  EXPECT_EQ(WEXITSTATUS(status), 0);
+
+  auto current = replacement->try_recv();
+  ASSERT_TRUE(current);
+  EXPECT_EQ(decode(current->payload).sequence, 42u);
+  replacement->release(*current);
+}
+
+/// @brief 并发发布期间反复注册/注销订阅者不会撕裂新订阅边界或阻塞发布。
+TEST(ChannelApiTest, ConcurrentSubscriberChurnAndPublishingRemainConsistent) {
+  auto config = config_for(salias::Mode::FifoFanout, "subscriber-churn-publish");
+  config.num_producers = 2;
+  config.num_consumers = 2;
+  auto created = salias::FifoFanoutChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  std::array publishers{channel.publisher(), channel.publisher()};
+
+  constexpr std::uint32_t kMessagesPerProducer = 10000;
+  std::atomic<bool> stop{false};
+  std::atomic<std::uint32_t> done{0};
+  std::atomic<bool> failed{false};
+  std::array<std::thread, 2> producers;
+  for (std::uint32_t producer_id = 0; producer_id < producers.size(); ++producer_id) {
+    producers[producer_id] = std::thread([&, producer_id] {
+      std::uint32_t sequence = 0;
+      while (sequence < kMessagesPerProducer && !stop.load(std::memory_order_relaxed)) {
+        auto offered = publishers[producer_id].offer(
+            encode(Payload{.producer = producer_id, .sequence = sequence}));
+        if (offered) {
+          ++sequence;
+        } else if (offered.error() == salias::Error::BackPressured) {
+          std::this_thread::yield();
+        } else {
+          failed.store(true, std::memory_order_relaxed);
+          break;
+        }
+      }
+      done.fetch_add(1, std::memory_order_release);
+    });
+  }
+
+  auto drain = [&](salias::FifoFanoutSubscriber& subscriber,
+                   std::array<bool, 2>& have_previous, std::array<std::uint32_t, 2>& previous) {
+    while (auto message = subscriber.try_recv()) {
+      const auto payload = decode(message->payload);
+      if (message->producer_id >= have_previous.size() ||
+          payload.producer != message->producer_id) {
+        failed.store(true, std::memory_order_relaxed);
+      } else if (have_previous[message->producer_id] &&
+                 payload.sequence <= previous[message->producer_id]) {
+        failed.store(true, std::memory_order_relaxed);
+      } else {
+        have_previous[message->producer_id] = true;
+        previous[message->producer_id] = payload.sequence;
+      }
+      subscriber.release(*message);
+    }
+  };
+
+  for (std::uint32_t generation = 0; generation < 256 &&
+                                       done.load(std::memory_order_acquire) < producers.size();
+       ++generation) {
+    auto subscriber = channel.try_subscriber();
+    if (!subscriber) {
+      failed.store(true, std::memory_order_relaxed);
+      break;
+    }
+    std::array<bool, 2> have_previous{};
+    std::array<std::uint32_t, 2> previous{};
+    drain(*subscriber, have_previous, previous);
+    std::this_thread::yield();
+  }
+
+  auto final_subscriber = channel.try_subscriber();
+  if (!final_subscriber) {
+    failed.store(true, std::memory_order_relaxed);
+    stop.store(true, std::memory_order_relaxed);
+  } else {
+    std::array<bool, 2> have_previous{};
+    std::array<std::uint32_t, 2> previous{};
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while (done.load(std::memory_order_acquire) < producers.size() &&
+           std::chrono::steady_clock::now() < deadline) {
+      drain(*final_subscriber, have_previous, previous);
+      std::this_thread::yield();
+    }
+    if (done.load(std::memory_order_acquire) < producers.size()) {
+      failed.store(true, std::memory_order_relaxed);
+      stop.store(true, std::memory_order_relaxed);
+    }
+    drain(*final_subscriber, have_previous, previous);
+  }
+  for (auto& producer : producers) {
+    producer.join();
+  }
+  EXPECT_FALSE(failed.load(std::memory_order_relaxed));
+  EXPECT_EQ(done.load(std::memory_order_acquire), producers.size());
 }
 
 /// @brief 验证订阅者存活数按已注册槽位和注册进程状态统计。

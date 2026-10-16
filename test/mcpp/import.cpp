@@ -23,7 +23,11 @@ void roundtrip() {
   {
     salias::Result<salias::Channel<M>> owner = salias::Channel<M>::create(config);
     require(owner.has_value());
-    salias::Subscriber<M> subscriber = owner->subscriber();
+    auto subscriber_result = owner->try_subscriber();
+    require(subscriber_result.has_value());
+    auto exhausted = owner->try_subscriber();
+    require(!exhausted && exhausted.error() == salias::Error::NoSubscriberSlots);
+    salias::Subscriber<M> subscriber = std::move(*subscriber_result);
     require(header_publish(config));
     auto message = subscriber.try_recv();
     require(message && std::ranges::equal(message->payload, payload));
@@ -76,7 +80,9 @@ int main() {
     require(latest.has_value());
     require(latest->capacity() == 4096 && latest->high_watermark_percent() == 75);
     auto latest_publisher = latest->publisher();
-    auto latest_subscriber = latest->subscriber();
+    auto latest_subscriber_result = latest->try_subscriber();
+    require(latest_subscriber_result.has_value());
+    auto latest_subscriber = std::move(*latest_subscriber_result);
     const std::array latest_payload{std::byte{5}, std::byte{6}};
     require(latest_publisher.offer(latest_payload).has_value());
     auto latest_message = latest_subscriber.try_recv();

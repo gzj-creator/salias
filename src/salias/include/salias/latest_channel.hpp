@@ -87,6 +87,9 @@ class LatestFanoutChannel {
   /// @return 创建绑定到该通道的丢旧订阅端。
   LatestFanoutSubscriber subscriber() { return channel_.subscriber(); }
 
+  /// @return 创建丢旧订阅端；槽位耗尽或端点分配失败时返回明确错误。
+  Result<LatestFanoutSubscriber> try_subscriber() { return channel_.try_subscriber(); }
+
   /// @return 编译期固定的 ring 容量。
   static constexpr std::size_t capacity() noexcept { return Capacity; }
 

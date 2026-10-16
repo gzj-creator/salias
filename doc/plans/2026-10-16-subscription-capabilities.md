@@ -10,7 +10,7 @@ entry. No version tags, pushes or changes to the installed dependency copy.
 | Item | Required Outcome | Evidence / Status |
 | --- | --- | --- |
 | Ringbuffer | Static element capacity and configurable percentage, default 90%, drop-oldest | `6ee20d2`; `test/ring/ringbuffer_test.cpp` |
-| G1 | Reusable subscriber slots, deregistration, crash reclamation, safe late join/restart and explicit exhaustion | Pending. Registration generations must protect old endpoints and borrowed payloads; allocation failure must roll back. |
+| G1 | Reusable subscriber slots, deregistration, crash reclamation, safe late join/restart and explicit exhaustion | Implemented: generation-checked RAII slots, stable reservation snapshots, OOM rollback, explicit `NoSubscriberSlots`, dead-process reclamation, including fork-inherited endpoint cleanup. Release CTest 124/124; ASan/UBSan 123/123; focused TSan 6/6; mcpp import test passed. |
 | G2 | Process liveness and connected subscriber count | `6b69e17`; PID/start-token checks and cross-process API tests |
 | G3 | Bounded IPC drop-oldest with Publisher/Subscriber endpoints | `afe8ab1`, `501f502`; LatestFanout frame/lease tests and six benchmarks in `6a1185e` |
 | G4 | Explicit latest seek, exact gap counters, and a real Lagged reporting path | `try_recv_checked`, `lagged_messages`, `skipped_messages`, `skip_to_latest` on the existing endpoints; no implicit loss in reliable modes. Cross-process and wraparound tests pass. |
@@ -22,11 +22,17 @@ entry. No version tags, pushes or changes to the installed dependency copy.
 
 ## Implementation Order
 
-G2, G3 and G4 are committed. Finish G1, G5, G8, G9, G6 and G7. The order
+G1 through G4 are complete. Finish G5, G8, G9, G6 and G7. The order
 puts gap observability before lifecycle/policy work and shares the same pinning
 contract throughout. Preserve the existing reliable modes unless a caller
 explicitly opts into a lossy policy. Do not treat a local wrapper, docs alone,
 or an unused API declaration as completion of an IPC capability.
+
+The G1 registration roundtrip microbenchmark measured 205 ns with a persistent
+subscriber and 22.2 us with per-iteration registration churn (five repetitions,
+one second minimum per repetition). The executable is optimized, but the host
+Google Benchmark library reports that it was built as DEBUG; treat these figures
+as indicative only, not a calibrated baseline. This is not a long-duration stress run.
 
 ## Verification Gates
 

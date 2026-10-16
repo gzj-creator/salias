@@ -82,7 +82,7 @@ class Channel {
   /**
    * @brief 返回当前仍存活的已注册订阅者数量。
    * @return 共享控制块中进程仍存活的已注册订阅槽数。
-   * @note 该值不等于可分配槽位数；已退出进程的槽位在注销回收能力完成前仍不可复用。
+   * @note 该值不等于可分配槽位数；进程退出槽位可在后续注册时回收。
    *       进程身份按 PID 与启动标识核对，操作系统暂时无法读取启动标识时退化为 PID 存活检查。
    */
   std::uint32_t connected_consumer_count() const noexcept;
@@ -95,9 +95,15 @@ class Channel {
   /**
    * @brief 创建绑定到当前通道的订阅端。
    * @return 绑定该通道共享状态的 Subscriber<M>。
-   * @note fanout 模式下分配独立的订阅索引；分配失败时可能抛出 std::bad_alloc。
+   * @note 分配失败时可能抛出 std::bad_alloc；槽位耗尽时返回无效端点。
    */
   Subscriber<M> subscriber();
+
+  /**
+   * @brief 尝试创建绑定到当前通道的订阅端。
+   * @return 成功返回 Subscriber；订阅槽耗尽返回 NoSubscriberSlots，分配失败返回 OutOfMemory。
+   */
+  Result<Subscriber<M>> try_subscriber();
 
  private:
   /// 封装 create/connect 成功后得到的共享通道状态。

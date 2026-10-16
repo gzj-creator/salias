@@ -87,6 +87,8 @@ inline const char* error_name(salias::Error error) noexcept {
       return "BadConfig";
     case salias::Error::OutOfMemory:
       return "OutOfMemory";
+    case salias::Error::NoSubscriberSlots:
+      return "NoSubscriberSlots";
   }
   return "Unknown";
 }

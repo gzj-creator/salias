@@ -84,7 +84,14 @@ bool check_subscriber_allocations(const salias::Config& config) {
       auto subscriber = channel->subscriber();
       return !subscriber.try_recv();
     } catch (const std::bad_alloc&) {
-      // Each attempt uses a fresh channel: endpoint slot reclamation is a separate contract.
+      auto retry = channel->try_subscriber();
+      if (!retry || channel->connected_consumer_count() != 1) {
+        return false;
+      }
+      *retry = {};
+      if (channel->connected_consumer_count() != 0) {
+        return false;
+      }
     }
   }
   return false;

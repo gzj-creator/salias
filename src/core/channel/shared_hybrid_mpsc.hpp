@@ -43,6 +43,33 @@
 /// channel 层：在 ring 与 flow 之上封装生产/消费端句柄与等待策略。
 namespace salias::channel {
 
+namespace consumer_registration {
+inline constexpr std::uint64_t kPhaseMask = 0x7;
+inline constexpr std::uint64_t kFree = 0;
+inline constexpr std::uint64_t kPreparing = 1;
+inline constexpr std::uint64_t kInitializing = 2;
+inline constexpr std::uint64_t kActive = 3;
+inline constexpr std::uint64_t kReleasing = 4;
+inline constexpr std::uint64_t kReclaiming = 5;
+inline constexpr std::uint64_t kPidShift = 3;
+inline constexpr std::uint64_t kGenerationShift = 35;
+inline constexpr std::uint64_t kGenerationMask = (std::uint64_t{1} << 29) - 1;
+
+inline constexpr std::uint64_t make_token(std::uint64_t generation, std::uint32_t pid,
+                                          std::uint64_t phase) noexcept {
+  return ((generation & kGenerationMask) << kGenerationShift) |
+         (static_cast<std::uint64_t>(pid) << kPidShift) | phase;
+}
+
+inline constexpr std::uint64_t generation(std::uint64_t token) noexcept {
+  return (token >> kGenerationShift) & kGenerationMask;
+}
+
+inline constexpr std::uint32_t process_id(std::uint64_t token) noexcept {
+  return static_cast<std::uint32_t>((token >> kPidShift) & std::numeric_limits<std::uint32_t>::max());
+}
+}  // namespace consumer_registration
+
 /**
  * @brief 跨进程共享内存混合 MPSC channel。
  * @details 模板参数 Ordering 选择 Ordered(全局单调)或 Fifo(每环内 FIFO)序；
@@ -66,6 +93,7 @@ class SharedHybridMpscChannel {
     std::uint64_t* global_seq = nullptr;  ///< 全局序列号(Ordered 模式共享)，共享内存中原子字。
     std::vector<std::uint64_t*> consumer_sequences;  ///< 各 consumer 的期望序列号(Ordered)，共享内存原子字。
     std::uint32_t* wait_word = nullptr;  ///< 等待策略唤醒事件计数字。
+    std::uint64_t* registration_gate = nullptr;  ///< 注册边界快照期间阻止新 claim。
     std::uint32_t* num_producers = nullptr;  ///< producer 总数(只读)。
     std::uint32_t* num_consumers = nullptr;  ///< consumer 总数(只读)。
     bool (*is_process_alive)(std::uint32_t,
@@ -88,6 +116,8 @@ class SharedHybridMpscChannel {
     std::uint64_t* lease_end = nullptr;      ///< 当前借用 payload 的末端。
     std::uint32_t* process_id = nullptr;     ///< 注册该 consumer 的进程 ID。
     std::uint64_t* process_start = nullptr;  ///< 进程启动标识，用于识别 PID 复用。
+    std::uint64_t* registration_state = nullptr;  ///< 注册代际与阶段。
+    std::uint64_t* cursor_generation = nullptr;  ///< 游标所属注册代际。
     std::uint64_t* lagged_messages = nullptr;  ///< 该 consumer 在此 ring 观测到的丢旧数。
     std::uint64_t* skipped_messages = nullptr;  ///< 该 consumer 在此 ring 主动跳过数。
   };
@@ -101,6 +131,11 @@ class SharedHybridMpscChannel {
   struct ProducerSharedState {
     std::uint64_t* visible_producer_pos = nullptr;  ///< producer 已发布尾位置(release 更新)。
     std::uint64_t* local_sequence = nullptr;  ///< Fifo 模式下 producer 本地序列号。
+    std::uint64_t* reservation_position = nullptr;  ///< 已成功 claim 的写尾位置。
+    std::uint64_t* reservation_sequence = nullptr;  ///< reservation_position 对应的下一序列号。
+    std::uint32_t* claim_active = nullptr;  ///< claim reservation 临界区标志。
+    std::uint32_t* producer_pid = nullptr;  ///< producer 进程 ID，用于回收死亡 claim。
+    std::uint64_t* producer_process_start = nullptr;  ///< producer 进程启动标识。
     std::uint64_t* retained_position = nullptr;     ///< 丢旧模式下最早保留帧的位置。
     std::uint64_t* retention_intent = nullptr;  ///< 本次计划淘汰到的位置；UINT64_MAX 表示无计划。
     std::vector<ConsumerSharedState> consumers;  ///< 所有 consumer 对本 ring 的进度字。
@@ -179,6 +214,9 @@ class SharedHybridMpscChannel {
   Tx tx(std::uint32_t producer_id) noexcept { return Tx(*this, producer_id); }
   /// 创建指定 consumer 的接收句柄 Rx(默认 consumer_id 为 0)。
   Rx rx(std::uint32_t consumer_id = 0) { return Rx(*this, consumer_id); }
+  Rx rx(std::uint32_t consumer_id, std::uint64_t registration_token) {
+    return Rx(*this, consumer_id, registration_token);
+  }
 
  private:
   /**
@@ -211,6 +249,46 @@ class SharedHybridMpscChannel {
     std::uint64_t* intent_;
   };
 
+  class ClaimReservationGuard {
+   public:
+    ClaimReservationGuard(const SharedControl& control, const ProducerSharedState& producer) noexcept
+        : gate_(control.registration_gate), active_(producer.claim_active) {
+      if (gate_ != nullptr &&
+          std::atomic_ref<std::uint64_t>(*gate_).load(std::memory_order_seq_cst) != 0) {
+        return;
+      }
+      if (active_ == nullptr) {
+        acquired_ = true;
+        return;
+      }
+      std::atomic_ref<std::uint32_t>(*active_).store(1, std::memory_order_seq_cst);
+      owns_active_ = true;
+      acquired_ = gate_ == nullptr ||
+                  std::atomic_ref<std::uint64_t>(*gate_).load(std::memory_order_seq_cst) == 0;
+      if (!acquired_) {
+        std::atomic_ref<std::uint32_t>(*active_).store(0, std::memory_order_seq_cst);
+        owns_active_ = false;
+      }
+    }
+
+    ~ClaimReservationGuard() noexcept {
+      if (owns_active_) {
+        std::atomic_ref<std::uint32_t>(*active_).store(0, std::memory_order_seq_cst);
+      }
+    }
+
+    ClaimReservationGuard(const ClaimReservationGuard&) = delete;
+    ClaimReservationGuard& operator=(const ClaimReservationGuard&) = delete;
+
+    bool acquired() const noexcept { return acquired_; }
+
+   private:
+    std::uint64_t* gate_ = nullptr;
+    std::uint32_t* active_ = nullptr;
+    bool owns_active_ = false;
+    bool acquired_ = false;
+  };
+
   /// 判定 producer_id 是否有效(在 producer_rings_ 范围内)。
   bool has_producer(std::uint32_t producer_id) const noexcept {
     return producer_id < producer_rings_.size();
@@ -219,6 +297,22 @@ class SharedHybridMpscChannel {
   /// 判定 consumer_id 是否有效(小于共享内存中的 consumer 总数)。
   bool has_consumer(std::uint32_t consumer_id) const noexcept {
     return consumer_id < consumer_count();
+  }
+
+  bool has_consumer(std::uint32_t consumer_id, std::uint64_t registration_token) const noexcept {
+    if (consumer_id >= consumer_count() || producer_rings_.empty() ||
+        consumer_id >= producer_rings_.front().shared.consumers.size()) {
+      return false;
+    }
+    const auto* registration =
+        producer_rings_.front().shared.consumers[consumer_id].registration_state;
+    if (registration == nullptr) {
+      return registration_token == 0;
+    }
+    return (registration_token & consumer_registration::kPhaseMask) ==
+               consumer_registration::kActive &&
+           std::atomic_ref<std::uint64_t>(*const_cast<std::uint64_t*>(registration))
+                   .load(std::memory_order_acquire) == registration_token;
   }
 
   // 返回流控闸门用的有效容量：窗口为 0 时即环容量，否则取 min(环容量, 窗口)。
@@ -238,26 +332,44 @@ class SharedHybridMpscChannel {
    * @note 该值代表"最慢消费者"的进度，用于 claim 时计算可用空间(背压闸门)。
    *       以 acquire 读取各 consumer 的共享位置字，看到其 release-store 的最新值。
    */
-  static std::uint64_t minimum_consumer_position(const ProducerRing& producer) noexcept {
-    if (producer.shared.consumers.empty() ||
-        producer.shared.consumers.front().position == nullptr) {
-      return 0;
-    }
-    std::uint64_t minimum =
-        std::atomic_ref<std::uint64_t>(*producer.shared.consumers.front().position)
-            .load(std::memory_order_acquire);
-    for (std::size_t index = 1; index < producer.shared.consumers.size(); ++index) {
-      if (producer.shared.consumers[index].position == nullptr) {
+  std::uint64_t minimum_consumer_position(const ProducerRing& producer) const noexcept {
+    std::uint64_t minimum = std::numeric_limits<std::uint64_t>::max();
+    for (const auto& consumer : producer.shared.consumers) {
+      if (consumer.position == nullptr) {
         return 0;
       }
-      const std::uint64_t position =
-          std::atomic_ref<std::uint64_t>(*producer.shared.consumers[index].position)
-              .load(std::memory_order_acquire);
-      if (position < minimum) {
-        minimum = position;
+      if (consumer.registration_state == nullptr) {
+        minimum = std::min(minimum, std::atomic_ref<std::uint64_t>(*consumer.position)
+                                        .load(std::memory_order_acquire));
+        continue;
+      }
+      const auto state = std::atomic_ref<std::uint64_t>(*consumer.registration_state)
+                             .load(std::memory_order_acquire);
+      if ((state & consumer_registration::kPhaseMask) != consumer_registration::kActive) {
+        continue;
+      }
+      if (consumer.cursor_generation == nullptr ||
+          consumer_registration::generation(state) !=
+              std::atomic_ref<std::uint64_t>(*consumer.cursor_generation)
+                  .load(std::memory_order_acquire)) {
+        return 0;
+      }
+      if (control_.is_process_alive != nullptr && consumer.process_id != nullptr &&
+          consumer.process_start != nullptr &&
+          !control_.is_process_alive(
+              std::atomic_ref<std::uint32_t>(*consumer.process_id).load(std::memory_order_relaxed),
+              std::atomic_ref<std::uint64_t>(*consumer.process_start)
+                  .load(std::memory_order_relaxed))) {
+        continue;
+      }
+      minimum = std::min(minimum, std::atomic_ref<std::uint64_t>(*consumer.position)
+                                      .load(std::memory_order_acquire));
+      if (std::atomic_ref<std::uint64_t>(*consumer.registration_state)
+              .load(std::memory_order_acquire) != state) {
+        return 0;
       }
     }
-    return minimum;
+    return minimum == std::numeric_limits<std::uint64_t>::max() ? 0 : minimum;
   }
 
   static constexpr std::uint64_t kNoLease = std::numeric_limits<std::uint64_t>::max();
@@ -384,13 +496,21 @@ class SharedHybridMpscChannel {
       if (!channel.has_producer(producer_id)) {
         return;
       }
-      auto* visible_pos = channel.producer_rings_[producer_id].shared.visible_producer_pos;
-      if (visible_pos != nullptr) {
+      auto& shared = channel.producer_rings_[producer_id].shared;
+      auto* visible_pos = shared.visible_producer_pos;
+      auto* reservation_pos = shared.reservation_position;
+      if (reservation_pos != nullptr) {
+        producer_pos_ = std::atomic_ref<std::uint64_t>(*reservation_pos)
+                            .load(std::memory_order_acquire);
+      } else if (visible_pos != nullptr) {
         // 端点创建/重连时只需同步一次共享尾位置；此后 Tx 由单线程独占，
         // producer_pos_ 可作为权威本地写游标，发布时再 release-store 给 consumer。
         producer_pos_ =
             std::atomic_ref<std::uint64_t>(*visible_pos).load(std::memory_order_acquire);
-        published_pos_ = producer_pos_;
+      }
+      if (visible_pos != nullptr) {
+        published_pos_ = std::atomic_ref<std::uint64_t>(*visible_pos)
+                             .load(std::memory_order_acquire);
       }
     }
 
@@ -415,6 +535,10 @@ class SharedHybridMpscChannel {
                           producer.shared.retention_intent == nullptr)) ||
           (Ordering == Order::Fifo && producer.shared.local_sequence == nullptr)) {
         return std::unexpected(flow::FlowError::MessageTooLarge);
+      }
+      ClaimReservationGuard reservation_guard(channel_->control_, producer.shared);
+      if (!reservation_guard.acquired()) {
+        return std::unexpected(flow::FlowError::BackPressured);
       }
 
       const std::size_t need = frame::frame_len(payload_len);
@@ -455,6 +579,7 @@ class SharedHybridMpscChannel {
             .store(producer.local_sequence, std::memory_order_relaxed);
       }
       producer_pos_ = tail + need;
+      publish_reservation(producer, producer_pos_, sequence + 1);
       return flow::Claim{
           .payload = producer.ring.slice_mut(tail + frame::kHeaderSize, payload_len),
           .start_pos = tail,
@@ -487,6 +612,10 @@ class SharedHybridMpscChannel {
                           producer.shared.retention_intent == nullptr)) ||
           (Ordering == Order::Fifo && producer.shared.local_sequence == nullptr)) {
         return std::unexpected(flow::FlowError::MessageTooLarge);
+      }
+      ClaimReservationGuard reservation_guard(channel_->control_, producer.shared);
+      if (!reservation_guard.acquired()) {
+        return std::unexpected(flow::FlowError::BackPressured);
       }
 
       const std::size_t per = frame::frame_len(payload_len);
@@ -535,6 +664,7 @@ class SharedHybridMpscChannel {
       }
       const std::uint64_t span_bytes = static_cast<std::uint64_t>(per) * fit;
       producer_pos_ = tail + span_bytes;
+      publish_reservation(producer, producer_pos_, base_sequence + fit);
       return flow::BatchClaim{
           .region = producer.ring.slice_mut(tail, static_cast<std::size_t>(span_bytes)),
           .start_pos = tail,
@@ -621,6 +751,18 @@ class SharedHybridMpscChannel {
     std::uint64_t cached_consumer_pos_ = 0;
     /// 乱序 commit 的已提交区间。按序 commit 时为空。
     std::vector<hybrid_detail::CommitSpan> pending_commits_;
+
+    static void publish_reservation(ProducerRing& producer, std::uint64_t position,
+                                    std::uint64_t sequence) noexcept {
+      if (producer.shared.reservation_position == nullptr ||
+          producer.shared.reservation_sequence == nullptr) {
+        return;
+      }
+      std::atomic_ref<std::uint64_t>(*producer.shared.reservation_position)
+          .store(position, std::memory_order_relaxed);
+      std::atomic_ref<std::uint64_t>(*producer.shared.reservation_sequence)
+          .store(sequence, std::memory_order_relaxed);
+    }
 
     /// @brief 丢旧模式下移动保留头，并确保本次写入不碰任何仍被借用的 payload。
     bool prepare_drop_oldest_write(ProducerRing& producer, std::uint64_t tail,
@@ -755,15 +897,17 @@ class SharedHybridMpscChannel {
      * @note 初始化时读取共享内存中的 consumer 位置与序列号，实现 reconnect 后续传。
      *       flushed_positions_ 初值等于 read_positions_，表示初始无未刷新进度。
      */
-    explicit Rx(SharedHybridMpscChannel& channel, std::uint32_t consumer_id)
+    explicit Rx(SharedHybridMpscChannel& channel, std::uint32_t consumer_id,
+                std::uint64_t registration_token = 0)
         : channel_(&channel),
           consumer_id_(consumer_id),
+          registration_token_(registration_token),
           read_positions_(channel.producer_rings_.size(), 0),
           next_sequences_(channel.producer_rings_.size(), 0),
           cached_visible_pos_(channel.producer_rings_.size(), 0),
           flushed_positions_(channel.producer_rings_.size(), 0),
           active_leases_(channel.producer_rings_.size(), false) {
-      if (!channel.has_consumer(consumer_id)) {
+      if (!channel.has_consumer(consumer_id, registration_token)) {
         return;
       }
       // Ordered 模式：从全局 consumer_sequences 取回期望序列号。
@@ -818,7 +962,7 @@ class SharedHybridMpscChannel {
         auto received = try_recv_latest(false);
         return received ? *received : std::nullopt;
       } else {
-        if (channel_ == nullptr || !channel_->has_consumer(consumer_id_) ||
+        if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_) ||
             channel_->producer_rings_.empty() ||
             (Ordering == Order::Ordered &&
              (consumer_id_ >= channel_->control_.consumer_sequences.size() ||
@@ -863,7 +1007,7 @@ class SharedHybridMpscChannel {
 
     /// Report an observed eviction once before delivering from the new retained floor.
     ReceiveResult try_recv_checked() noexcept {
-      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_)) {
+      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_)) {
         return std::unexpected(ReceiveError::BadConfig);
       }
       if constexpr (DropOldest) {
@@ -889,7 +1033,7 @@ class SharedHybridMpscChannel {
       if constexpr (!DropOldest) {
         return std::unexpected(ReceiveError::BadConfig);
       } else {
-        if (channel_ == nullptr || !channel_->has_consumer(consumer_id_) ||
+        if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_) ||
             !channel_->has_producer(producer_id)) {
           return std::unexpected(ReceiveError::BadConfig);
         }
@@ -963,7 +1107,7 @@ class SharedHybridMpscChannel {
         return try_recv_run_latest(out, cap);
       } else {
         if (out == nullptr || cap == 0 || channel_ == nullptr ||
-            !channel_->has_consumer(consumer_id_) || channel_->producer_rings_.empty() ||
+            !channel_->has_consumer(consumer_id_, registration_token_) || channel_->producer_rings_.empty() ||
             (Ordering == Order::Ordered &&
              (consumer_id_ >= channel_->control_.consumer_sequences.size() ||
               channel_->control_.consumer_sequences[consumer_id_] == nullptr))) {
@@ -1069,7 +1213,7 @@ class SharedHybridMpscChannel {
      *       本方法是"每消息回写"语义，批量场景请用 consume + flush_progress。
      */
     void release(const flow::Message& message) noexcept {
-      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_) ||
+      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_) ||
           message.producer_id >= channel_->producer_rings_.size()) {
         return;
       }
@@ -1113,7 +1257,7 @@ class SharedHybridMpscChannel {
      * @note 配合 flush_progress() 使用，将共享内存回写从"每消息"收敛为"每批次每环"。
      */
     void consume(const flow::Message& message) noexcept {
-      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_) ||
+      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_) ||
           message.producer_id >= channel_->producer_rings_.size()) {
         return;
       }
@@ -1134,7 +1278,7 @@ class SharedHybridMpscChannel {
      *       的 position/sequence；Fifo 模式回写 position 与 sequence。
      */
     void flush_progress() noexcept {
-      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_)) {
+      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_)) {
         return;
       }
       const std::size_t count = channel_->producer_rings_.size();
@@ -1175,6 +1319,7 @@ class SharedHybridMpscChannel {
    private:
     SharedHybridMpscChannel* channel_;  ///< 所属 channel(非拥有)。
     std::uint32_t consumer_id_ = 0;     ///< 本句柄的 consumer 索引。
+    std::uint64_t registration_token_ = 0;  ///< 订阅槽的代际令牌。
     std::uint32_t last_hit_ring_ = 0;   ///< 上次命中的 producer ring，用于轮转扫描。
     std::vector<std::uint64_t> read_positions_;  ///< 各 producer ring 的本地读位置(字节)。
     std::vector<std::uint64_t> next_sequences_;  ///< 各 producer ring 的期望序列号(Fifo 模式)。
@@ -1185,7 +1330,7 @@ class SharedHybridMpscChannel {
     using ReceiveCounter = std::uint64_t* ConsumerSharedState::*;
 
     std::uint64_t shared_receive_count(ReceiveCounter counter) const noexcept {
-      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_)) {
+      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_)) {
         return 0;
       }
       std::uint64_t total = 0;
@@ -1246,7 +1391,8 @@ class SharedHybridMpscChannel {
     }
 
     void clear_latest_lease(std::uint32_t producer_id) noexcept {
-      if (channel_ == nullptr || producer_id >= channel_->producer_rings_.size() ||
+      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_) ||
+          producer_id >= channel_->producer_rings_.size() ||
           consumer_id_ >= channel_->producer_rings_[producer_id].shared.consumers.size()) {
         return;
       }
@@ -1279,7 +1425,7 @@ class SharedHybridMpscChannel {
     }
 
     ReceiveResult try_recv_latest(bool report_lag) noexcept {
-      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_) ||
+      if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_) ||
           channel_->producer_rings_.empty()) {
         return std::nullopt;
       }
@@ -1347,7 +1493,7 @@ class SharedHybridMpscChannel {
 
     std::uint32_t try_recv_run_latest(flow::Message* out, std::uint32_t cap) noexcept {
       if (out == nullptr || cap == 0 || channel_ == nullptr ||
-          !channel_->has_consumer(consumer_id_) || channel_->producer_rings_.empty()) {
+          !channel_->has_consumer(consumer_id_, registration_token_) || channel_->producer_rings_.empty()) {
         return 0;
       }
       const std::size_t count = channel_->producer_rings_.size();

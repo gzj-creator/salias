@@ -38,13 +38,15 @@ struct SubscriberEndpoint;
 /**
  * @brief 订阅端，从通道读取消息的消费者接口。
  * @details 封装 L3 flow 层 consumer 引擎，通过 shared_ptr<SubscriberEndpoint> 共享
- *          通道状态。fanout（MPMC）模式下携带独立订阅索引，每个消费者维护各自的
- *          消费进度。由 Channel::subscriber() 创建。接收到的 Message 为借用视图，
+ *          通道状态。每个端点持有带 generation 的订阅注册；Subscriber 拷贝共享同一注册，
+ *          最后一个副本析构时注销并释放槽位。接收到的 Message 为借用视图，
  *          需通过 release() 释放对应环空间以供生产者回收复用。
  */
 template <Mode M>
 class Subscriber {
  public:
+  Subscriber() noexcept = default;
+
   /// 批量轮询使用的 C 风格函数指针回调类型；user 为透传的用户上下文指针。
   using PollCallback = void (*)(const Message& message, void* user) noexcept;
 

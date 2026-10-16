@@ -283,6 +283,58 @@ void BM_latest_fast_subscriber_64b(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
 }
 
+template <bool ChurnSubscriber>
+void BM_fanout_registration_roundtrip_64b(benchmark::State& state) {
+  auto config = config_for(salias::Mode::FifoFanout, 4096);
+  auto created = salias::FifoFanoutChannel::create(config);
+  if (!created) {
+    state.SkipWithError("failed to create fifo fanout channel");
+    return;
+  }
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  SmallPayload payload{};
+
+  auto exchange = [&](salias::FifoFanoutSubscriber& subscriber) {
+    auto offered = publisher.offer(std::as_bytes(std::span{&payload, 1}));
+    if (!offered) {
+      state.SkipWithError("fifo fanout offer failed");
+      return false;
+    }
+    auto message = subscriber.try_recv();
+    if (!message || decode_small(message->payload).seq != payload.seq) {
+      state.SkipWithError("fifo fanout roundtrip payload mismatch");
+      return false;
+    }
+    benchmark::DoNotOptimize(message->payload.data());
+    subscriber.release(*message);
+    ++payload.seq;
+    return true;
+  };
+
+  if constexpr (ChurnSubscriber) {
+    for (auto _ : state) {
+      auto subscriber = channel.try_subscriber();
+      if (!subscriber) {
+        state.SkipWithError("subscriber registration failed during churn");
+        return;
+      }
+      if (!exchange(*subscriber)) {
+        return;
+      }
+    }
+  } else {
+    auto subscriber = channel.subscriber();
+    for (auto _ : state) {
+      if (!exchange(subscriber)) {
+        return;
+      }
+    }
+  }
+  state.SetItemsProcessed(state.iterations());
+  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
+}
+
 // Keep the subscriber idle through many wraps, then verify the entire retained suffix.
 template <std::uint32_t Watermark>
 void BM_latest_slow_subscriber_64b(benchmark::State& state) {
@@ -501,6 +553,8 @@ BENCHMARK_TEMPLATE(BM_four_producers_64b, salias::Mode::OrderedMpsc)
 
 BENCHMARK_TEMPLATE(BM_latest_fast_subscriber_64b, 50)->Unit(benchmark::kNanosecond);
 BENCHMARK_TEMPLATE(BM_latest_fast_subscriber_64b, 90)->Unit(benchmark::kNanosecond);
+BENCHMARK_TEMPLATE(BM_fanout_registration_roundtrip_64b, false)->Unit(benchmark::kNanosecond);
+BENCHMARK_TEMPLATE(BM_fanout_registration_roundtrip_64b, true)->Unit(benchmark::kNanosecond);
 BENCHMARK_TEMPLATE(BM_latest_slow_subscriber_64b, 50)->Arg(4096)->Unit(benchmark::kMicrosecond);
 BENCHMARK_TEMPLATE(BM_latest_slow_subscriber_64b, 90)->Arg(4096)->Unit(benchmark::kMicrosecond);
 BENCHMARK_TEMPLATE(BM_latest_concurrent_fanout_64b, 50)

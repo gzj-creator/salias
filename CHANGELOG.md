@@ -18,6 +18,7 @@ are released.
 
 ### Added
 
+- 为 IPC 订阅者增加可复用注册槽：最后一个 `Subscriber` 副本销毁时注销，后续注册回收进程崩溃遗留槽位；代际令牌隔离旧端点，late join 从稳定的 reservation 尾开始。新增 `Channel::try_subscriber()` 与 `Error::NoSubscriberSlots`，共享控制段版本升至 v9。
 - 新增编译期定容量的 `salias::Ringbuffer<T, Capacity, HighWatermarkPercent>`，默认以 90% 高水位丢弃最旧元素并保留最新数据；明确该类型为进程内单线程容器，不改变 IPC channel 的背压语义。
 - 新增 `Channel::connected_consumer_count()`，按共享注册槽记录的 PID 与进程启动标识统计仍存活的消费者，并在跨进程消费者退出后将其排除；该诊断能力不回收槽位，也不改变背压语义。
 - 新增 `LatestFanout` IPC 通道策略及对应 Publisher / Subscriber 端点；`LatestFanoutChannel<Capacity, HighWatermarkPercent>` 在编译期固定 ring 容量与保留水位（默认 90%），慢消费者可跳过保留窗口外的消息，连接时校验模板配置，并在借用 payload 时防止覆盖、在订阅进程退出后回收失效 lease。共享控制段版本升至 v8，旧布局通道不能与新版本交叉连接。
@@ -69,6 +70,7 @@ are released.
 
 ### Tests
 
+- 新增订阅槽位耗尽与复用、末副本注销、分配失败回滚、late join 边界、旧 generation endpoint 隔离、正常退出与 SIGKILL 回收、fork 子进程析构隔离，以及发布期间并发注册/注销覆盖。
 - 修复前批量长度测试失败，修复后通过；release CTest 全量、ASan/UBSan 批量长度测试、mcpp 混合消费和外部消费者、gts-quote 契约与跨进程背压/清理验证通过。macOS mcpp 构建尚未实测。
 - 新增 commit 可见性契约测试，覆盖同一 producer 连续 claim 后乱序 commit，验证 consumer 不会越过未提交空洞且共享可见位置不会回退。
 - 新增 FIFO 三 ring 公平扫描、Ordered 跨 ring 批量、fanout 慢消费者保留、并发回绕背压与 SPSC 本地游标回归测试。

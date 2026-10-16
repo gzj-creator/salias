@@ -342,37 +342,84 @@ TEST_F(LatestSubscriptionTest, SubscriberCopiesShareCountersAndSeekProgress) {
 
 TEST_F(LatestSubscriptionTest, CheckedLagAndSeekWorkAcrossProcesses) {
   auto publisher = channel_->publisher();
-  for (std::uint64_t sequence = 0; sequence < 300; ++sequence) {
-    ASSERT_TRUE(offer(publisher, sequence));
-  }
+  int registered_pipe[2]{};
+  int publish_pipe[2]{};
+  ASSERT_EQ(::pipe(registered_pipe), 0);
+  ASSERT_EQ(::pipe(publish_pipe), 0);
   const auto child = ::fork();
   ASSERT_GE(child, 0);
   if (child == 0) {
+    static_cast<void>(::close(registered_pipe[0]));
+    static_cast<void>(::close(publish_pipe[1]));
     auto connected = Channel::connect(config_.name);
     if (!connected) {
       ::_exit(10);
     }
     auto subscriber = connected->subscriber();
+    const char registered = 'r';
+    if (::write(registered_pipe[1], &registered, sizeof(registered)) != sizeof(registered)) {
+      ::_exit(11);
+    }
+    char publish = 0;
+    if (::read(publish_pipe[0], &publish, sizeof(publish)) != sizeof(publish)) {
+      ::_exit(12);
+    }
+    if (publish != 'p') {
+      ::_exit(13);
+    }
     auto lagged = subscriber.try_recv_checked();
     if (lagged || lagged.error() != salias::Error::Lagged ||
         subscriber.lagged_messages() != 172) {
-      ::_exit(11);
+      ::_exit(14);
     }
     auto skipped = subscriber.skip_to_latest();
     if (!skipped || *skipped != 127 || subscriber.skipped_messages() != 127) {
-      ::_exit(12);
+      ::_exit(15);
     }
     auto latest = subscriber.try_recv_checked();
     if (!latest || !*latest || (*latest)->sequence != 299 || decode(**latest) != 299) {
-      ::_exit(13);
+      ::_exit(16);
     }
     subscriber.release(**latest);
     ::_exit(0);
   }
+  static_cast<void>(::close(registered_pipe[1]));
+  static_cast<void>(::close(publish_pipe[0]));
+  char registered = 0;
+  ASSERT_EQ(::read(registered_pipe[0], &registered, sizeof(registered)), sizeof(registered));
+  ASSERT_EQ(registered, 'r');
+  for (std::uint64_t sequence = 0; sequence < 300; ++sequence) {
+    ASSERT_TRUE(offer(publisher, sequence));
+  }
+  const char publish = 'p';
+  ASSERT_EQ(::write(publish_pipe[1], &publish, sizeof(publish)), sizeof(publish));
+  static_cast<void>(::close(registered_pipe[0]));
+  static_cast<void>(::close(publish_pipe[1]));
   int status = 0;
   ASSERT_EQ(::waitpid(child, &status, 0), child);
   ASSERT_TRUE(WIFEXITED(status));
   EXPECT_EQ(WEXITSTATUS(status), 0);
+}
+
+TEST_F(LatestSubscriptionTest, LateJoinStartsAtTheCurrentReservationBoundary) {
+  auto publisher = channel_->publisher();
+  for (std::uint64_t sequence = 0; sequence < 8; ++sequence) {
+    ASSERT_TRUE(offer(publisher, sequence));
+  }
+
+  auto subscriber = channel_->subscriber();
+  auto old_messages = subscriber.try_recv_checked();
+  ASSERT_TRUE(old_messages);
+  EXPECT_FALSE(*old_messages);
+  EXPECT_EQ(subscriber.lagged_messages(), 0u);
+
+  ASSERT_TRUE(offer(publisher, 8));
+  auto next = subscriber.try_recv_checked();
+  ASSERT_TRUE(next);
+  ASSERT_TRUE(*next);
+  EXPECT_EQ((*next)->sequence, 8u);
+  EXPECT_EQ(decode(**next), 8u);
+  subscriber.release(**next);
 }
 
 void check_concurrent_delivery(salias::LatestFanoutPublisher publisher,
