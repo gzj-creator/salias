@@ -422,6 +422,194 @@ TEST_F(LatestSubscriptionTest, LateJoinStartsAtTheCurrentReservationBoundary) {
   subscriber.release(**next);
 }
 
+TEST_F(LatestSubscriptionTest, ReliableAndDropOldestSubscribersKeepIndependentPolicies) {
+  auto publisher = channel_->publisher();
+  auto reliable = channel_->subscriber(salias::SubscriptionPolicy::Reliable);
+  auto lossy = channel_->subscriber(salias::SubscriptionPolicy::DropOldest);
+
+  for (std::uint64_t sequence = 0; sequence < 300; ++sequence) {
+    ASSERT_TRUE(offer(publisher, sequence));
+    auto message = reliable.try_recv_checked();
+    ASSERT_TRUE(message);
+    ASSERT_TRUE(*message);
+    EXPECT_EQ((*message)->sequence, sequence);
+    EXPECT_EQ(decode(**message), sequence);
+    reliable.release(**message);
+  }
+
+  EXPECT_EQ(reliable.lagged_messages(), 0u);
+  auto reliable_seek = reliable.skip_to_latest();
+  ASSERT_FALSE(reliable_seek);
+  EXPECT_EQ(reliable_seek.error(), salias::Error::BadConfig);
+
+  auto lagged = lossy.try_recv_checked();
+  ASSERT_FALSE(lagged);
+  EXPECT_EQ(lagged.error(), salias::Error::Lagged);
+  EXPECT_EQ(lossy.lagged_messages(), 172u);
+  auto retained = lossy.try_recv_checked();
+  ASSERT_TRUE(retained);
+  ASSERT_TRUE(*retained);
+  EXPECT_EQ((*retained)->sequence, 172u);
+  EXPECT_EQ(decode(**retained), 172u);
+  lossy.release(**retained);
+}
+
+TEST_F(LatestSubscriptionTest, ReliableBatchProgressAndBorrowBlockEvictionUntilFlush) {
+  auto publisher = channel_->publisher();
+  auto reliable = channel_->subscriber(salias::SubscriptionPolicy::Reliable);
+  auto lossy = channel_->subscriber(salias::SubscriptionPolicy::DropOldest);
+
+  for (std::uint64_t sequence = 0; sequence < 128; ++sequence) {
+    ASSERT_TRUE(offer(publisher, sequence));
+  }
+  const std::uint64_t boundary_sequence = 128;
+  auto blocked = publisher.offer(std::as_bytes(std::span{&boundary_sequence, 1}));
+  ASSERT_FALSE(blocked);
+  EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
+
+  bool attempted = false;
+  bool callback_write_blocked = false;
+  const auto received = reliable.poll(32, [&](const salias::Message&) noexcept {
+    if (attempted) {
+      return;
+    }
+    attempted = true;
+    const std::uint64_t sequence = 128;
+    auto result = publisher.offer(std::as_bytes(std::span{&sequence, 1}));
+    callback_write_blocked = !result && result.error() == salias::Error::BackPressured;
+  });
+  EXPECT_EQ(received, 32u);
+  EXPECT_TRUE(callback_write_blocked);
+  ASSERT_TRUE(offer(publisher, 128));
+
+  for (std::uint64_t sequence = 32; sequence <= 128; ++sequence) {
+    auto message = reliable.try_recv_checked();
+    ASSERT_TRUE(message);
+    ASSERT_TRUE(*message);
+    EXPECT_EQ((*message)->sequence, sequence);
+    EXPECT_EQ(decode(**message), sequence);
+    reliable.release(**message);
+  }
+  EXPECT_EQ(reliable.lagged_messages(), 0u);
+
+  auto lagged = lossy.try_recv_checked();
+  ASSERT_FALSE(lagged);
+  EXPECT_EQ(lagged.error(), salias::Error::Lagged);
+  EXPECT_EQ(lossy.lagged_messages(), 1u);
+}
+
+TEST_F(LatestSubscriptionTest, CrossProcessReliablePolicyProtectsUnreadFrames) {
+  auto publisher = channel_->publisher();
+  int registered_pipe[2]{};
+  int command_pipe[2]{};
+  int result_pipe[2]{};
+  ASSERT_EQ(::pipe(registered_pipe), 0);
+  ASSERT_EQ(::pipe(command_pipe), 0);
+  ASSERT_EQ(::pipe(result_pipe), 0);
+
+  const pid_t child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    static_cast<void>(::close(registered_pipe[0]));
+    static_cast<void>(::close(command_pipe[1]));
+    static_cast<void>(::close(result_pipe[0]));
+    auto connected = Channel::connect(config_.name);
+    if (!connected) {
+      const char failed = 'e';
+      const auto written = ::write(registered_pipe[1], &failed, sizeof(failed));
+      static_cast<void>(written);
+      ::_exit(10);
+    }
+    auto subscriber = connected->try_subscriber(salias::SubscriptionPolicy::Reliable);
+    if (!subscriber) {
+      const char failed = 'e';
+      const auto written = ::write(registered_pipe[1], &failed, sizeof(failed));
+      static_cast<void>(written);
+      ::_exit(11);
+    }
+    const char registered = 'r';
+    if (::write(registered_pipe[1], &registered, sizeof(registered)) != sizeof(registered)) {
+      ::_exit(12);
+    }
+    char command = 0;
+    if (::read(command_pipe[0], &command, sizeof(command)) != sizeof(command) || command != 'r') {
+      ::_exit(0);
+    }
+    auto message = subscriber->try_recv_checked();
+    char result = 'e';
+    if (message && *message && decode(**message) == 0) {
+      subscriber->release(**message);
+      result = 'a';
+    }
+    const auto written = ::write(result_pipe[1], &result, sizeof(result));
+    if (written != sizeof(result)) {
+      ::_exit(14);
+    }
+    ::_exit(result == 'a' ? 0 : 13);
+  }
+
+  static_cast<void>(::close(registered_pipe[1]));
+  static_cast<void>(::close(command_pipe[0]));
+  static_cast<void>(::close(result_pipe[1]));
+  char registration = 0;
+  const auto registration_bytes = ::read(registered_pipe[0], &registration, sizeof(registration));
+  static_cast<void>(::close(registered_pipe[0]));
+  const bool child_registered = registration_bytes == sizeof(registration) && registration == 'r';
+
+  bool prefill_ok = child_registered;
+  bool backpressured = false;
+  bool resumed = false;
+  std::uint64_t failed_at = 0;
+  std::optional<salias::LatestFanoutSubscriber> lossy;
+  if (child_registered) {
+    auto subscriber_result = channel_->try_subscriber(salias::SubscriptionPolicy::DropOldest);
+    if (!subscriber_result) {
+      prefill_ok = false;
+    } else {
+      lossy.emplace(std::move(*subscriber_result));
+    }
+    for (std::uint64_t sequence = 0; prefill_ok && sequence < 128; ++sequence) {
+      if (!offer(publisher, sequence)) {
+        prefill_ok = false;
+      }
+    }
+    if (prefill_ok) {
+      failed_at = 128;
+      auto full = publisher.offer(std::as_bytes(std::span{&failed_at, 1}));
+      backpressured = !full && full.error() == salias::Error::BackPressured;
+    }
+  }
+
+  if (child_registered) {
+    const char command = prefill_ok ? 'r' : 'x';
+    const auto command_bytes = ::write(command_pipe[1], &command, sizeof(command));
+    static_cast<void>(command_bytes);
+  }
+  static_cast<void>(::close(command_pipe[1]));
+  char child_result = 0;
+  const auto child_result_bytes = ::read(result_pipe[0], &child_result, sizeof(child_result));
+  static_cast<void>(::close(result_pipe[0]));
+  if (child_result_bytes == sizeof(child_result) && child_result == 'a' && backpressured) {
+    resumed = offer(publisher, failed_at);
+  }
+  int status = 0;
+  ASSERT_EQ(::waitpid(child, &status, 0), child);
+  ASSERT_TRUE(WIFEXITED(status));
+  EXPECT_EQ(WEXITSTATUS(status), 0);
+  EXPECT_TRUE(child_registered);
+  EXPECT_TRUE(prefill_ok);
+  EXPECT_TRUE(backpressured);
+  EXPECT_EQ(child_result, 'a');
+  EXPECT_TRUE(resumed);
+
+  if (resumed && lossy) {
+    auto lagged = lossy->try_recv_checked();
+    ASSERT_FALSE(lagged);
+    EXPECT_EQ(lagged.error(), salias::Error::Lagged);
+    EXPECT_EQ(lossy->lagged_messages(), 1u);
+  }
+}
+
 void check_concurrent_delivery(salias::LatestFanoutPublisher publisher,
                                salias::LatestFanoutSubscriber subscriber, bool seek) {
   constexpr std::uint64_t kMessages = 30000;

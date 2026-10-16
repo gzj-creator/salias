@@ -94,16 +94,29 @@ class Channel {
 
   /**
    * @brief 创建绑定到当前通道的订阅端。
-   * @return 绑定该通道共享状态的 Subscriber<M>。
+   * @return 绑定该通道共享状态的 Subscriber<M>；LatestFanout 默认 DropOldest，其他模式默认
+   * Reliable。
    * @note 分配失败时可能抛出 std::bad_alloc；槽位耗尽时返回无效端点。
    */
   Subscriber<M> subscriber();
+
+  /**
+   * @brief 按指定交付策略创建订阅端。
+   * @note DropOldest 仅支持 LatestFanout；其他模式传入该策略返回无效端点。
+   */
+  Subscriber<M> subscriber(SubscriptionPolicy policy);
 
   /**
    * @brief 尝试创建绑定到当前通道的订阅端。
    * @return 成功返回 Subscriber；订阅槽耗尽返回 NoSubscriberSlots，分配失败返回 OutOfMemory。
    */
   Result<Subscriber<M>> try_subscriber();
+
+  /**
+   * @brief 按指定交付策略尝试创建订阅端。
+   * @retval Error::BadConfig 当前模式不支持指定策略。
+   */
+  Result<Subscriber<M>> try_subscriber(SubscriptionPolicy policy);
 
  private:
   /// 封装 create/connect 成功后得到的共享通道状态。

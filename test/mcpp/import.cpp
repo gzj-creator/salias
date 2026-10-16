@@ -75,19 +75,26 @@ int main() {
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
     latest_config.mode = salias::Mode::LatestFanout;
     latest_config.capacity = 8192;
+    latest_config.num_consumers = 2;
     using LatestChannel = salias::LatestFanoutChannel<4096, 75>;
     auto latest = LatestChannel::create(latest_config);
     require(latest.has_value());
     require(latest->capacity() == 4096 && latest->high_watermark_percent() == 75);
     auto latest_publisher = latest->publisher();
-    auto latest_subscriber_result = latest->try_subscriber();
+    auto latest_reliable = latest->subscriber(salias::SubscriptionPolicy::Reliable);
+    auto latest_subscriber_result = latest->try_subscriber(salias::SubscriptionPolicy::DropOldest);
     require(latest_subscriber_result.has_value());
     auto latest_subscriber = std::move(*latest_subscriber_result);
     const std::array latest_payload{std::byte{5}, std::byte{6}};
     require(latest_publisher.offer(latest_payload).has_value());
+    auto reliable_message = latest_reliable.try_recv_checked();
+    require(reliable_message && *reliable_message &&
+            std::ranges::equal((**reliable_message).payload, latest_payload));
+    latest_reliable.release(**reliable_message);
     auto latest_message = latest_subscriber.try_recv();
     require(latest_message && std::ranges::equal(latest_message->payload, latest_payload));
     latest_subscriber.release(*latest_message);
+    latest_reliable = {};
 
     for (std::uint32_t sequence = 0; sequence < 300; ++sequence) {
       require(latest_publisher.offer(latest_payload).has_value());

@@ -19,12 +19,19 @@ namespace salias {
 /**
  * @brief 通道传输协议模式枚举。
  * @details FIFO/Ordered 模式按投递顺序与消费者拓扑组合；LatestFanout 保留每个 producer
- *          ring 的最新有界窗口，允许慢消费者跳过被覆盖的数据。
+ *          ring 的最新有界窗口，默认订阅者可跳过旧数据，也可单独选 Reliable 策略。
  *          - FIFO：生产者侧按 claim 顺序提交，适合日志类场景。
  *          - Ordered：进一步保证跨生产者的全局有序，适合事件溯源。
  *          模式一经创建不可变更。
  */
 enum class Mode { FifoMpsc, FifoFanout, OrderedMpsc, OrderedFanout, LatestFanout };
+
+/**
+ * @brief 单个订阅者的交付策略。
+ * @details Reliable 保留背压语义；DropOldest 仅适用于 LatestFanout，允许该订阅者跳过
+ *          已离开保留窗口的数据。Reliable 订阅者仍会阻止生产者覆盖其未读消息。
+ */
+enum class SubscriptionPolicy : std::uint32_t { Reliable = 0, DropOldest = 1 };
 
 /**
  * @brief 透明大页（huge page）配置枚举。

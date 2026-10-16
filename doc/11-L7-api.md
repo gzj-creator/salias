@@ -34,8 +34,12 @@ single 模式要求 `num_consumers == 1`；fanout 模式允许 1–8 个消费�
 `LatestFanout` 使用 FIFO 顺序和 fanout 拓扑。`salias::LatestFanoutChannel<Capacity,
 HighWatermarkPercent>` 将每个 producer ring 的字节容量和保留比例固定在模板参数中，水位默认
 为 90%；创建时模板参数覆盖 `Config::capacity` 与 `Config::high_watermark_percent`，连接时会
-校验共享通道参数，不一致返回 `Error::BadConfig`。达到保留水位后，慢消费者会在下一次读取时
-跳过已淘汰的旧消息。未 `release()` 的消息 payload 会被 pin；若生产者写入将覆盖借用内存，发布
+校验共享通道参数，不一致返回 `Error::BadConfig`。默认订阅策略为 `DropOldest`；创建
+`Subscriber` 时也可显式选择 `SubscriptionPolicy::Reliable`。Reliable 订阅者的未读游标参与
+保留边界，生产者不能跨过它淘汰消息，因此慢的 Reliable 订阅者会在高水位处施加背压；
+DropOldest 订阅者则可独立跳过已淘汰消息，不会拖住其他消费者。其他 channel mode 只支持
+Reliable 策略，传入 `DropOldest` 返回 `Error::BadConfig`。达到保留水位后，DropOldest 慢消费者
+会在下一次读取时跳过已淘汰的旧消息。未 `release()` 的消息 payload 会被 pin；若生产者写入将覆盖借用内存，发布
 暂时返回 `Error::BackPressured`，释放该消息后恢复。
 `LatestFanout` 不支持非零 `publication_window`；该模式以保留水位而非消费者游标控制排队量。
 订阅进程若在持有借用时退出，生产者会在需要复用对应物理区间时检查注册进程身份并回收失效 lease。
@@ -46,13 +50,13 @@ HighWatermarkPercent>` 将每个 producer ring 的字节容量和保留比例固
 最多借用一条消息；未 release 时该 ring 暂不返回新消息，其他 producer ring 不受影响。
 `poll` 按最多 32 条的内部批次 pin payload，每批的最后一个回调返回后统一释放。
 
-LatestFanout 还提供 `try_recv_checked()`，用于把丢旧从静默跳过变成可观测事件。若本地游标
+LatestFanout 的 DropOldest 订阅端还提供 `try_recv_checked()`，用于把丢旧从静默跳过变成可观测事件。若本地游标
 已落在保留水位之前，第一次 checked 接收返回 `Error::Lagged`，同时把游标推进到保留窗口
 起点且不借用消息；调用方重试后即可收到该窗口的第一条消息。`lagged_messages()` 统计
 已被淘汰的消息数，`skipped_messages()` 统计主动跳过的保留消息数；
 `skip_to_latest(producer_id)` 会将指定 producer ring 推进到最新已提交帧的起点，保留该帧
 未读，返回淘汰与主动跳过的总数。持有该 ring 的单条或批量借用时跳读返回 `BackPressured`。
-可靠 FIFO/Ordered 模式的 checked 接收只返回普通消息或空结果，不会生成 `Lagged`，也拒绝
+Reliable 订阅端的 checked 接收只返回普通消息或空结果，不会生成 `Lagged`，也拒绝
 `skip_to_latest()`。
 
 ```cpp
@@ -60,6 +64,8 @@ using QuoteChannel = salias::LatestFanoutChannel<1u << 20>;  // 默认保留水�
 auto owner = QuoteChannel::create(config);
 auto publisher = owner->publisher();
 auto subscriber = owner->subscriber();
+auto reliable = owner->subscriber(salias::SubscriptionPolicy::Reliable);
+auto lossy = owner->subscriber(salias::SubscriptionPolicy::DropOldest);
 ```
 
 `create` 和 `connect` 会把动态内存分配失败转换为 `Error::OutOfMemory`。`publisher()` 和

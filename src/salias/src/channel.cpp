@@ -55,7 +55,7 @@ namespace {
 /// @brief 匿名命名空间，仅本翻译单元可见的具名通道辅助类型与函数。
 
 inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;  // ASCII "SALC"，校验控制段归属。
-inline constexpr std::uint32_t kNamedVersion = 9;  // 控制段布局版本号，connect 须严格匹配。
+inline constexpr std::uint32_t kNamedVersion = 10;  // 控制段布局版本号，connect 须严格匹配。
 inline constexpr std::size_t kControlSize = 16u * 1024u;  // 控制段固定 16 KiB。
 inline constexpr std::size_t kCacheLineGuard = 128;  // 双 cache line 填充宽度，规避伪共享。
 inline constexpr std::size_t kMaxProducers = 16;  // 单 channel 最大 producer 数。
@@ -102,7 +102,7 @@ struct alignas(64) NamedPositionSlot {
 struct alignas(64) NamedConsumerSlot {
   std::uint64_t state = 0;  ///< 注册代际与阶段，原子发布。
   std::uint32_t pid = 0;  ///< 注册该订阅者的进程 ID。
-  std::uint32_t reserved = 0;
+  std::uint32_t delivery_policy = channel::consumer_registration::kReliablePolicy;
   std::uint64_t process_start = 0;  ///< 进程启动标识，用于识别 PID 复用。
   std::byte pad[64 - (2 * sizeof(std::uint64_t) + 2 * sizeof(std::uint32_t))]{};
 };
@@ -780,6 +780,7 @@ std::vector<typename SharedChannel<M>::ProducerSharedState> make_producer_states
           .lease_end = &control.producers[producer_id].consumers[consumer_id].lease_end,
           .process_id = &control.consumers[consumer_id].pid,
           .process_start = &control.consumers[consumer_id].process_start,
+          .delivery_policy = &control.consumers[consumer_id].delivery_policy,
           .registration_state = &control.consumers[consumer_id].state,
           .cursor_generation = &control.producers[producer_id].consumers[consumer_id].generation,
           .lagged_messages = &control.producers[producer_id].consumers[consumer_id].lagged_messages,
@@ -946,7 +947,7 @@ class NamedChannelState {
     return producer_id;
   }
 
-  Result<ConsumerRegistration> acquire_consumer() noexcept {
+  Result<ConsumerRegistration> acquire_consumer(SubscriptionPolicy policy) noexcept {
     NamedControl* control = control_.control();
     if (control == nullptr) {
       return std::unexpected(Error::BadConfig);
@@ -981,6 +982,8 @@ class NamedChannelState {
         }
         clear_consumer_cursors(*control, consumer_id, generation);
         std::atomic_ref<std::uint32_t>(slot.pid).store(0, std::memory_order_relaxed);
+        std::atomic_ref<std::uint32_t>(slot.delivery_policy)
+            .store(channel::consumer_registration::kReliablePolicy, std::memory_order_relaxed);
         std::atomic_ref<std::uint64_t>(slot.process_start).store(0, std::memory_order_relaxed);
         state.store(channel::consumer_registration::make_token(
                         generation, 0, channel::consumer_registration::kFree),
@@ -999,6 +1002,8 @@ class NamedChannelState {
       }
 
       std::atomic_ref<std::uint32_t>(slot.pid).store(pid, std::memory_order_relaxed);
+      std::atomic_ref<std::uint32_t>(slot.delivery_policy)
+          .store(static_cast<std::uint32_t>(policy), std::memory_order_relaxed);
       std::atomic_ref<std::uint64_t>(slot.process_start).store(start, std::memory_order_relaxed);
       const auto ordered_sequence = [&] {
         if constexpr (kOrdering<M> == channel::Order::Ordered) {
@@ -1169,6 +1174,8 @@ class NamedChannelState {
     const auto generation = channel::consumer_registration::generation(token);
     clear_consumer_cursors(*control, consumer_id, generation);
     std::atomic_ref<std::uint32_t>(slot.pid).store(0, std::memory_order_relaxed);
+    std::atomic_ref<std::uint32_t>(slot.delivery_policy)
+        .store(channel::consumer_registration::kReliablePolicy, std::memory_order_relaxed);
     std::atomic_ref<std::uint64_t>(slot.process_start).store(0, std::memory_order_relaxed);
     state.store(channel::consumer_registration::make_token(
                     generation, 0, channel::consumer_registration::kFree),
@@ -1491,7 +1498,14 @@ std::uint32_t Channel<M>::high_watermark_percent() const noexcept {
 /// @return Subscriber；若 consumer id 耗尽则返回无效端点。
 template <Mode M>
 Subscriber<M> Channel<M>::subscriber() {
-  auto created = try_subscriber();
+  constexpr auto default_policy =
+      M == Mode::LatestFanout ? SubscriptionPolicy::DropOldest : SubscriptionPolicy::Reliable;
+  return subscriber(default_policy);
+}
+
+template <Mode M>
+Subscriber<M> Channel<M>::subscriber(SubscriptionPolicy policy) {
+  auto created = try_subscriber(policy);
   if (!created) {
     if (created.error() == Error::OutOfMemory) {
       throw std::bad_alloc();
@@ -1503,11 +1517,22 @@ Subscriber<M> Channel<M>::subscriber() {
 
 template <Mode M>
 Result<Subscriber<M>> Channel<M>::try_subscriber() {
+  constexpr auto default_policy =
+      M == Mode::LatestFanout ? SubscriptionPolicy::DropOldest : SubscriptionPolicy::Reliable;
+  return try_subscriber(default_policy);
+}
+
+template <Mode M>
+Result<Subscriber<M>> Channel<M>::try_subscriber(SubscriptionPolicy policy) {
   if (state_ == nullptr) {
     return std::unexpected(Error::BadConfig);
   }
+  if ((policy != SubscriptionPolicy::Reliable && policy != SubscriptionPolicy::DropOldest) ||
+      (M != Mode::LatestFanout && policy == SubscriptionPolicy::DropOldest)) {
+    return std::unexpected(Error::BadConfig);
+  }
   try {
-    auto registration = state_->channel.acquire_consumer();
+    auto registration = state_->channel.acquire_consumer(policy);
     if (!registration) {
       return std::unexpected(registration.error());
     }

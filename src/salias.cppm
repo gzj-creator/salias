@@ -31,4 +31,5 @@ using ::salias::Publisher;
 using ::salias::Result;
 using ::salias::Ringbuffer;
 using ::salias::Subscriber;
+using ::salias::SubscriptionPolicy;
 }  // namespace salias

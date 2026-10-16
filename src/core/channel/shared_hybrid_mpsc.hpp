@@ -51,6 +51,8 @@ inline constexpr std::uint64_t kInitializing = 2;
 inline constexpr std::uint64_t kActive = 3;
 inline constexpr std::uint64_t kReleasing = 4;
 inline constexpr std::uint64_t kReclaiming = 5;
+inline constexpr std::uint32_t kReliablePolicy = 0;
+inline constexpr std::uint32_t kDropOldestPolicy = 1;
 inline constexpr std::uint64_t kPidShift = 3;
 inline constexpr std::uint64_t kGenerationShift = 35;
 inline constexpr std::uint64_t kGenerationMask = (std::uint64_t{1} << 29) - 1;
@@ -116,6 +118,7 @@ class SharedHybridMpscChannel {
     std::uint64_t* lease_end = nullptr;      ///< 当前借用 payload 的末端。
     std::uint32_t* process_id = nullptr;     ///< 注册该 consumer 的进程 ID。
     std::uint64_t* process_start = nullptr;  ///< 进程启动标识，用于识别 PID 复用。
+    std::uint32_t* delivery_policy = nullptr;     ///< 该订阅槽的交付策略。
     std::uint64_t* registration_state = nullptr;  ///< 注册代际与阶段。
     std::uint64_t* cursor_generation = nullptr;  ///< 游标所属注册代际。
     std::uint64_t* lagged_messages = nullptr;  ///< 该 consumer 在此 ring 观测到的丢旧数。
@@ -370,6 +373,51 @@ class SharedHybridMpscChannel {
       }
     }
     return minimum == std::numeric_limits<std::uint64_t>::max() ? 0 : minimum;
+  }
+
+  std::uint64_t minimum_reliable_position(const ProducerRing& producer) const noexcept {
+    std::uint64_t minimum = std::numeric_limits<std::uint64_t>::max();
+    for (const auto& consumer : producer.shared.consumers) {
+      if (consumer.delivery_policy == nullptr) {
+        continue;
+      }
+      const auto state = consumer.registration_state == nullptr
+                             ? consumer_registration::kActive
+                             : std::atomic_ref<std::uint64_t>(*consumer.registration_state)
+                                   .load(std::memory_order_acquire);
+      if ((state & consumer_registration::kPhaseMask) != consumer_registration::kActive ||
+          std::atomic_ref<std::uint32_t>(*consumer.delivery_policy)
+                  .load(std::memory_order_relaxed) == consumer_registration::kDropOldestPolicy) {
+        continue;
+      }
+      if (consumer.registration_state != nullptr &&
+          (consumer.cursor_generation == nullptr ||
+           consumer_registration::generation(state) !=
+               std::atomic_ref<std::uint64_t>(*consumer.cursor_generation)
+                   .load(std::memory_order_acquire))) {
+        return 0;
+      }
+      if (control_.is_process_alive != nullptr && consumer.process_id != nullptr &&
+          consumer.process_start != nullptr &&
+          !control_.is_process_alive(
+              std::atomic_ref<std::uint32_t>(*consumer.process_id).load(std::memory_order_relaxed),
+              std::atomic_ref<std::uint64_t>(*consumer.process_start)
+                  .load(std::memory_order_relaxed))) {
+        continue;
+      }
+      if (consumer.position == nullptr) {
+        return 0;
+      }
+      minimum = std::min(
+          minimum,
+          std::atomic_ref<std::uint64_t>(*consumer.position).load(std::memory_order_acquire));
+      if (consumer.registration_state != nullptr &&
+          std::atomic_ref<std::uint64_t>(*consumer.registration_state)
+                  .load(std::memory_order_acquire) != state) {
+        return 0;
+      }
+    }
+    return minimum;
   }
 
   static constexpr std::uint64_t kNoLease = std::numeric_limits<std::uint64_t>::max();
@@ -803,6 +851,11 @@ class SharedHybridMpscChannel {
         return false;
       }
 
+      if (retained > previous_retained &&
+          retained > channel_->minimum_reliable_position(producer)) {
+        return false;
+      }
+
       // Announce before scanning leases, but do not evict on a failed write. In the SC order,
       // either the scan sees a new lease, or that reader sees this intent/the committed floor.
       // Clearing the intent after publishing the floor preserves that handshake without a lock.
@@ -1011,7 +1064,7 @@ class SharedHybridMpscChannel {
         return std::unexpected(ReceiveError::BadConfig);
       }
       if constexpr (DropOldest) {
-        return try_recv_latest(true);
+        return consumer_uses_drop_oldest() ? try_recv_latest(true) : ReceiveResult{try_recv()};
       } else {
         return try_recv();
       }
@@ -1033,7 +1086,8 @@ class SharedHybridMpscChannel {
       if constexpr (!DropOldest) {
         return std::unexpected(ReceiveError::BadConfig);
       } else {
-        if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_) ||
+        if (!consumer_uses_drop_oldest() || channel_ == nullptr ||
+            !channel_->has_consumer(consumer_id_, registration_token_) ||
             !channel_->has_producer(producer_id)) {
           return std::unexpected(ReceiveError::BadConfig);
         }
@@ -1358,6 +1412,22 @@ class SharedHybridMpscChannel {
       }
     }
 
+    bool consumer_uses_drop_oldest() const noexcept {
+      if constexpr (!DropOldest) {
+        return false;
+      } else {
+        if (channel_ == nullptr || channel_->producer_rings_.empty() ||
+            consumer_id_ >= channel_->producer_rings_.front().shared.consumers.size()) {
+          return false;
+        }
+        const auto* policy =
+            channel_->producer_rings_.front().shared.consumers[consumer_id_].delivery_policy;
+        return policy == nullptr ||
+               std::atomic_ref<std::uint32_t>(*const_cast<std::uint32_t*>(policy))
+                       .load(std::memory_order_relaxed) == consumer_registration::kDropOldestPolicy;
+      }
+    }
+
     bool begin_latest_lease(std::uint32_t producer_id, std::uint64_t start,
                             std::uint64_t retained_snapshot, std::uint64_t visible_bound) noexcept {
       auto& producer = channel_->producer_rings_[producer_id];
@@ -1452,6 +1522,11 @@ class SharedHybridMpscChannel {
           continue;
         }
         const bool lagged = read_positions_[producer_id] < retained;
+        if (lagged && !consumer_uses_drop_oldest()) {
+          clear_latest_lease(producer_id);
+          return report_lag ? ReceiveResult{std::unexpected(ReceiveError::BadConfig)}
+                            : ReceiveResult{std::nullopt};
+        }
         const std::uint64_t start = std::max(read_positions_[producer_id], retained);
         if (start >= visible || !begin_latest_lease(producer_id, start, retained, visible)) {
           continue;
@@ -1519,6 +1594,10 @@ class SharedHybridMpscChannel {
           continue;
         }
         const bool lagged = read_positions_[producer_id] < retained;
+        if (lagged && !consumer_uses_drop_oldest()) {
+          clear_latest_lease(producer_id);
+          continue;
+        }
         const std::uint64_t start = std::max(read_positions_[producer_id], retained);
         if (start >= visible || !begin_latest_lease(producer_id, start, retained, visible)) {
           continue;

@@ -19,8 +19,9 @@ namespace salias {
  * @tparam Capacity 每个 producer ring 的字节容量，须符合 Channel 容量约束。
  * @tparam HighWatermarkPercent 环内保留窗口占容量的百分比，默认 90%。
  *
- * 慢消费者可跳过已移出保留窗口的旧消息。消费者正在借用的 Message 会被 pin，
- * 在 release 前生产者不会覆盖其 payload；pin 暂时阻止写入时仍返回 BackPressured。
+ * 默认订阅者可跳过已移出保留窗口的旧消息；也可为指定订阅者选择 Reliable，
+ * 此时其未读消息不会被覆盖，慢订阅者会对生产者施加背压。消费者正在借用的 Message
+ * 会被 pin，在 release 前生产者不会覆盖其 payload；pin 暂时阻止写入时仍返回 BackPressured。
  * 保留水位按完整帧计算（含 8 字节帧头与对齐），单帧超出水位返回 MessageTooLarge。
  * 同一订阅端每个 producer ring 同时最多持有一个单条借用或一批 poll 借用。
  * Config::publication_window 必须为 0，因为 LatestFanout 使用保留水位而非消费者游标背压。
@@ -89,6 +90,16 @@ class LatestFanoutChannel {
 
   /// @return 创建丢旧订阅端；槽位耗尽或端点分配失败时返回明确错误。
   Result<LatestFanoutSubscriber> try_subscriber() { return channel_.try_subscriber(); }
+
+  /// @return 按指定交付策略创建订阅端。
+  LatestFanoutSubscriber subscriber(SubscriptionPolicy policy) {
+    return channel_.subscriber(policy);
+  }
+
+  /// @return 按指定交付策略创建订阅端；槽位耗尽或端点分配失败时返回明确错误。
+  Result<LatestFanoutSubscriber> try_subscriber(SubscriptionPolicy policy) {
+    return channel_.try_subscriber(policy);
+  }
 
   /// @return 编译期固定的 ring 容量。
   static constexpr std::size_t capacity() noexcept { return Capacity; }

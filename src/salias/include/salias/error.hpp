@@ -19,12 +19,12 @@ namespace salias {
  *          Ok 表示成功；其余值对应各类可恢复失败场景。
  */
 enum class Error {
-  Ok = 0,             ///< 成功，无错误。
-  NotFound,           ///< 找不到指定名称的通道（connect 时通道尚未创建）。
-  VersionMismatch,    ///< 共享元数据版本不匹配，创建者与连接者协议版本不一致。
-  BackPressured,      ///< 生产者遭遇背压：环形缓冲已满或流控窗口在途字节数达上限。
-  MessageTooLarge,    ///< 单条消息负载超过环容量限制。
-  Lagged,             ///< LatestFanout checked 接收观测到丢旧，已推进到可读窗口，重试即可。
+  Ok = 0,           ///< 成功，无错误。
+  NotFound,         ///< 找不到指定名称的通道（connect 时通道尚未创建）。
+  VersionMismatch,  ///< 共享元数据版本不匹配，创建者与连接者协议版本不一致。
+  BackPressured,  ///< 生产者遭遇背压：环形缓冲已满或流控窗口在途字节数达上限。
+  MessageTooLarge,  ///< 单条消息负载超过环容量限制。
+  Lagged,  ///< LatestFanout 的 DropOldest 订阅端观测到丢旧，已推进到可读窗口。
   PlatformFail,       ///< 平台层失败（mmap/memfd_create/huge page 等系统调用出错）。
   BadConfig,          ///< 配置非法（name 为空、容量或端点数量不合法等）。
   OutOfMemory,        ///< 创建或连接通道时的动态内存分配失败。

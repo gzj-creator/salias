@@ -1463,6 +1463,27 @@ TEST(ChannelApiTest, RejectsInvalidProducerAndConsumerCounts) {
   EXPECT_EQ(too_many_consumers.error(), salias::Error::BadConfig);
 }
 
+TEST(ChannelApiTest, DropOldestSubscriberPolicyIsRestrictedToLatestFanout) {
+  auto config = config_for(salias::Mode::FifoFanout, "drop-oldest-policy-invalid-mode");
+  auto created = salias::FifoFanoutChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+
+  auto rejected = channel.try_subscriber(salias::SubscriptionPolicy::DropOldest);
+  ASSERT_FALSE(rejected);
+  EXPECT_EQ(rejected.error(), salias::Error::BadConfig);
+  EXPECT_EQ(channel.connected_consumer_count(), 0u);
+  EXPECT_TRUE(channel.try_subscriber());
+
+  auto latest_config = config_for(salias::Mode::LatestFanout, "drop-oldest-policy-invalid-value");
+  auto latest = salias::LatestFanoutChannel<4096>::create(latest_config);
+  ASSERT_TRUE(latest);
+  auto invalid = latest->try_subscriber(static_cast<salias::SubscriptionPolicy>(99));
+  ASSERT_FALSE(invalid);
+  EXPECT_EQ(invalid.error(), salias::Error::BadConfig);
+  EXPECT_EQ(latest->connected_consumer_count(), 0u);
+}
+
 /// @brief 验证订阅槽位耗尽可显式报告，且最后一个端点副本销毁后可复用。
 TEST(ChannelApiTest, SubscriberSlotsReportExhaustionAndAreReusedAfterLastCopyDies) {
   auto config = config_for(salias::Mode::FifoFanout, "slot-exhaustion");

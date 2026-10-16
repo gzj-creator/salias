@@ -21,6 +21,9 @@ per-producer 游标。
 追赶保留窗口。`connect()` 会校验共享通道与模板参数一致。尚未 `release()` 的借用消息会
 pin 住对应 payload；若写入会覆盖仍借用的字节，发布暂时返回 `BackPressured`，释放后即可继续。
 若订阅进程在持有借用时退出，生产者会在需要复用该槽位时校验进程身份并清除失效 lease。
+LatestFanout 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者选择
+`SubscriptionPolicy::Reliable`，让其未读游标参与保留边界并在慢读时对生产者施加背压。
+其他模式仅支持 Reliable 策略。
 
 ## 构建
 
@@ -62,7 +65,7 @@ target_link_libraries(my_app PRIVATE salias::salias)
 编译公共库和必要的 core 实现，`src/salias.cppm` 提供 `import salias;`；默认构建不需要
 GTest、Google Benchmark 或 Aeron。模块导出公共配置、枚举、错误和结果类型、Message、
 Channel/Publisher/Subscriber/PublishClaim 模板、五种模式的端点别名及静态配置的
-`LatestFanoutChannel`。应用专用别名由消费者维护。
+`LatestFanoutChannel`，以及订阅交付策略 `SubscriptionPolicy`。应用专用别名由消费者维护。
 
 安装 mcpp 和 LLVM 工具链后，在仓库中构建和验证：
 
@@ -84,13 +87,13 @@ python3 tools/check_mcpp.py
 `LatestFanout` 另覆盖跨进程慢消费者跳过旧消息、借用消息 pin 以及异常退出 lease 回收。
 专项回归还覆盖 1%/50%/90%/100% 水位、完整帧边界、空消息、超限消息、部分批次、混合长度回绕、
 序列号低位回绕、三生产者与单条/批量订阅者并发、批内 payload 保留及 `SIGKILL` 后的 lease 回收。
-共享控制段当前为 v8；旧布局通道需重建，发布端和订阅端需一起升级。
+共享控制段当前为 v10；旧布局通道需重建，发布端和订阅端需一起升级。
 
 LatestFanout 可使用 `Subscriber::try_recv_checked()` 显式识别丢旧：首次观察到保留窗口已经
 越过本地游标时返回 `Error::Lagged`，随后重试从保留窗口读取。`lagged_messages()` 和
 `skipped_messages()` 分别统计被淘汰和主动跳过的消息；`skip_to_latest(producer_id)` 跳过
-指定 producer ring 的当前保留帧到最新已提交帧，但保留最新帧未读。可靠 FIFO/Ordered 模式
-不会产生 `Lagged`，也不支持丢旧跳读。
+指定 producer ring 的当前保留帧到最新已提交帧，但保留最新帧未读。Reliable 订阅者不会产生
+`Lagged`，也不支持丢旧跳读。
 
 LatestFanout 专项压测分别测量即时消费、停滞消费者持续丢旧和一快一停滞消费者的并发扇出，
 每种场景比较 50% 与默认 90% 水位；停滞场景输出保留/丢弃计数，并发场景输出接收/丢弃/背压重试计数，
