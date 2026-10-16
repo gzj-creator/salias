@@ -2,11 +2,12 @@
  * @file bench/channel_stress.cpp
  * @brief salias 通道(channel)层的压力与吞吐 stress benchmark。
  * @details 位于 benchmark(bench)工具层，调用 L7 公共 API(salias::Channel / Publisher /
- *          Subscriber)对 L5 channel 通道进行端到端压力测量。本文件覆盖两类场景：
+ *          Subscriber)对 L5 channel 通道进行端到端压力测量。本文件覆盖以下场景：
  *          (1) 同线程内单生产者单消费者(SPSC)发布/接收往返延迟(BM_fifo_roundtrip_64b)，
  *              度量单条 64 字节 payload 的发布-提交-消费往返耗时；
  *          (2) 四生产者单消费者(MPSC)并发吞吐(BM_four_producers_64b)，在 FIFO 与
  *              Ordered 两种协议模式下度量多线程争用下的稳定吞吐与校验和正确性。
+ *          (3) LatestFanout 50%/90% 水位下的即时消费、停滞消费者持续丢旧与并发扇出。
  *          所有 benchmark 使用 Google Benchmark 框架，通过 BENCHMARK_MAIN() 注册并运行。
  *          关键不变式：MPSC 场景消费完成后以 producer_sum / seq_sum 校验和断言消息无丢失、
  *          无重复、各生产者序列号连续。线程模型：生产者以独立 std::thread 运行，
@@ -15,8 +16,10 @@
 #include <benchmark/benchmark.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -250,6 +253,169 @@ void BM_four_producers_64b(benchmark::State& state) {
                           static_cast<std::int64_t>(sizeof(SmallPayload)));
 }
 
+template <std::uint32_t Watermark>
+void BM_latest_fast_subscriber_64b(benchmark::State& state) {
+  using LatestChannel = salias::LatestFanoutChannel<1u << 16, Watermark>;
+  auto created = LatestChannel::create(config_for(salias::Mode::LatestFanout));
+  if (!created) {
+    state.SkipWithError("failed to create latest fanout channel");
+    return;
+  }
+  auto publisher = created->publisher();
+  auto subscriber = created->subscriber();
+  SmallPayload payload{};
+  for (auto _ : state) {
+    auto offered = publisher.offer(std::as_bytes(std::span{&payload, 1}));
+    if (!offered) {
+      state.SkipWithError("latest fast-path offer failed");
+      return;
+    }
+    auto message = subscriber.try_recv();
+    if (!message || decode_small(message->payload).seq != payload.seq) {
+      state.SkipWithError("latest fast-path payload mismatch");
+      return;
+    }
+    benchmark::DoNotOptimize(message->payload.data());
+    subscriber.release(*message);
+    ++payload.seq;
+  }
+  state.SetItemsProcessed(state.iterations());
+  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
+}
+
+// Keep the subscriber idle through many wraps, then verify the entire retained suffix.
+template <std::uint32_t Watermark>
+void BM_latest_slow_subscriber_64b(benchmark::State& state) {
+  constexpr std::size_t kCapacity = 1u << 16;
+  constexpr std::size_t kRetention = (kCapacity * Watermark) / 100;
+  constexpr std::size_t kFrameSize = sizeof(SmallPayload) + 8;
+  using LatestChannel = salias::LatestFanoutChannel<kCapacity, Watermark>;
+  auto created = LatestChannel::create(config_for(salias::Mode::LatestFanout));
+  if (!created) {
+    state.SkipWithError("failed to create latest fanout channel");
+    return;
+  }
+  auto publisher = created->publisher();
+  auto subscriber = created->subscriber();
+  const auto messages_per_iteration = static_cast<std::uint32_t>(state.range(0));
+  std::uint64_t published = 0;
+  for (auto _ : state) {
+    for (std::uint32_t index = 0; index < messages_per_iteration; ++index) {
+      const SmallPayload payload{.seq = static_cast<std::uint32_t>(published)};
+      if (!publisher.offer(std::as_bytes(std::span{&payload, 1}))) {
+        state.SkipWithError("idle latest subscriber unexpectedly backpressured the writer");
+        return;
+      }
+      ++published;
+    }
+  }
+  const std::uint64_t retained = std::min<std::uint64_t>(published, kRetention / kFrameSize);
+  std::uint64_t expected = published - retained;
+  while (auto message = subscriber.try_recv()) {
+    if (message->sequence != expected ||
+        decode_small(message->payload).seq != static_cast<std::uint32_t>(expected)) {
+      state.SkipWithError("latest retained suffix mismatch");
+      return;
+    }
+    ++expected;
+    subscriber.release(*message);
+  }
+  if (expected != published) {
+    state.SkipWithError("latest retained suffix is incomplete");
+    return;
+  }
+  state.counters["retained"] = static_cast<double>(retained);
+  state.counters["dropped"] = static_cast<double>(published - retained);
+  state.SetItemsProcessed(static_cast<std::int64_t>(published));
+  state.SetBytesProcessed(static_cast<std::int64_t>(published * sizeof(SmallPayload)));
+}
+
+// One active subscriber races the writer; the second remains idle and must not block either.
+template <std::uint32_t Watermark>
+void BM_latest_concurrent_fanout_64b(benchmark::State& state) {
+  using LatestChannel = salias::LatestFanoutChannel<1u << 16, Watermark>;
+  const auto messages = static_cast<std::uint32_t>(state.range(0));
+  std::uint64_t received_total = 0;
+  std::uint64_t retries_total = 0;
+  for (auto _ : state) {
+    state.PauseTiming();
+    auto config = config_for(salias::Mode::LatestFanout);
+    config.num_consumers = 2;
+    auto created = LatestChannel::create(config);
+    if (!created) {
+      state.SkipWithError("failed to create concurrent latest fanout channel");
+      return;
+    }
+    auto publisher = created->publisher();
+    auto subscriber = created->subscriber();
+    auto idle_subscriber = created->subscriber();
+    benchmark::DoNotOptimize(idle_subscriber);
+    std::atomic<bool> start{false};
+    std::atomic<bool> stop{false};
+    std::atomic<bool> failed{false};
+    std::uint64_t retries = 0;
+    std::thread producer([&] {
+      while (!start.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+      for (std::uint32_t sequence = 0;
+           sequence < messages && !stop.load(std::memory_order_relaxed);) {
+        const SmallPayload payload{.seq = sequence};
+        auto offered = publisher.offer(std::as_bytes(std::span{&payload, 1}));
+        if (offered) {
+          ++sequence;
+        } else if (offered.error() == salias::Error::BackPressured) {
+          ++retries;
+          std::this_thread::yield();
+        } else {
+          failed.store(true, std::memory_order_relaxed);
+          break;
+        }
+      }
+    });
+    std::uint64_t next_sequence = 0;
+    std::uint64_t received = 0;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    state.ResumeTiming();
+    start.store(true, std::memory_order_release);
+    while (next_sequence < messages && !failed.load(std::memory_order_relaxed)) {
+      auto message = subscriber.try_recv();
+      if (!message) {
+        if (std::chrono::steady_clock::now() >= deadline) {
+          failed.store(true, std::memory_order_relaxed);
+          break;
+        }
+        std::this_thread::yield();
+        continue;
+      }
+      const auto payload = decode_small(message->payload);
+      if (payload.seq < next_sequence || payload.seq >= messages ||
+          message->sequence != payload.seq) {
+        failed.store(true, std::memory_order_relaxed);
+      }
+      next_sequence = std::uint64_t{payload.seq} + 1;
+      ++received;
+      subscriber.release(*message);
+    }
+    stop.store(true, std::memory_order_relaxed);
+    producer.join();
+    state.PauseTiming();
+    if (failed.load(std::memory_order_relaxed) || next_sequence != messages) {
+      state.SkipWithError("concurrent latest fanout delivery failed or timed out");
+      return;
+    }
+    received_total += received;
+    retries_total += retries;
+    state.ResumeTiming();
+  }
+  const auto published = state.iterations() * messages;
+  state.counters["received"] = static_cast<double>(received_total);
+  state.counters["dropped"] = static_cast<double>(published - received_total);
+  state.counters["retries"] = static_cast<double>(retries_total);
+  state.SetItemsProcessed(published);
+  state.SetBytesProcessed(published * static_cast<std::int64_t>(sizeof(SmallPayload)));
+}
+
 }  // namespace
 
 // 注册各 stress benchmark：SPSC 往返以微秒级单位度量，MPSC 多生产者吞吐以毫秒级度量。
@@ -261,6 +427,19 @@ BENCHMARK_TEMPLATE(BM_four_producers_64b, salias::Mode::FifoMpsc)
 // Ordered 模式额外保证跨生产者全局有序，对比 FIFO 度量保序带来的开销。
 BENCHMARK_TEMPLATE(BM_four_producers_64b, salias::Mode::OrderedMpsc)
     ->Arg(65536)
+    ->Unit(benchmark::kMillisecond);
+
+BENCHMARK_TEMPLATE(BM_latest_fast_subscriber_64b, 50)->Unit(benchmark::kNanosecond);
+BENCHMARK_TEMPLATE(BM_latest_fast_subscriber_64b, 90)->Unit(benchmark::kNanosecond);
+BENCHMARK_TEMPLATE(BM_latest_slow_subscriber_64b, 50)->Arg(4096)->Unit(benchmark::kMicrosecond);
+BENCHMARK_TEMPLATE(BM_latest_slow_subscriber_64b, 90)->Arg(4096)->Unit(benchmark::kMicrosecond);
+BENCHMARK_TEMPLATE(BM_latest_concurrent_fanout_64b, 50)
+    ->Arg(65536)
+    ->UseRealTime()
+    ->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_latest_concurrent_fanout_64b, 90)
+    ->Arg(65536)
+    ->UseRealTime()
     ->Unit(benchmark::kMillisecond);
 
 // Google Benchmark 主入口：解析命令行参数并运行上述所有已注册 benchmark。

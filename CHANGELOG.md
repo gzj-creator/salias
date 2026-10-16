@@ -20,7 +20,8 @@ are released.
 
 - 新增编译期定容量的 `salias::Ringbuffer<T, Capacity, HighWatermarkPercent>`，默认以 90% 高水位丢弃最旧元素并保留最新数据；明确该类型为进程内单线程容器，不改变 IPC channel 的背压语义。
 - 新增 `Channel::connected_consumer_count()`，按共享注册槽记录的 PID 与进程启动标识统计仍存活的消费者，并在跨进程消费者退出后将其排除；该诊断能力不回收槽位，也不改变背压语义。
-- 新增 `LatestFanout` IPC 通道策略及对应 Publisher / Subscriber 端点；`LatestFanoutChannel<Capacity, HighWatermarkPercent>` 在编译期固定 ring 容量与保留水位（默认 90%），慢消费者可跳过保留窗口外的消息，连接时校验模板配置，并在借用 payload 时防止覆盖、在订阅进程退出后回收失效 lease。共享控制段版本升至 v6，旧布局通道不能与新版本交叉连接。
+- 新增 `LatestFanout` IPC 通道策略及对应 Publisher / Subscriber 端点；`LatestFanoutChannel<Capacity, HighWatermarkPercent>` 在编译期固定 ring 容量与保留水位（默认 90%），慢消费者可跳过保留窗口外的消息，连接时校验模板配置，并在借用 payload 时防止覆盖、在订阅进程退出后回收失效 lease。共享控制段版本升至 v7，旧布局通道不能与新版本交叉连接。
+- 新增 6 项 LatestFanout 专项压测，覆盖 50%/90% 水位下的即时消费、停滞持续丢旧和并发扇出，校验保留后缀与消息顺序，并输出接收、丢弃和背压重试计数；并发场景按实际经过时间计量，README 补充复跑命令。
 
 ### Fixed
 
@@ -38,6 +39,7 @@ are released.
 - 新增 20 个 LatestFanout 回归测试，覆盖最小/默认/全容量水位、空消息和精确帧边界、超限与部分批次、混合长度回绕、序列号低位回绕、未提交空洞、非法帧头/lease 边界、借用与批量回调生命期、独立 producer/consumer 和 `SIGKILL` 后的失效 lease 回收。
 - Linux x86_64 上 ASan/UBSan 全量 99/99、Release 全量 100/100（含 benchmark smoke）通过；三生产者与单条/批量双订阅者并发回绕在 ASan/UBSan、Release 下各复跑 50 轮，TSan 下复跑 10 轮。
 - 分配契约测试逐点注入五模式及静态 LatestFanout 的创建、连接和订阅端分配失败，验证 typed error/异常传播与同名通道重建。静态包装器 OOM 测试修复前失败、修复后通过；五模式 mcpp 模块/头文件混合消费复验通过。macOS 和长期压力运行未在本次验证。
+- 6 项专项短压测各重复 3 次，保留后缀及并发顺序校验通过；当前 Google Benchmark 依赖提示以 DEBUG 构建，结果不作为正式性能基线。
 
 ### Docs
 

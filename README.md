@@ -82,6 +82,23 @@ python3 tools/check_mcpp.py
 等长 `offer_batch` 保留每条消息的原始 payload 长度，接收视图不包含 ring 对齐填充。
 批量长度契约测试覆盖空消息、非对齐长度、回绕以及四种基础模式的跨进程收发和清理；
 `LatestFanout` 另覆盖跨进程慢消费者跳过旧消息、借用消息 pin 以及异常退出 lease 回收。
+专项回归还覆盖 1%/50%/90%/100% 水位、完整帧边界、空消息、超限消息、部分批次、混合长度回绕、
+序列号低位回绕、三生产者与单条/批量订阅者并发、批内 payload 保留及 `SIGKILL` 后的 lease 回收。
+共享控制段当前为 v7；旧布局通道需重建，发布端和订阅端需一起升级。
+
+LatestFanout 专项压测分别测量即时消费、停滞消费者持续丢旧和一快一停滞消费者的并发扇出，
+每种场景比较 50% 与默认 90% 水位；停滞场景输出保留/丢弃计数，并发场景输出接收/丢弃/背压重试计数，
+同时检查消息序列。
+
+```bash
+cmake --preset release
+cmake --build --preset release
+./build/release/bench/salias_bench_channel_stress \
+  --benchmark_filter='BM_latest_' --benchmark_min_time=0.1s --benchmark_repetitions=3
+```
+
+短跑用于正确性与吞吐冒烟，不代替长期压力测试。正式性能基线需同时使用 Release 构建的
+Google Benchmark 依赖，并固定 CPU、负载和测试环境。
 
 按共享 [gts-mcpp-dependencies skill](.codex/skills/gts-mcpp-dependencies/SKILL.md)，
 将源码包准备在 `/opt/mcpp-deps/salias/`，消费者使用固定绝对路径：
