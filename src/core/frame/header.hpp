@@ -32,10 +32,11 @@ inline constexpr std::size_t kFrameAlign = 8;
  */
 // 帧 metadata 标志；标准单帧消息使用 BEGIN | END | COMMITTED。
 enum Flags : std::uint32_t {
-  FLAG_BEGIN = 1u << 0,     ///< 多帧消息的首帧标志。
-  FLAG_END = 1u << 1,       ///< 多帧消息的末帧标志。
-  FLAG_PADDING = 1u << 2,   ///< ring 尾部填充槽标志，consumer 应跳过。
-  FLAG_COMMITTED = 1u << 3, ///< 帧已发布提交标志，producer 写完后置位。
+  FLAG_BEGIN = 1u << 0,       ///< 多帧消息的首帧标志。
+  FLAG_END = 1u << 1,         ///< 多帧消息的末帧标志。
+  FLAG_PADDING = 1u << 2,     ///< ring 尾部填充槽标志，consumer 应跳过。
+  FLAG_COMMITTED = 1u << 3,   ///< 帧已发布提交标志，producer 写完后置位。
+  FLAG_HAS_EXPIRY = 1u << 4,  ///< 帧头后附带 CLOCK_MONOTONIC 截止时间。
 };
 
 /**
@@ -52,8 +53,8 @@ enum Flags : std::uint32_t {
 // ring 内固定 8 字节帧头。
 // salias 只面向同主机 Linux IPC，因此字段按主机小端布局写入；异构字节序传输不属于 L2 范围。
 struct FrameHeader {
-  std::uint32_t len;  ///< payload 长度（字节数，不含帧头）。
-  std::uint32_t meta; ///< metadata：低 8 位 flags + 高 24 位 sequence 低位。
+  std::uint32_t len;   ///< payload 长度（字节数，不含帧头）。
+  std::uint32_t meta;  ///< metadata：低 8 位 flags + 高 24 位 sequence 低位。
 };
 
 /// 编译期断言帧头恰好为 kHeaderSize 字节，防止布局漂移破坏跨进程兼容。

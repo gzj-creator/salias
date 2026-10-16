@@ -24,12 +24,13 @@
 #include <sys/proc_info.h>
 #endif
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <atomic>
-#include <charconv>
 #include <cctype>
 #include <cerrno>
+#include <charconv>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -46,6 +47,7 @@
 #include <vector>
 
 #include "core/channel/shared_hybrid_mpsc.hpp"
+#include "core/platform/monotonic_clock.hpp"
 #include "core/ring/magic_ring.hpp"
 
 namespace salias {
@@ -55,16 +57,16 @@ namespace {
 /// @brief 匿名命名空间，仅本翻译单元可见的具名通道辅助类型与函数。
 
 inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;  // ASCII "SALC"，校验控制段归属。
-inline constexpr std::uint32_t kNamedVersion = 11;  // 控制段布局版本号，connect 须严格匹配。
+inline constexpr std::uint32_t kNamedVersion = 12;  // 帧扩展元数据协议版本，connect 须严格匹配。
 inline constexpr std::size_t kControlSize = 16u * 1024u;  // 控制段固定 16 KiB。
 inline constexpr std::size_t kCacheLineGuard = 128;  // 双 cache line 填充宽度，规避伪共享。
 inline constexpr std::size_t kMaxProducers = 16;  // 单 channel 最大 producer 数。
-inline constexpr std::size_t kMaxConsumers = 8;  // 单 channel 最大 consumer 数。
-inline constexpr std::size_t kHugePage2MiB = std::size_t{2} * 1024 * 1024;  // 2 MiB huge page。
+inline constexpr std::size_t kMaxConsumers = 8;   // 单 channel 最大 consumer 数。
+inline constexpr std::size_t kHugePage2MiB = std::size_t{2} * 1024 * 1024;     // 2 MiB huge page。
 inline constexpr std::size_t kHugePage1GiB = std::size_t{1024} * 1024 * 1024;  // 1 GiB huge page。
 inline constexpr std::uint32_t kNamedFlagHugetlbfs = 1u;  // flags 位 0：是否用 hugetlbfs。
-inline constexpr std::uint32_t kNamedHugeShift = 1u;  // huge page 编码起始位移。
-inline constexpr std::uint32_t kNamedHugeMask = 0x6u;  // huge page 编码 2 位掩码。
+inline constexpr std::uint32_t kNamedHugeShift = 1u;      // huge page 编码起始位移。
+inline constexpr std::uint32_t kNamedHugeMask = 0x6u;     // huge page 编码 2 位掩码。
 // 非法端点哨兵值，用于标记未分配或无效的 producer/consumer id。
 inline constexpr std::uint32_t kInvalidEndpoint = std::numeric_limits<std::uint32_t>::max();
 inline constexpr std::uint64_t kDeadProcessStartToken = std::numeric_limits<std::uint64_t>::max();
@@ -94,14 +96,14 @@ struct NamedRingSpec {
 /// @details 一个 consumer 对应一个此槽，存放该 consumer 已消费到的 sequence；
 /// 填充确保不同 consumer 的 sequence 落在不同 cache line，避免跨进程 false sharing。
 struct alignas(64) NamedPositionSlot {
-  std::uint64_t value = 0;  ///< consumer 当前的消费 position/sequence。
+  std::uint64_t value = 0;                      ///< consumer 当前的消费 position/sequence。
   std::byte pad[64 - sizeof(std::uint64_t)]{};  ///< 填充至 64 字节。
 };
 
 /// @brief 一个订阅者注册槽，记录进程身份以区分存活与已退出的消费者。
 struct alignas(64) NamedConsumerSlot {
   std::uint64_t state = 0;  ///< 注册代际与阶段，原子发布。
-  std::uint32_t pid = 0;  ///< 注册该订阅者的进程 ID。
+  std::uint32_t pid = 0;    ///< 注册该订阅者的进程 ID。
   std::uint32_t delivery_policy = channel::consumer_registration::kReliablePolicy;
   std::uint64_t process_start = 0;  ///< 进程启动标识，用于识别 PID 复用。
   std::byte pad[64 - (2 * sizeof(std::uint64_t) + 2 * sizeof(std::uint32_t))]{};
@@ -112,12 +114,12 @@ struct alignas(64) NamedConsumerSlot {
 /// cache line 以保证读取一致性，填充避免相邻 consumer 游标伪共享。
 struct alignas(64) NamedConsumerCursorSlot {
   std::uint64_t position = 0;  ///< consumer 在该 producer ring 内的消费位置（字节偏移）。
-  std::uint64_t sequence = 0;  ///< consumer 已消费到的序列号。
+  std::uint64_t sequence = 0;          ///< consumer 已消费到的序列号。
   std::uint64_t message_sequence = 0;  ///< consumer 已消费消息数(per producer)。
-  std::uint64_t generation = 0;  ///< 游标所属的订阅代际。
+  std::uint64_t generation = 0;        ///< 游标所属的订阅代际。
   std::uint64_t lease_start = std::numeric_limits<std::uint64_t>::max();  ///< 借用区间起点。
   std::uint64_t lease_end = 0;  ///< 借用区间末端；仅在 lease_start 有效时读取。
-  std::uint64_t lagged_messages = 0;  ///< 该 consumer 在此 ring 观测到的淘汰消息数。
+  std::uint64_t lagged_messages = 0;   ///< 该 consumer 在此 ring 观测到的淘汰消息数。
   std::uint64_t skipped_messages = 0;  ///< 该 consumer 在此 ring 主动跳过的消息数。
 };
 
@@ -130,16 +132,17 @@ struct alignas(kCacheLineGuard) NamedProducerSlot {
   std::uint64_t local_sequence = 0;  ///< 本地已 claim 的序列号（可能尚未发布）。
   std::uint64_t reservation_position = 0;  ///< 当前 producer 已预留到的写尾。
   std::uint64_t reservation_sequence = 0;  ///< reservation_position 对应的下一序列号。
-  std::uint64_t retained_position = 0;  ///< 丢旧模式下最早仍可读取的帧位置。
+  std::uint64_t retained_position = 0;     ///< 丢旧模式下最早仍可读取的帧位置。
   std::uint64_t retention_intent = std::numeric_limits<std::uint64_t>::max();  ///< 计划淘汰位置。
   std::uint64_t reservation_message_sequence = 0;  ///< producer 已预留消息数。
-  std::uint64_t retained_message_sequence = 0;  ///< 最早保留帧对应的消息数。
+  std::uint64_t retained_message_sequence = 0;     ///< 最早保留帧对应的消息数。
   std::byte hot_pad[kCacheLineGuard - 8 * sizeof(std::uint64_t)]{};  ///< 隔离发布热游标。
 
   alignas(kCacheLineGuard) std::uint32_t producer_pid = 0;  ///< 当前 producer 槽所有者。
-  std::uint64_t producer_process_start = 0;  ///< producer 进程启动标识。
+  std::uint64_t producer_process_start = 0;                 ///< producer 进程启动标识。
   std::uint32_t claim_active = 0;  ///< claim 正在更新 reservation 时置位。
-  std::byte coordination_pad[kCacheLineGuard - (3 * sizeof(std::uint32_t) + sizeof(std::uint64_t))]{};
+  std::byte
+      coordination_pad[kCacheLineGuard - (3 * sizeof(std::uint32_t) + sizeof(std::uint64_t))]{};
   std::array<NamedConsumerCursorSlot, kMaxConsumers> consumers{};  ///< 各 consumer 游标。
 };
 
@@ -149,20 +152,20 @@ struct alignas(kCacheLineGuard) NamedProducerSlot {
 /// 作为创建端发布、连接端等待的同步点。不变式：magic/version 由创建端写入且此后不变；
 /// ready 由 0→1 单调翻转一次。
 struct alignas(kCacheLineGuard) NamedControl {
-  std::uint32_t magic = 0;  ///< 魔数 "SALC"，校验控制段归属。
-  std::uint32_t version = 0;  ///< 布局版本号，connect 端必须严格匹配。
-  std::uint32_t mode = 0;  ///< channel 模式（Mode 枚举值），决定 ordering/fanout。
-  std::uint32_t flags = 0;  ///< 后端/huge page 编码标志位。
+  std::uint32_t magic = 0;     ///< 魔数 "SALC"，校验控制段归属。
+  std::uint32_t version = 0;   ///< 布局版本号，connect 端必须严格匹配。
+  std::uint32_t mode = 0;      ///< channel 模式（Mode 枚举值），决定 ordering/fanout。
+  std::uint32_t flags = 0;     ///< 后端/huge page 编码标志位。
   std::uint64_t capacity = 0;  ///< 单 ring 字节容量（2 的幂且页对齐）。
   std::uint64_t reserved_record_size = 0;  ///< 保留旧布局槽位，当前协议不支持定长记录。
   std::uint32_t ready = 0;  ///< 就绪标志：创建端置 1（release），连接端等 1（acquire）。
-  std::uint32_t wait_word = 0;  ///< 等待策略唤醒字（wait strategy 回填）。
+  std::uint32_t wait_word = 0;           ///< 等待策略唤醒字（wait strategy 回填）。
   std::uint64_t publication_window = 0;  ///< 发布流控窗口（0 表示不限流）。
-  std::uint32_t high_watermark_percent = 90;  ///< 丢旧模式的保留水位比例。
+  std::uint32_t high_watermark_percent = 90;      ///< 丢旧模式的保留水位比例。
   std::uint64_t publication_window_messages = 0;  ///< 每 producer ring 的消息数窗口。
-  std::uint64_t registration_gate = 0;  ///< 注册订阅者时暂时阻止新 claim。
+  std::uint64_t registration_gate = 0;            ///< 注册订阅者时暂时阻止新 claim。
   std::uint64_t registration_gate_process_start = 0;  ///< gate 所有者进程启动标识。
-  std::byte pad[kCacheLineGuard - 80]{};  ///< 头部填充，隔离后续热字段。
+  std::byte pad[kCacheLineGuard - 80]{};              ///< 头部填充，隔离后续热字段。
 
   alignas(kCacheLineGuard) std::uint64_t global_sequence = 0;  ///< 全局单调序列号。
   alignas(kCacheLineGuard) std::uint32_t next_producer = 0;  ///< 下一个待分配 producer id。
@@ -620,6 +623,21 @@ Error map_flow_error(flow::FlowError error) noexcept {
   return Error::BadConfig;
 }
 
+Result<std::uint64_t> expiry_deadline(std::chrono::nanoseconds ttl) noexcept {
+  if (ttl.count() < 0) {
+    return std::unexpected(Error::BadConfig);
+  }
+  const auto now = platform::monotonic_now_ns();
+  if (!now) {
+    return std::unexpected(Error::PlatformFail);
+  }
+  const auto duration = static_cast<std::uint64_t>(ttl.count());
+  if (duration > std::numeric_limits<std::uint64_t>::max() - *now) {
+    return std::numeric_limits<std::uint64_t>::max();
+  }
+  return *now + duration;
+}
+
 Error map_receive_error(channel::ReceiveError error) noexcept {
   switch (error) {
     case channel::ReceiveError::BadConfig:
@@ -899,7 +917,9 @@ class NamedChannelState {
   /// @brief 获取指定 producer 的发送端句柄。
   auto tx(std::uint32_t producer_id) noexcept { return channel_.tx(producer_id); }
   /// @brief 获取指定 registration 对应的接收端句柄。
-  auto rx(std::uint32_t consumer_id, std::uint64_t token) { return channel_.rx(consumer_id, token); }
+  auto rx(std::uint32_t consumer_id, std::uint64_t token) {
+    return channel_.rx(consumer_id, token);
+  }
 
   /// @brief 统计注册槽位中仍由原进程持有的订阅者数量。
   std::uint32_t connected_consumer_count() noexcept {
@@ -977,8 +997,8 @@ class NamedChannelState {
       const auto phase = observed & channel::consumer_registration::kPhaseMask;
       if (phase != channel::consumer_registration::kFree) {
         const auto owner_pid = channel::consumer_registration::process_id(observed);
-        const auto owner_start = std::atomic_ref<std::uint64_t>(slot.process_start)
-                                     .load(std::memory_order_relaxed);
+        const auto owner_start =
+            std::atomic_ref<std::uint64_t>(slot.process_start).load(std::memory_order_relaxed);
         if (is_registered_process_alive(owner_pid, owner_start)) {
           continue;
         }
@@ -1000,9 +1020,8 @@ class NamedChannelState {
         observed = state.load(std::memory_order_acquire);
       }
 
-      const auto generation =
-          (channel::consumer_registration::generation(observed) + 1) &
-          channel::consumer_registration::kGenerationMask;
+      const auto generation = (channel::consumer_registration::generation(observed) + 1) &
+                              channel::consumer_registration::kGenerationMask;
       const auto initializing = channel::consumer_registration::make_token(
           generation, pid, channel::consumer_registration::kInitializing);
       if (!state.compare_exchange_strong(observed, initializing, std::memory_order_acq_rel,
@@ -1023,8 +1042,8 @@ class NamedChannelState {
       }();
       for (std::uint32_t producer_id = 0; producer_id < control->num_producers; ++producer_id) {
         auto& producer = control->producers[producer_id];
-        const auto cursor_generation = std::atomic_ref<std::uint64_t>(
-            producer.consumers[consumer_id].generation);
+        const auto cursor_generation =
+            std::atomic_ref<std::uint64_t>(producer.consumers[consumer_id].generation);
         cursor_generation.store(generation, std::memory_order_relaxed);
         const auto position = std::atomic_ref<std::uint64_t>(producer.reservation_position)
                                   .load(std::memory_order_acquire);
@@ -1087,8 +1106,8 @@ class NamedChannelState {
     const auto pid = static_cast<std::uint32_t>(::getpid());
     const auto preparing = channel::consumer_registration::make_token(
         0, pid, channel::consumer_registration::kPreparing);
-    const auto active = channel::consumer_registration::make_token(
-        0, pid, channel::consumer_registration::kActive);
+    const auto active =
+        channel::consumer_registration::make_token(0, pid, channel::consumer_registration::kActive);
     auto gate = std::atomic_ref<std::uint64_t>(control.registration_gate);
     for (;;) {
       std::uint64_t expected = 0;
@@ -1102,11 +1121,11 @@ class NamedChannelState {
 
       const auto owner_pid = channel::consumer_registration::process_id(expected);
       const auto phase = expected & channel::consumer_registration::kPhaseMask;
-      const auto owner_start = phase == channel::consumer_registration::kPreparing
-                                   ? 0
-                                   : std::atomic_ref<std::uint64_t>(
-                                         control.registration_gate_process_start)
-                                         .load(std::memory_order_relaxed);
+      const auto owner_start =
+          phase == channel::consumer_registration::kPreparing
+              ? 0
+              : std::atomic_ref<std::uint64_t>(control.registration_gate_process_start)
+                    .load(std::memory_order_relaxed);
       if (!is_registered_process_alive(owner_pid, owner_start)) {
         static_cast<void>(gate.compare_exchange_strong(expected, 0, std::memory_order_acq_rel,
                                                        std::memory_order_relaxed));
@@ -1127,9 +1146,8 @@ class NamedChannelState {
         }
         const auto producer_pid = static_cast<std::uint32_t>(
             std::atomic_ref<std::uint32_t>(producer.producer_pid).load(std::memory_order_relaxed));
-        const auto producer_start =
-            std::atomic_ref<std::uint64_t>(producer.producer_process_start)
-                .load(std::memory_order_relaxed);
+        const auto producer_start = std::atomic_ref<std::uint64_t>(producer.producer_process_start)
+                                        .load(std::memory_order_relaxed);
         if (!is_registered_process_alive(producer_pid, producer_start)) {
           auto stale = token;
           static_cast<void>(active.compare_exchange_strong(stale, 0, std::memory_order_acq_rel,
@@ -1147,10 +1165,9 @@ class NamedChannelState {
       auto& cursor = control.producers[producer_id].consumers[consumer_id];
       std::atomic_ref<std::uint64_t>(cursor.position).store(0, std::memory_order_relaxed);
       std::atomic_ref<std::uint64_t>(cursor.sequence).store(0, std::memory_order_relaxed);
-      std::atomic_ref<std::uint64_t>(cursor.message_sequence).store(0,
-                                                                   std::memory_order_relaxed);
-      std::atomic_ref<std::uint64_t>(cursor.generation).store(generation,
-                                                             std::memory_order_relaxed);
+      std::atomic_ref<std::uint64_t>(cursor.message_sequence).store(0, std::memory_order_relaxed);
+      std::atomic_ref<std::uint64_t>(cursor.generation)
+          .store(generation, std::memory_order_relaxed);
       std::atomic_ref<std::uint64_t>(cursor.lease_start)
           .store(std::numeric_limits<std::uint64_t>::max(), std::memory_order_seq_cst);
       std::atomic_ref<std::uint64_t>(cursor.lease_end).store(0, std::memory_order_relaxed);
@@ -1192,8 +1209,8 @@ class NamedChannelState {
     std::atomic_ref<std::uint32_t>(slot.delivery_policy)
         .store(channel::consumer_registration::kReliablePolicy, std::memory_order_relaxed);
     std::atomic_ref<std::uint64_t>(slot.process_start).store(0, std::memory_order_relaxed);
-    state.store(channel::consumer_registration::make_token(
-                    generation, 0, channel::consumer_registration::kFree),
+    state.store(channel::consumer_registration::make_token(generation, 0,
+                                                           channel::consumer_registration::kFree),
                 std::memory_order_release);
   }
 
@@ -1337,10 +1354,9 @@ Result<NamedChannelState<M>> connect_named_state(std::string_view name) {
   const std::uint32_t sequence_domains =
       kOrdering<M> == channel::Order::Ordered ? control->num_producers : 1;
   if (control->mode != static_cast<std::uint32_t>(M) ||
-      !is_valid_ring_capacity(control->capacity) ||
-      control->num_producers == 0 || control->num_producers > kMaxProducers ||
-      control->num_consumers == 0 || control->num_consumers > kMaxConsumers ||
-      (!kFanout<M> && control->num_consumers != 1) ||
+      !is_valid_ring_capacity(control->capacity) || control->num_producers == 0 ||
+      control->num_producers > kMaxProducers || control->num_consumers == 0 ||
+      control->num_consumers > kMaxConsumers || (!kFanout<M> && control->num_consumers != 1) ||
       !is_valid_publication_window(control->publication_window, control->capacity) ||
       (kDropOldest<M> && (!is_valid_high_watermark_percent(control->high_watermark_percent) ||
                           control->publication_window != 0)) ||
@@ -1413,8 +1429,8 @@ struct PublisherEndpoint {
         valid(producer_id != kInvalidEndpoint) {}
 
   std::shared_ptr<ChannelState<M>> state;  ///< channel 状态，保活。
-  Tx tx;  ///< 发送句柄。
-  bool valid = false;  ///< producer id 是否有效。
+  Tx tx;                                   ///< 发送句柄。
+  bool valid = false;                      ///< producer id 是否有效。
 };
 
 /// @brief subscriber 端点：绑定 channel 状态与某 consumer 的接收句柄。
@@ -1422,7 +1438,8 @@ struct PublisherEndpoint {
 /// @tparam M channel 模式。
 template <Mode M>
 struct SubscriberEndpoint {
-  using Rx = decltype(std::declval<typename ChannelState<M>::State&>().rx(0, 0));  ///< 接收句柄类型。
+  using Rx =
+      decltype(std::declval<typename ChannelState<M>::State&>().rx(0, 0));  ///< 接收句柄类型。
 
   /// @brief 构造端点并立即获取接收句柄。
   /// @param state_value channel 状态（共享所有权）。
@@ -1436,7 +1453,7 @@ struct SubscriberEndpoint {
 
   std::shared_ptr<ChannelState<M>> state;  ///< channel 状态，保活。
   typename ChannelState<M>::State::ConsumerRegistration registration;  ///< 注册槽 RAII 所有权。
-  Rx rx;  ///< 接收句柄。
+  Rx rx;                                                               ///< 接收句柄。
   bool valid = false;  ///< consumer id 是否有效。
 };
 
@@ -1552,8 +1569,8 @@ Result<Subscriber<M>> Channel<M>::try_subscriber(SubscriptionPolicy policy) {
     if (!registration) {
       return std::unexpected(registration.error());
     }
-    return Subscriber<M>(std::make_shared<SubscriberEndpoint<M>>(
-        state_, std::move(registration).value()));
+    return Subscriber<M>(
+        std::make_shared<SubscriberEndpoint<M>>(state_, std::move(registration).value()));
   } catch (const std::bad_alloc&) {
     return std::unexpected(Error::OutOfMemory);
   }
@@ -1635,6 +1652,26 @@ Result<PublishClaim<M>> Publisher<M>::try_claim(std::size_t payload_len) noexcep
   return PublishClaim<M>(endpoint_, claim.value());
 }
 
+template <Mode M>
+Result<PublishClaim<M>> Publisher<M>::try_claim_for(std::size_t payload_len,
+                                                    std::chrono::nanoseconds ttl) noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid ||
+      payload_len > std::numeric_limits<std::uint32_t>::max()) {
+    return std::unexpected(payload_len > std::numeric_limits<std::uint32_t>::max()
+                               ? Error::MessageTooLarge
+                               : Error::BadConfig);
+  }
+  auto deadline = expiry_deadline(ttl);
+  if (!deadline) {
+    return std::unexpected(deadline.error());
+  }
+  auto claim = endpoint_->tx.claim(static_cast<std::uint32_t>(payload_len), *deadline, true);
+  if (!claim) {
+    return std::unexpected(map_flow_error(claim.error()));
+  }
+  return PublishClaim<M>(endpoint_, claim.value());
+}
+
 /// @brief 单帧零拷贝发布：拷贝 payload 后立即提交。
 /// @param payload 待发布数据。
 /// @retval bool 是否成功（背压时为 false）。
@@ -1645,6 +1682,26 @@ Result<bool> Publisher<M>::offer(std::span<const std::byte> payload) noexcept {
     return std::unexpected(Error::BadConfig);
   }
   auto offered = endpoint_->tx.offer(payload);
+  if (!offered) {
+    return std::unexpected(map_flow_error(offered.error()));
+  }
+  return offered.value();
+}
+
+template <Mode M>
+Result<bool> Publisher<M>::offer_for(std::span<const std::byte> payload,
+                                     std::chrono::nanoseconds ttl) noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return std::unexpected(Error::BadConfig);
+  }
+  if (payload.size() > std::numeric_limits<std::uint32_t>::max()) {
+    return std::unexpected(Error::MessageTooLarge);
+  }
+  auto deadline = expiry_deadline(ttl);
+  if (!deadline) {
+    return std::unexpected(deadline.error());
+  }
+  auto offered = endpoint_->tx.offer(payload, *deadline, true);
   if (!offered) {
     return std::unexpected(map_flow_error(offered.error()));
   }
@@ -1707,6 +1764,61 @@ Result<std::size_t> Publisher<M>::offer_batch(
   return published;
 }
 
+template <Mode M>
+Result<std::size_t> Publisher<M>::offer_batch_for(
+    std::span<const std::span<const std::byte>> payloads, std::chrono::nanoseconds ttl) noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return std::unexpected(Error::BadConfig);
+  }
+  auto deadline = expiry_deadline(ttl);
+  if (!deadline) {
+    return std::unexpected(deadline.error());
+  }
+  if (payloads.empty()) {
+    return std::size_t{0};
+  }
+
+  const std::size_t first_size = payloads.front().size();
+  bool uniform = true;
+  for (const auto payload : payloads) {
+    if (payload.size() > std::numeric_limits<std::uint32_t>::max()) {
+      return std::unexpected(Error::MessageTooLarge);
+    }
+    uniform = uniform && payload.size() == first_size;
+  }
+  if (uniform) {
+    const std::uint32_t limit = payloads.size() > std::numeric_limits<std::uint32_t>::max()
+                                    ? std::numeric_limits<std::uint32_t>::max()
+                                    : static_cast<std::uint32_t>(payloads.size());
+    auto batch =
+        endpoint_->tx.claim_batch(static_cast<std::uint32_t>(first_size), limit, *deadline, true);
+    if (!batch) {
+      return std::unexpected(map_flow_error(batch.error()));
+    }
+    for (std::uint32_t index = 0; index < batch->frame_count; ++index) {
+      auto destination = batch->region.subspan(static_cast<std::size_t>(index) * batch->frame_len +
+                                                   frame::kHeaderSize + sizeof(std::uint64_t),
+                                               first_size);
+      if (first_size != 0) {
+        std::memcpy(destination.data(), payloads[index].data(), first_size);
+      }
+    }
+    endpoint_->tx.commit_batch(*batch);
+    return batch->frame_count;
+  }
+
+  std::size_t published = 0;
+  for (const auto payload : payloads) {
+    auto offered = endpoint_->tx.offer(payload, *deadline, true);
+    if (!offered) {
+      return published == 0 ? Result<std::size_t>{std::unexpected(map_flow_error(offered.error()))}
+                            : Result<std::size_t>{published};
+    }
+    ++published;
+  }
+  return published;
+}
+
 /// @brief 构造 Subscriber，接管端点。
 template <Mode M>
 Subscriber<M>::Subscriber(std::shared_ptr<SubscriberEndpoint<M>> endpoint) noexcept
@@ -1740,6 +1852,11 @@ std::uint64_t Subscriber<M>::lagged_messages() const noexcept {
 template <Mode M>
 std::uint64_t Subscriber<M>::skipped_messages() const noexcept {
   return endpoint_ == nullptr || !endpoint_->valid ? 0 : endpoint_->rx.skipped_messages();
+}
+
+template <Mode M>
+std::uint64_t Subscriber<M>::expired_messages() const noexcept {
+  return endpoint_ == nullptr || !endpoint_->valid ? 0 : endpoint_->rx.expired_messages();
 }
 
 template <Mode M>
@@ -1830,9 +1947,9 @@ void Subscriber<M>::release(const Message& message) noexcept {
   template class PublishClaim<Mode::mode>; \
   template class Subscriber<Mode::mode>
 
-SALIAS_INSTANTIATE_MODE(FifoMpsc);  // 多生产者单消费者，FIFO 顺序。
-SALIAS_INSTANTIATE_MODE(FifoFanout);  // 多生产者多消费者广播，FIFO 顺序。
-SALIAS_INSTANTIATE_MODE(OrderedMpsc);  // 多生产者单消费者，按序列号有序。
+SALIAS_INSTANTIATE_MODE(FifoMpsc);       // 多生产者单消费者，FIFO 顺序。
+SALIAS_INSTANTIATE_MODE(FifoFanout);     // 多生产者多消费者广播，FIFO 顺序。
+SALIAS_INSTANTIATE_MODE(OrderedMpsc);    // 多生产者单消费者，按序列号有序。
 SALIAS_INSTANTIATE_MODE(OrderedFanout);  // 多生产者多消费者广播，按序列号有序。
 SALIAS_INSTANTIATE_MODE(LatestFanout);   // 慢消费者跳过保留窗口外的旧数据。
 

@@ -12,6 +12,7 @@
  */
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -54,7 +55,7 @@ class PublishClaim {
   /// @return *this。
   PublishClaim& operator=(PublishClaim&& other) noexcept;
 
-  PublishClaim(const PublishClaim&) = delete;             ///< 禁止拷贝：claim 独占预留区。
+  PublishClaim(const PublishClaim&) = delete;  ///< 禁止拷贝：claim 独占预留区。
   PublishClaim& operator=(const PublishClaim&) = delete;  ///< 禁止拷贝赋值。
 
   /**
@@ -103,6 +104,17 @@ class Publisher {
   Result<PublishClaim<M>> try_claim(std::size_t payload_len) noexcept;
 
   /**
+   * @brief 预留一条带 TTL 的消息；截止时间在调用时采样，之后填充 payload 的时间也计入 TTL。
+   * @param payload_len payload 字节数。
+   * @param ttl 非负时长；0 表示截止时间立即到达。
+   * @retval PublishClaim 成功后写入 payload 并 commit。
+   * @retval Error::BadConfig ttl 为负数。
+   * @note 截止时间存为同主机 CLOCK_MONOTONIC 纳秒值，发布端和订阅端必须运行于同一系统启动周期。
+   */
+  Result<PublishClaim<M>> try_claim_for(std::size_t payload_len,
+                                        std::chrono::nanoseconds ttl) noexcept;
+
+  /**
    * @brief 尝试把 payload 作为一条消息发布（内部拷贝后提交）。
    * @param payload 待发布的负载数据视图。
    * @retval true 发布成功。
@@ -110,6 +122,9 @@ class Publisher {
    * @retval Error::MessageTooLarge payload 超过环容量，或 LatestFanout 单帧超过保留水位。
    */
   Result<bool> offer(std::span<const std::byte> payload) noexcept;
+
+  /** @brief 发布带 TTL 的消息；截止时间在调用时采样，0 表示立即到期。 */
+  Result<bool> offer_for(std::span<const std::byte> payload, std::chrono::nanoseconds ttl) noexcept;
 
   /**
    * @brief 尝试按顺序发布一批消息。
@@ -121,6 +136,13 @@ class Publisher {
    */
   Result<std::size_t> offer_batch(std::span<const std::span<const std::byte>> payloads) noexcept;
 
+  /**
+   * @brief 按顺序发布同一 TTL 的消息批次；背压时返回已发布前缀长度。
+   * @note 整个批次共用从本次调用开始计算的截止时间；变长批次逐帧提交。
+   */
+  Result<std::size_t> offer_batch_for(std::span<const std::span<const std::byte>> payloads,
+                                      std::chrono::nanoseconds ttl) noexcept;
+
  private:
   /// 创建绑定到共享通道状态的发布端。
   explicit Publisher(std::shared_ptr<PublisherEndpoint<M>> endpoint) noexcept;
@@ -130,8 +152,8 @@ class Publisher {
   friend class Channel<M>;  ///< Channel 通过私有构造创建 Publisher。
 };
 
-using FifoMpscPublisher = Publisher<Mode::FifoMpsc>;      ///< FIFO MPSC 发布端别名。
-using FifoFanoutPublisher = Publisher<Mode::FifoFanout>;  ///< FIFO fanout 发布端别名。
+using FifoMpscPublisher = Publisher<Mode::FifoMpsc>;            ///< FIFO MPSC 发布端别名。
+using FifoFanoutPublisher = Publisher<Mode::FifoFanout>;        ///< FIFO fanout 发布端别名。
 using OrderedMpscPublisher = Publisher<Mode::OrderedMpsc>;      ///< 保序 MPSC 发布端别名。
 using OrderedFanoutPublisher = Publisher<Mode::OrderedFanout>;  ///< 保序 fanout 发布端别名。
 using LatestFanoutPublisher = Publisher<Mode::LatestFanout>;  ///< 丢旧 fanout 发布端别名。

@@ -115,6 +115,17 @@ claim->commit();
 每个成功 claim 都必须提交。乱序 commit 不会把可见水位推进到空洞之后，补齐后才连续发布。
 不支持放弃未提交 claim，也不支持发布进程异常退出后的自动恢复；这类故障需要重建通道。
 
+`offer_for(payload, ttl)`、`try_claim_for(size, ttl)` 和 `offer_batch_for(payloads, ttl)` 提供
+按消息指定 TTL 的路径。TTL 必须非负，截止时间在 API 调用时采样，0 表示立即到期；默认不带 TTL 的
+`offer`/`try_claim`/`offer_batch` 不受影响。批次中的帧共用一个截止值，TTL 扩展头的 8 字节会
+计入 ring 容量、发布窗口和 LatestFanout 保留水位。消息元数据使用同主机 `CLOCK_MONOTONIC`
+纳秒时间，因此跨进程订阅者可比较该截止值，但通道不能跨系统启动周期持久化复用。
+订阅端在交付前自动跳过过期帧；`Subscriber::expired_messages()` 返回本端点当前进程累计跳过数。
+过期跳过会推进可靠游标并释放容量；若后面紧接着存活帧，游标只推进到该帧起点，借用期间仍受保护，
+不会跨越或丢弃未过期帧。已借用的消息不会因后来到期而
+失效，仍须按原契约调用 `release()`。过期清理由接收端 poll/recv 惰性触发，没有后台清理线程；
+接收端停止轮询期间，尚未观察的过期帧仍可能参与背压。
+
 `Subscriber::poll` 在回调返回后自动 release。回调必须 `noexcept`，消息 payload 不能在 release
 后继续持有。
 

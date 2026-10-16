@@ -30,12 +30,13 @@ namespace salias::flow {  // flow 层：环形缓冲之上的生产/消费位置
  *          所有权：本结构不拥有内存，仅持有视图。
  */
 struct Claim {
-  std::span<std::byte> payload;  ///< 预留的可写负载区域(指向 ring 内存)
-  std::uint64_t start_pos = 0;    ///< 帧起始字节偏移
-  std::uint32_t payload_len = 0;  ///< 负载字节数(不含帧头)
-  std::uint32_t meta = 0;         ///< 预计算的帧头元数据(generation、flags)
-  std::uint64_t sequence = 0;     ///< 帧序列号(由上层填充，flow 层透传)
-  std::uint32_t producer_id = 0;  ///< 生产者标识
+  std::span<std::byte> payload;               ///< 预留的可写负载区域(指向 ring 内存)
+  std::uint64_t start_pos = 0;                ///< 帧起始字节偏移
+  std::uint32_t payload_len = 0;              ///< 负载字节数(不含帧头)
+  std::uint32_t meta = 0;                     ///< 预计算的帧头元数据(generation、flags)
+  std::uint64_t sequence = 0;                 ///< 帧序列号(由上层填充，flow 层透传)
+  std::uint32_t producer_id = 0;              ///< 生产者标识
+  std::uint64_t expires_at_monotonic_ns = 0;  ///< 0 表示无 TTL。
 };
 
 /**
@@ -48,13 +49,15 @@ struct Claim {
  *          生命周期与所有权同 Claim：commit 前独占，本结构不持有内存。
  */
 struct BatchClaim {
-  std::span<std::byte> region;    ///< 批量预留的连续可写区(含全部帧的帧头与 payload)
+  std::span<std::byte> region;  ///< 批量预留的连续可写区(含全部帧的帧头与 payload)
   std::uint64_t start_pos = 0;    ///< 首帧起始字节偏移
   std::uint32_t frame_len = 0;    ///< 单帧长度(帧头+payload+对齐，定长)
   std::uint32_t frame_count = 0;  ///< 帧数量
   std::uint32_t payload_len = 0;  ///< 单帧原始负载字节数，不包含帧头或对齐填充
-  std::uint64_t base_sequence = 0;  ///< 首帧序列号，后续帧依次 +1
-  std::uint32_t producer_id = 0;  ///< 生产者标识
+  std::uint64_t base_sequence = 0;            ///< 首帧序列号，后续帧依次 +1
+  std::uint32_t producer_id = 0;              ///< 生产者标识
+  bool has_expiry = false;                    ///< 是否每帧附带单调时钟截止值。
+  std::uint64_t expires_at_monotonic_ns = 0;  ///< 本批所有帧共用的截止值。
 };
 
 /**
@@ -101,8 +104,8 @@ class Producer {
   ring::MagicRing* ring_;          ///< 非持有的 ring 指针(不拥有)
   Positions positions_;            ///< 生产者/消费者位置单元(非持有)
   std::uint64_t cached_head_ = 0;  ///< 消费者 head 的本地缓存，减少原子读的缓存行乒乓
-  bool cap_pow2_ = false;          ///< cap 是否为 2 的幂，决定 generation 用移位还是除法
-  std::uint32_t cap_shift_ = 0;    ///< log2(cap)，仅 cap_pow2_ 时有效
+  bool cap_pow2_ = false;  ///< cap 是否为 2 的幂，决定 generation 用移位还是除法
+  std::uint32_t cap_shift_ = 0;  ///< log2(cap)，仅 cap_pow2_ 时有效
 };
 
 }  // namespace salias::flow

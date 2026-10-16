@@ -41,8 +41,8 @@ inline constexpr std::size_t align_up(std::size_t n) noexcept {
  * @note payload 经 align_up 对齐，保证下一帧帧头起始仍按 kFrameAlign 对齐。
  */
 // 返回标准帧在环形区占用的总字节数：8 字节帧头加对齐后的 payload。
-inline constexpr std::size_t frame_len(std::size_t payload_len) noexcept {
-  return kHeaderSize + align_up(payload_len);
+inline constexpr std::size_t frame_len(std::size_t payload_len, bool has_expiry = false) noexcept {
+  return kHeaderSize + (has_expiry ? sizeof(std::uint64_t) : 0) + align_up(payload_len);
 }
 
 /**
@@ -96,9 +96,7 @@ inline FrameHeader decode_header(std::span<const std::byte, kHeaderSize> src) no
  * @return flags 值（低 8 位），即 BEGIN/END/PADDING/COMMITTED 的组合。
  */
 // 从 metadata 低字节提取帧标志。
-inline std::uint32_t flags(const FrameHeader& header) noexcept {
-  return header.meta & 0xFFu;
-}
+inline std::uint32_t flags(const FrameHeader& header) noexcept { return header.meta & 0xFFu; }
 
 /**
  * @brief 从 metadata 高位提取 sequence 低位信息。
@@ -108,8 +106,6 @@ inline std::uint32_t flags(const FrameHeader& header) noexcept {
  * @note 完整 64 位 sequence 重建见 sequence.hpp 的 decode_sequence。
  */
 // 从 metadata 高位提取 generation/sequence 信息。
-inline std::uint32_t seq(const FrameHeader& header) noexcept {
-  return header.meta >> 8;
-}
+inline std::uint32_t seq(const FrameHeader& header) noexcept { return header.meta >> 8; }
 
 }  // namespace salias::frame

@@ -9,13 +9,14 @@
  */
 
 #include "core/frame/codec.hpp"
-#include "core/frame/header.hpp"
 
 #include <gtest/gtest.h>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
+
+#include "core/frame/header.hpp"
 
 namespace {  // 匿名命名空间：帧编解码测试用例，仅本编译单元可见。
 
@@ -30,9 +31,8 @@ TEST(FrameCodecTest, EncodesAndDecodesEightByteHeader) {
 
   std::array<std::byte, salias::frame::kHeaderSize> bytes{};
   // meta 高位承载序列号（seq），低位承载标志位（flags）。
-  const std::uint32_t meta =
-      salias::frame::FLAG_BEGIN | salias::frame::FLAG_END | salias::frame::FLAG_COMMITTED |
-      (0x00A5A5u << 8);
+  const std::uint32_t meta = salias::frame::FLAG_BEGIN | salias::frame::FLAG_END |
+                             salias::frame::FLAG_COMMITTED | (0x00A5A5u << 8);
 
   salias::frame::encode_header(bytes, 1234, meta);
   const salias::frame::FrameHeader decoded = salias::frame::decode_header(bytes);
@@ -40,8 +40,7 @@ TEST(FrameCodecTest, EncodesAndDecodesEightByteHeader) {
   EXPECT_EQ(decoded.len, 1234u);
   EXPECT_EQ(decoded.meta, meta);
   EXPECT_EQ(salias::frame::flags(decoded),
-            salias::frame::FLAG_BEGIN | salias::frame::FLAG_END |
-                salias::frame::FLAG_COMMITTED);
+            salias::frame::FLAG_BEGIN | salias::frame::FLAG_END | salias::frame::FLAG_COMMITTED);
   EXPECT_EQ(salias::frame::seq(decoded), 0x00A5A5u);
 }
 
@@ -65,6 +64,13 @@ TEST(FrameCodecTest, AlignsPayloadAndComputesFrameLength) {
 // 验证常见 8 字节 payload 的帧大小。
 TEST(FrameCodecTest, EightBytePayloadUsesSixteenBytesTotal) {
   EXPECT_EQ(salias::frame::frame_len(8), 16u);
+}
+
+TEST(FrameCodecTest, ExpiringFrameAddsAlignedTransportMetadata) {
+  EXPECT_EQ(salias::frame::frame_len(0, true), 16u);
+  EXPECT_EQ(salias::frame::frame_len(8, true), 24u);
+  EXPECT_EQ(salias::frame::frame_len(9, true), 32u);
+  EXPECT_EQ(salias::frame::frame_len(9, true) - salias::frame::frame_len(9), 8u);
 }
 
 }  // namespace

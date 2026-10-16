@@ -70,6 +70,8 @@ class Subscriber {
   std::uint64_t lagged_messages() const noexcept;
   /// @return DropOldest 端点主动跳过的保留消息条数；Reliable 端点始终为 0。
   std::uint64_t skipped_messages() const noexcept;
+  /// @return 此端点在当前进程中跳过的过期消息数。
+  std::uint64_t expired_messages() const noexcept;
 
   /**
    * @brief 将 DropOldest 订阅端的指定 producer ring 推进到最新已提交帧，保留该帧未读。
@@ -134,8 +136,8 @@ class Subscriber {
     std::size_t consumed = 0;
     while (consumed < max_messages) {
       // 计算本批应取条数：剩余需求与 kChunk 取较小值。
-      const std::uint32_t remaining = static_cast<std::uint32_t>(
-          std::min<std::size_t>(kChunk, max_messages - consumed));
+      const std::uint32_t remaining =
+          static_cast<std::uint32_t>(std::min<std::size_t>(kChunk, max_messages - consumed));
       const std::size_t got = fetch_batch(buffer, remaining);
       if (got == 0) {
         break;  // 本批无可读消息，提前结束轮询。
@@ -166,9 +168,9 @@ class Subscriber {
   friend class Channel<M>;  ///< Channel 通过私有构造创建 Subscriber。
 };
 
-using FifoMpscSubscriber = Subscriber<Mode::FifoMpsc>;      ///< FIFO MPSC 订阅端别名。
-using FifoFanoutSubscriber = Subscriber<Mode::FifoFanout>;  ///< FIFO fanout 订阅端别名。
-using OrderedMpscSubscriber = Subscriber<Mode::OrderedMpsc>;      ///< 保序 MPSC 订阅端别名。
+using FifoMpscSubscriber = Subscriber<Mode::FifoMpsc>;        ///< FIFO MPSC 订阅端别名。
+using FifoFanoutSubscriber = Subscriber<Mode::FifoFanout>;    ///< FIFO fanout 订阅端别名。
+using OrderedMpscSubscriber = Subscriber<Mode::OrderedMpsc>;  ///< 保序 MPSC 订阅端别名。
 using OrderedFanoutSubscriber = Subscriber<Mode::OrderedFanout>;  ///< 保序 fanout 订阅端别名。
 using LatestFanoutSubscriber = Subscriber<Mode::LatestFanout>;  ///< 丢旧 fanout 订阅端别名。
 

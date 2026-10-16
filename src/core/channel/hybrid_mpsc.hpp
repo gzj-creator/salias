@@ -176,6 +176,14 @@ inline void store_header_plain(ring::MagicRing& ring, std::uint64_t position,
   std::memcpy(header_dst.data(), &word, sizeof(word));
 }
 
+inline void store_expiry_plain(ring::MagicRing& ring, std::uint64_t position,
+                               std::uint64_t expires_at_monotonic_ns) noexcept {
+  auto expiry_dst = ring.slice_mut(position + frame::kHeaderSize, sizeof(expires_at_monotonic_ns));
+  if (expiry_dst.size() == sizeof(expires_at_monotonic_ns)) {
+    std::memcpy(expiry_dst.data(), &expires_at_monotonic_ns, sizeof(expires_at_monotonic_ns));
+  }
+}
+
 /**
  * @brief 普通读取 8 字节帧头。
  * @details 调用方必须已经 acquire 观察到覆盖该位置的 visible_producer_pos，
@@ -190,6 +198,16 @@ inline std::uint64_t load_header_plain(const ring::MagicRing& ring,
   }
   std::memcpy(&word, header_src.data(), sizeof(word));
   return word;
+}
+
+inline std::uint64_t load_expiry_plain(const ring::MagicRing& ring,
+                                       std::uint64_t position) noexcept {
+  auto expiry_src = ring.slice(position + frame::kHeaderSize, sizeof(std::uint64_t));
+  std::uint64_t expiry = 0;
+  if (expiry_src.size() == sizeof(expiry)) {
+    std::memcpy(&expiry, expiry_src.data(), sizeof(expiry));
+  }
+  return expiry;
 }
 
 /// @brief 一段已提交但尚未并入连续水位的字节区间 [start, end)。
@@ -271,9 +289,9 @@ inline void prefetch_header(const ring::MagicRing& ring, std::uint64_t position)
  *          HybridSharedControl、producer_rings_ 与 consumer_sequences_，move-only。
  *          线程安全：Tx/Rx 分别为单生产者/单消费者独占使用，非线程安全；
  *          底层原子操作保证跨生产者-消费者可见性。
-   *          关键不变式：consumer 只读 visible_producer_pos 已覆盖的帧(该水位
-   *          是连续已提交前缀)；序列号低位回绕安全由 create() 经
-   *          sequence_low_window_fits 静态保证。
+ *          关键不变式：consumer 只读 visible_producer_pos 已覆盖的帧(该水位
+ *          是连续已提交前缀)；序列号低位回绕安全由 create() 经
+ *          sequence_low_window_fits 静态保证。
  */
 template <Order Ordering = Order::Ordered, wait::WaitStrategy Wait = wait::SpinPause>
 class HybridMpscChannel {
@@ -287,12 +305,12 @@ class HybridMpscChannel {
    *          大页降低 miss；numa_node=-1 不绑定。
    */
   struct Config {
-    std::uint32_t num_producers = 1;       ///< 生产者(独立 ring)数量
-    std::uint32_t num_consumers = 1;       ///< 消费者数量
+    std::uint32_t num_producers = 1;                              ///< 生产者(独立 ring)数量
+    std::uint32_t num_consumers = 1;                              ///< 消费者数量
     std::size_t ring_capacity_per_producer = 4u * 1024u * 1024u;  ///< 单环容量(须 2 的幂)
-    platform::HugePage huge = platform::HugePage::None;  ///< 是否启用大页(huge page)
-    int numa_node = -1;                    ///< NUMA 绑定节点，-1 表示不绑定
-    std::size_t publication_window = 0;    ///< 发布流控窗口(字节)，0 表示满环；低延迟推荐 64–256KiB
+    platform::HugePage huge = platform::HugePage::None;           ///< 是否启用大页(huge page)
+    int numa_node = -1;  ///< NUMA 绑定节点，-1 表示不绑定
+    std::size_t publication_window = 0;  ///< 发布流控窗口(字节)，0 表示满环；低延迟推荐 64–256KiB
   };
 
   /// @brief create() 结果类型：成功返回 channel，失败返回 ChannelError。
@@ -356,10 +374,10 @@ class HybridMpscChannel {
                              std::move(consumer_sequences), Wait{});
   }
 
-  HybridMpscChannel(HybridMpscChannel&&) noexcept = default;            ///< move 构造(默认)
+  HybridMpscChannel(HybridMpscChannel&&) noexcept = default;             ///< move 构造(默认)
   HybridMpscChannel& operator=(HybridMpscChannel&&) noexcept = default;  ///< move 赋值(默认)
-  HybridMpscChannel(const HybridMpscChannel&) = delete;      ///< 禁止拷贝(独占映射)
-  HybridMpscChannel& operator=(const HybridMpscChannel&) = delete;      ///< 禁止拷贝赋值
+  HybridMpscChannel(const HybridMpscChannel&) = delete;             ///< 禁止拷贝(独占映射)
+  HybridMpscChannel& operator=(const HybridMpscChannel&) = delete;  ///< 禁止拷贝赋值
 
   /// @brief 返回生产者(独立 ring)数量；channel 已 move-out 后返回 0。
   std::uint32_t producer_count() const noexcept {
@@ -438,7 +456,7 @@ class HybridMpscChannel {
     ProducerRing(const ProducerRing&) = delete;             ///< 禁止拷贝(独占映射所有权)
     ProducerRing& operator=(const ProducerRing&) = delete;  ///< 禁止拷贝赋值
 
-    ring::MagicRing ring;                                   ///< 该生产者的私有 ring
+    ring::MagicRing ring;  ///< 该生产者的私有 ring
     // 写位置(独占缓存行)：单生产者独占递增，无需原子；单调全量偏移。
     alignas(128) std::uint64_t producer_pos = 0;
     std::uint64_t cached_consumer_pos = 0;  ///< 消费者最小位置本地缓存，减少跨核读
@@ -450,9 +468,9 @@ class HybridMpscChannel {
     alignas(128) std::atomic<std::uint64_t> visible_producer_pos{0};
     // 每个 consumer 在本环的消费进度；consumer release 写、producer acquire 读。
     std::unique_ptr<std::atomic<std::uint64_t>[]> consumer_positions;
-    std::uint32_t consumer_count = 0;       ///< 本环订阅的 consumer 数量
-    std::uint64_t total_written = 0;        ///< 累计已写帧数(Fifo 模式下作序列号源)
-    std::uint64_t backpressure_count = 0;   ///< 累计背压次数(诊断用)
+    std::uint32_t consumer_count = 0;      ///< 本环订阅的 consumer 数量
+    std::uint64_t total_written = 0;       ///< 累计已写帧数(Fifo 模式下作序列号源)
+    std::uint64_t backpressure_count = 0;  ///< 累计背压次数(诊断用)
   };
 
   /// @brief 私有构造：由 create() 在完成所有 ring/控制结构分配后调用。
@@ -510,8 +528,7 @@ class HybridMpscChannel {
    *          普通写之后只做这一次 release。乱序 commit 先记入 pending，等空洞
    *          补上再一次性发布连续前缀，避免消费者读到未写完的帧。
    */
-  bool publish_contiguous(ProducerRing& producer, std::uint64_t start,
-                          std::uint64_t end) noexcept {
+  bool publish_contiguous(ProducerRing& producer, std::uint64_t start, std::uint64_t end) noexcept {
     if (start == producer.published_pos) {
       end = hybrid_detail::consume_pending_contiguous(producer.pending_commits, end);
       producer.published_pos = end;
@@ -560,8 +577,7 @@ class HybridMpscChannel {
     }
 
     const std::uint64_t next_position = position + frame::frame_len(payload_len);
-    if (frame::frame_len(payload_len) > producer.ring.capacity() ||
-        next_position > visible_bound) {
+    if (frame::frame_len(payload_len) > producer.ring.capacity() || next_position > visible_bound) {
       return std::nullopt;
     }
 
@@ -905,9 +921,9 @@ class HybridMpscChannel {
         } else {
           // 全序流常因下一序号位于其他环而截断，保留原有逐帧推进路径。
           while (produced < cap) {
-            auto message = channel_->try_read_from_ring(
-                producer_id, read_positions_[producer_id], expected_sequence_,
-                cached_visible_pos_[producer_id]);
+            auto message =
+                channel_->try_read_from_ring(producer_id, read_positions_[producer_id],
+                                             expected_sequence_, cached_visible_pos_[producer_id]);
             if (!message.has_value()) {
               break;
             }
@@ -1059,8 +1075,8 @@ class HybridMpscChannel {
     }
 
    private:
-    HybridMpscChannel* channel_;          ///< 非持有的 channel 指针
-    std::uint32_t consumer_id_ = 0;       ///< 本句柄绑定的 consumer 索引
+    HybridMpscChannel* channel_;                 ///< 非持有的 channel 指针
+    std::uint32_t consumer_id_ = 0;              ///< 本句柄绑定的 consumer 索引
     std::vector<std::uint64_t> read_positions_;  ///< 每 producer 环的本地读位置(字节)
     std::vector<std::uint64_t> next_sequences_;  ///< 每环期望的下一序列号(Fifo 模式)
     // 每环可见位的本地缓存(减少跨核 acquire 读)。

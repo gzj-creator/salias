@@ -14,19 +14,19 @@ entry. No version tags, pushes or changes to the installed dependency copy.
 | G2 | Process liveness and connected subscriber count | `6b69e17`; PID/start-token checks and cross-process API tests |
 | G3 | Bounded IPC drop-oldest with Publisher/Subscriber endpoints | `afe8ab1`, `501f502`; LatestFanout frame/lease tests and six benchmarks in `6a1185e` |
 | G4 | Explicit latest seek, exact gap counters, and a real Lagged reporting path | `try_recv_checked`, `lagged_messages`, `skipped_messages`, `skip_to_latest` on the existing endpoints; no implicit loss in reliable modes. Cross-process and wraparound tests pass. |
-| G5 | Per-subscriber reliable or drop-oldest policy, without discarding reliable readers' data | Pending. Build on G1 generations and G4 loss reporting; protect both single and batched loans. |
+| G5 | Per-subscriber reliable or drop-oldest policy, without discarding reliable readers' data | Implemented in `f2aeedf`: LatestFanout supports independent Reliable/DropOldest slots; single and batch loans protect reliable readers. |
 | G6 | Keyed latest-value IPC primitive, bounded memory, real cross-process conflation | Pending. Key equality/collisions and updates to a borrowed value need explicit semantics, not an application-side map. |
 | G7 | Priority-aware delivery and coordinated multi-channel subscription | Pending. Define starvation/fairness and per-stream ordering, with backpressure independent across priorities. |
-| G8 | Message-count retention/flow limits alongside byte capacity | Pending. Enforce whole-message counts for variable sizes, batches and wraparound; template-configurable latest N. |
-| G9 | TTL-aware IPC expiration, expired frames release capacity without dropping live reliable data | Pending. Explicit transport metadata and clock domain; no hard-coded business payload parsing. |
+| G8 | Message-count retention/flow limits alongside byte capacity | Implemented in `1d7a19f`: per-producer message limits, LatestFanout retained-count limits, partial batch handling and byte-window independence. |
+| G9 | TTL-aware IPC expiration, expired frames release capacity without dropping live reliable data | Implemented: explicit per-frame monotonic deadline metadata; poll/recv skips expired prefixes and publishes progress before returning the next live borrowed frame. It never crosses that live frame, even if its TTL expires while borrowed. No polling means no background expiry cleanup. Release 142/142; ASan/UBSan 141/141; TSan API suite 1/1; mcpp module/header TTL IPC pass. |
 
 ## Implementation Order
 
-G1 through G4 are complete. Finish G5, G8, G9, G6 and G7. The order
+Ringbuffer and G1-G5, G8-G9 are complete. G6 and G7 remain. The order
 puts gap observability before lifecycle/policy work and shares the same pinning
-contract throughout. Preserve the existing reliable modes unless a caller
-explicitly opts into a lossy policy. Do not treat a local wrapper, docs alone,
-or an unused API declaration as completion of an IPC capability.
+contract throughout. Preserve the existing reliable modes unless the transport
+metadata says a frame has expired. Do not treat a local wrapper, docs alone, or
+an unused API declaration as completion of an IPC capability.
 
 The G1 registration roundtrip microbenchmark measured 205 ns with a persistent
 subscriber and 22.2 us with per-iteration registration churn (five repetitions,

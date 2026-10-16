@@ -29,6 +29,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "core/platform/monotonic_clock.hpp"
 #include "salias/salias.hpp"
 
 namespace {  // 匿名命名空间：测试内部辅助类型与函数，仅本编译单元可见。
@@ -137,9 +138,11 @@ TEST(ChannelApiTest, FifoThreeProducerScanWrapsAndRemainsFair) {
   EXPECT_FALSE(subscriber.try_recv());
   for (const auto p : {1u, 0u, 2u}) {
     ASSERT_TRUE(publishers[p].offer(encode(Payload{.producer = p})));
-    EXPECT_EQ(subscriber.poll(32, [p](const salias::Message& message) noexcept {
-      EXPECT_EQ(message.producer_id, p);
-    }), 1u);
+    EXPECT_EQ(subscriber.poll(32,
+                              [p](const salias::Message& message) noexcept {
+                                EXPECT_EQ(message.producer_id, p);
+                              }),
+              1u);
     EXPECT_FALSE(subscriber.try_recv());
   }
 }
@@ -227,9 +230,13 @@ void check_batch_retention() {
     EXPECT_FALSE(publisher.try_claim(4088));
   }
   // Exercise the function-pointer overload as well as the templated callable.
-  EXPECT_EQ(slow.poll(32, [](const salias::Message& message, void* context) noexcept {
-    (*static_cast<decltype(check)*>(context))(message);
-  }, &check), 3u);
+  EXPECT_EQ(slow.poll(
+                32,
+                [](const salias::Message& message, void* context) noexcept {
+                  (*static_cast<decltype(check)*>(context))(message);
+                },
+                &check),
+            3u);
   EXPECT_EQ(callbacks, 6u);
   for (auto& publisher : publishers) {
     auto next = publisher.try_claim(4088);
@@ -282,10 +289,8 @@ void check_concurrent_batches() {
   std::array<std::uint64_t, 2> received{};
   std::array<std::array<std::uint32_t, kProducers>, 2> expected{};
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-  while ((received[0] != kProducers * kMessages ||
-          received[1] != kProducers * kMessages) &&
-         !failed.load(std::memory_order_relaxed) &&
-         std::chrono::steady_clock::now() < deadline) {
+  while ((received[0] != kProducers * kMessages || received[1] != kProducers * kMessages) &&
+         !failed.load(std::memory_order_relaxed) && std::chrono::steady_clock::now() < deadline) {
     for (std::size_t c = 0; c < subscribers.size(); ++c) {
       subscribers[c].poll(c == 0 ? 17 : 31, [&, c](const salias::Message& message) noexcept {
         const auto payload = decode(message.payload);
@@ -298,8 +303,7 @@ void check_concurrent_batches() {
             failed.store(true, std::memory_order_relaxed);
           }
         }
-        if (message.producer_id >= kProducers ||
-            payload.producer != message.producer_id ||
+        if (message.producer_id >= kProducers || payload.producer != message.producer_id ||
             payload.sequence != expected[c][message.producer_id]++) {
           failed.store(true, std::memory_order_relaxed);
         }
@@ -589,6 +593,302 @@ TEST(ChannelApiTest, ConnectRejectsDifferentMode) {
   EXPECT_EQ(connected.error(), salias::Error::BadConfig);
 }
 
+TEST(ChannelApiTest, ExpiredFramesReleaseCapacityWithoutDroppingLiveReliableFrames) {
+  auto config = config_for(salias::Mode::FifoMpsc, "ttl-reliable-live-frame");
+  config.publication_window = 4096;
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  std::array<std::byte, 2000> expired_payload{};
+  std::array<std::byte, 2000> live_payload{};
+  live_payload.fill(std::byte{0x5a});
+  ASSERT_TRUE(publisher.offer_for(expired_payload, std::chrono::nanoseconds{0}));
+  ASSERT_TRUE(publisher.offer(live_payload));
+  auto blocked = publisher.offer(live_payload);
+  ASSERT_FALSE(blocked);
+  EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
+
+  auto live = subscriber.try_recv();
+  ASSERT_TRUE(live);
+  EXPECT_EQ(live->payload.size(), live_payload.size());
+  EXPECT_EQ(live->expires_at_monotonic_ns, 0u);
+  EXPECT_TRUE(std::equal(live->payload.begin(), live->payload.end(), live_payload.begin()));
+  EXPECT_EQ(subscriber.expired_messages(), 1u);
+  ASSERT_TRUE(publisher.offer(live_payload));
+  blocked = publisher.offer(live_payload);
+  ASSERT_FALSE(blocked);
+  EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
+
+  subscriber.release(*live);
+  ASSERT_TRUE(publisher.offer(live_payload));
+  live = subscriber.try_recv();
+  ASSERT_TRUE(live);
+  EXPECT_TRUE(std::equal(live->payload.begin(), live->payload.end(), live_payload.begin()));
+  subscriber.release(*live);
+  live = subscriber.try_recv();
+  ASSERT_TRUE(live);
+  EXPECT_TRUE(std::equal(live->payload.begin(), live->payload.end(), live_payload.begin()));
+  subscriber.release(*live);
+}
+
+TEST(ChannelApiTest, PollReleasesExpiredPrefixBeforeBorrowedLiveFrame) {
+  auto config = config_for(salias::Mode::FifoMpsc, "ttl-poll-prefix-capacity");
+  config.publication_window = 4096;
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  std::array<std::byte, 2000> payload{};
+  payload.fill(std::byte{0x71});
+  ASSERT_TRUE(publisher.offer_for(payload, std::chrono::nanoseconds{0}));
+  ASSERT_TRUE(publisher.offer(payload));
+  auto full = publisher.offer(payload);
+  ASSERT_FALSE(full);
+  EXPECT_EQ(full.error(), salias::Error::BackPressured);
+
+  bool reclaimed_prefix = false;
+  bool live_remained_backpressured = false;
+  const auto polled = subscriber.poll(1, [&](const salias::Message& message) noexcept {
+    EXPECT_TRUE(std::equal(message.payload.begin(), message.payload.end(), payload.begin()));
+    const auto next = publisher.offer(payload);
+    reclaimed_prefix = next && *next;
+    const auto still_full = publisher.offer(payload);
+    live_remained_backpressured = !still_full && still_full.error() == salias::Error::BackPressured;
+  });
+  EXPECT_EQ(polled, 1u);
+  EXPECT_TRUE(reclaimed_prefix);
+  EXPECT_TRUE(live_remained_backpressured);
+  EXPECT_EQ(subscriber.expired_messages(), 1u);
+
+  ASSERT_TRUE(publisher.offer(payload));
+  EXPECT_EQ(subscriber.poll(3, [&](const salias::Message& message) noexcept {
+              EXPECT_TRUE(std::equal(message.payload.begin(), message.payload.end(), payload.begin()));
+            }),
+            2u);
+}
+
+TEST(ChannelApiTest, BorrowedTtlMessageRemainsPinnedAfterItsDeadline) {
+  auto config = config_for(salias::Mode::FifoMpsc, "ttl-borrowed-deadline");
+  config.publication_window = 4096;
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  std::array<std::byte, 2000> payload{};
+  payload.fill(std::byte{0x4d});
+  ASSERT_TRUE(publisher.offer_for(payload, std::chrono::milliseconds{500}));
+  auto borrowed = subscriber.try_recv();
+  ASSERT_TRUE(borrowed);
+  ASSERT_TRUE(publisher.offer(payload));
+  std::this_thread::sleep_for(std::chrono::milliseconds{510});
+
+  EXPECT_LE(borrowed->expires_at_monotonic_ns,
+            salias::platform::monotonic_now_ns().value_or(0));
+  EXPECT_TRUE(std::equal(borrowed->payload.begin(), borrowed->payload.end(), payload.begin()));
+  auto blocked = publisher.offer(payload);
+  ASSERT_FALSE(blocked);
+  EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
+
+  subscriber.release(*borrowed);
+  auto next = subscriber.try_recv();
+  ASSERT_TRUE(next);
+  subscriber.release(*next);
+  ASSERT_TRUE(publisher.offer(payload));
+}
+
+TEST(ChannelApiTest, TtlClaimBatchPartialPrefixAndWraparoundAreHandled) {
+  auto config = config_for(salias::Mode::FifoMpsc, "ttl-batch-wraparound");
+  config.publication_window = 4096;
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  std::array<std::byte, 1024> payload{};
+  std::array<std::span<const std::byte>, 4> batch{payload, payload, payload, payload};
+  auto published = publisher.offer_batch_for(batch, std::chrono::nanoseconds{0});
+  ASSERT_TRUE(published);
+  EXPECT_EQ(*published, 3u);
+  EXPECT_EQ(subscriber.poll(4, [](const salias::Message&) noexcept {}), 0u);
+  EXPECT_EQ(subscriber.expired_messages(), 3u);
+
+  for (std::uint64_t sequence = 0; sequence < 12; ++sequence) {
+    auto claim = publisher.try_claim_for(sizeof(Payload), std::chrono::seconds{1});
+    ASSERT_TRUE(claim);
+    const auto encoded = encode(Payload{.sequence = static_cast<std::uint32_t>(sequence)});
+    std::memcpy(claim->payload().data(), encoded.data(), encoded.size());
+    claim->commit();
+    auto message = subscriber.try_recv();
+    ASSERT_TRUE(message);
+    EXPECT_GT(message->expires_at_monotonic_ns, 0u);
+    EXPECT_EQ(decode(message->payload).sequence, sequence);
+    subscriber.release(*message);
+  }
+
+  std::array<std::byte, 2000> variable_a{};
+  std::array<std::byte, 2000> variable_b{};
+  std::array<std::byte, 2000> variable_c{};
+  const std::array<std::span<const std::byte>, 3> variable_batch{variable_a, variable_b,
+                                                                 variable_c};
+  auto variable_published = publisher.offer_batch_for(variable_batch, std::chrono::seconds{1});
+  ASSERT_TRUE(variable_published);
+  EXPECT_EQ(*variable_published, 2u);
+  std::uint64_t shared_deadline = 0;
+  bool deadlines_match = true;
+  const auto variable_polled = subscriber.poll(3, [&](const salias::Message& message) noexcept {
+    if (shared_deadline == 0) {
+      shared_deadline = message.expires_at_monotonic_ns;
+    } else {
+      deadlines_match = deadlines_match && message.expires_at_monotonic_ns == shared_deadline;
+    }
+  });
+  EXPECT_EQ(variable_polled, 2u);
+  EXPECT_TRUE(deadlines_match);
+  EXPECT_GT(shared_deadline, 0u);
+
+  std::array<std::byte, 2040> uniform_payload{};
+  const std::array<std::span<const std::byte>, 3> uniform_batch{
+      uniform_payload, uniform_payload, uniform_payload};
+  const auto uniform_published = publisher.offer_batch_for(uniform_batch, std::chrono::seconds{1});
+  ASSERT_TRUE(uniform_published);
+  EXPECT_EQ(*uniform_published, 1u);
+  std::uint64_t uniform_deadline = 0;
+  bool uniform_deadlines_match = true;
+  const auto uniform_polled = subscriber.poll(3, [&](const salias::Message& message) noexcept {
+    if (uniform_deadline == 0) {
+      uniform_deadline = message.expires_at_monotonic_ns;
+    } else {
+      uniform_deadlines_match =
+          uniform_deadlines_match && message.expires_at_monotonic_ns == uniform_deadline;
+    }
+  });
+  EXPECT_EQ(uniform_polled, 1u);
+  EXPECT_TRUE(uniform_deadlines_match);
+  EXPECT_GT(uniform_deadline, 0u);
+
+  const auto negative = publisher.offer_for(payload, std::chrono::nanoseconds{-1});
+  ASSERT_FALSE(negative);
+  EXPECT_EQ(negative.error(), salias::Error::BadConfig);
+  const auto negative_claim = publisher.try_claim_for(8, std::chrono::nanoseconds{-1});
+  ASSERT_FALSE(negative_claim);
+  EXPECT_EQ(negative_claim.error(), salias::Error::BadConfig);
+  const auto negative_batch = publisher.offer_batch_for(batch, std::chrono::nanoseconds{-1});
+  ASSERT_FALSE(negative_batch);
+  EXPECT_EQ(negative_batch.error(), salias::Error::BadConfig);
+}
+
+TEST(ChannelApiTest, OrderedTtlSkipPreservesGlobalSequenceAcrossProducerRings) {
+  auto config = config_for(salias::Mode::OrderedMpsc, "ttl-ordered-rings");
+  config.num_producers = 2;
+  auto created = salias::OrderedMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto first_publisher = channel.publisher();
+  auto second_publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  ASSERT_TRUE(first_publisher.offer_for(encode(Payload{0, 0}), std::chrono::nanoseconds{0}));
+  ASSERT_TRUE(second_publisher.offer(encode(Payload{1, 1})));
+  auto message = subscriber.try_recv();
+  ASSERT_TRUE(message);
+  EXPECT_EQ(message->sequence, 1u);
+  EXPECT_EQ(decode(message->payload), (Payload{1, 1}));
+  EXPECT_EQ(subscriber.expired_messages(), 1u);
+  subscriber.release(*message);
+}
+
+TEST(ChannelApiTest, LatestFanoutTtlFramesAreParsedDuringRetentionAndLagRecovery) {
+  auto config = config_for(salias::Mode::LatestFanout, "ttl-latest-retention");
+  config.publication_window_messages = 2;
+  auto created = salias::LatestFanoutChannel<4096>::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  ASSERT_TRUE(publisher.offer_for(encode(Payload{0, 0}), std::chrono::seconds{1}));
+  ASSERT_TRUE(publisher.offer_for(encode(Payload{0, 1}), std::chrono::nanoseconds{0}));
+  ASSERT_TRUE(publisher.offer(encode(Payload{0, 2})));
+
+  auto lagged = subscriber.try_recv_checked();
+  ASSERT_FALSE(lagged);
+  EXPECT_EQ(lagged.error(), salias::Error::Lagged);
+  EXPECT_EQ(subscriber.lagged_messages(), 1u);
+
+  auto latest = subscriber.try_recv();
+  ASSERT_TRUE(latest);
+  EXPECT_EQ(decode(latest->payload), (Payload{0, 2}));
+  EXPECT_EQ(subscriber.expired_messages(), 1u);
+  subscriber.release(*latest);
+
+  const auto expired_a = encode(Payload{0, 3});
+  const auto expired_b = encode(Payload{0, 4});
+  const auto expired_c = encode(Payload{0, 5});
+  const std::array<std::span<const std::byte>, 3> expired_batch{expired_a, expired_b, expired_c};
+  const auto batch_published =
+      publisher.offer_batch_for(expired_batch, std::chrono::nanoseconds{0});
+  ASSERT_TRUE(batch_published);
+  EXPECT_EQ(*batch_published, 2u);
+  EXPECT_EQ(subscriber.poll(3, [](const salias::Message&) noexcept {}), 0u);
+  EXPECT_EQ(subscriber.expired_messages(), 3u);
+}
+
+TEST(ChannelApiTest, TtlDeadlineUsesSharedMonotonicClockAcrossProcesses) {
+  auto config = config_for(salias::Mode::FifoMpsc, "ttl-cross-process-clock");
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto owner = std::move(*created);
+
+  int ready_pipe[2]{};
+  ASSERT_EQ(::pipe(ready_pipe), 0);
+  const pid_t child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    static_cast<void>(::close(ready_pipe[0]));
+    auto connected = salias::FifoMpscChannel::connect(config.name);
+    if (!connected) {
+      ::_exit(10);
+    }
+    auto subscriber = connected->subscriber();
+    const char ready = 'r';
+    if (::write(ready_pipe[1], &ready, sizeof(ready)) != sizeof(ready)) {
+      ::_exit(11);
+    }
+    for (int attempt = 0; attempt < 1'000'000; ++attempt) {
+      if (auto message = subscriber.try_recv()) {
+        const bool valid =
+            decode(message->payload) == Payload{7, 1} && subscriber.expired_messages() == 1;
+        subscriber.release(*message);
+        ::_exit(valid ? 0 : 12);
+      }
+      std::this_thread::yield();
+    }
+    ::_exit(13);
+  }
+
+  static_cast<void>(::close(ready_pipe[1]));
+  char ready = 0;
+  ASSERT_EQ(::read(ready_pipe[0], &ready, sizeof(ready)), sizeof(ready));
+  ASSERT_EQ(ready, 'r');
+  auto publisher = owner.publisher();
+  ASSERT_TRUE(publisher.offer_for(encode(Payload{7, 0}), std::chrono::nanoseconds{0}));
+  ASSERT_TRUE(publisher.offer(encode(Payload{7, 1})));
+  static_cast<void>(::close(ready_pipe[0]));
+
+  int status = 0;
+  ASSERT_EQ(::waitpid(child, &status, 0), child);
+  ASSERT_TRUE(WIFEXITED(status));
+  EXPECT_EQ(WEXITSTATUS(status), 0);
+}
+
 TEST(ChannelApiTest, MessageCountWindowLimitsEachOrderedProducerAndResumesAfterRelease) {
   auto config = config_for(salias::Mode::OrderedMpsc, "message-window-ordered-producers");
   config.num_producers = 2;
@@ -686,8 +986,8 @@ TEST(ChannelApiTest, MessageCountWindowConstrainsBatchesAndPersistsAcrossConnect
   auto publisher = owner.publisher();
   auto subscriber = connected->subscriber();
 
-  const std::array<Payload, 5> values = {
-      Payload{0, 0}, Payload{0, 1}, Payload{0, 2}, Payload{0, 3}, Payload{0, 4}};
+  const std::array<Payload, 5> values = {Payload{0, 0}, Payload{0, 1}, Payload{0, 2}, Payload{0, 3},
+                                         Payload{0, 4}};
   std::array<std::array<std::byte, sizeof(Payload)>, values.size()> encoded{};
   std::array<std::span<const std::byte>, values.size()> payloads{};
   for (std::size_t index = 0; index < values.size(); ++index) {
@@ -703,9 +1003,10 @@ TEST(ChannelApiTest, MessageCountWindowConstrainsBatchesAndPersistsAcrossConnect
   EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
 
   Payload received_first{};
-  EXPECT_EQ(subscriber.poll(1, [&](const salias::Message& message) noexcept {
-              received_first = decode(message.payload);
-            }),
+  EXPECT_EQ(subscriber.poll(1,
+                            [&](const salias::Message& message) noexcept {
+                              received_first = decode(message.payload);
+                            }),
             1u);
   EXPECT_EQ(received_first, values[0]);
   ASSERT_TRUE(publisher.offer(payloads[3]));
@@ -729,8 +1030,7 @@ TEST(ChannelApiTest, MessageCountWindowWaitsForSlowestFanoutConsumer) {
   auto fast = channel.subscriber();
   auto slow = channel.subscriber();
 
-  const std::array payloads = {encode(Payload{0, 0}), encode(Payload{0, 1}),
-                               encode(Payload{0, 2})};
+  const std::array payloads = {encode(Payload{0, 0}), encode(Payload{0, 1}), encode(Payload{0, 2})};
   ASSERT_TRUE(publisher.offer(payloads[0]));
   ASSERT_TRUE(publisher.offer(payloads[1]));
   for (std::size_t index = 0; index < 2; ++index) {
@@ -908,7 +1208,8 @@ TEST(ChannelApiTest, LatestFanoutMessageWindowRetainsLatestFramesAndReliableRead
   }
 }
 
-TEST(ChannelApiTest, LatestFanoutMessageWindowConstrainsBatchesAndSurvivesVariableLengthWraparound) {
+TEST(ChannelApiTest,
+     LatestFanoutMessageWindowConstrainsBatchesAndSurvivesVariableLengthWraparound) {
   using TypedChannel = salias::LatestFanoutChannel<4096, 100>;
   auto config = config_for(salias::Mode::LatestFanout, "latest-message-window-batch-wrap");
   config.publication_window_messages = 3;
@@ -918,8 +1219,8 @@ TEST(ChannelApiTest, LatestFanoutMessageWindowConstrainsBatchesAndSurvivesVariab
   auto publisher = channel.publisher();
   auto subscriber = channel.subscriber();
 
-  const std::array<Payload, 5> batch_values = {
-      Payload{0, 0}, Payload{0, 1}, Payload{0, 2}, Payload{0, 3}, Payload{0, 4}};
+  const std::array<Payload, 5> batch_values = {Payload{0, 0}, Payload{0, 1}, Payload{0, 2},
+                                               Payload{0, 3}, Payload{0, 4}};
   std::array<std::array<std::byte, sizeof(Payload)>, batch_values.size()> encoded_batch{};
   std::array<std::span<const std::byte>, batch_values.size()> batch_payloads{};
   for (std::size_t index = 0; index < batch_values.size(); ++index) {
@@ -963,10 +1264,9 @@ TEST(ChannelApiTest, LatestFanoutMessageWindowConstrainsBatchesAndSurvivesVariab
     EXPECT_EQ((**message).sequence, sequence + 5);
     const auto expected_length = lengths[sequence % lengths.size()];
     EXPECT_EQ((**message).payload.size(), expected_length);
-    EXPECT_TRUE(std::all_of((**message).payload.begin(), (**message).payload.end(),
-                            [sequence](std::byte value) {
-                              return value == static_cast<std::byte>(sequence & 0xffu);
-                            }));
+    EXPECT_TRUE(std::all_of(
+        (**message).payload.begin(), (**message).payload.end(),
+        [sequence](std::byte value) { return value == static_cast<std::byte>(sequence & 0xffu); }));
     subscriber.release(**message);
   }
 }
@@ -2016,8 +2316,8 @@ TEST(ChannelApiTest, ConcurrentSubscriberChurnAndPublishingRemainConsistent) {
     });
   }
 
-  auto drain = [&](salias::FifoFanoutSubscriber& subscriber,
-                   std::array<bool, 2>& have_previous, std::array<std::uint32_t, 2>& previous) {
+  auto drain = [&](salias::FifoFanoutSubscriber& subscriber, std::array<bool, 2>& have_previous,
+                   std::array<std::uint32_t, 2>& previous) {
     while (auto message = subscriber.try_recv()) {
       const auto payload = decode(message->payload);
       if (message->producer_id >= have_previous.size() ||
@@ -2034,9 +2334,8 @@ TEST(ChannelApiTest, ConcurrentSubscriberChurnAndPublishingRemainConsistent) {
     }
   };
 
-  for (std::uint32_t generation = 0; generation < 256 &&
-                                       done.load(std::memory_order_acquire) < producers.size();
-       ++generation) {
+  for (std::uint32_t generation = 0;
+       generation < 256 && done.load(std::memory_order_acquire) < producers.size(); ++generation) {
     auto subscriber = channel.try_subscriber();
     if (!subscriber) {
       failed.store(true, std::memory_order_relaxed);

@@ -79,7 +79,7 @@ python3 tools/check_mcpp.py
 代码保留 Linux/macOS 平台实现；macOS 的 mcpp 构建尚未在本机验证。
 `mcpp-tests` 是显式启用的测试 feature，默认不编译测试。
 测试覆盖五种模式的模块与头文件混合消费、实际收发、claim/commit、非对齐 payload 的 offer_batch、
-模板 poll 和共享内存清理。`check_mcpp.py` 在两个临时消费者目录进行离线构建，
+TTL 发送/过期跳过、模板 poll 和共享内存清理。`check_mcpp.py` 在两个临时消费者目录进行离线构建，
 并在生成锁文件后复验 `--locked`。
 
 等长 `offer_batch` 保留每条消息的原始 payload 长度，接收视图不包含 ring 对齐填充。
@@ -89,7 +89,15 @@ python3 tools/check_mcpp.py
 序列号低位回绕、三生产者与单条/批量订阅者并发、批内 payload 保留及 `SIGKILL` 后的 lease 回收。
 消息数窗口回归覆盖可靠模式的单条/批量背压、批量 poll 后恢复、fanout 慢订阅者边界、
 LatestFanout 的部分批次、可靠订阅者保护，以及变长空消息和物理回绕后的保留后缀。
-共享控制段当前为 v11；旧布局通道需重建，发布端和订阅端需一起升级。
+共享通道协议当前为 v12；旧布局通道需重建，发布端和订阅端需一起升级。
+
+`Publisher::offer_for`、`try_claim_for` 与 `offer_batch_for` 可为消息附加 TTL，截止时间在 API
+调用时采样，因此 `try_claim_for` 返回后的 payload 填充时间也计入 TTL。截止值以同一主机
+`CLOCK_MONOTONIC` 纳秒值写入扩展帧元数据；订阅端在交付前跳过过期帧，
+并通过 `expired_messages()` 统计本端观察到的过期消息。未过期帧仍遵循原有 Reliable/DropOldest
+策略，借用中的消息即使随后过期也必须先 release。TTL 批次共享同一截止值；TTL 头开销计入容量与水位。
+poll/recv 跳过过期前缀时立即推进游标，但只推进到下一条存活借用帧的起点；过期清理由接收端惰性
+触发，接收端停止轮询时没有后台线程替它回收队列容量。
 
 LatestFanout 可使用 `Subscriber::try_recv_checked()` 显式识别丢旧：首次观察到保留窗口已经
 越过本地游标时返回 `Error::Lagged`，随后重试从保留窗口读取。`lagged_messages()` 和

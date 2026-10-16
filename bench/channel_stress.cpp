@@ -150,6 +150,47 @@ void BM_fifo_roundtrip_64b(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
 }
 
+void BM_ttl_expiration_64b(benchmark::State& state) {
+  auto channel_result = salias::FifoMpscChannel::create(config_for(salias::Mode::FifoMpsc));
+  if (!channel_result) {
+    state.SkipWithError("failed to create TTL channel");
+    return;
+  }
+  auto channel = std::move(*channel_result);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+  SmallPayload payload{};
+
+  for (auto _ : state) {
+    const auto bytes = std::as_bytes(std::span{&payload, 1});
+    auto expired_offer = publisher.offer_for(bytes, std::chrono::nanoseconds{0});
+    if (!expired_offer || !*expired_offer || subscriber.try_recv()) {
+      state.SkipWithError("TTL expiration path failed to skip an expired frame");
+      return;
+    }
+    auto live_offer = publisher.offer(bytes);
+    if (!live_offer || !*live_offer) {
+      state.SkipWithError("TTL benchmark live offer failed");
+      return;
+    }
+    auto message = subscriber.try_recv();
+    if (!message || decode_small(message->payload).seq != payload.seq) {
+      state.SkipWithError("TTL benchmark live frame mismatch");
+      return;
+    }
+    benchmark::DoNotOptimize(message->payload.data());
+    subscriber.release(*message);
+    ++payload.seq;
+  }
+
+  if (subscriber.expired_messages() != static_cast<std::uint64_t>(state.iterations())) {
+    state.SkipWithError("TTL expiration counter mismatch");
+    return;
+  }
+  state.SetItemsProcessed(state.iterations() * 2);
+  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload) * 2));
+}
+
 /**
  * @brief 测量四个生产者(producer)线程和一个消费者(consumer)下的 MPSC 吞吐。
  * @tparam M 通道协议模式(由 BENCHMARK_TEMPLATE 实例化为 FifoMpsc / OrderedMpsc)。
@@ -182,7 +223,7 @@ void BM_four_producers_64b(benchmark::State& state) {
     auto channel = std::move(channel_result).value();
     auto subscriber = channel.subscriber();
     std::atomic<bool> start{false};  ///< 起跑屏障：所有生产者等待此标志置位后才开始发布。
-    std::atomic<bool> failed{false}; ///< 失败标志：任一生产者发布不可重试错误时置位。
+    std::atomic<bool> failed{false};  ///< 失败标志：任一生产者发布不可重试错误时置位。
     std::vector<std::thread> producers;
     producers.reserve(kProducerCount);
 
@@ -205,7 +246,7 @@ void BM_four_producers_64b(benchmark::State& state) {
     }
 
     std::uint64_t producer_sum = 0;  ///< 累加所有收到消息的 producer 字段，用于校验和。
-    std::uint64_t seq_sum = 0;       ///< 累加所有收到消息的 seq 字段，用于校验和。
+    std::uint64_t seq_sum = 0;  ///< 累加所有收到消息的 seq 字段，用于校验和。
     state.ResumeTiming();
     // release 语义发布起跑信号，与生产者的 acquire 配对，确保线程同步无数据竞争。
     start.store(true, std::memory_order_release);
@@ -557,8 +598,8 @@ void BM_latest_concurrent_fanout_64b(benchmark::State& state) {
 }
 
 void BM_latest_checked_roundtrip_64b(benchmark::State& state) {
-  auto created = salias::LatestFanoutChannel<1u << 16>::create(
-      config_for(salias::Mode::LatestFanout));
+  auto created =
+      salias::LatestFanoutChannel<1u << 16>::create(config_for(salias::Mode::LatestFanout));
   if (!created) {
     state.SkipWithError("failed to create checked latest channel");
     return;
@@ -586,8 +627,8 @@ void BM_latest_checked_roundtrip_64b(benchmark::State& state) {
 
 // Seek after each burst, checking that loss + skips + delivery account for every frame.
 void BM_latest_seek_64b(benchmark::State& state) {
-  auto created = salias::LatestFanoutChannel<1u << 16>::create(
-      config_for(salias::Mode::LatestFanout));
+  auto created =
+      salias::LatestFanoutChannel<1u << 16>::create(config_for(salias::Mode::LatestFanout));
   if (!created) {
     state.SkipWithError("failed to create latest seek channel");
     return;
@@ -630,6 +671,7 @@ void BM_latest_seek_64b(benchmark::State& state) {
 
 // 注册各 stress benchmark：SPSC 往返以微秒级单位度量，MPSC 多生产者吞吐以毫秒级度量。
 BENCHMARK(BM_fifo_roundtrip_64b)->Unit(benchmark::kMicrosecond);
+BENCHMARK(BM_ttl_expiration_64b)->Unit(benchmark::kMicrosecond);
 // 每个 FIFO 生产者发送 65536 条 64 字节消息，度量稳态吞吐(throughput)。
 BENCHMARK_TEMPLATE(BM_four_producers_64b, salias::Mode::FifoMpsc)
     ->Arg(65536)

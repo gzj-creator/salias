@@ -52,6 +52,29 @@ void roundtrip() {
           "mode=" + std::to_string(static_cast<int>(M)) + " polled=" + std::to_string(polled) +
           " received=" + std::to_string(received) + " valid=" + std::to_string(valid));
     }
+
+    auto expired = publisher.offer_for(payload, std::chrono::nanoseconds{0});
+    require(expired && *expired);
+    require(!subscriber.try_recv());
+    require(subscriber.expired_messages() == 1);
+
+    auto ttl_claim = publisher.try_claim_for(payload.size(), std::chrono::seconds{1});
+    require(ttl_claim.has_value());
+    std::ranges::copy(payload, ttl_claim->payload().begin());
+    ttl_claim->commit();
+    auto ttl_message = subscriber.try_recv();
+    require(ttl_message && ttl_message->expires_at_monotonic_ns > 0);
+    subscriber.release(*ttl_message);
+
+    auto ttl_batch = publisher.offer_batch_for(batch, std::chrono::seconds{1});
+    require(ttl_batch && *ttl_batch == batch.size());
+    received = 0;
+    const auto ttl_polled = subscriber.poll(8, [&](const salias::Message& item) noexcept {
+      valid =
+          valid && std::ranges::equal(item.payload, payload) && item.expires_at_monotonic_ns > 0;
+      ++received;
+    });
+    require(valid && ttl_polled == 2 && received == 2);
   }
   const auto after_cleanup = salias::Channel<M>::connect(config.name);
   require(!after_cleanup && after_cleanup.error() == salias::Error::NotFound);
@@ -131,8 +154,9 @@ int main() {
     require(checked_latest && *checked_latest && (**checked_latest).sequence == 300);
     latest_subscriber.release(**checked_latest);
 
-    std::cout << "Module/header IPC, message windows, claim, batch, poll, checked lag and seek "
-                 "passed for 5 modes\n";
+    std::cout
+        << "Module/header IPC, TTL, message windows, claim, batch, poll, checked lag and seek "
+           "passed for 5 modes\n";
     return 0;
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';

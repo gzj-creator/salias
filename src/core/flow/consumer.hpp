@@ -28,12 +28,13 @@ namespace salias::flow {  // flow 层：环形缓冲之上的生产/消费位置
  *          所有字段为值类型，可安全拷贝；但 payload 指向的内存不归本结构所有。
  */
 struct Message {
-  std::span<const std::byte> payload;  ///< 帧负载只读视图(指向 ring 内部内存)
-  std::uint64_t position = 0;           ///< 本帧在 ring 中的起始字节偏移
-  std::uint64_t next_position = 0;      ///< 下一帧的起始字节偏移(含帧对齐)
-  std::uint32_t meta = 0;               ///< 帧头元数据(generation、标志位)
-  std::uint64_t sequence = 0;           ///< 帧序列号(由上层填充，flow 层透传)
-  std::uint32_t producer_id = 0;        ///< 生产者标识(多生产场景下区分来源)
+  std::span<const std::byte> payload;         ///< 帧负载只读视图(指向 ring 内部内存)
+  std::uint64_t position = 0;                 ///< 本帧在 ring 中的起始字节偏移
+  std::uint64_t next_position = 0;            ///< 下一帧的起始字节偏移(含帧对齐)
+  std::uint32_t meta = 0;                     ///< 帧头元数据(generation、标志位)
+  std::uint64_t sequence = 0;                 ///< 帧序列号(由上层填充，flow 层透传)
+  std::uint32_t producer_id = 0;              ///< 生产者标识(多生产场景下区分来源)
+  std::uint64_t expires_at_monotonic_ns = 0;  ///< 0 表示无 TTL，否则为 CLOCK_MONOTONIC 截止值。
 };
 
 /**
@@ -78,10 +79,10 @@ class Consumer {
   void flush() noexcept;
 
  private:
-  const ring::MagicRing* ring_;  ///< 非持有的 ring 指针(不拥有)
-  Positions positions_;          ///< 生产者/消费者位置单元(非持有)
-  std::uint64_t local_head_ = 0;   ///< 本地读位置，poll 以此为准
-  std::uint64_t flushed_head_ = 0; ///< 已 release 回共享槽的 head
+  const ring::MagicRing* ring_;     ///< 非持有的 ring 指针(不拥有)
+  Positions positions_;             ///< 生产者/消费者位置单元(非持有)
+  std::uint64_t local_head_ = 0;    ///< 本地读位置，poll 以此为准
+  std::uint64_t flushed_head_ = 0;  ///< 已 release 回共享槽的 head
   std::uint64_t cached_tail_ = 0;  ///< 生产者 tail 的本地缓存，减少原子读的缓存行乒乓
 };
 
