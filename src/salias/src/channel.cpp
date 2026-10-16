@@ -55,7 +55,7 @@ namespace {
 /// @brief 匿名命名空间，仅本翻译单元可见的具名通道辅助类型与函数。
 
 inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;  // ASCII "SALC"，校验控制段归属。
-inline constexpr std::uint32_t kNamedVersion = 10;  // 控制段布局版本号，connect 须严格匹配。
+inline constexpr std::uint32_t kNamedVersion = 11;  // 控制段布局版本号，connect 须严格匹配。
 inline constexpr std::size_t kControlSize = 16u * 1024u;  // 控制段固定 16 KiB。
 inline constexpr std::size_t kCacheLineGuard = 128;  // 双 cache line 填充宽度，规避伪共享。
 inline constexpr std::size_t kMaxProducers = 16;  // 单 channel 最大 producer 数。
@@ -113,12 +113,12 @@ struct alignas(64) NamedConsumerSlot {
 struct alignas(64) NamedConsumerCursorSlot {
   std::uint64_t position = 0;  ///< consumer 在该 producer ring 内的消费位置（字节偏移）。
   std::uint64_t sequence = 0;  ///< consumer 已消费到的序列号。
+  std::uint64_t message_sequence = 0;  ///< consumer 已消费消息数(per producer)。
   std::uint64_t generation = 0;  ///< 游标所属的订阅代际。
   std::uint64_t lease_start = std::numeric_limits<std::uint64_t>::max();  ///< 借用区间起点。
   std::uint64_t lease_end = 0;  ///< 借用区间末端；仅在 lease_start 有效时读取。
   std::uint64_t lagged_messages = 0;  ///< 该 consumer 在此 ring 观测到的淘汰消息数。
   std::uint64_t skipped_messages = 0;  ///< 该 consumer 在此 ring 主动跳过的消息数。
-  std::byte pad[64 - (7 * sizeof(std::uint64_t))]{};  ///< 填充至 64 字节。
 };
 
 /// @brief 单个 producer 的共享状态槽，双 cache line 对齐。
@@ -132,7 +132,9 @@ struct alignas(kCacheLineGuard) NamedProducerSlot {
   std::uint64_t reservation_sequence = 0;  ///< reservation_position 对应的下一序列号。
   std::uint64_t retained_position = 0;  ///< 丢旧模式下最早仍可读取的帧位置。
   std::uint64_t retention_intent = std::numeric_limits<std::uint64_t>::max();  ///< 计划淘汰位置。
-  std::byte hot_pad[kCacheLineGuard - 6 * sizeof(std::uint64_t)]{};  ///< 隔离发布热游标。
+  std::uint64_t reservation_message_sequence = 0;  ///< producer 已预留消息数。
+  std::uint64_t retained_message_sequence = 0;  ///< 最早保留帧对应的消息数。
+  std::byte hot_pad[kCacheLineGuard - 8 * sizeof(std::uint64_t)]{};  ///< 隔离发布热游标。
 
   alignas(kCacheLineGuard) std::uint32_t producer_pid = 0;  ///< 当前 producer 槽所有者。
   std::uint64_t producer_process_start = 0;  ///< producer 进程启动标识。
@@ -157,9 +159,10 @@ struct alignas(kCacheLineGuard) NamedControl {
   std::uint32_t wait_word = 0;  ///< 等待策略唤醒字（wait strategy 回填）。
   std::uint64_t publication_window = 0;  ///< 发布流控窗口（0 表示不限流）。
   std::uint32_t high_watermark_percent = 90;  ///< 丢旧模式的保留水位比例。
+  std::uint64_t publication_window_messages = 0;  ///< 每 producer ring 的消息数窗口。
   std::uint64_t registration_gate = 0;  ///< 注册订阅者时暂时阻止新 claim。
   std::uint64_t registration_gate_process_start = 0;  ///< gate 所有者进程启动标识。
-  std::byte pad[kCacheLineGuard - 72]{};  ///< 头部填充，隔离后续热字段。
+  std::byte pad[kCacheLineGuard - 80]{};  ///< 头部填充，隔离后续热字段。
 
   alignas(kCacheLineGuard) std::uint64_t global_sequence = 0;  ///< 全局单调序列号。
   alignas(kCacheLineGuard) std::uint32_t next_producer = 0;  ///< 下一个待分配 producer id。
@@ -738,6 +741,7 @@ typename SharedChannel<M>::SharedControl make_shared_control(NamedControl& contr
   shared.num_consumers = &control.num_consumers;
   shared.is_process_alive = is_registered_process_alive;
   shared.publication_window = control.publication_window;
+  shared.publication_window_messages = control.publication_window_messages;
   if constexpr (kDropOldest<M>) {
     const std::size_t capacity = static_cast<std::size_t>(control.capacity);
     const std::size_t percent = control.high_watermark_percent;
@@ -766,6 +770,9 @@ std::vector<typename SharedChannel<M>::ProducerSharedState> make_producer_states
     state.local_sequence = &control.producers[producer_id].local_sequence;
     state.reservation_position = &control.producers[producer_id].reservation_position;
     state.reservation_sequence = &control.producers[producer_id].reservation_sequence;
+    state.reservation_message_sequence =
+        &control.producers[producer_id].reservation_message_sequence;
+    state.retained_message_sequence = &control.producers[producer_id].retained_message_sequence;
     state.claim_active = &control.producers[producer_id].claim_active;
     state.producer_pid = &control.producers[producer_id].producer_pid;
     state.producer_process_start = &control.producers[producer_id].producer_process_start;
@@ -778,6 +785,8 @@ std::vector<typename SharedChannel<M>::ProducerSharedState> make_producer_states
           .sequence = &control.producers[producer_id].consumers[consumer_id].sequence,
           .lease_start = &control.producers[producer_id].consumers[consumer_id].lease_start,
           .lease_end = &control.producers[producer_id].consumers[consumer_id].lease_end,
+          .message_sequence =
+              &control.producers[producer_id].consumers[consumer_id].message_sequence,
           .process_id = &control.consumers[consumer_id].pid,
           .process_start = &control.consumers[consumer_id].process_start,
           .delivery_policy = &control.consumers[consumer_id].delivery_policy,
@@ -1028,6 +1037,10 @@ class NamedChannelState {
             .store(position, std::memory_order_relaxed);
         std::atomic_ref<std::uint64_t>(producer.consumers[consumer_id].sequence)
             .store(sequence, std::memory_order_relaxed);
+        std::atomic_ref<std::uint64_t>(producer.consumers[consumer_id].message_sequence)
+            .store(std::atomic_ref<std::uint64_t>(producer.reservation_message_sequence)
+                       .load(std::memory_order_relaxed),
+                   std::memory_order_relaxed);
         std::atomic_ref<std::uint64_t>(producer.consumers[consumer_id].lease_start)
             .store(std::numeric_limits<std::uint64_t>::max(), std::memory_order_relaxed);
         std::atomic_ref<std::uint64_t>(producer.consumers[consumer_id].lease_end)
@@ -1134,6 +1147,8 @@ class NamedChannelState {
       auto& cursor = control.producers[producer_id].consumers[consumer_id];
       std::atomic_ref<std::uint64_t>(cursor.position).store(0, std::memory_order_relaxed);
       std::atomic_ref<std::uint64_t>(cursor.sequence).store(0, std::memory_order_relaxed);
+      std::atomic_ref<std::uint64_t>(cursor.message_sequence).store(0,
+                                                                   std::memory_order_relaxed);
       std::atomic_ref<std::uint64_t>(cursor.generation).store(generation,
                                                              std::memory_order_relaxed);
       std::atomic_ref<std::uint64_t>(cursor.lease_start)
@@ -1282,6 +1297,7 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
     control->num_producers = config.num_producers;
     control->num_consumers = config.num_consumers;
     control->publication_window = config.publication_window;
+    control->publication_window_messages = config.publication_window_messages;
     control->high_watermark_percent = config.high_watermark_percent;
 
     SharedChannel<M> channel(std::move(rings), make_producer_states<M>(*control),

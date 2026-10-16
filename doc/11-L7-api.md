@@ -19,6 +19,7 @@ struct Config {
   std::uint32_t num_consumers = 1;
   HugePage huge = HugePage::None;
   std::size_t publication_window = 0;
+  std::size_t publication_window_messages = 0;
   std::uint32_t high_watermark_percent = 90;
 };
 ```
@@ -31,6 +32,13 @@ single 模式要求 `num_consumers == 1`；fanout 模式允许 1–8 个消费�
 窗口越小，生产者越常刷新消费者位置，需要按消息大小复测吞吐拐点。
 当前公共协议只支持变长帧，不提供 fixed-size 配置模式。
 
+`publication_window_messages == 0` 表示不启用消息数限制；正数限制每个 producer ring 中已预留、
+但尚未被最慢可靠订阅者消费的消息数。达到窗口后返回 `Error::BackPressured`，释放或批量轮询
+推进消费游标后即可恢复。该限制与字节窗口可同时启用，空 payload 也计为一条消息。`LatestFanout`
+将此值作为额外的最大保留帧数：默认 `DropOldest` 订阅者落后时淘汰最旧帧，`Reliable` 订阅者仍可
+阻止淘汰并造成背压。LatestFanout 下 `publication_window` 必须为 0，单条或批量发布受消息数和静态
+字节水位两者中更严格者约束；等长批次可返回部分成功条数。
+
 `LatestFanout` 使用 FIFO 顺序和 fanout 拓扑。`salias::LatestFanoutChannel<Capacity,
 HighWatermarkPercent>` 将每个 producer ring 的字节容量和保留比例固定在模板参数中，水位默认
 为 90%；创建时模板参数覆盖 `Config::capacity` 与 `Config::high_watermark_percent`，连接时会
@@ -41,7 +49,8 @@ DropOldest 订阅者则可独立跳过已淘汰消息，不会拖住其他消费
 Reliable 策略，传入 `DropOldest` 返回 `Error::BadConfig`。达到保留水位后，DropOldest 慢消费者
 会在下一次读取时跳过已淘汰的旧消息。未 `release()` 的消息 payload 会被 pin；若生产者写入将覆盖借用内存，发布
 暂时返回 `Error::BackPressured`，释放该消息后恢复。
-`LatestFanout` 不支持非零 `publication_window`；该模式以保留水位而非消费者游标控制排队量。
+`LatestFanout` 不支持非零 `publication_window`；该模式以静态保留水位和可选的
+`publication_window_messages` 限制排队量。
 订阅进程若在持有借用时退出，生产者会在需要复用对应物理区间时检查注册进程身份并回收失效 lease。
 保留水位计算包含每帧 8 字节帧头和 8 字节对齐；单帧超过水位时，`offer`、`try_claim` 和
 等长 `offer_batch` 返回 `Error::MessageTooLarge`，不会临时扩大窗口。等长批次可能只发布

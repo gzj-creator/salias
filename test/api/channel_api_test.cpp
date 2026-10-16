@@ -45,6 +45,7 @@ static_assert(!std::is_same_v<salias::FifoFanoutChannel, salias::OrderedFanoutCh
 struct Payload {
   std::uint32_t producer = 0;
   std::uint32_t sequence = 0;
+  bool operator==(const Payload&) const = default;
 };
 
 /// @brief 生成进程内唯一的共享内存名称。
@@ -588,6 +589,179 @@ TEST(ChannelApiTest, ConnectRejectsDifferentMode) {
   EXPECT_EQ(connected.error(), salias::Error::BadConfig);
 }
 
+TEST(ChannelApiTest, MessageCountWindowLimitsEachOrderedProducerAndResumesAfterRelease) {
+  auto config = config_for(salias::Mode::OrderedMpsc, "message-window-ordered-producers");
+  config.num_producers = 2;
+  config.publication_window_messages = 1;
+  auto created = salias::OrderedMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto first_publisher = channel.publisher();
+  auto second_publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  const auto first = encode(Payload{0, 0});
+  const auto blocked = encode(Payload{0, 1});
+  const auto second_ring = encode(Payload{1, 0});
+  const auto resumed = encode(Payload{0, 2});
+  ASSERT_TRUE(first_publisher.offer(first));
+  auto full = first_publisher.offer(blocked);
+  ASSERT_FALSE(full);
+  EXPECT_EQ(full.error(), salias::Error::BackPressured);
+  ASSERT_TRUE(second_publisher.offer(second_ring));
+
+  auto message = subscriber.try_recv();
+  ASSERT_TRUE(message);
+  EXPECT_EQ(message->sequence, 0u);
+  const auto decoded_first = decode(message->payload);
+  EXPECT_EQ(decoded_first.producer, 0u);
+  EXPECT_EQ(decoded_first.sequence, 0u);
+  subscriber.release(*message);
+  ASSERT_TRUE(first_publisher.offer(resumed));
+
+  message = subscriber.try_recv();
+  ASSERT_TRUE(message);
+  EXPECT_EQ(message->sequence, 1u);
+  EXPECT_EQ(decode(message->payload), (Payload{1, 0}));
+  subscriber.release(*message);
+  message = subscriber.try_recv();
+  ASSERT_TRUE(message);
+  EXPECT_EQ(message->sequence, 2u);
+  EXPECT_EQ(decode(message->payload), (Payload{0, 2}));
+  subscriber.release(*message);
+}
+
+TEST(ChannelApiTest, ByteAndMessageWindowsApplyIndependently) {
+  auto config = config_for(salias::Mode::FifoMpsc, "byte-and-message-windows");
+  config.capacity = 8192;
+  config.publication_window = 4096;
+  config.publication_window_messages = 3;
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  std::array<std::byte, 2040> large_payload{};
+  ASSERT_TRUE(publisher.offer(large_payload));
+  ASSERT_TRUE(publisher.offer(large_payload));
+  auto byte_limited = publisher.offer(large_payload);
+  ASSERT_FALSE(byte_limited);
+  EXPECT_EQ(byte_limited.error(), salias::Error::BackPressured);
+
+  auto first_large = subscriber.try_recv();
+  ASSERT_TRUE(first_large);
+  EXPECT_EQ(first_large->payload.size(), large_payload.size());
+  subscriber.release(*first_large);
+  ASSERT_TRUE(publisher.offer(large_payload));
+  for (std::uint64_t sequence = 1; sequence <= 2; ++sequence) {
+    auto message = subscriber.try_recv();
+    ASSERT_TRUE(message);
+    EXPECT_EQ(message->sequence, sequence);
+    subscriber.release(*message);
+  }
+
+  const auto small_payload = encode(Payload{0, 0});
+  for (int index = 0; index < 3; ++index) {
+    ASSERT_TRUE(publisher.offer(small_payload));
+  }
+  auto message_limited = publisher.offer(small_payload);
+  ASSERT_FALSE(message_limited);
+  EXPECT_EQ(message_limited.error(), salias::Error::BackPressured);
+
+  auto first_small = subscriber.try_recv();
+  ASSERT_TRUE(first_small);
+  subscriber.release(*first_small);
+  ASSERT_TRUE(publisher.offer(small_payload));
+}
+
+TEST(ChannelApiTest, MessageCountWindowConstrainsBatchesAndPersistsAcrossConnect) {
+  auto config = config_for(salias::Mode::FifoMpsc, "message-window-batch-connect");
+  config.publication_window_messages = 3;
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto owner = std::move(*created);
+  auto connected = salias::FifoMpscChannel::connect(config.name);
+  ASSERT_TRUE(connected);
+  auto publisher = owner.publisher();
+  auto subscriber = connected->subscriber();
+
+  const std::array<Payload, 5> values = {
+      Payload{0, 0}, Payload{0, 1}, Payload{0, 2}, Payload{0, 3}, Payload{0, 4}};
+  std::array<std::array<std::byte, sizeof(Payload)>, values.size()> encoded{};
+  std::array<std::span<const std::byte>, values.size()> payloads{};
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    encoded[index] = encode(values[index]);
+    payloads[index] = encoded[index];
+  }
+
+  auto published = publisher.offer_batch(payloads);
+  ASSERT_TRUE(published);
+  EXPECT_EQ(*published, 3u);
+  auto blocked = publisher.offer(payloads[3]);
+  ASSERT_FALSE(blocked);
+  EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
+
+  Payload received_first{};
+  EXPECT_EQ(subscriber.poll(1, [&](const salias::Message& message) noexcept {
+              received_first = decode(message.payload);
+            }),
+            1u);
+  EXPECT_EQ(received_first, values[0]);
+  ASSERT_TRUE(publisher.offer(payloads[3]));
+
+  for (std::size_t index = 1; index <= 3; ++index) {
+    auto message = subscriber.try_recv();
+    ASSERT_TRUE(message);
+    EXPECT_EQ(decode(message->payload), values[index]);
+    subscriber.release(*message);
+  }
+}
+
+TEST(ChannelApiTest, MessageCountWindowWaitsForSlowestFanoutConsumer) {
+  auto config = config_for(salias::Mode::FifoFanout, "message-window-fanout-minimum");
+  config.num_consumers = 2;
+  config.publication_window_messages = 2;
+  auto created = salias::FifoFanoutChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto fast = channel.subscriber();
+  auto slow = channel.subscriber();
+
+  const std::array payloads = {encode(Payload{0, 0}), encode(Payload{0, 1}),
+                               encode(Payload{0, 2})};
+  ASSERT_TRUE(publisher.offer(payloads[0]));
+  ASSERT_TRUE(publisher.offer(payloads[1]));
+  for (std::size_t index = 0; index < 2; ++index) {
+    auto message = fast.try_recv();
+    ASSERT_TRUE(message);
+    EXPECT_EQ(decode(message->payload), (Payload{0, static_cast<std::uint32_t>(index)}));
+    fast.release(*message);
+  }
+
+  auto blocked = publisher.offer(payloads[2]);
+  ASSERT_FALSE(blocked);
+  EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
+
+  auto first = slow.try_recv();
+  ASSERT_TRUE(first);
+  EXPECT_EQ(decode(first->payload), (Payload{0, 0}));
+  slow.release(*first);
+  ASSERT_TRUE(publisher.offer(payloads[2]));
+
+  auto fast_latest = fast.try_recv();
+  ASSERT_TRUE(fast_latest);
+  EXPECT_EQ(decode(fast_latest->payload), (Payload{0, 2}));
+  fast.release(*fast_latest);
+  for (std::uint32_t sequence = 1; sequence <= 2; ++sequence) {
+    auto message = slow.try_recv();
+    ASSERT_TRUE(message);
+    EXPECT_EQ(decode(message->payload), (Payload{0, sequence}));
+    slow.release(*message);
+  }
+}
+
 TEST(ChannelApiTest, LatestFanoutUsesStaticCapacityAndWatermark) {
   using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
   auto config = config_for(salias::Mode::LatestFanout, "latest-static-config");
@@ -657,6 +831,144 @@ TEST(ChannelApiTest, LatestFanoutRejectsIncompatibleFlowControlConfig) {
   auto bad_window = salias::Channel<salias::Mode::LatestFanout>::create(publication_window);
   ASSERT_FALSE(bad_window);
   EXPECT_EQ(bad_window.error(), salias::Error::BadConfig);
+}
+
+TEST(ChannelApiTest, LatestFanoutMessageWindowRetainsLatestFramesAndReliableReadersBackpressure) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 100>;
+  auto config = config_for(salias::Mode::LatestFanout, "latest-message-window-drop-oldest");
+  config.publication_window_messages = 3;
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+  for (std::uint64_t sequence = 0; sequence < 6; ++sequence) {
+    const auto payload = encode(Payload{0, static_cast<std::uint32_t>(sequence)});
+    ASSERT_TRUE(publisher.offer(payload));
+  }
+
+  auto lagged = subscriber.try_recv_checked();
+  ASSERT_FALSE(lagged);
+  EXPECT_EQ(lagged.error(), salias::Error::Lagged);
+  EXPECT_EQ(subscriber.lagged_messages(), 3u);
+  for (std::uint64_t sequence = 3; sequence < 6; ++sequence) {
+    auto message = subscriber.try_recv_checked();
+    ASSERT_TRUE(message);
+    ASSERT_TRUE(*message);
+    EXPECT_EQ(decode((**message).payload).sequence, sequence);
+    subscriber.release(**message);
+  }
+
+  auto reliable_config =
+      config_for(salias::Mode::LatestFanout, "latest-message-window-reliable-reader");
+  reliable_config.publication_window_messages = 3;
+  reliable_config.num_consumers = 2;
+  auto reliable_created = TypedChannel::create(reliable_config);
+  ASSERT_TRUE(reliable_created);
+  auto reliable_channel = std::move(*reliable_created);
+  auto reliable_publisher = reliable_channel.publisher();
+  auto reliable = reliable_channel.subscriber(salias::SubscriptionPolicy::Reliable);
+  auto lossy = reliable_channel.subscriber(salias::SubscriptionPolicy::DropOldest);
+  for (std::uint64_t sequence = 0; sequence < 3; ++sequence) {
+    const auto payload = encode(Payload{0, static_cast<std::uint32_t>(sequence)});
+    ASSERT_TRUE(reliable_publisher.offer(payload));
+  }
+  const auto boundary = encode(Payload{0, 3});
+  const auto remainder = encode(Payload{0, 4});
+  const std::array<std::span<const std::byte>, 2> batch_payloads = {boundary, remainder};
+  auto blocked = reliable_publisher.offer(boundary);
+  ASSERT_FALSE(blocked);
+  EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
+
+  auto first = reliable.try_recv_checked();
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(*first);
+  EXPECT_EQ(decode((**first).payload).sequence, 0u);
+  reliable.release(**first);
+  auto partial = reliable_publisher.offer_batch(batch_payloads);
+  ASSERT_TRUE(partial);
+  EXPECT_EQ(*partial, 1u);
+  auto lossy_lag = lossy.try_recv_checked();
+  ASSERT_FALSE(lossy_lag);
+  EXPECT_EQ(lossy_lag.error(), salias::Error::Lagged);
+  EXPECT_EQ(lossy.lagged_messages(), 1u);
+
+  auto next_reliable = reliable.try_recv_checked();
+  ASSERT_TRUE(next_reliable);
+  ASSERT_TRUE(*next_reliable);
+  EXPECT_EQ(decode((**next_reliable).payload).sequence, 1u);
+  reliable.release(**next_reliable);
+  ASSERT_TRUE(reliable_publisher.offer(batch_payloads[1]));
+  for (std::uint32_t sequence = 2; sequence <= 4; ++sequence) {
+    auto message = reliable.try_recv_checked();
+    ASSERT_TRUE(message);
+    ASSERT_TRUE(*message);
+    EXPECT_EQ(decode((**message).payload).sequence, sequence);
+    reliable.release(**message);
+  }
+}
+
+TEST(ChannelApiTest, LatestFanoutMessageWindowConstrainsBatchesAndSurvivesVariableLengthWraparound) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 100>;
+  auto config = config_for(salias::Mode::LatestFanout, "latest-message-window-batch-wrap");
+  config.publication_window_messages = 3;
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  const std::array<Payload, 5> batch_values = {
+      Payload{0, 0}, Payload{0, 1}, Payload{0, 2}, Payload{0, 3}, Payload{0, 4}};
+  std::array<std::array<std::byte, sizeof(Payload)>, batch_values.size()> encoded_batch{};
+  std::array<std::span<const std::byte>, batch_values.size()> batch_payloads{};
+  for (std::size_t index = 0; index < batch_values.size(); ++index) {
+    encoded_batch[index] = encode(batch_values[index]);
+    batch_payloads[index] = encoded_batch[index];
+  }
+  auto batch = publisher.offer_batch(batch_payloads);
+  ASSERT_TRUE(batch);
+  EXPECT_EQ(*batch, 3u);
+  ASSERT_TRUE(publisher.offer(batch_payloads[3]));
+  ASSERT_TRUE(publisher.offer(batch_payloads[4]));
+  auto lagged = subscriber.try_recv_checked();
+  ASSERT_FALSE(lagged);
+  EXPECT_EQ(lagged.error(), salias::Error::Lagged);
+  EXPECT_EQ(subscriber.lagged_messages(), 2u);
+  for (std::uint32_t sequence = 2; sequence <= 4; ++sequence) {
+    auto message = subscriber.try_recv_checked();
+    ASSERT_TRUE(message);
+    ASSERT_TRUE(*message);
+    EXPECT_EQ(decode((**message).payload).sequence, sequence);
+    subscriber.release(**message);
+  }
+
+  constexpr std::array<std::size_t, 7> lengths = {0, 1, 17, 129, 257, 509, 997};
+  constexpr std::uint64_t total = 300;
+  const auto previous_lagged = subscriber.lagged_messages();
+  std::array<std::byte, lengths.back()> payload{};
+  for (std::uint64_t sequence = 0; sequence < total; ++sequence) {
+    const auto length = lengths[sequence % lengths.size()];
+    std::fill_n(payload.begin(), length, static_cast<std::byte>(sequence & 0xffu));
+    ASSERT_TRUE(publisher.offer(std::span<const std::byte>{payload.data(), length}));
+  }
+  lagged = subscriber.try_recv_checked();
+  ASSERT_FALSE(lagged);
+  EXPECT_EQ(lagged.error(), salias::Error::Lagged);
+  EXPECT_EQ(subscriber.lagged_messages(), previous_lagged + total - 3);
+  for (std::uint64_t sequence = total - 3; sequence < total; ++sequence) {
+    auto message = subscriber.try_recv_checked();
+    ASSERT_TRUE(message);
+    ASSERT_TRUE(*message);
+    EXPECT_EQ((**message).sequence, sequence + 5);
+    const auto expected_length = lengths[sequence % lengths.size()];
+    EXPECT_EQ((**message).payload.size(), expected_length);
+    EXPECT_TRUE(std::all_of((**message).payload.begin(), (**message).payload.end(),
+                            [sequence](std::byte value) {
+                              return value == static_cast<std::byte>(sequence & 0xffu);
+                            }));
+    subscriber.release(**message);
+  }
 }
 
 TEST(ChannelApiTest, LatestFanoutDropsOldMessagesAndPinsBorrowedPayload) {

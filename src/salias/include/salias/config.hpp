@@ -57,6 +57,10 @@ struct Config {
   // 实测 p99 排队从满环约 5.7ms 降到约 350us，吞吐下降约一成。窗口再小会让
   // cached_consumer_pos 更频繁失效，拐点需要按负载复测。
   std::size_t publication_window = 0;
+  // 每个 producer ring 的消息数窗口，0 表示不限制。可靠模式按最慢订阅者进度背压；
+  // LatestFanout 将其作为最大保留帧数，DropOldest 满窗淘汰最旧帧，Reliable 仍可触发背压。
+  // 可与 publication_window 同时使用；LatestFanout 不支持非零 publication_window。
+  std::size_t publication_window_messages = 0;
   std::uint32_t high_watermark_percent = 90;  ///< LatestFanout 的丢旧水位比例。
 };
 

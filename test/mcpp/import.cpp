@@ -69,6 +69,28 @@ int main() {
     roundtrip<salias::Mode::OrderedFanout>();
     roundtrip<salias::Mode::LatestFanout>();
 
+    salias::Config window_config;
+    window_config.name =
+        "salias-mcpp-message-window-" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    window_config.mode = salias::Mode::FifoMpsc;
+    window_config.capacity = 4096;
+    window_config.publication_window_messages = 1;
+    auto window_channel = salias::FifoMpscChannel::create(window_config);
+    require(window_channel.has_value());
+    auto window_publisher = window_channel->publisher();
+    auto window_subscriber = window_channel->subscriber();
+    const std::array window_payload{std::byte{7}};
+    auto first_window_offer = window_publisher.offer(window_payload);
+    require(first_window_offer && *first_window_offer);
+    auto window_full = window_publisher.offer(window_payload);
+    require(!window_full && window_full.error() == salias::Error::BackPressured);
+    auto window_message = window_subscriber.try_recv();
+    require(window_message.has_value());
+    window_subscriber.release(*window_message);
+    auto resumed_window_offer = window_publisher.offer(window_payload);
+    require(resumed_window_offer && *resumed_window_offer);
+
     salias::Config latest_config;
     latest_config.name =
         "salias-mcpp-latest-typed-" +
@@ -109,7 +131,8 @@ int main() {
     require(checked_latest && *checked_latest && (**checked_latest).sequence == 300);
     latest_subscriber.release(**checked_latest);
 
-    std::cout << "Module/header IPC, claim, batch, poll, checked lag and seek passed for 5 modes\n";
+    std::cout << "Module/header IPC, message windows, claim, batch, poll, checked lag and seek "
+                 "passed for 5 modes\n";
     return 0;
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';

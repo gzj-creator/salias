@@ -8,7 +8,7 @@
  *          - offer() / offer_batch()：便利接口，内部拷贝 payload 后提交，适合简单场景。
  *          Publisher 通过 std::shared_ptr<PublisherEndpoint> 共享底层通道状态，
  *          多个 Publisher 实例可绑定同一通道。线程安全由具体协议（MPSC/MPMC）保证。
- *          flow 控制窗口（publication_window）在 claim/offer 时施加背压检查。
+ *          字节与消息数流控窗口在 claim/offer 时施加背压检查。
  */
 #pragma once
 
@@ -96,7 +96,7 @@ class Publisher {
    * @brief 零拷贝预留一条消息的 ring 内 payload 写入区。
    * @param payload_len 期望的负载字节数。
    * @retval PublishClaim 预留成功，用户写入后需 commit()。
-   * @retval Error::BackPressured 流控窗口在途字节数达上限或环形缓冲已满。
+   * @retval Error::BackPressured 字节/消息数流控窗口达上限，或环形缓冲已满。
    * @retval Error::MessageTooLarge payload_len 超过环容量，或 LatestFanout 单帧超过保留水位。
    * @note 成功后调用方必须写入 payload 并调用 PublishClaim::commit() 发布消息。
    */
@@ -106,7 +106,7 @@ class Publisher {
    * @brief 尝试把 payload 作为一条消息发布（内部拷贝后提交）。
    * @param payload 待发布的负载数据视图。
    * @retval true 发布成功。
-   * @retval Error::BackPressured 背压，当前无法发布。
+   * @retval Error::BackPressured 字节/消息数流控窗口达上限，或当前无法复用环空间。
    * @retval Error::MessageTooLarge payload 超过环容量，或 LatestFanout 单帧超过保留水位。
    */
   Result<bool> offer(std::span<const std::byte> payload) noexcept;
@@ -114,7 +114,7 @@ class Publisher {
   /**
    * @brief 尝试按顺序发布一批消息。
    * @param payloads 待发布的负载数组视图，按顺序提交。
-   * @retval std::size_t 已成功发布的消息数。
+   * @retval std::size_t 已成功发布的消息数；等长批次受窗口限制时可能只发布前缀。
    * @retval Error::BackPressured 第一条消息即遭遇背压。
    * @retval Error::MessageTooLarge 第一条消息过大。
    * @note 批量发布减少每条消息的发布开销；返回值为实际发布条数，调用方据此重试剩余。

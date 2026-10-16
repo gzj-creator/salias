@@ -417,6 +417,59 @@ void BM_latest_slow_subscriber_64b(benchmark::State& state) {
   state.SetBytesProcessed(static_cast<std::int64_t>(published * sizeof(SmallPayload)));
 }
 
+void BM_latest_message_window_64b(benchmark::State& state) {
+  constexpr std::uint64_t kMessageWindow = 64;
+  using LatestChannel = salias::LatestFanoutChannel<1u << 16, 90>;
+  auto config = config_for(salias::Mode::LatestFanout);
+  config.publication_window_messages = kMessageWindow;
+  auto created = LatestChannel::create(config);
+  if (!created) {
+    state.SkipWithError("failed to create message-window latest channel");
+    return;
+  }
+  auto publisher = created->publisher();
+  auto subscriber = created->subscriber();
+  const auto messages_per_iteration = static_cast<std::uint32_t>(state.range(0));
+  std::uint64_t published = 0;
+  for (auto _ : state) {
+    for (std::uint32_t index = 0; index < messages_per_iteration; ++index) {
+      const SmallPayload payload{.seq = static_cast<std::uint32_t>(published)};
+      if (!publisher.offer(std::as_bytes(std::span{&payload, 1}))) {
+        state.SkipWithError("message-window latest offer failed");
+        return;
+      }
+      ++published;
+    }
+  }
+
+  const auto retained = std::min(published, kMessageWindow);
+  const auto lost = published - retained;
+  auto lag = subscriber.try_recv_checked();
+  if ((lost != 0 && (lag || lag.error() != salias::Error::Lagged)) ||
+      subscriber.lagged_messages() != lost) {
+    state.SkipWithError("message-window latest lag accounting mismatch");
+    return;
+  }
+  std::uint64_t expected = lost;
+  while (auto message = subscriber.try_recv()) {
+    if (message->sequence != expected ||
+        decode_small(message->payload).seq != static_cast<std::uint32_t>(expected)) {
+      state.SkipWithError("message-window latest retained suffix mismatch");
+      return;
+    }
+    ++expected;
+    subscriber.release(*message);
+  }
+  if (expected != published) {
+    state.SkipWithError("message-window latest retained suffix is incomplete");
+    return;
+  }
+  state.counters["retained"] = static_cast<double>(retained);
+  state.counters["dropped"] = static_cast<double>(lost);
+  state.SetItemsProcessed(static_cast<std::int64_t>(published));
+  state.SetBytesProcessed(static_cast<std::int64_t>(published * sizeof(SmallPayload)));
+}
+
 // One active subscriber races the writer; the second remains idle and must not block either.
 template <std::uint32_t Watermark>
 void BM_latest_concurrent_fanout_64b(benchmark::State& state) {
@@ -596,6 +649,7 @@ BENCHMARK_TEMPLATE(BM_latest_policy_roundtrip_64b, salias::SubscriptionPolicy::R
     ->Unit(benchmark::kNanosecond);
 BENCHMARK_TEMPLATE(BM_latest_slow_subscriber_64b, 50)->Arg(4096)->Unit(benchmark::kMicrosecond);
 BENCHMARK_TEMPLATE(BM_latest_slow_subscriber_64b, 90)->Arg(4096)->Unit(benchmark::kMicrosecond);
+BENCHMARK(BM_latest_message_window_64b)->Arg(4096)->Unit(benchmark::kMicrosecond);
 BENCHMARK_TEMPLATE(BM_latest_concurrent_fanout_64b, 50)
     ->Arg(65536)
     ->UseRealTime()

@@ -18,6 +18,7 @@ are released.
 
 ### Added
 
+- 新增 `Config::publication_window_messages`，按每个 producer ring 限制在途/保留消息数；可靠模式达到窗口后背压，LatestFanout 的 DropOldest 订阅可淘汰最旧帧，Reliable 订阅仍保护未读帧。该窗口可与字节窗口并用，LatestFanout 仍要求字节窗口为 0。
 - 为 `LatestFanout` 增加按订阅者选择 `Reliable` 或 `DropOldest` 的交付策略；可靠游标限制保留头推进，慢的可靠订阅者会触发背压而不会丢失未读消息，丢旧订阅者仍可独立跳过过期窗口。其他模式拒绝 `DropOldest` 策略，共享控制段版本升至 v10。
 - 为 IPC 订阅者增加可复用注册槽：最后一个 `Subscriber` 副本销毁时注销，后续注册回收进程崩溃遗留槽位；代际令牌隔离旧端点，late join 从稳定的 reservation 尾开始。新增 `Channel::try_subscriber()` 与 `Error::NoSubscriberSlots`，共享控制段版本升至 v9。
 - 新增编译期定容量的 `salias::Ringbuffer<T, Capacity, HighWatermarkPercent>`，默认以 90% 高水位丢弃最旧元素并保留最新数据；明确该类型为进程内单线程容器，不改变 IPC channel 的背压语义。
@@ -35,10 +36,12 @@ are released.
 
 ### Changed
 
+- 共享控制段协议升级至 v11，新增消息数窗口的 producer reservation、retention 和 consumer 进度字段；旧布局通道需重建并同时升级发布端与订阅端。
 - 共享控制段协议升级为 v8，以支持独立淘汰意图字、LatestFanout 丢旧/主动跳过计数；旧布局返回 `VersionMismatch`，需重建通道并同时升级发布端与订阅端。
 
 ### Tests
 
+- 新增消息数窗口测试，覆盖 Ordered 多 producer 独立上限、字节/消息窗口独立生效、fanout 最慢消费者、部分批次、poll 后恢复、connect 后限制、LatestFanout 可靠读者背压、空消息/变长帧与物理回绕；新增停滞订阅者保留 64 条消息的压测校验。Release 134/134、ASan/UBSan 133/133、TSan API suite 和 mcpp module/header IPC 测试通过；短基准 3 次复跑通过，Google Benchmark 依赖为 DEBUG 构建，结果仅作冒烟参考。
 - 新增 20 个 LatestFanout 回归测试，覆盖最小/默认/全容量水位、空消息和精确帧边界、超限与部分批次、混合长度回绕、序列号低位回绕、未提交空洞、非法帧头/lease 边界、借用与批量回调生命期、独立 producer/consumer 和 `SIGKILL` 后的失效 lease 回收。
 - Linux x86_64 上 ASan/UBSan 全量 99/99、Release 全量 100/100（含 benchmark smoke）通过；三生产者与单条/批量双订阅者并发回绕在 ASan/UBSan、Release 下各复跑 50 轮，TSan 下复跑 10 轮。
 - 分配契约测试逐点注入五模式及静态 LatestFanout 的创建、连接和订阅端分配失败，验证 typed error/异常传播与同名通道重建。静态包装器 OOM 测试修复前失败、修复后通过；五模式 mcpp 模块/头文件混合消费复验通过。macOS 和长期压力运行未在本次验证。
@@ -46,6 +49,7 @@ are released.
 
 ### Docs
 
+- 补充消息数窗口的配置单位、可靠/丢旧模式语义、批量部分成功行为、协议版本和压力基准说明。
 - 补充完整帧水位计算、失败写入不淘汰、每环借用限制、批量回调 pin 和协议兼容要求。
 - 补充 checked 接收、LatestFanout 主动跳读、缺口计数和可靠模式不丢失的 API 语义。
 
