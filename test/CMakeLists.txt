@@ -154,6 +154,7 @@ endif()
 
 add_executable(salias_channel_tests
   channel/hybrid_mpsc_channel_test.cpp
+  channel/shared_latest_channel_test.cpp
 )
 target_link_libraries(salias_channel_tests PRIVATE salias_core GTest::gtest_main)
 

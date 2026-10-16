@@ -38,8 +38,8 @@ class Publisher;
  * @brief 一次零拷贝发布的预留句柄（RAII 风格）。
  * @details 由 Publisher::try_claim() 返回，持有 ring 内已预留的 payload 写入区。
  *          生命周期模型：try_claim() 成功后用户通过 payload() 获取写入区直接写入，
- *          随后必须调用 commit() 将消息发布给消费者；若未 commit 而析构，预留空间
- *          被自动放弃回收。仅可移动、不可拷贝，保证同一时刻只有一个 claim 持有该区。
+ *          随后必须调用 commit()。乱序提交不会越过未提交的空洞，补齐后才连续发布；
+ *          放弃未提交 claim 不受支持，会阻塞后续发布。仅可移动、不可拷贝。
  *          committed_ 默认为 true 表示"无需提交"的无效默认态；真实 claim 构造时
  *          置为 false，commit() 后置 true。
  */
@@ -97,7 +97,7 @@ class Publisher {
    * @param payload_len 期望的负载字节数。
    * @retval PublishClaim 预留成功，用户写入后需 commit()。
    * @retval Error::BackPressured 流控窗口在途字节数达上限或环形缓冲已满。
-   * @retval Error::MessageTooLarge payload_len 超过环容量限制。
+   * @retval Error::MessageTooLarge payload_len 超过环容量，或 LatestFanout 单帧超过保留水位。
    * @note 成功后调用方必须写入 payload 并调用 PublishClaim::commit() 发布消息。
    */
   Result<PublishClaim<M>> try_claim(std::size_t payload_len) noexcept;
@@ -107,7 +107,7 @@ class Publisher {
    * @param payload 待发布的负载数据视图。
    * @retval true 发布成功。
    * @retval Error::BackPressured 背压，当前无法发布。
-   * @retval Error::MessageTooLarge payload 超过环容量。
+   * @retval Error::MessageTooLarge payload 超过环容量，或 LatestFanout 单帧超过保留水位。
    */
   Result<bool> offer(std::span<const std::byte> payload) noexcept;
 

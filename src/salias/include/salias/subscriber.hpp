@@ -51,6 +51,7 @@ class Subscriber {
    * @brief 非阻塞尝试接收一条已提交消息。
    * @return 已提交消息的借用视图，或当前无可读消息时返回 std::nullopt。
    * @note 返回的 Message 需后续通过 release() 释放环空间。
+   *       LatestFanout 在同一 producer ring 有未释放借用时跳过该 ring，仍可读取其他 ring。
    */
   std::optional<Message> try_recv() noexcept;
 
@@ -77,6 +78,7 @@ class Subscriber {
    * @param user 透传给回调的用户上下文指针。
    * @return 实际处理的消息数。
    * @note callback 收到的 payload 只在当前回调期间有效，调用者不能在回调后继续持有。
+   *       LatestFanout 按最多 32 条的内部批次 pin，整批回调完成后统一释放。
    */
   std::size_t poll(std::uint32_t max_messages, PollCallback callback, void* user) noexcept;
 
@@ -88,6 +90,7 @@ class Subscriber {
    * @return 实际处理的消息数。
    * @note handler 在头文件循环内内联执行，避免跨 .so 边界的每消息间接调用；
    *       进度按批 flush（fetch_batch + flush_batch），减少对生产者的可见进度更新。
+   *       LatestFanout 按最多 32 条的内部批次 pin，整批回调完成后统一释放。
    */
   template <class Handler>
   std::size_t poll(std::uint32_t max_messages, Handler&& handler) noexcept {

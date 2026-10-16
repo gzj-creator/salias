@@ -55,7 +55,7 @@ namespace {
 /// @brief 匿名命名空间，仅本翻译单元可见的具名通道辅助类型与函数。
 
 inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;  // ASCII "SALC"，校验控制段归属。
-inline constexpr std::uint32_t kNamedVersion = 6;  // 控制段布局版本号，connect 须严格匹配。
+inline constexpr std::uint32_t kNamedVersion = 7;  // 控制段布局版本号，connect 须严格匹配。
 inline constexpr std::size_t kControlSize = 16u * 1024u;  // 控制段固定 16 KiB。
 inline constexpr std::size_t kCacheLineGuard = 128;  // 双 cache line 填充宽度，规避伪共享。
 inline constexpr std::size_t kMaxProducers = 16;  // 单 channel 最大 producer 数。
@@ -125,7 +125,8 @@ struct alignas(kCacheLineGuard) NamedProducerSlot {
   std::uint64_t visible_producer_pos = 0;  ///< 已对外可见（已发布）的 position。
   std::uint64_t local_sequence = 0;  ///< 本地已 claim 的序列号（可能尚未发布）。
   std::uint64_t retained_position = 0;  ///< 丢旧模式下最早仍可读取的帧位置。
-  std::byte pad[kCacheLineGuard - (3 * sizeof(std::uint64_t))]{};  ///< 头部填充。
+  std::uint64_t retention_intent = std::numeric_limits<std::uint64_t>::max();  ///< 计划淘汰位置。
+  std::byte pad[kCacheLineGuard - (4 * sizeof(std::uint64_t))]{};  ///< 头部填充。
   std::array<NamedConsumerCursorSlot, kMaxConsumers> consumers{};  ///< 各 consumer 游标。
 };
 
@@ -738,6 +739,7 @@ std::vector<typename SharedChannel<M>::ProducerSharedState> make_producer_states
     state.visible_producer_pos = &control.producers[producer_id].visible_producer_pos;
     state.local_sequence = &control.producers[producer_id].local_sequence;
     state.retained_position = &control.producers[producer_id].retained_position;
+    state.retention_intent = &control.producers[producer_id].retention_intent;
     state.consumers.reserve(control.num_consumers);
     for (std::uint32_t consumer_id = 0; consumer_id < control.num_consumers; ++consumer_id) {
       state.consumers.push_back(typename SharedChannel<M>::ConsumerSharedState{
@@ -805,7 +807,7 @@ class NamedChannelState {
   /// @brief 获取指定 producer 的发送端句柄。
   auto tx(std::uint32_t producer_id) noexcept { return channel_.tx(producer_id); }
   /// @brief 获取指定 consumer 的接收端句柄。
-  auto rx(std::uint32_t consumer_id) noexcept { return channel_.rx(consumer_id); }
+  auto rx(std::uint32_t consumer_id) { return channel_.rx(consumer_id); }
 
   /// @brief 统计注册槽位中仍由原进程持有的订阅者数量。
   std::uint32_t connected_consumer_count() noexcept {
@@ -933,7 +935,7 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
   }
 #endif
 
-  const std::string control_name = control_shm_name(config.name);
+  std::string control_name = control_shm_name(config.name);
   const NamedRingSpec ring_spec = named_ring_spec_for(config.huge);
   auto control_mapping = ControlMapping::create(control_name);
   if (!control_mapping) {
@@ -942,8 +944,6 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
 
   std::vector<ring::MagicRing> rings;
   std::vector<std::string> cleanup_names;
-  rings.reserve(config.num_producers);
-  cleanup_names.reserve(config.num_producers);
   auto cleanup_created_names = [&]() noexcept {
     for (const auto& cleanup_name : cleanup_names) {
       if (ring_spec.backend == NamedRingBackend::Hugetlbfs) {
@@ -956,17 +956,19 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
   };
 
   try {
+    rings.reserve(config.num_producers);
+    cleanup_names.reserve(config.num_producers);
     // 逐个创建 per-producer ring；任一失败则回滚已创建的 ring 与控制段。
     for (std::uint32_t producer_id = 0; producer_id < config.num_producers; ++producer_id) {
       const std::string shm_name = ring_shm_name(config.name, producer_id);
       const std::string public_name = ring_public_name(config.name, producer_id);
-      const std::string cleanup_name = ring_cleanup_name(public_name, shm_name, ring_spec);
+      std::string cleanup_name = ring_cleanup_name(public_name, shm_name, ring_spec);
       auto ring = create_named_ring(public_name, shm_name, config.capacity, ring_spec);
       if (!ring) {
         cleanup_created_names();
         return std::unexpected(ring.error());
       }
-      cleanup_names.push_back(cleanup_name);
+      cleanup_names.push_back(std::move(cleanup_name));
       rings.push_back(std::move(ring).value());
     }
 
@@ -987,8 +989,8 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
                              make_shared_control<M>(*control));
     // release 写 ready=1：与 open_control_when_ready 的 acquire 读配对，保证元数据可见。
     std::atomic_ref<std::uint32_t>(control->ready).store(1, std::memory_order_release);
-    return NamedChannelState<M>(std::move(control_mapping).value(), std::move(channel), control_name,
-                                std::move(cleanup_names), true,
+    return NamedChannelState<M>(std::move(control_mapping).value(), std::move(channel),
+                                std::move(control_name), std::move(cleanup_names), true,
                                 ring_spec.backend == NamedRingBackend::Hugetlbfs);
   } catch (const std::bad_alloc&) {
     cleanup_created_names();
@@ -1111,7 +1113,7 @@ struct SubscriberEndpoint {
   /// @param state_value channel 状态（共享所有权）。
   /// @param consumer_id 已分配的 consumer id。
   SubscriberEndpoint(std::shared_ptr<ChannelState<M>> state_value,
-                     std::uint32_t consumer_id) noexcept
+                     std::uint32_t consumer_id)
       : state(std::move(state_value)),
         rx(state->channel.rx(consumer_id)),
         valid(consumer_id != kInvalidEndpoint) {}

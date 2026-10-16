@@ -17,9 +17,12 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <csignal>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
+#include <optional>
 #include <span>
 #include <string>
 #include <thread>
@@ -612,12 +615,42 @@ TEST(ChannelApiTest, LatestFanoutUsesStaticCapacityAndWatermark) {
   EXPECT_EQ(wrong_watermark.error(), salias::Error::BadConfig);
 }
 
+TEST(ChannelApiTest, LatestFanoutSupportsDefaultMinimumAndFullWatermarks) {
+  using DefaultWatermark = salias::LatestFanoutChannel<4096>;
+  using MinimumWatermark = salias::LatestFanoutChannel<4096, 1>;
+  using FullWatermark = salias::LatestFanoutChannel<4096, 100>;
+  static_assert(DefaultWatermark::high_watermark_percent() == 90);
+  static_assert(MinimumWatermark::high_watermark_percent() == 1);
+  static_assert(FullWatermark::high_watermark_percent() == 100);
+
+  auto default_created =
+      DefaultWatermark::create(config_for(salias::Mode::LatestFanout, "latest-default-watermark"));
+  ASSERT_TRUE(default_created);
+  EXPECT_EQ(default_created->high_watermark_percent(), 90u);
+
+  auto minimum_created =
+      MinimumWatermark::create(config_for(salias::Mode::LatestFanout, "latest-minimum-watermark"));
+  ASSERT_TRUE(minimum_created);
+  EXPECT_EQ(minimum_created->high_watermark_percent(), 1u);
+
+  auto full_created =
+      FullWatermark::create(config_for(salias::Mode::LatestFanout, "latest-full-watermark"));
+  ASSERT_TRUE(full_created);
+  EXPECT_EQ(full_created->high_watermark_percent(), 100u);
+}
+
 TEST(ChannelApiTest, LatestFanoutRejectsIncompatibleFlowControlConfig) {
   auto invalid_watermark = config_for(salias::Mode::LatestFanout, "latest-invalid-watermark");
   invalid_watermark.high_watermark_percent = 101;
   auto bad_watermark = salias::Channel<salias::Mode::LatestFanout>::create(invalid_watermark);
   ASSERT_FALSE(bad_watermark);
   EXPECT_EQ(bad_watermark.error(), salias::Error::BadConfig);
+
+  auto zero_watermark = config_for(salias::Mode::LatestFanout, "latest-zero-watermark");
+  zero_watermark.high_watermark_percent = 0;
+  auto bad_zero_watermark = salias::Channel<salias::Mode::LatestFanout>::create(zero_watermark);
+  ASSERT_FALSE(bad_zero_watermark);
+  EXPECT_EQ(bad_zero_watermark.error(), salias::Error::BadConfig);
 
   auto publication_window = config_for(salias::Mode::LatestFanout, "latest-publication-window");
   publication_window.publication_window = publication_window.capacity;
@@ -649,13 +682,437 @@ TEST(ChannelApiTest, LatestFanoutDropsOldMessagesAndPinsBorrowedPayload) {
   EXPECT_EQ(pinned_write.error(), salias::Error::BackPressured);
   EXPECT_EQ(decode(borrowed->payload).sequence, 0u);
 
+  const auto next_payload = encode(Payload{.sequence = 256});
+  const std::array<std::span<const std::byte>, 2> next_batch{next_payload, next_payload};
+  auto pinned_batch = publisher.offer_batch(next_batch);
+  ASSERT_FALSE(pinned_batch);
+  EXPECT_EQ(pinned_batch.error(), salias::Error::BackPressured);
+
   subscriber.release(*borrowed);
+  auto oldest_after_failed_write = subscriber.try_recv();
+  ASSERT_TRUE(oldest_after_failed_write);
+  EXPECT_EQ(decode(oldest_after_failed_write->payload).sequence, 128u);
+  subscriber.release(*oldest_after_failed_write);
+
   ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 256})));
 
   auto latest = subscriber.try_recv();
   ASSERT_TRUE(latest);
   EXPECT_EQ(decode(latest->payload).sequence, 129u);
   subscriber.release(*latest);
+}
+
+TEST(ChannelApiTest, LatestFanoutHandlesEmptyAndOverWatermarkFrames) {
+  using TinyWindow = salias::LatestFanoutChannel<4096, 1>;
+  auto created =
+      TinyWindow::create(config_for(salias::Mode::LatestFanout, "latest-small-window-frames"));
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  const std::span<const std::byte> empty_payload;
+  ASSERT_TRUE(publisher.offer(empty_payload));
+  auto empty_message = subscriber.try_recv();
+  ASSERT_TRUE(empty_message);
+  EXPECT_TRUE(empty_message->payload.empty());
+  subscriber.release(*empty_message);
+
+  // 1% of 4096 is 40 bytes: a 32-byte payload fits, 33 bytes rounds up to 48.
+  std::array<std::byte, 33> too_large_for_window{};
+  auto rejected = publisher.offer(too_large_for_window);
+  ASSERT_FALSE(rejected);
+  EXPECT_EQ(rejected.error(), salias::Error::MessageTooLarge);
+  auto rejected_claim = publisher.try_claim(too_large_for_window.size());
+  ASSERT_FALSE(rejected_claim);
+  EXPECT_EQ(rejected_claim.error(), salias::Error::MessageTooLarge);
+  auto huge_claim = publisher.try_claim(std::numeric_limits<std::size_t>::max());
+  ASSERT_FALSE(huge_claim);
+  EXPECT_EQ(huge_claim.error(), salias::Error::MessageTooLarge);
+
+  std::array<std::byte, 32> exact_fit{};
+  ASSERT_TRUE(publisher.offer(exact_fit));
+  auto largest = subscriber.try_recv();
+  ASSERT_TRUE(largest);
+  EXPECT_EQ(largest->payload.size(), exact_fit.size());
+  EXPECT_EQ(largest->sequence, 1u);
+  subscriber.release(*largest);
+
+  auto zero_frame = publisher.try_claim(0);
+  ASSERT_TRUE(zero_frame);
+  zero_frame->commit();
+  auto claimed_empty_message = subscriber.try_recv();
+  ASSERT_TRUE(claimed_empty_message);
+  EXPECT_TRUE(claimed_empty_message->payload.empty());
+  subscriber.release(*claimed_empty_message);
+}
+
+TEST(ChannelApiTest, LatestFanoutFullWatermarkSupportsMaximumFramesAndPinnedRetry) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 100>;
+  auto created =
+      TypedChannel::create(config_for(salias::Mode::LatestFanout, "latest-full-ring-frame"));
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+  std::array<std::byte, 4088> payload{};
+  payload.fill(std::byte{0xa5});
+  ASSERT_TRUE(publisher.offer(payload));
+  auto held = subscriber.try_recv();
+  ASSERT_TRUE(held);
+  auto blocked = publisher.offer(payload);
+  ASSERT_FALSE(blocked);
+  EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
+  EXPECT_TRUE(std::ranges::equal(held->payload, payload));
+  subscriber.release(*held);
+
+  auto claim = publisher.try_claim(payload.size());
+  ASSERT_TRUE(claim);
+  std::memcpy(claim->payload().data(), payload.data(), payload.size());
+  EXPECT_FALSE(subscriber.try_recv());
+  claim->commit();
+  auto message = subscriber.try_recv();
+  ASSERT_TRUE(message);
+  EXPECT_EQ(message->sequence, 1u);
+  EXPECT_TRUE(std::ranges::equal(message->payload, payload));
+  subscriber.release(*message);
+}
+
+TEST(ChannelApiTest, LatestFanoutEmptyAndMixedBatchesReportPartialProgress) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 1>;
+  auto created =
+      TypedChannel::create(config_for(salias::Mode::LatestFanout, "latest-partial-batches"));
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+  auto no_messages = publisher.offer_batch({});
+  ASSERT_TRUE(no_messages);
+  EXPECT_EQ(*no_messages, 0u);
+  const std::array<std::span<const std::byte>, 6> empty_messages{};
+  auto empty_batch = publisher.offer_batch(empty_messages);
+  ASSERT_TRUE(empty_batch);
+  EXPECT_EQ(*empty_batch, 5u);
+  std::uint64_t sequence = 0;
+  EXPECT_EQ(subscriber.poll(10,
+                            [&sequence](const salias::Message& message) noexcept {
+                              EXPECT_TRUE(message.payload.empty());
+                              EXPECT_EQ(message.sequence, sequence++);
+                            }),
+            5u);
+
+  const auto valid = encode(Payload{.sequence = 5});
+  const std::array<std::byte, 33> oversized{};
+  const std::array<std::span<const std::byte>, 2> invalid_uniform{oversized, oversized};
+  auto rejected = publisher.offer_batch(invalid_uniform);
+  ASSERT_FALSE(rejected);
+  EXPECT_EQ(rejected.error(), salias::Error::MessageTooLarge);
+  const std::array<std::span<const std::byte>, 2> mixed{valid, oversized};
+  auto partial = publisher.offer_batch(mixed);
+  ASSERT_TRUE(partial);
+  EXPECT_EQ(*partial, 1u);
+  auto message = subscriber.try_recv();
+  ASSERT_TRUE(message);
+  EXPECT_EQ(message->sequence, 5u);
+  EXPECT_EQ(decode(message->payload).sequence, 5u);
+  subscriber.release(*message);
+  EXPECT_FALSE(subscriber.try_recv());
+}
+
+TEST(ChannelApiTest, LatestFanoutBatchIsWatermarkBoundedAndWraps) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+  auto created = TypedChannel::create(config_for(salias::Mode::LatestFanout, "latest-batch-wrap"));
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  std::array<std::array<std::byte, sizeof(Payload)>, 200> storage{};
+  std::array<std::span<const std::byte>, 200> payloads{};
+  for (std::uint32_t index = 0; index < storage.size(); ++index) {
+    storage[index] = encode(Payload{.sequence = index});
+    payloads[index] = storage[index];
+  }
+
+  auto first_batch = publisher.offer_batch(payloads);
+  ASSERT_TRUE(first_batch);
+  EXPECT_EQ(first_batch.value(), 128u);
+  for (std::uint32_t sequence = 0; sequence < 128; ++sequence) {
+    storage[sequence] = encode(Payload{.sequence = 128 + sequence});
+    payloads[sequence] = storage[sequence];
+  }
+  auto second_batch = publisher.offer_batch(payloads);
+  ASSERT_TRUE(second_batch);
+  EXPECT_EQ(second_batch.value(), 128u);
+  for (std::uint32_t sequence = 0; sequence < 128; ++sequence) {
+    storage[sequence] = encode(Payload{.sequence = 256 + sequence});
+    payloads[sequence] = storage[sequence];
+  }
+  auto third_batch = publisher.offer_batch(payloads);
+  ASSERT_TRUE(third_batch);
+  EXPECT_EQ(third_batch.value(), 128u);
+
+  std::uint32_t received = 0;
+  std::uint32_t expected_sequence = 256;
+  while (auto message = subscriber.try_recv()) {
+    EXPECT_EQ(decode(message->payload).sequence, expected_sequence++);
+    ++received;
+    subscriber.release(*message);
+  }
+  EXPECT_EQ(received, 128u);
+  EXPECT_EQ(expected_sequence, 384u);
+}
+
+TEST(ChannelApiTest, LatestFanoutEvictsMixedFramesOnFrameBoundariesAfterWrap) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+  auto created =
+      TypedChannel::create(config_for(salias::Mode::LatestFanout, "latest-mixed-frame-wrap"));
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  constexpr std::array<std::size_t, 6> payload_sizes{8, 9, 16, 31, 64, 127};
+  constexpr std::uint32_t kMessages = 256;
+  std::array<std::vector<std::byte>, kMessages> payloads{};
+  std::array<std::size_t, kMessages> frame_lengths{};
+  for (std::uint32_t sequence = 0; sequence < kMessages; ++sequence) {
+    const std::size_t size = payload_sizes[sequence % payload_sizes.size()];
+    payloads[sequence].resize(size);
+    std::memcpy(payloads[sequence].data(), &sequence, sizeof(sequence));
+    frame_lengths[sequence] = 8 + ((size + 7) & ~std::size_t{7});
+    ASSERT_TRUE(publisher.offer(payloads[sequence])) << sequence;
+  }
+
+  constexpr std::size_t kRetentionBytes = 4096 / 2;
+  std::size_t retained_bytes = 0;
+  std::uint32_t expected_sequence = kMessages;
+  while (expected_sequence > 0 &&
+         retained_bytes + frame_lengths[expected_sequence - 1] <= kRetentionBytes) {
+    --expected_sequence;
+    retained_bytes += frame_lengths[expected_sequence];
+  }
+
+  std::uint32_t received = 0;
+  while (auto message = subscriber.try_recv()) {
+    ASSERT_GE(message->payload.size(), sizeof(std::uint32_t));
+    std::uint32_t sequence = 0;
+    std::memcpy(&sequence, message->payload.data(), sizeof(sequence));
+    EXPECT_EQ(sequence, expected_sequence++);
+    ++received;
+    subscriber.release(*message);
+  }
+  EXPECT_GT(received, 0u);
+  EXPECT_EQ(expected_sequence, kMessages);
+}
+
+TEST(ChannelApiTest, LatestFanoutKeepsFastAndSlowSubscribersIndependent) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestFanout, "latest-fast-slow-consumers");
+  config.num_consumers = 2;
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto fast_subscriber = channel.subscriber();
+  auto slow_subscriber = channel.subscriber();
+
+  for (std::uint32_t sequence = 0; sequence < 256; ++sequence) {
+    ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = sequence}))) << sequence;
+    auto message = fast_subscriber.try_recv();
+    ASSERT_TRUE(message) << sequence;
+    EXPECT_EQ(decode(message->payload).sequence, sequence);
+    fast_subscriber.release(*message);
+  }
+
+  auto latest = slow_subscriber.try_recv();
+  ASSERT_TRUE(latest);
+  EXPECT_EQ(decode(latest->payload).sequence, 128u);
+  slow_subscriber.release(*latest);
+
+  auto fast_empty = fast_subscriber.try_recv();
+  EXPECT_FALSE(fast_empty);
+}
+
+TEST(ChannelApiTest, LatestFanoutPinnedRingDoesNotBlockOtherProducers) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestFanout, "latest-independent-rings");
+  config.num_producers = 2;
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  std::array publishers{channel.publisher(), channel.publisher()};
+  auto subscriber = channel.subscriber();
+  ASSERT_TRUE(publishers[0].offer(encode(Payload{})));
+  auto held = subscriber.try_recv();
+  ASSERT_TRUE(held);
+  for (std::uint32_t sequence = 1; sequence < 256; ++sequence) {
+    ASSERT_TRUE(publishers[0].offer(encode(Payload{.sequence = sequence})));
+  }
+  EXPECT_FALSE(publishers[0].offer(encode(Payload{.sequence = 256})));
+  ASSERT_TRUE(publishers[1].offer(encode(Payload{.producer = 1})));
+  auto other = subscriber.try_recv();
+  ASSERT_TRUE(other);
+  EXPECT_EQ(other->producer_id, 1u);
+  EXPECT_EQ(decode(other->payload).producer, 1u);
+  subscriber.release(*other);
+  EXPECT_FALSE(publishers[0].offer(encode(Payload{.sequence = 256})));
+  EXPECT_EQ(decode(held->payload).sequence, 0u);
+  subscriber.release(*held);
+  EXPECT_TRUE(publishers[0].offer(encode(Payload{.sequence = 256})));
+}
+
+TEST(ChannelApiTest, LatestFanoutDestroyingOneSubscriberDoesNotReleaseAnotherLease) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestFanout, "latest-lease-lifetime");
+  config.num_consumers = 2;
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  std::optional first{channel.subscriber()};
+  std::optional second{channel.subscriber()};
+  ASSERT_TRUE(publisher.offer(encode(Payload{})));
+  ASSERT_TRUE(first->try_recv());
+  auto second_message = second->try_recv();
+  ASSERT_TRUE(second_message);
+  for (std::uint32_t sequence = 1; sequence < 256; ++sequence) {
+    ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = sequence})));
+  }
+  first.reset();
+  EXPECT_FALSE(publisher.offer(encode(Payload{.sequence = 256})));
+  EXPECT_EQ(decode(second_message->payload).sequence, 0u);
+  second.reset();
+  EXPECT_TRUE(publisher.offer(encode(Payload{.sequence = 256})));
+}
+
+template <std::uint32_t Watermark>
+void check_latest_concurrent_delivery() {
+  using TypedChannel = salias::LatestFanoutChannel<4096, Watermark>;
+  constexpr std::uint32_t kProducers = 3;
+  constexpr std::uint32_t kMessages = 10000;
+  struct CheckedPayload {
+    std::uint32_t producer = 0;
+    std::uint32_t sequence = 0;
+    std::array<std::uint64_t, 7> checks{};
+  };
+  auto config = config_for(salias::Mode::LatestFanout, "latest-concurrent-delivery");
+  config.num_producers = kProducers;
+  config.num_consumers = 2;
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  std::array publishers{channel.publisher(), channel.publisher(), channel.publisher()};
+  std::array subscribers{channel.subscriber(), channel.subscriber()};
+  std::atomic<bool> start{false};
+  std::atomic<bool> stop{false};
+  std::atomic<bool> failed{false};
+  std::atomic<std::uint32_t> producers_done{0};
+  std::atomic<std::uint32_t> consumers_done{0};
+  std::vector<std::thread> workers;
+  for (std::uint32_t producer = 0; producer < kProducers; ++producer) {
+    workers.emplace_back([&, producer] {
+      while (!start.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+      for (std::uint32_t sequence = 0;
+           sequence < kMessages && !stop.load(std::memory_order_relaxed);) {
+        CheckedPayload payload{.producer = producer, .sequence = sequence};
+        payload.checks.fill((std::uint64_t{sequence} << 32) | producer);
+        auto offered = publishers[producer].offer(std::as_bytes(std::span{&payload, 1}));
+        if (offered) {
+          ++sequence;
+        } else if (offered.error() == salias::Error::BackPressured) {
+          std::this_thread::yield();
+        } else {
+          failed.store(true, std::memory_order_relaxed);
+          stop.store(true, std::memory_order_relaxed);
+        }
+      }
+      producers_done.fetch_add(1, std::memory_order_release);
+    });
+  }
+  for (std::size_t index = 0; index < subscribers.size(); ++index) {
+    workers.emplace_back([&, index] {
+      std::array<std::optional<std::uint32_t>, kProducers> last{};
+      const auto validate = [&](const salias::Message& message) noexcept {
+        CheckedPayload payload{};
+        bool valid = message.payload.size() == sizeof(payload);
+        if (valid) {
+          std::memcpy(&payload, message.payload.data(), sizeof(payload));
+          valid = payload.producer < kProducers && message.producer_id == payload.producer &&
+                  message.sequence == payload.sequence && payload.sequence < kMessages;
+        }
+        if (valid) {
+          const auto& previous = last[payload.producer];
+          valid = !previous || payload.sequence > *previous;
+          const auto expected = (std::uint64_t{payload.sequence} << 32) | payload.producer;
+          for (const auto check : payload.checks) {
+            valid = valid && check == expected;
+          }
+        }
+        // Give writers an opportunity to wrap while this payload is still borrowed.
+        if ((payload.sequence % 31) == 0) {
+          std::this_thread::yield();
+        }
+        CheckedPayload again{};
+        if (message.payload.size() == sizeof(again)) {
+          std::memcpy(&again, message.payload.data(), sizeof(again));
+          valid = valid && std::memcmp(&payload, &again, sizeof(payload)) == 0;
+        }
+        if (!valid) {
+          failed.store(true, std::memory_order_relaxed);
+          stop.store(true, std::memory_order_relaxed);
+        } else {
+          last[payload.producer] = payload.sequence;
+        }
+      };
+      while (!start.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+      while (!stop.load(std::memory_order_relaxed)) {
+        bool received = false;
+        if (index == 0) {
+          if (auto message = subscribers[index].try_recv()) {
+            validate(*message);
+            subscribers[index].release(*message);
+            received = true;
+          }
+        } else {
+          received = subscribers[index].poll(7, validate) != 0;
+        }
+        if (std::ranges::all_of(last, [&](const auto& sequence) {
+              return sequence && *sequence == kMessages - 1;
+            })) {
+          break;
+        }
+        if (!received) {
+          std::this_thread::yield();
+        }
+      }
+      consumers_done.fetch_add(1, std::memory_order_release);
+    });
+  }
+  start.store(true, std::memory_order_release);
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+  while (consumers_done.load(std::memory_order_acquire) != subscribers.size() &&
+         !stop.load(std::memory_order_relaxed) && std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  const bool completed = consumers_done.load(std::memory_order_acquire) == subscribers.size();
+  stop.store(true, std::memory_order_relaxed);
+  for (auto& worker : workers) {
+    worker.join();
+  }
+  EXPECT_TRUE(completed) << "LatestFanout delivery did not finish before the deadline";
+  EXPECT_FALSE(failed.load(std::memory_order_relaxed));
+  EXPECT_EQ(producers_done.load(std::memory_order_acquire), kProducers);
+}
+
+TEST(ChannelApiTest, LatestFanoutConcurrentSingleAndBatchReadersSurviveWraparound) {
+  check_latest_concurrent_delivery<50>();
+  check_latest_concurrent_delivery<90>();
+  check_latest_concurrent_delivery<100>();
 }
 
 TEST(ChannelApiTest, LatestFanoutPollReleasesBatchLease) {
@@ -678,6 +1135,46 @@ TEST(ChannelApiTest, LatestFanoutPollReleasesBatchLease) {
                             }),
             2u);
   ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 256})));
+}
+
+TEST(ChannelApiTest, LatestFanoutCallbackPollPinsWholeBatchUntilAllCallbacksFinish) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+  auto created =
+      TypedChannel::create(config_for(salias::Mode::LatestFanout, "latest-callback-pin"));
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+  for (std::uint32_t sequence = 0; sequence < 256; ++sequence) {
+    ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = sequence})));
+  }
+  struct Context {
+    salias::LatestFanoutPublisher* publisher;
+    std::uint32_t callbacks = 0;
+    bool writes_ok = true;
+    bool blocked = false;
+  } context{.publisher = &publisher};
+  const auto callback = [](const salias::Message& message, void* user) noexcept {
+    auto& context = *static_cast<Context*>(user);
+    if (context.callbacks == 0) {
+      for (std::uint32_t sequence = 256; sequence < 384; ++sequence) {
+        context.writes_ok =
+            context.writes_ok &&
+            context.publisher->offer(encode(Payload{.sequence = sequence})).has_value();
+      }
+      auto offered = context.publisher->offer(encode(Payload{.sequence = 384}));
+      context.blocked = !offered && offered.error() == salias::Error::BackPressured;
+    }
+    EXPECT_EQ(decode(message.payload).sequence, 128u + context.callbacks);
+    ++context.callbacks;
+  };
+  EXPECT_EQ(subscriber.poll(0, callback, &context), 0u);
+  EXPECT_EQ(subscriber.poll(32, nullptr, &context), 0u);
+  EXPECT_EQ(subscriber.poll(32, callback, &context), 32u);
+  EXPECT_TRUE(context.writes_ok);
+  EXPECT_TRUE(context.blocked);
+  EXPECT_EQ(context.callbacks, 32u);
+  EXPECT_TRUE(publisher.offer(encode(Payload{.sequence = 384})));
 }
 
 TEST(ChannelApiTest, LatestFanoutSkipsOldMessagesAcrossProcesses) {
@@ -823,6 +1320,59 @@ TEST(ChannelApiTest, LatestFanoutReclaimsLeaseFromExitedConsumer) {
   ASSERT_TRUE(WIFEXITED(child_status));
   EXPECT_EQ(WEXITSTATUS(child_status), 0);
 #endif
+}
+
+TEST(ChannelApiTest, LatestFanoutReclaimsLeaseAfterConsumerIsKilled) {
+  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestFanout, "latest-killed-consumer");
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  ASSERT_TRUE(publisher.offer(encode(Payload{})));
+  int ready_pipe[2]{};
+  ASSERT_EQ(::pipe(ready_pipe), 0);
+  const auto child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    static_cast<void>(::close(ready_pipe[0]));
+    auto connected = TypedChannel::connect(config.name);
+    if (!connected) {
+      ::_exit(10);
+    }
+    auto subscriber = connected->subscriber();
+    if (!subscriber.try_recv()) {
+      ::_exit(11);
+    }
+    const char ready = 'r';
+    if (::write(ready_pipe[1], &ready, sizeof(ready)) != sizeof(ready)) {
+      ::_exit(12);
+    }
+    for (;;) {
+      ::pause();
+    }
+  }
+  static_cast<void>(::close(ready_pipe[1]));
+  char ready = 0;
+  const auto ready_bytes = ::read(ready_pipe[0], &ready, sizeof(ready));
+  static_cast<void>(::close(ready_pipe[0]));
+  bool all_published = ready_bytes == sizeof(ready) && ready == 'r';
+  for (std::uint32_t sequence = 1; all_published && sequence < 256; ++sequence) {
+    all_published = publisher.offer(encode(Payload{.sequence = sequence})).has_value();
+  }
+  auto blocked = publisher.offer(encode(Payload{.sequence = 256}));
+  const auto killed = ::kill(child, SIGKILL);
+  int status = 0;
+  const auto waited = ::waitpid(child, &status, 0);
+  ASSERT_EQ(killed, 0);
+  ASSERT_EQ(waited, child);
+  ASSERT_TRUE(WIFSIGNALED(status));
+  EXPECT_EQ(WTERMSIG(status), SIGKILL);
+  EXPECT_TRUE(all_published);
+  ASSERT_FALSE(blocked);
+  EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
+  EXPECT_EQ(channel.connected_consumer_count(), 0u);
+  EXPECT_TRUE(publisher.offer(encode(Payload{.sequence = 256})));
 }
 
 /// @brief 验证非法的 producer/consumer 数量会被拒绝：零 producer、

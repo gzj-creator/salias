@@ -22,6 +22,27 @@ are released.
 - 新增 `Channel::connected_consumer_count()`，按共享注册槽记录的 PID 与进程启动标识统计仍存活的消费者，并在跨进程消费者退出后将其排除；该诊断能力不回收槽位，也不改变背压语义。
 - 新增 `LatestFanout` IPC 通道策略及对应 Publisher / Subscriber 端点；`LatestFanoutChannel<Capacity, HighWatermarkPercent>` 在编译期固定 ring 容量与保留水位（默认 90%），慢消费者可跳过保留窗口外的消息，连接时校验模板配置，并在借用 payload 时防止覆盖、在订阅进程退出后回收失效 lease。共享控制段版本升至 v6，旧布局通道不能与新版本交叉连接。
 
+### Fixed
+
+- LatestFanout 单帧与等长批次严格受保留水位限制，单帧超限返回 `MessageTooLarge`，不再扩大窗口；空消息避免向空指针执行零长度拷贝，超出 32 位长度的输入不再截断。
+- 将拟淘汰位置 `retention_intent` 与实际保留头分离：lease 检查成功后才淘汰旧帧，受 pin 阻止的单条或批量写入不再额外丢消息或消耗序列号；消费者在公布 lease 后核对 intent 和保留头快照，无需共享自旋锁。
+- 淘汰前校验帧的已提交标志与长度边界，慢消费者跳读时同步本地和共享进度；修正 claim 注释，明确未提交空洞的可见性与不支持放弃 claim 的真实契约。
+- 修复静态 LatestFanout 包装器复制配置时泄漏 `bad_alloc`，以及共享引擎/订阅端初始化错误的 `noexcept` 导致分配失败直接终止进程的问题；将创建阶段的 reserve 纳入回滚范围，通过移动清理名称避免 OOM 路径遗留共享内存。
+
+### Changed
+
+- 共享控制段协议升级为 v7，以支持独立淘汰意图字；旧布局返回 `VersionMismatch`，需重建通道并同时升级发布端与订阅端。
+
+### Tests
+
+- 新增 20 个 LatestFanout 回归测试，覆盖最小/默认/全容量水位、空消息和精确帧边界、超限与部分批次、混合长度回绕、序列号低位回绕、未提交空洞、非法帧头/lease 边界、借用与批量回调生命期、独立 producer/consumer 和 `SIGKILL` 后的失效 lease 回收。
+- Linux x86_64 上 ASan/UBSan 全量 99/99、Release 全量 100/100（含 benchmark smoke）通过；三生产者与单条/批量双订阅者并发回绕在 ASan/UBSan、Release 下各复跑 50 轮，TSan 下复跑 10 轮。
+- 分配契约测试逐点注入五模式及静态 LatestFanout 的创建、连接和订阅端分配失败，验证 typed error/异常传播与同名通道重建。静态包装器 OOM 测试修复前失败、修复后通过；五模式 mcpp 模块/头文件混合消费复验通过。macOS 和长期压力运行未在本次验证。
+
+### Docs
+
+- 补充完整帧水位计算、失败写入不淘汰、每环借用限制、批量回调 pin 和协议兼容要求。
+
 ## [v2.1.0] - 2026-10-11
 
 ### Added

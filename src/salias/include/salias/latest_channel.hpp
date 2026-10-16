@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <new>
 #include <string_view>
 #include <utility>
 
@@ -20,6 +21,8 @@ namespace salias {
  *
  * 慢消费者可跳过已移出保留窗口的旧消息。消费者正在借用的 Message 会被 pin，
  * 在 release 前生产者不会覆盖其 payload；pin 暂时阻止写入时仍返回 BackPressured。
+ * 保留水位按完整帧计算（含 8 字节帧头与对齐），单帧超出水位返回 MessageTooLarge。
+ * 同一订阅端每个 producer ring 同时最多持有一个单条借用或一批 poll 借用。
  * Config::publication_window 必须为 0，因为 LatestFanout 使用保留水位而非消费者游标背压。
  */
 template <std::size_t Capacity, std::uint32_t HighWatermarkPercent = 90>
@@ -38,15 +41,19 @@ class LatestFanoutChannel {
    *        high_watermark_percent 字段由模板参数覆盖，publication_window 须为 0。
    */
   static CreateResult create(const Config& config) {
-    Config typed_config = config;
-    typed_config.mode = Mode::LatestFanout;
-    typed_config.capacity = Capacity;
-    typed_config.high_watermark_percent = HighWatermarkPercent;
-    auto channel = Channel<Mode::LatestFanout>::create(typed_config);
-    if (!channel) {
-      return std::unexpected(channel.error());
+    try {
+      Config typed_config = config;
+      typed_config.mode = Mode::LatestFanout;
+      typed_config.capacity = Capacity;
+      typed_config.high_watermark_percent = HighWatermarkPercent;
+      auto channel = Channel<Mode::LatestFanout>::create(typed_config);
+      if (!channel) {
+        return std::unexpected(channel.error());
+      }
+      return LatestFanoutChannel(std::move(*channel));
+    } catch (const std::bad_alloc&) {
+      return std::unexpected(Error::OutOfMemory);
     }
-    return LatestFanoutChannel(std::move(*channel));
   }
 
   /**

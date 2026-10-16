@@ -13,6 +13,11 @@ L5 以一个 per-producer magic-ring 引擎承载 FIFO、Ordered 与 LatestFanou
 - LatestFanout 的消息视图是借用的：订阅者持有 `Message` 期间会 pin 对应 payload，若新写入
   将覆盖仍借用的字节则暂时回压；`release()` 或批量轮询完成后解除 pin。进程异常退出时，生产者
   在下一次覆盖该区间前按注册的 PID 与启动标识识别并清除失效 lease。
+- LatestFanout 用独立的 `retention_intent` 原子字宣布拟淘汰位置，检查 lease 成功后才发布
+  保留头；失败不淘汰消息，也不消耗序列号。消费者先公布 lease，再依次核对 intent 与保留头，
+  防止在检查与覆盖之间借用旧帧；这条握手路径不使用共享自旋锁。
+- LatestFanout 单帧（含帧头与对齐）不得超过保留水位；淘汰只跨完整已提交帧。新增 intent
+  字段后共享控制段版本为 v7，连接旧布局返回 `VersionMismatch`，须重建通道并重启两端。
 - `SpinPause::needs_wake()` 为 false，commit 不更新通知 word。
 
 本地实现位于 `hybrid_mpsc.hpp`，具名 IPC 实现位于 `shared_hybrid_mpsc.hpp`。公共 facade

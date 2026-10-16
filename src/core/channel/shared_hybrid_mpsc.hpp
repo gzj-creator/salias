@@ -99,6 +99,7 @@ class SharedHybridMpscChannel {
     std::uint64_t* visible_producer_pos = nullptr;  ///< producer 已发布尾位置(release 更新)。
     std::uint64_t* local_sequence = nullptr;  ///< Fifo 模式下 producer 本地序列号。
     std::uint64_t* retained_position = nullptr;     ///< 丢旧模式下最早保留帧的位置。
+    std::uint64_t* retention_intent = nullptr;  ///< 本次计划淘汰到的位置；UINT64_MAX 表示无计划。
     std::vector<ConsumerSharedState> consumers;  ///< 所有 consumer 对本 ring 的进度字。
   };
 
@@ -117,12 +118,12 @@ class SharedHybridMpscChannel {
    * @param control 全局共享控制字指针集合(非拥有)。
    * @param wait 等待策略实例，用于 consumer 阻塞/唤醒。
    * @note 构造期从共享内存 acquire-load 各 producer 的 local_sequence 以初始化本地缓存，
-   *        保证 reconnect 后本地序列号与共享内存一致。noexcept：不做可能抛异常的操作。
+   *        保证 reconnect 后本地序列号与共享内存一致。分配失败由公共 create/connect 转换。
    */
   // Wrap externally owned MAP_SHARED control words and one magic ring per producer.
   SharedHybridMpscChannel(std::vector<ring::MagicRing> rings,
                           std::vector<ProducerSharedState> producer_states, SharedControl control,
-                          Wait wait = Wait{}) noexcept
+                          Wait wait = Wait{})
       : producer_rings_(), control_(control), wait_(std::move(wait)) {
     producer_rings_.reserve(rings.size());
     for (std::size_t i = 0; i < rings.size(); ++i) {
@@ -174,7 +175,7 @@ class SharedHybridMpscChannel {
   /// 创建指定 producer 的发送句柄 Tx(轻量，不持有资源)。
   Tx tx(std::uint32_t producer_id) noexcept { return Tx(*this, producer_id); }
   /// 创建指定 consumer 的接收句柄 Rx(默认 consumer_id 为 0)。
-  Rx rx(std::uint32_t consumer_id = 0) noexcept { return Rx(*this, consumer_id); }
+  Rx rx(std::uint32_t consumer_id = 0) { return Rx(*this, consumer_id); }
 
  private:
   /**
@@ -186,6 +187,25 @@ class SharedHybridMpscChannel {
     ring::MagicRing ring;  ///< 该 producer 的双映射环形缓冲(L1 ring 层)。
     ProducerSharedState shared;  ///< 指向共享内存中该 producer 进度字的指针集合。
     std::uint64_t local_sequence = 0;  ///< Fifo 模式下的本地序列号缓存(单调递增)。
+  };
+
+  // Only the ring's producer writes this intent; readers publish a lease before checking it.
+  class RetentionIntentGuard {
+   public:
+    RetentionIntentGuard(std::uint64_t* intent, std::uint64_t retained) noexcept : intent_(intent) {
+      std::atomic_ref<std::uint64_t>(*intent_).store(retained, std::memory_order_seq_cst);
+    }
+
+    ~RetentionIntentGuard() noexcept {
+      std::atomic_ref<std::uint64_t>(*intent_)
+          .store(std::numeric_limits<std::uint64_t>::max(), std::memory_order_seq_cst);
+    }
+
+    RetentionIntentGuard(const RetentionIntentGuard&) = delete;
+    RetentionIntentGuard& operator=(const RetentionIntentGuard&) = delete;
+
+   private:
+    std::uint64_t* intent_;
   };
 
   /// 判定 producer_id 是否有效(在 producer_rings_ 范围内)。
@@ -388,6 +408,8 @@ class SharedHybridMpscChannel {
 
       auto& producer = channel_->producer_rings_[producer_id_];
       if (producer.shared.visible_producer_pos == nullptr || producer.shared.consumers.empty() ||
+          (DropOldest && (producer.shared.retained_position == nullptr ||
+                          producer.shared.retention_intent == nullptr)) ||
           (Ordering == Order::Fifo && producer.shared.local_sequence == nullptr)) {
         return std::unexpected(flow::FlowError::MessageTooLarge);
       }
@@ -400,6 +422,9 @@ class SharedHybridMpscChannel {
       // 单写者本地游标是当前可写入起点；无需每条消息重读共享 visible position。
       const std::uint64_t tail = producer_pos_;
       if constexpr (DropOldest) {
+        if (need > channel_->control_.retention_capacity) {
+          return std::unexpected(flow::FlowError::MessageTooLarge);
+        }
         if (!prepare_drop_oldest_write(producer, tail, need)) {
           return std::unexpected(flow::FlowError::BackPressured);
         }
@@ -455,6 +480,8 @@ class SharedHybridMpscChannel {
 
       auto& producer = channel_->producer_rings_[producer_id_];
       if (producer.shared.visible_producer_pos == nullptr || producer.shared.consumers.empty() ||
+          (DropOldest && (producer.shared.retained_position == nullptr ||
+                          producer.shared.retention_intent == nullptr)) ||
           (Ordering == Order::Fifo && producer.shared.local_sequence == nullptr)) {
         return std::unexpected(flow::FlowError::MessageTooLarge);
       }
@@ -468,7 +495,10 @@ class SharedHybridMpscChannel {
       std::uint32_t fit = 0;
       if constexpr (DropOldest) {
         const std::size_t retention_capacity = channel_->control_.retention_capacity;
-        const std::size_t watermark_fit = std::max<std::size_t>(1, retention_capacity / per);
+        if (per > retention_capacity) {
+          return std::unexpected(flow::FlowError::MessageTooLarge);
+        }
+        const std::size_t watermark_fit = retention_capacity / per;
         fit = static_cast<std::uint32_t>(std::min<std::size_t>(max_frames, watermark_fit));
         const std::size_t span_bytes = per * fit;
         if (!prepare_drop_oldest_write(producer, tail, span_bytes)) {
@@ -563,18 +593,23 @@ class SharedHybridMpscChannel {
      * @return 成功返回 true；失败(ClaimError)原样透传 FlowError。
      */
     OfferResult offer(std::span<const std::byte> payload) noexcept {
+      if (payload.size() > std::numeric_limits<std::uint32_t>::max()) {
+        return std::unexpected(flow::FlowError::MessageTooLarge);
+      }
       auto claim_result = claim(static_cast<std::uint32_t>(payload.size()));
       if (!claim_result) {
         return std::unexpected(claim_result.error());
       }
-      std::memcpy(claim_result.value().payload.data(), payload.data(), payload.size());
+      if (!payload.empty()) {
+        std::memcpy(claim_result.value().payload.data(), payload.data(), payload.size());
+      }
       commit(claim_result.value());
       return true;
     }
 
    private:
     SharedHybridMpscChannel* channel_;  ///< 所属 channel(非拥有)。
-    std::uint32_t producer_id_;  ///< 本句柄的 producer 索引。
+    std::uint32_t producer_id_;         ///< 本句柄的 producer 索引。
     /// 单写者本地发布位置；构造时从共享 visible position 恢复，claim 后递增。
     std::uint64_t producer_pos_ = 0;
     /// 已对消费者发布的连续末端。乱序 commit 不会把它推过空洞。
@@ -590,25 +625,31 @@ class SharedHybridMpscChannel {
       const auto retention_capacity = channel_->control_.retention_capacity;
       auto* retained_position = producer.shared.retained_position;
       if (retention_capacity == 0 || retained_position == nullptr ||
-          write_len > producer.ring.capacity()) {
+          producer.shared.retention_intent == nullptr || write_len > producer.ring.capacity()) {
         return false;
       }
 
       std::uint64_t retained =
           std::atomic_ref<std::uint64_t>(*retained_position).load(std::memory_order_acquire);
+      const std::uint64_t previous_retained = retained;
       if (retained > published_pos_ || tail < retained ||
           tail > std::numeric_limits<std::uint64_t>::max() - write_len) {
         return false;
       }
 
+      if (write_len > retention_capacity) {
+        return false;
+      }
+
       const std::uint64_t projected_tail = tail + write_len;
-      const std::uint64_t target_capacity = std::max<std::uint64_t>(retention_capacity, write_len);
+      const std::uint64_t target_capacity = retention_capacity;
       while (projected_tail - retained > target_capacity && retained < published_pos_) {
         const std::uint64_t header = hybrid_detail::load_header_plain(producer.ring, retained);
         const std::uint32_t payload_len = static_cast<std::uint32_t>(header);
+        const std::uint32_t meta = static_cast<std::uint32_t>(header >> 32u);
         const std::size_t oldest_len = frame::frame_len(payload_len);
-        if (oldest_len == 0 || oldest_len > producer.ring.capacity() ||
-            retained + oldest_len > published_pos_) {
+        if ((meta & frame::FLAG_COMMITTED) == 0 || oldest_len > producer.ring.capacity() ||
+            oldest_len > published_pos_ - retained) {
           return false;
         }
         retained += oldest_len;
@@ -617,15 +658,10 @@ class SharedHybridMpscChannel {
         return false;
       }
 
-      // Publish the new floor before checking leases. The consumer's lease handshake uses
-      // seq_cst ordering so either this scan sees its lease, or it observes this floor and
-      // refuses to borrow an already-evicted frame.
-      if (retained !=
-          std::atomic_ref<std::uint64_t>(*retained_position).load(std::memory_order_relaxed)) {
-        std::atomic_ref<std::uint64_t>(*retained_position)
-            .store(retained, std::memory_order_seq_cst);
-      }
-
+      // Announce before scanning leases, but do not evict on a failed write. In the SC order,
+      // either the scan sees a new lease, or that reader sees this intent/the committed floor.
+      // Clearing the intent after publishing the floor preserves that handshake without a lock.
+      RetentionIntentGuard guard(producer.shared.retention_intent, retained);
       for (const auto& consumer : producer.shared.consumers) {
         if (consumer.lease_start == nullptr || consumer.lease_end == nullptr) {
           return false;
@@ -658,6 +694,10 @@ class SharedHybridMpscChannel {
           }
         }
         return false;
+      }
+      if (retained != previous_retained) {
+        std::atomic_ref<std::uint64_t>(*retained_position)
+            .store(retained, std::memory_order_seq_cst);
       }
       return true;
     }
@@ -710,7 +750,7 @@ class SharedHybridMpscChannel {
      * @note 初始化时读取共享内存中的 consumer 位置与序列号，实现 reconnect 后续传。
      *       flushed_positions_ 初值等于 read_positions_，表示初始无未刷新进度。
      */
-    explicit Rx(SharedHybridMpscChannel& channel, std::uint32_t consumer_id) noexcept
+    explicit Rx(SharedHybridMpscChannel& channel, std::uint32_t consumer_id)
         : channel_(&channel),
           consumer_id_(consumer_id),
           read_positions_(channel.producer_rings_.size(), 0),
@@ -1051,14 +1091,15 @@ class SharedHybridMpscChannel {
     std::vector<bool> active_leases_;  ///< 本 Rx 正持有借用消息的 producer ring。
 
     bool begin_latest_lease(std::uint32_t producer_id, std::uint64_t start,
-                            std::uint64_t visible_bound) noexcept {
+                            std::uint64_t retained_snapshot, std::uint64_t visible_bound) noexcept {
       auto& producer = channel_->producer_rings_[producer_id];
       if (consumer_id_ >= producer.shared.consumers.size()) {
         return false;
       }
       auto& consumer = producer.shared.consumers[consumer_id_];
       if (consumer.lease_start == nullptr || consumer.lease_end == nullptr ||
-          producer.shared.retained_position == nullptr || active_leases_[producer_id]) {
+          producer.shared.retained_position == nullptr ||
+          producer.shared.retention_intent == nullptr || active_leases_[producer_id]) {
         return false;
       }
       auto lease_start = std::atomic_ref<std::uint64_t>(*consumer.lease_start);
@@ -1069,8 +1110,12 @@ class SharedHybridMpscChannel {
           .store(visible_bound, std::memory_order_seq_cst);
       lease_start.store(start, std::memory_order_seq_cst);
       active_leases_[producer_id] = true;
+      const std::uint64_t intent = std::atomic_ref<std::uint64_t>(*producer.shared.retention_intent)
+                                       .load(std::memory_order_seq_cst);
+      // Read the floor AFTER the intent: an inactive intent may follow a successful eviction.
       if (std::atomic_ref<std::uint64_t>(*producer.shared.retained_position)
-              .load(std::memory_order_seq_cst) > start) {
+                  .load(std::memory_order_seq_cst) != retained_snapshot ||
+          (intent != kNoLease && intent > start)) {
         clear_latest_lease(producer_id);
         return false;
       }
@@ -1088,6 +1133,26 @@ class SharedHybridMpscChannel {
             .store(kNoLease, std::memory_order_seq_cst);
       }
       active_leases_[producer_id] = false;
+    }
+
+    void publish_latest_progress(std::uint32_t producer_id, std::uint64_t position,
+                                 std::uint64_t sequence) noexcept {
+      if (channel_ == nullptr || producer_id >= channel_->producer_rings_.size()) {
+        return;
+      }
+      auto& consumers = channel_->producer_rings_[producer_id].shared.consumers;
+      if (consumer_id_ >= consumers.size()) {
+        return;
+      }
+      auto& consumer = consumers[consumer_id_];
+      if (consumer.position == nullptr || consumer.sequence == nullptr) {
+        return;
+      }
+      read_positions_[producer_id] = position;
+      next_sequences_[producer_id] = sequence;
+      flushed_positions_[producer_id] = position;
+      std::atomic_ref<std::uint64_t>(*consumer.position).store(position, std::memory_order_release);
+      std::atomic_ref<std::uint64_t>(*consumer.sequence).store(sequence, std::memory_order_release);
     }
 
     std::optional<flow::Message> try_recv_latest() noexcept {
@@ -1117,16 +1182,18 @@ class SharedHybridMpscChannel {
         if (visible < retained) {
           continue;
         }
+        const bool lagged = read_positions_[producer_id] < retained;
         const std::uint64_t start = std::max(read_positions_[producer_id], retained);
-        if (start >= visible || !begin_latest_lease(producer_id, start, visible)) {
+        if (start >= visible || !begin_latest_lease(producer_id, start, retained, visible)) {
           continue;
         }
-        if (read_positions_[producer_id] < retained) {
-          read_positions_[producer_id] = retained;
-          next_sequences_[producer_id] = channel_->sequence_at_position(producer, retained);
+        std::uint64_t position = start;
+        std::uint64_t sequence = lagged ? channel_->sequence_at_position(producer, retained)
+                                        : next_sequences_[producer_id];
+        auto message = channel_->try_read_from_ring(producer_id, position, sequence, visible);
+        if (lagged) {
+          publish_latest_progress(producer_id, position, sequence);
         }
-        auto message =
-            channel_->try_read_from_ring(producer_id, start, next_sequences_[producer_id], visible);
         if (!message.has_value()) {
           clear_latest_lease(producer_id);
           continue;
@@ -1168,16 +1235,14 @@ class SharedHybridMpscChannel {
         if (visible < retained) {
           continue;
         }
+        const bool lagged = read_positions_[producer_id] < retained;
         const std::uint64_t start = std::max(read_positions_[producer_id], retained);
-        if (start >= visible || !begin_latest_lease(producer_id, start, visible)) {
+        if (start >= visible || !begin_latest_lease(producer_id, start, retained, visible)) {
           continue;
         }
         std::uint64_t position = start;
-        std::uint64_t sequence = next_sequences_[producer_id];
-        if (read_positions_[producer_id] < retained) {
-          sequence = channel_->sequence_at_position(producer, retained);
-          read_positions_[producer_id] = retained;
-        }
+        std::uint64_t sequence = lagged ? channel_->sequence_at_position(producer, retained)
+                                        : next_sequences_[producer_id];
         std::uint32_t produced = 0;
         while (produced < cap) {
           auto message = channel_->try_read_from_ring(producer_id, position, sequence, visible);
@@ -1193,6 +1258,9 @@ class SharedHybridMpscChannel {
         }
         if (produced == 0) {
           clear_latest_lease(producer_id);
+          if (lagged) {
+            publish_latest_progress(producer_id, position, sequence);
+          }
           continue;
         }
         read_positions_[producer_id] = position;
