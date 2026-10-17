@@ -31,6 +31,8 @@ enum class Error {
   NoSubscriberSlots,  ///< 所有订阅槽均被活动端点占用。
   CapacityExceeded,   ///< LatestByKey 通道中尚无空间容纳新的唯一 key。
   SequenceExhausted,  ///< LatestByKey 的 key 版本号或通道事件序列耗尽。
+  PayloadSizeMismatch,  ///< 类型化接收时 payload 大小与 sizeof(T) 不一致。
+  SchemaMismatch,       ///< 连接端的消息 schema 与共享通道 schema 不一致。
 };
 
 // 公共 API 使用的显式结果类型；保留 salias::Result<T> 名称，底层采用 C++23 std::expected。

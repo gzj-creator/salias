@@ -31,7 +31,8 @@ single 模式要求 `num_consumers == 1`；fanout 模式允许 1–8 个消费�
 `publication_window == 0` 表示满环。低延迟推荐 64KiB–256KiB：窗口把在途字节数收成窗口量级，
 从而把排队延迟压到同一量级。128KiB 对照满 4MiB 环时，p99 从约 5.7ms 降到约 350us，吞吐约少一成。
 窗口越小，生产者越常刷新消费者位置，需要按消息大小复测吞吐拐点。
-当前公共协议只支持变长帧，不提供 fixed-size 配置模式。
+默认的 `Channel<M>` 是变长 raw-payload 通道。`Channel<M, Schema>` 绑定固定布局消息，并在共享控制块中
+记录显式 schema ID、版本和 payload 大小；两种通道不可互连。
 
 `publication_window_messages == 0` 表示不启用消息数限制；正数限制每个 producer ring 中已预留、
 但尚未被最慢可靠订阅者消费的消息数。达到窗口后返回 `Error::BackPressured`，释放或批量轮询
@@ -104,6 +105,47 @@ endpoint 复活，也不放宽可靠通道的数据保留语义。
 
 `Publisher` 持有 Tx，`Subscriber` 持有 Rx。端点不会在 `offer`、`try_recv`、`poll`、`release`
 调用中重建，因此缓存与游标跨调用保留。
+
+固定布局的平凡可复制消息可绑定显式 schema，连接时完成兼容性检查：
+
+```cpp
+struct Quote {
+  std::uint64_t symbol;
+  std::int64_t price;
+  std::uint32_t quantity;
+};
+
+struct QuoteSchema {
+  using message_type = Quote;
+  static constexpr std::uint64_t schema_id = 0x51554F5445000001;
+  static constexpr std::uint32_t version = 1;
+};
+
+using QuoteChannel = salias::Channel<salias::Mode::FifoMpsc, QuoteSchema>;
+auto channel = QuoteChannel::create(config);
+auto publisher = channel->publisher();
+auto subscriber = channel->subscriber();
+publisher.send(Quote{1001, 12345, 10});
+auto quote = subscriber.try_recv_copy();
+```
+
+Schema 必须提供非零、应用管理的 `schema_id` 和 `version`；布局或字段语义变更时递增版本。连接端
+比较 raw/typed 标记、schema ID、版本和 payload 大小，不匹配时返回 `Error::SchemaMismatch`。
+连接成功后固定长度用于定位每帧 payload 和下一帧，不逐消息比较 header payload 长度。
+值接口只接受或返回 `Schema::message_type`。`Publisher::send(const T&)` 复制一次对象表示到共享 ring；
+`try_claim()` 仍返回长度固定为 `sizeof(T)` 的字节 span，调用方必须写入完整、有效的对象表示。
+`Subscriber::try_recv_copy()` / `recv_copy()` 复制到本地并自动释放。对象表示包含 padding 字节；跨越不可信
+边界或携带敏感数据时应使用显式序列化。LatestMpmc 的
+DropOldest 订阅端非阻塞读取仍可能返回 `Error::Lagged`。此路径无逐消息堆分配，但 T 必须平凡可复制，
+自身及成员不得包含进程内指针。schema 是兼容性声明，不是对恶意参与进程的认证机制。
+
+未绑定 Schema 的 `Channel<M>` 保留变长 raw API。其 `Publisher::send<T>()` 和
+`Subscriber::try_recv_copy<T>()` 可用于简单的固定值传输，但接收端仍逐消息校验 payload 大小，
+不承担 schema 版本兼容性检查；长度不匹配返回 `Error::PayloadSizeMismatch` 并消费释放该消息。
+
+原始 `try_recv()` / `recv()` 继续返回共享 ring 上的借用 `Message`；它们是最低延迟路径，使用完后
+必须调用 `release()`。共享内存 payload 不能直接移动为消费者私有对象；即使单生产者单消费者配置
+也只能在类型化接口中复制到本地 T 后脱离 ring 生命周期。
 
 `PublishClaim` 提供零拷贝写入：
 

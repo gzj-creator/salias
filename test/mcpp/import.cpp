@@ -1,7 +1,10 @@
 import std;
 import salias;
 
+#include "typed_schema.hpp"
+
 bool header_publish(const salias::Config& config);
+bool header_typed_publish(std::string_view name, const salias_mcpp::TypedPayload& payload);
 bool header_latest_by_key_publish(std::string_view name);
 bool header_priority_publish(std::string_view high_name, std::string_view low_name);
 
@@ -36,6 +39,12 @@ void roundtrip() {
     subscriber.release(*message);
 
     salias::Publisher<M> publisher = owner->publisher();
+    const salias_mcpp::TypedPayload typed_payload{.id = 7, .sequence = 11};
+    require(publisher.send(typed_payload).has_value());
+    auto typed_message = subscriber.template try_recv_copy<salias_mcpp::TypedPayload>();
+    require(typed_message && *typed_message && (**typed_message).id == typed_payload.id &&
+            (**typed_message).sequence == typed_payload.sequence);
+
     auto claim = publisher.try_claim(payload.size());
     require(claim.has_value());
     std::ranges::copy(payload, claim->payload().begin());
@@ -93,6 +102,21 @@ int main() {
     roundtrip<salias::Mode::OrderedMpsc>();
     roundtrip<salias::Mode::OrderedMpmc>();
     roundtrip<salias::Mode::LatestMpmc>();
+
+    using TypedChannel = salias::Channel<salias::Mode::FifoMpsc, salias_mcpp::TypedPayloadSchema>;
+    salias::Config typed_config;
+    typed_config.name = "salias-mcpp-schema-" +
+                        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    typed_config.capacity = 4096;
+    auto typed_channel = TypedChannel::create(typed_config);
+    require(typed_channel.has_value());
+    auto typed_subscriber = typed_channel->subscriber();
+    const salias_mcpp::TypedPayload schema_payload{.id = 12, .sequence = 34};
+    require(header_typed_publish(typed_config.name, schema_payload));
+    auto schema_received = typed_subscriber.try_recv_copy();
+    require(schema_received && *schema_received && **schema_received == schema_payload);
+    require(TypedChannel::connect(typed_config.name).has_value());
+    require(!salias::FifoMpscChannel::connect(typed_config.name).has_value());
 
     salias::Config window_config;
     window_config.name =

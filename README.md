@@ -14,6 +14,40 @@ per-producer magic-ring 引擎，并通过排序模式与消费者拓扑提供�
 
 `FifoMpmc` 和 `OrderedMpmc` 会将每条消息广播给每个订阅者，不是竞争式消费队列。
 
+固定布局的平凡可复制消息可以绑定显式 wire schema。typed channel 在 create 时记录 schema，
+在 connect 时校验 schema ID、版本和 payload 大小；连接成功后按固定长度定位帧，不再逐条比较
+payload 长度。值接口只接受或返回 schema 声明的消息类型；`try_claim()` 仍返回长度固定为
+`sizeof(T)` 的字节 span，调用方须写入完整、有效的 `T` 对象表示：
+
+```cpp
+struct Quote {
+  std::uint64_t symbol;
+  std::int64_t price;
+  std::uint32_t quantity;
+};
+
+struct QuoteSchema {
+  using message_type = Quote;
+  static constexpr std::uint64_t schema_id = 0x51554F5445000001;
+  static constexpr std::uint32_t version = 1;
+};
+
+using QuoteChannel = salias::Channel<salias::Mode::FifoMpsc, QuoteSchema>;
+auto channel = QuoteChannel::create(config);
+auto publisher = channel->publisher();
+auto subscriber = channel->subscriber();
+publisher.send(Quote{1001, 12345, 10});
+auto quote = subscriber.try_recv_copy();
+```
+
+`QuoteSchema` 必须使用应用管理的非零 `schema_id` 和 `version`；字段布局或语义不兼容时递增版本。
+`try_recv_copy()` 返回本地 `Quote` 并自动释放 ring 槽位，`recv_copy()` 是阻塞版本。`Quote` 必须是
+平凡可复制类型，且自身及其成员不能包含进程内指针。发送的是对象表示，包含 padding 字节；跨越不可信边界
+或携带敏感数据时应使用显式序列化。raw `Channel<Mode>` 仍支持变长 payload；其
+通用 `try_recv_copy<T>()` 会逐消息检查长度并在不匹配时返回 `Error::PayloadSizeMismatch`。
+typed/raw 混连或 schema 不匹配会在连接时返回 `Error::SchemaMismatch`。schema 是兼容性声明，不是
+对恶意或错误进程的认证机制。需要最低延迟时可继续用 raw 通道的借用 `Message` 和 `release()`。
+
 FIFO 模式的生产者热路径不执行共享 RMW；ordered 模式通过单个全局 sequence
 `fetch_add` 建立跨生产者全序。每个生产者拥有独立 ring，每个 fanout 消费者拥有独立的
 per-producer 游标。
@@ -117,7 +151,8 @@ TTL 发送/过期跳过、模板 poll 和共享内存清理。`check_mcpp.py` �
 序列号低位回绕、三生产者与单条/批量订阅者并发、批内 payload 保留及 `SIGKILL` 后的 lease 回收。
 消息数窗口回归覆盖可靠模式的单条/批量背压、批量 poll 后恢复、fanout 慢订阅者边界、
 LatestMpmc 的部分批次、可靠订阅者保护，以及变长空消息和物理回绕后的保留后缀。
-共享通道协议当前为 v12；旧布局通道需重建，发布端和订阅端需一起升级。
+共享通道协议当前为 v13；旧布局通道需重建，发布端和订阅端需一起升级。raw 与 schema-bound 通道
+不能互连；所有参与进程必须使用一致的 schema ID 和版本。
 
 `Publisher::offer_for`、`try_claim_for` 与 `offer_batch_for` 可为消息附加 TTL，截止时间在 API
 调用时采样，因此 `try_claim_for` 返回后的 payload 填充时间也计入 TTL。截止值以同一主机

@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <string_view>
+#include <utility>
 
 #include "salias/config.hpp"
 #include "salias/error.hpp"
@@ -26,7 +27,7 @@ namespace salias {
 // 前向声明：通道的共享状态实现细节，定义于 L5 channel 实现层，公共头仅暴露指针。
 template <Mode M>
 struct ChannelState;
-template <Mode M>
+template <Mode M, class Schema>
 class Channel;
 
 /**
@@ -36,7 +37,7 @@ class Channel;
  *          拷贝共享底层状态。模板参数 M 编译期固定协议，消除运行时分发开销。
  */
 template <Mode M>
-class Channel {
+class Channel<M, RawPayloadSchema> {
  public:
   /**
    * @brief 创建并拥有一条具名 IPC 通道。
@@ -119,10 +120,86 @@ class Channel {
   Result<Subscriber<M>> try_subscriber(SubscriptionPolicy policy);
 
  private:
+  static Result<Channel> create_with_schema(const Config& config, detail::SchemaDescriptor schema);
+  static Result<Channel> connect_with_schema(std::string_view name,
+                                             detail::SchemaDescriptor schema);
+
   /// 封装 create/connect 成功后得到的共享通道状态。
   explicit Channel(std::shared_ptr<ChannelState<M>> state) noexcept;
 
   std::shared_ptr<ChannelState<M>> state_;
+
+  template <Mode, class>
+  friend class Channel;
+};
+
+/** @brief 固定消息 schema 的通道外观，只暴露类型化 publisher/subscriber。 */
+template <Mode M, detail::WireSchema Schema>
+class Channel<M, Schema> {
+ public:
+  using T = typename Schema::message_type;
+
+  static Result<Channel> create(const Config& config) {
+    auto raw = Channel<M, RawPayloadSchema>::create_with_schema(
+        config, detail::schema_descriptor<Schema>());
+    if (!raw) {
+      return std::unexpected(raw.error());
+    }
+    return Channel(std::move(*raw));
+  }
+
+  static Result<Channel> connect(std::string_view name) {
+    auto raw = Channel<M, RawPayloadSchema>::connect_with_schema(
+        name, detail::schema_descriptor<Schema>());
+    if (!raw) {
+      return std::unexpected(raw.error());
+    }
+    return Channel(std::move(*raw));
+  }
+
+  Channel(Channel&&) noexcept = default;
+  Channel& operator=(Channel&&) noexcept = default;
+  Channel(const Channel&) = default;
+  Channel& operator=(const Channel&) = default;
+
+  Publisher<M, Schema> publisher() { return Publisher<M, Schema>(channel_.publisher()); }
+
+  std::uint32_t connected_consumer_count() const noexcept {
+    return channel_.connected_consumer_count();
+  }
+
+  std::size_t capacity() const noexcept { return channel_.capacity(); }
+
+  std::uint32_t high_watermark_percent() const noexcept {
+    return channel_.high_watermark_percent();
+  }
+
+  Subscriber<M, Schema> subscriber() { return Subscriber<M, Schema>(channel_.subscriber()); }
+
+  Subscriber<M, Schema> subscriber(SubscriptionPolicy policy) {
+    return Subscriber<M, Schema>(channel_.subscriber(policy));
+  }
+
+  Result<Subscriber<M, Schema>> try_subscriber() {
+    auto raw = channel_.try_subscriber();
+    if (!raw) {
+      return std::unexpected(raw.error());
+    }
+    return Subscriber<M, Schema>(std::move(*raw));
+  }
+
+  Result<Subscriber<M, Schema>> try_subscriber(SubscriptionPolicy policy) {
+    auto raw = channel_.try_subscriber(policy);
+    if (!raw) {
+      return std::unexpected(raw.error());
+    }
+    return Subscriber<M, Schema>(std::move(*raw));
+  }
+
+ private:
+  explicit Channel(Channel<M, RawPayloadSchema> channel) noexcept : channel_(std::move(channel)) {}
+
+  Channel<M, RawPayloadSchema> channel_;
 };
 
 using FifoMpscChannel = Channel<Mode::FifoMpsc>;        ///< FIFO 多生产者单消费者通道别名。

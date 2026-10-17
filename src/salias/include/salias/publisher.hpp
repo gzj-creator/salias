@@ -13,27 +13,33 @@
 #pragma once
 
 #include <chrono>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <span>
+#include <type_traits>
+#include <utility>
 
 #include "core/flow/producer.hpp"
 #include "salias/config.hpp"
 #include "salias/error.hpp"
+#include "salias/message.hpp"
 
 /// salias 公共 API 命名空间，聚合 L7 用户可见的通道、发布者、订阅者与消息类型。
 namespace salias {
 
 // 前向声明：避免循环包含，实现细节定义于 L5 channel / L3 flow 实现层。
-template <Mode M>
+template <Mode M, class Schema = RawPayloadSchema>
 class Channel;
 template <Mode M>
 struct ChannelState;
 template <Mode M>
 struct PublisherEndpoint;
-template <Mode M>
+template <Mode M, class Schema = RawPayloadSchema>
 class Publisher;
+template <Mode M, class Schema = RawPayloadSchema>
+class PublishClaim;
 
 /**
  * @brief 一次零拷贝发布的预留句柄（RAII 风格）。
@@ -45,7 +51,7 @@ class Publisher;
  *          置为 false，commit() 后置 true。
  */
 template <Mode M>
-class PublishClaim {
+class PublishClaim<M, RawPayloadSchema> {
  public:
   /// @brief 转移一个尚未提交的发布 claim；来源对象变为无效，不能再提交。
   /// @param other 被转移的 claim，转移后处于 moved-from 状态。
@@ -81,7 +87,7 @@ class PublishClaim {
   flow::Claim claim_{};                             ///< L3 flow 层的底层预留描述符。
   bool committed_ = true;  ///< 是否已提交；默认 true 表示无效默认态，真实 claim 为 false。
 
-  friend class Publisher<M>;  ///< Publisher 通过私有构造创建 PublishClaim。
+  friend class Publisher<M, RawPayloadSchema>;  ///< Publisher 通过私有构造创建 PublishClaim。
 };
 
 /**
@@ -91,7 +97,7 @@ class PublishClaim {
  *          由 Channel::publisher() 创建，对同一通道可创建多个 Publisher 实例。
  */
 template <Mode M>
-class Publisher {
+class Publisher<M, RawPayloadSchema> {
  public:
   /**
    * @brief 零拷贝预留一条消息的 ring 内 payload 写入区。
@@ -127,6 +133,35 @@ class Publisher {
   Result<bool> offer_for(std::span<const std::byte> payload, std::chrono::nanoseconds ttl) noexcept;
 
   /**
+   * @brief 按固定类型发布一条消息。
+   * @tparam T 可按对象表示复制的固定大小消息类型。
+   * @param value 待复制到共享 ring 的本地值。
+   * @retval true 发布成功。
+   * @retval Error::BackPressured 环形缓冲或流控窗口暂时不可用。
+   * @retval Error::MessageTooLarge sizeof(T) 超过通道可容纳的单帧大小。
+   * @note 该接口不分配堆内存；内部只将 T 的对象表示复制一次到共享 ring。
+   *       T 及其成员不得包含进程内指针，发布端和订阅端必须使用兼容的布局。
+   */
+  template <detail::WireMessage T>
+  Result<bool> send(const T& value) noexcept {
+    return offer(detail::as_bytes(value));
+  }
+
+  /**
+   * @brief 按固定类型发布一条带 TTL 的消息。
+   * @tparam T 可按对象表示复制的固定大小消息类型。
+   * @param value 待复制到共享 ring 的本地值。
+   * @param ttl 从本次调用开始计算的消息有效时长。
+   * @retval true 发布成功。
+   * @retval Error::BadConfig ttl 为负数。
+   * @note T 的复制和 TTL 语义与 send() / offer_for() 一致。
+   */
+  template <detail::WireMessage T>
+  Result<bool> send_for(const T& value, std::chrono::nanoseconds ttl) noexcept {
+    return offer_for(detail::as_bytes(value), ttl);
+  }
+
+  /**
    * @brief 尝试按顺序发布一批消息。
    * @param payloads 待发布的负载数组视图，按顺序提交。
    * @retval std::size_t 已成功发布的消息数；等长批次受窗口限制时可能只发布前缀。
@@ -149,7 +184,81 @@ class Publisher {
 
   std::shared_ptr<PublisherEndpoint<M>> endpoint_;  ///< 共享通道状态的发布端句柄。
 
-  friend class Channel<M>;  ///< Channel 通过私有构造创建 Publisher。
+  friend class Channel<M, RawPayloadSchema>;  ///< Channel 通过私有构造创建 Publisher。
+};
+
+/**
+ * @brief Schema-bound zero-copy claim; its payload size is fixed by the channel schema.
+ * @note The payload span is writable only before commit and while this claim owns the reservation.
+ */
+template <Mode M, detail::WireSchema Schema>
+class PublishClaim<M, Schema> {
+ public:
+  using T = typename Schema::message_type;
+
+  PublishClaim(PublishClaim&&) noexcept = default;
+  PublishClaim& operator=(PublishClaim&&) noexcept = default;
+  PublishClaim(const PublishClaim&) = delete;
+  PublishClaim& operator=(const PublishClaim&) = delete;
+
+  std::span<std::byte> payload() noexcept { return claim_.payload(); }
+
+  void commit() noexcept { claim_.commit(); }
+
+ private:
+  explicit PublishClaim(PublishClaim<M, RawPayloadSchema> claim) noexcept
+      : claim_(std::move(claim)) {}
+
+  PublishClaim<M, RawPayloadSchema> claim_;
+
+  template <Mode, class>
+  friend class Publisher;
+};
+
+/** @brief Publisher facade restricted to one registered wire message type. */
+template <Mode M, detail::WireSchema Schema>
+class Publisher<M, Schema> {
+ public:
+  using T = typename Schema::message_type;
+
+  Publisher() noexcept = default;
+
+  template <class U>
+    requires std::same_as<std::remove_cvref_t<U>, T>
+  Result<bool> send(U&& value) noexcept {
+    return publisher_.send(value);
+  }
+
+  template <class U>
+    requires std::same_as<std::remove_cvref_t<U>, T>
+  Result<bool> send_for(U&& value, std::chrono::nanoseconds ttl) noexcept {
+    return publisher_.send_for(value, ttl);
+  }
+
+  Result<PublishClaim<M, Schema>> try_claim() noexcept {
+    auto claim = publisher_.try_claim(sizeof(T));
+    if (!claim) {
+      return std::unexpected(claim.error());
+    }
+    return PublishClaim<M, Schema>(std::move(*claim));
+  }
+
+  Result<PublishClaim<M, Schema>> try_claim_for(std::chrono::nanoseconds ttl) noexcept {
+    auto claim = publisher_.try_claim_for(sizeof(T), ttl);
+    if (!claim) {
+      return std::unexpected(claim.error());
+    }
+    return PublishClaim<M, Schema>(std::move(*claim));
+  }
+
+ private:
+  explicit Publisher(Publisher<M, RawPayloadSchema> publisher) noexcept
+      : publisher_(std::move(publisher)) {}
+
+  Publisher<M, RawPayloadSchema> publisher_;
+
+  template <Mode, class>
+  friend class Channel;
 };
 
 using FifoMpscPublisher = Publisher<Mode::FifoMpsc>;            ///< FIFO MPSC 发布端别名。

@@ -25,6 +25,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 #include <vector>
@@ -53,6 +54,88 @@ struct Payload {
   std::uint32_t sequence = 0;
   bool operator==(const Payload&) const = default;
 };
+
+struct PayloadSchema {
+  using message_type = Payload;
+  static constexpr std::uint64_t schema_id = 0x53414C4941530001ull;
+  static constexpr std::uint32_t version = 1;
+};
+
+struct PayloadSchemaV2 {
+  using message_type = Payload;
+  static constexpr std::uint64_t schema_id = PayloadSchema::schema_id;
+  static constexpr std::uint32_t version = 2;
+};
+
+struct WiderPayload {
+  std::uint32_t first = 0;
+  std::uint32_t second = 0;
+  std::uint32_t third = 0;
+};
+
+struct WiderPayloadSchema {
+  using message_type = WiderPayload;
+  static constexpr std::uint64_t schema_id = PayloadSchema::schema_id;
+  static constexpr std::uint32_t version = PayloadSchema::version;
+};
+
+struct OtherPayloadSchema {
+  using message_type = Payload;
+  static constexpr std::uint64_t schema_id = 0x53414C4941530002ull;
+  static constexpr std::uint32_t version = 1;
+};
+
+using TypedFifoChannel = salias::Channel<salias::Mode::FifoMpsc, PayloadSchema>;
+using TypedFifoPublisher = salias::Publisher<salias::Mode::FifoMpsc, PayloadSchema>;
+using TypedFifoSubscriber = salias::Subscriber<salias::Mode::FifoMpsc, PayloadSchema>;
+
+struct NonTrivialPayload {
+  NonTrivialPayload() = default;
+  NonTrivialPayload(const NonTrivialPayload&) {}
+};
+
+template <class T>
+concept CanSendTyped =
+    requires(salias::FifoMpscPublisher& publisher, const T& value) { publisher.send(value); };
+
+template <class T>
+concept CanReceiveTyped =
+    requires(salias::FifoMpscSubscriber& subscriber) { subscriber.template try_recv_copy<T>(); };
+
+template <class T>
+concept HasBorrowedReceive = requires(T& subscriber) { subscriber.try_recv(); };
+
+template <class T>
+concept HasDynamicOffer =
+    requires(T& publisher, std::span<const std::byte> bytes) { publisher.offer(bytes); };
+
+template <class T>
+concept HasDynamicClaim = requires(T& publisher) { publisher.try_claim(std::size_t{1}); };
+
+template <class PublisherType, class Value>
+concept CanSendValue =
+    requires(PublisherType& publisher, const Value& value) { publisher.send(value); };
+
+static_assert(CanSendTyped<Payload>);
+static_assert(!CanSendTyped<NonTrivialPayload>);
+static_assert(!salias::detail::WireMessage<int&>);
+static_assert(!CanSendTyped<int*>);
+static_assert(!CanSendTyped<int Payload::*>);
+static_assert(!CanSendTyped<std::span<const std::byte>>);
+static_assert(!CanSendTyped<std::string_view>);
+static_assert(CanReceiveTyped<Payload>);
+static_assert(!CanReceiveTyped<NonTrivialPayload>);
+static_assert(!CanReceiveTyped<int*>);
+static_assert(!CanReceiveTyped<int Payload::*>);
+static_assert(!CanReceiveTyped<std::span<const std::byte>>);
+static_assert(!CanReceiveTyped<std::string_view>);
+static_assert(salias::detail::WireSchema<PayloadSchema>);
+static_assert(!HasBorrowedReceive<TypedFifoSubscriber>);
+static_assert(!HasDynamicOffer<TypedFifoPublisher>);
+static_assert(!HasDynamicClaim<TypedFifoPublisher>);
+static_assert(CanSendValue<TypedFifoPublisher, Payload>);
+static_assert(!CanSendValue<TypedFifoPublisher, WiderPayload>);
+static_assert(requires(TypedFifoSubscriber& subscriber) { subscriber.try_recv_copy(); });
 
 /// @brief 生成进程内唯一的共享内存名称。
 /// @param suffix 附加在名称末尾的可读后缀，便于区分不同用例。
@@ -112,6 +195,307 @@ salias::Message wait_for_message(salias::Subscriber<M>& subscriber) {
     std::this_thread::yield();
   }
   return {};
+}
+
+TEST(ChannelApiTest, TypedSendAndCopyReceiveRoundTripWithoutBorrowedRelease) {
+  auto config = config_for(salias::Mode::FifoMpsc, "typed-roundtrip");
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+  const Payload expected{.producer = 7, .sequence = 42};
+
+  ASSERT_TRUE(publisher.send(expected));
+  auto received = subscriber.try_recv_copy<Payload>();
+  ASSERT_TRUE(received);
+  ASSERT_TRUE(*received);
+  EXPECT_EQ(**received, expected);
+  EXPECT_FALSE(subscriber.try_recv());
+
+  auto negative_ttl = publisher.send_for(expected, std::chrono::nanoseconds{-1});
+  ASSERT_FALSE(negative_ttl);
+  EXPECT_EQ(negative_ttl.error(), salias::Error::BadConfig);
+
+  ASSERT_TRUE(publisher.send_for(expected, std::chrono::nanoseconds{0}));
+  auto expired = subscriber.try_recv_copy<Payload>();
+  ASSERT_TRUE(expired);
+  EXPECT_FALSE(*expired);
+  EXPECT_EQ(subscriber.expired_messages(), 1u);
+
+  ASSERT_TRUE(publisher.send_for(expected, std::chrono::seconds{1}));
+  auto blocking = subscriber.recv_copy<Payload>();
+  ASSERT_TRUE(blocking);
+  EXPECT_EQ(*blocking, expected);
+}
+
+TEST(ChannelApiTest, SchemaBoundChannelRoundTripsWithFixedClaimSize) {
+  auto config = config_for(salias::Mode::FifoMpsc, "schema-fixed-roundtrip");
+  auto created = TypedFifoChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+  const Payload expected{.producer = 11, .sequence = 42};
+
+  ASSERT_TRUE(publisher.send(expected));
+  auto received = subscriber.try_recv_copy();
+  ASSERT_TRUE(received);
+  ASSERT_TRUE(*received);
+  EXPECT_EQ(**received, expected);
+
+  auto claim = publisher.try_claim();
+  ASSERT_TRUE(claim);
+  auto moved_claim = std::move(*claim);
+  EXPECT_EQ(moved_claim.payload().size(), sizeof(Payload));
+  EXPECT_TRUE(claim->payload().empty());
+  std::memcpy(moved_claim.payload().data(), &expected, sizeof(expected));
+  moved_claim.commit();
+  EXPECT_TRUE(moved_claim.payload().empty());
+  auto claimed = subscriber.recv_copy();
+  ASSERT_TRUE(claimed);
+  EXPECT_EQ(*claimed, expected);
+}
+
+TEST(ChannelApiTest, SchemaIsCheckedOnceWhenConnecting) {
+  auto config = config_for(salias::Mode::FifoMpsc, "schema-connect-check");
+  auto created = TypedFifoChannel::create(config);
+  ASSERT_TRUE(created);
+  auto owner = std::move(*created);
+
+  auto matching = TypedFifoChannel::connect(config.name);
+  ASSERT_TRUE(matching);
+  using DifferentVersion = salias::Channel<salias::Mode::FifoMpsc, PayloadSchemaV2>;
+  auto wrong_version = DifferentVersion::connect(config.name);
+  ASSERT_FALSE(wrong_version);
+  EXPECT_EQ(wrong_version.error(), salias::Error::SchemaMismatch);
+  using DifferentId = salias::Channel<salias::Mode::FifoMpsc, OtherPayloadSchema>;
+  auto wrong_id = DifferentId::connect(config.name);
+  ASSERT_FALSE(wrong_id);
+  EXPECT_EQ(wrong_id.error(), salias::Error::SchemaMismatch);
+  using DifferentSize = salias::Channel<salias::Mode::FifoMpsc, WiderPayloadSchema>;
+  auto wrong_size = DifferentSize::connect(config.name);
+  ASSERT_FALSE(wrong_size);
+  EXPECT_EQ(wrong_size.error(), salias::Error::SchemaMismatch);
+  auto raw = salias::FifoMpscChannel::connect(config.name);
+  ASSERT_FALSE(raw);
+  EXPECT_EQ(raw.error(), salias::Error::SchemaMismatch);
+
+  auto raw_config = config_for(salias::Mode::FifoMpsc, "schema-rejects-typed");
+  auto raw_owner = salias::FifoMpscChannel::create(raw_config);
+  ASSERT_TRUE(raw_owner);
+  auto typed = TypedFifoChannel::connect(raw_config.name);
+  ASSERT_FALSE(typed);
+  EXPECT_EQ(typed.error(), salias::Error::SchemaMismatch);
+}
+
+template <salias::Mode M>
+void check_schema_bound_roundtrip(std::string_view suffix) {
+  using Channel = salias::Channel<M, PayloadSchema>;
+  auto config = config_for(M, suffix);
+  auto created = Channel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  for (std::uint32_t sequence = 0; sequence < 512; ++sequence) {
+    const Payload expected{.producer = static_cast<std::uint32_t>(M), .sequence = sequence};
+    ASSERT_TRUE(publisher.send(expected));
+    auto received = subscriber.try_recv_copy();
+    ASSERT_TRUE(received);
+    ASSERT_TRUE(*received);
+    EXPECT_EQ(**received, expected);
+  }
+}
+
+TEST(ChannelApiTest, SchemaBoundParserWorksForEveryChannelMode) {
+  check_schema_bound_roundtrip<salias::Mode::FifoMpsc>("schema-fifo-mpsc");
+  check_schema_bound_roundtrip<salias::Mode::FifoMpmc>("schema-fifo-mpmc");
+  check_schema_bound_roundtrip<salias::Mode::OrderedMpsc>("schema-ordered-mpsc");
+  check_schema_bound_roundtrip<salias::Mode::OrderedMpmc>("schema-ordered-mpmc");
+  check_schema_bound_roundtrip<salias::Mode::LatestMpmc>("schema-latest-mpmc");
+}
+
+TEST(ChannelApiTest, SchemaBoundFanoutCopiesIndependently) {
+  using Channel = salias::Channel<salias::Mode::FifoMpmc, PayloadSchema>;
+  auto config = config_for(salias::Mode::FifoMpmc, "schema-fanout");
+  config.num_consumers = 2;
+  auto created = Channel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto first = channel.subscriber();
+  auto second = channel.subscriber();
+  const Payload expected{.producer = 3, .sequence = 19};
+
+  ASSERT_TRUE(publisher.send(expected));
+  auto first_copy = first.try_recv_copy();
+  auto second_copy = second.try_recv_copy();
+  ASSERT_TRUE(first_copy);
+  ASSERT_TRUE(second_copy);
+  ASSERT_TRUE(*first_copy);
+  ASSERT_TRUE(*second_copy);
+  EXPECT_EQ(**first_copy, expected);
+  EXPECT_EQ(**second_copy, expected);
+}
+
+TEST(ChannelApiTest, SchemaBoundLatestReportsLagAndSkipsExpiredFrames) {
+  using Channel = salias::Channel<salias::Mode::LatestMpmc, PayloadSchema>;
+  auto config = config_for(salias::Mode::LatestMpmc, "schema-latest-lag-ttl");
+  config.high_watermark_percent = 50;
+  auto created = Channel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  for (std::uint32_t sequence = 0; sequence < 512; ++sequence) {
+    ASSERT_TRUE(publisher.send(Payload{.producer = 4, .sequence = sequence}));
+  }
+  auto lagged = subscriber.try_recv_copy();
+  ASSERT_FALSE(lagged);
+  EXPECT_EQ(lagged.error(), salias::Error::Lagged);
+  auto skipped = subscriber.skip_to_latest();
+  ASSERT_TRUE(skipped);
+  EXPECT_GT(*skipped, 0u);
+  auto latest = subscriber.try_recv_copy();
+  ASSERT_TRUE(latest);
+  ASSERT_TRUE(*latest);
+  EXPECT_EQ((**latest).producer, 4u);
+  EXPECT_EQ((**latest).sequence, 511u);
+
+  ASSERT_TRUE(
+      publisher.send_for(Payload{.producer = 4, .sequence = 512}, std::chrono::nanoseconds{0}));
+  auto expired = subscriber.try_recv_copy();
+  ASSERT_TRUE(expired);
+  EXPECT_FALSE(*expired);
+  EXPECT_EQ(subscriber.expired_messages(), 1u);
+}
+
+TEST(ChannelApiTest, SchemaBoundChannelConnectsAcrossForkedProcesses) {
+  auto config = config_for(salias::Mode::FifoMpsc, "schema-cross-process");
+  auto created = TypedFifoChannel::create(config);
+  ASSERT_TRUE(created);
+  auto owner = std::move(*created);
+  auto subscriber = owner.subscriber();
+  const pid_t child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    auto connected = TypedFifoChannel::connect(config.name);
+    if (!connected) {
+      ::_exit(10);
+    }
+    auto publisher = connected->publisher();
+    const auto sent = publisher.send(Payload{.producer = 21, .sequence = 34});
+    ::_exit(sent && *sent ? 0 : 11);
+  }
+
+  std::optional<Payload> received_payload;
+  std::optional<salias::Error> receive_error;
+  for (int attempt = 0; attempt < 1'000'000; ++attempt) {
+    auto received = subscriber.try_recv_copy();
+    if (!received) {
+      receive_error = received.error();
+      break;
+    }
+    if (*received) {
+      received_payload = **received;
+      break;
+    }
+    std::this_thread::yield();
+  }
+  int status = 0;
+  ASSERT_EQ(::waitpid(child, &status, 0), child);
+  ASSERT_TRUE(WIFEXITED(status));
+  EXPECT_EQ(WEXITSTATUS(status), 0);
+  EXPECT_FALSE(receive_error);
+  ASSERT_TRUE(received_payload);
+  EXPECT_EQ(*received_payload, (Payload{.producer = 21, .sequence = 34}));
+}
+
+TEST(ChannelApiTest, TypedBlockingReceiveRejectsInvalidSubscriber) {
+  salias::FifoMpscSubscriber subscriber;
+  auto received = subscriber.recv_copy<Payload>();
+  ASSERT_FALSE(received);
+  EXPECT_EQ(received.error(), salias::Error::BadConfig);
+}
+
+TEST(ChannelApiTest, TypedBlockingReceiveContinuesAfterLatestReportsLag) {
+  using Channel = salias::LatestMpmcChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestMpmc, "typed-blocking-lag");
+  auto created = Channel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  for (std::uint32_t sequence = 0; sequence < 512; ++sequence) {
+    ASSERT_TRUE(publisher.send(Payload{.producer = 1, .sequence = sequence}));
+  }
+
+  auto received = subscriber.recv_copy<Payload>();
+  ASSERT_TRUE(received);
+  EXPECT_EQ(received->producer, 1u);
+  EXPECT_GT(received->sequence, 0u);
+  EXPECT_LT(received->sequence, 512u);
+}
+
+TEST(ChannelApiTest, TypedCopyRejectsWrongPayloadSizeAndContinues) {
+  auto config = config_for(salias::Mode::FifoMpsc, "typed-size-mismatch");
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+  const std::array<std::byte, sizeof(Payload) + 1> wrong_size{};
+
+  ASSERT_TRUE(publisher.offer(wrong_size));
+  auto mismatch = subscriber.try_recv_copy<Payload>();
+  ASSERT_FALSE(mismatch);
+  EXPECT_EQ(mismatch.error(), salias::Error::PayloadSizeMismatch);
+
+  const Payload expected{.producer = 3, .sequence = 9};
+  ASSERT_TRUE(publisher.send(expected));
+  auto received = subscriber.try_recv_copy<Payload>();
+  ASSERT_TRUE(received);
+  ASSERT_TRUE(*received);
+  EXPECT_EQ(**received, expected);
+}
+
+template <salias::Mode M>
+void check_typed_fanout_copy(std::string_view suffix) {
+  auto config = config_for(M, suffix);
+  config.num_consumers = 2;
+  auto created = salias::Channel<M>::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto first = channel.subscriber();
+  auto second = channel.subscriber();
+  const Payload expected{.producer = 2, .sequence = 17};
+
+  ASSERT_TRUE(publisher.send(expected));
+  auto first_copy = first.template try_recv_copy<Payload>();
+  auto second_copy = second.template try_recv_copy<Payload>();
+  ASSERT_TRUE(first_copy);
+  ASSERT_TRUE(second_copy);
+  ASSERT_TRUE(*first_copy);
+  ASSERT_TRUE(*second_copy);
+  EXPECT_EQ(**first_copy, expected);
+  EXPECT_EQ(**second_copy, expected);
+}
+
+TEST(ChannelApiTest, FifoMpmcTypedCopyIsIndependentPerSubscriber) {
+  check_typed_fanout_copy<salias::Mode::FifoMpmc>("typed-fifo-mpmc");
+}
+
+TEST(ChannelApiTest, OrderedMpmcTypedCopyIsIndependentPerSubscriber) {
+  check_typed_fanout_copy<salias::Mode::OrderedMpmc>("typed-ordered-mpmc");
+}
+
+TEST(ChannelApiTest, LatestMpmcTypedCopyIsIndependentPerSubscriber) {
+  check_typed_fanout_copy<salias::Mode::LatestMpmc>("typed-latest-mpmc");
 }
 
 TEST(ChannelApiTest, FifoThreeProducerScanWrapsAndRemainsFair) {

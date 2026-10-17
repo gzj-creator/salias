@@ -37,7 +37,7 @@ def main():
             consumer = pathlib.Path(directory) / name
             consumer.mkdir(parents=True)
             (consumer / "mcpp.toml").write_text(MANIFEST)
-            for source in ("import.cpp", "header_probe.cpp"):
+            for source in ("import.cpp", "header_probe.cpp", "typed_schema.hpp"):
                 shutil.copyfile(ROOT / "test/mcpp" / source, consumer / source)
             command = ["mcpp", "build", "--offline", "--release", "--jobs", "4"]
             subprocess.run(command, cwd=consumer, check=True)

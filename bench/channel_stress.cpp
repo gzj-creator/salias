@@ -25,6 +25,7 @@
 #include <cstring>
 #include <span>
 #include <thread>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -51,6 +52,28 @@ struct LatestByKeyPayload {
   std::uint64_t inverse = 0;
   std::array<std::byte, 48> padding{};
 };
+
+template <std::size_t Size>
+struct TypedRoundtripPayload {
+  static_assert(Size >= sizeof(std::uint64_t));
+
+  std::uint64_t sequence = 0;
+  std::array<std::byte, Size - sizeof(std::uint64_t)> padding{};
+};
+
+template <class T>
+struct TypedRoundtripSchema {
+  using message_type = T;
+  static constexpr std::uint64_t schema_id = 0x53414C494153424Eull + sizeof(T);
+  static constexpr std::uint32_t version = 1;
+};
+
+static_assert(sizeof(TypedRoundtripPayload<64>) == 64);
+static_assert(sizeof(TypedRoundtripPayload<256>) == 256);
+static_assert(sizeof(TypedRoundtripPayload<1024>) == 1024);
+static_assert(salias::detail::WireMessage<TypedRoundtripPayload<64>>);
+static_assert(salias::detail::WireMessage<TypedRoundtripPayload<256>>);
+static_assert(salias::detail::WireMessage<TypedRoundtripPayload<1024>>);
 
 /**
  * @brief 按 benchmark 模式和容量构造公共通道配置。
@@ -706,6 +729,124 @@ void BM_latest_by_key_roundtrip_64b(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
 }
 
+template <class Payload, bool Typed>
+void BM_typed_roundtrip(benchmark::State& state) {
+  using TypedChannel = salias::Channel<salias::Mode::FifoMpsc, TypedRoundtripSchema<Payload>>;
+  using Channel = std::conditional_t<Typed, TypedChannel, salias::FifoMpscChannel>;
+  auto config = config_for(salias::Mode::FifoMpsc, 1u << 20);
+  config.name += Typed ? "-schema-" : "-raw-";
+  config.name += std::to_string(sizeof(Payload));
+  auto created = Channel::create(config);
+  if (!created) {
+    state.SkipWithError("failed to create typed roundtrip channel");
+    return;
+  }
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+  Payload payload{};
+
+  for (auto _ : state) {
+    ++payload.sequence;
+    auto offered = publisher.send(payload);
+    if (!offered || !*offered) {
+      state.SkipWithError("roundtrip send failed");
+      return;
+    }
+
+    std::uint64_t received_sequence = 0;
+    if constexpr (Typed) {
+      auto received = subscriber.try_recv_copy();
+      if (!received || !*received) {
+        state.SkipWithError("schema-bound copy receive failed");
+        return;
+      }
+      benchmark::DoNotOptimize(**received);
+      received_sequence = (**received).sequence;
+    } else {
+      auto received = subscriber.template try_recv_copy<Payload>();
+      if (!received || !*received) {
+        state.SkipWithError("dynamic-size copy receive failed");
+        return;
+      }
+      benchmark::DoNotOptimize(**received);
+      received_sequence = (**received).sequence;
+    }
+    if (received_sequence != payload.sequence) {
+      state.SkipWithError("roundtrip payload mismatch");
+      return;
+    }
+    benchmark::DoNotOptimize(received_sequence);
+  }
+
+  state.SetItemsProcessed(state.iterations());
+  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload) * 2));
+}
+
+template <bool Typed>
+void BM_fanout_copy_64b(benchmark::State& state) {
+  using Payload = TypedRoundtripPayload<64>;
+  using TypedChannel = salias::Channel<salias::Mode::FifoMpmc, TypedRoundtripSchema<Payload>>;
+  using Channel = std::conditional_t<Typed, TypedChannel, salias::FifoMpmcChannel>;
+  auto config = config_for(salias::Mode::FifoMpmc, 1u << 20);
+  config.name += Typed ? "-schema-fanout" : "-raw-fanout";
+  config.num_consumers = 2;
+  auto created = Channel::create(config);
+  if (!created) {
+    state.SkipWithError("failed to create typed fanout channel");
+    return;
+  }
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto first = channel.subscriber();
+  auto second = channel.subscriber();
+  Payload payload{};
+
+  for (auto _ : state) {
+    ++payload.sequence;
+    auto offered = publisher.send(payload);
+    if (!offered || !*offered) {
+      state.SkipWithError("fanout send failed");
+      return;
+    }
+
+    std::uint64_t first_sequence = 0;
+    std::uint64_t second_sequence = 0;
+    if constexpr (Typed) {
+      auto first_copy = first.try_recv_copy();
+      auto second_copy = second.try_recv_copy();
+      if (!first_copy || !*first_copy || !second_copy || !*second_copy) {
+        state.SkipWithError("typed fanout copy receive failed");
+        return;
+      }
+      benchmark::DoNotOptimize(**first_copy);
+      benchmark::DoNotOptimize(**second_copy);
+      first_sequence = (**first_copy).sequence;
+      second_sequence = (**second_copy).sequence;
+    } else {
+      auto first_copy = first.template try_recv_copy<Payload>();
+      auto second_copy = second.template try_recv_copy<Payload>();
+      if (!first_copy || !*first_copy || !second_copy || !*second_copy) {
+        state.SkipWithError("dynamic-size fanout copy receive failed");
+        return;
+      }
+      benchmark::DoNotOptimize(**first_copy);
+      benchmark::DoNotOptimize(**second_copy);
+      first_sequence = (**first_copy).sequence;
+      second_sequence = (**second_copy).sequence;
+    }
+    if (first_sequence != payload.sequence || second_sequence != payload.sequence) {
+      state.SkipWithError("fanout payload mismatch");
+      return;
+    }
+    benchmark::DoNotOptimize(first_sequence);
+    benchmark::DoNotOptimize(second_sequence);
+  }
+
+  state.SetItemsProcessed(state.iterations() * 2);
+  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload) * 3));
+}
+
 void BM_priority_weighted_roundtrip_64b(benchmark::State& state) {
   using PriorityPublisher =
       salias::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>;
@@ -789,6 +930,22 @@ BENCHMARK_TEMPLATE(BM_latest_concurrent_fanout_64b, 90)
 BENCHMARK(BM_latest_checked_roundtrip_64b)->Unit(benchmark::kNanosecond);
 BENCHMARK(BM_latest_seek_64b)->Arg(4096)->Unit(benchmark::kMicrosecond);
 BENCHMARK(BM_latest_by_key_roundtrip_64b)->Unit(benchmark::kMicrosecond);
+BENCHMARK_TEMPLATE(BM_typed_roundtrip, TypedRoundtripPayload<64>, false)
+    ->Unit(benchmark::kNanosecond);
+BENCHMARK_TEMPLATE(BM_typed_roundtrip, TypedRoundtripPayload<64>, true)
+    ->Unit(benchmark::kNanosecond);
+BENCHMARK_TEMPLATE(BM_typed_roundtrip, TypedRoundtripPayload<256>, false)
+    ->Unit(benchmark::kNanosecond);
+BENCHMARK_TEMPLATE(BM_typed_roundtrip, TypedRoundtripPayload<256>, true)
+    ->Unit(benchmark::kNanosecond);
+BENCHMARK_TEMPLATE(BM_typed_roundtrip, TypedRoundtripPayload<1024>, false)
+    ->Unit(benchmark::kNanosecond);
+BENCHMARK_TEMPLATE(BM_typed_roundtrip, TypedRoundtripPayload<1024>, true)
+    ->Unit(benchmark::kNanosecond);
+// false measures the raw variable-length parser plus runtime payload-size validation;
+// true measures the explicitly schema-bound fixed-length parser.
+BENCHMARK_TEMPLATE(BM_fanout_copy_64b, false)->Unit(benchmark::kNanosecond);
+BENCHMARK_TEMPLATE(BM_fanout_copy_64b, true)->Unit(benchmark::kNanosecond);
 BENCHMARK(BM_priority_weighted_roundtrip_64b)->Unit(benchmark::kMicrosecond);
 
 // Google Benchmark 主入口：解析命令行参数并运行上述所有已注册 benchmark。

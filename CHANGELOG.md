@@ -18,6 +18,8 @@ are released.
 
 ### Added
 
+- 新增 `Channel<Mode, Schema>` 固定布局通道：以应用声明的非零 schema ID、显式版本和 `message_type` 绑定类型；连接时拒绝 raw/typed 混连及 schema 不匹配，typed publisher 提供定长 claim、typed subscriber 只返回本地复制值。
+- 新增 `Publisher::send<T>()` / `send_for<T>()` 与 `Subscriber::try_recv_copy<T>()` / `recv_copy<T>()`，为固定布局的平凡可复制类型提供无需逐消息堆分配的类型化发送和本地复制接收；不兼容长度返回 `PayloadSizeMismatch` 并释放消息。
 - 新增 `PriorityPublisher<Mode...>` / `PrioritySubscriber<Mode...>`，将独立 IPC 通道按模板顺序组合；发布按优先级路由且各通道背压隔离，订阅端以 N..1 加权轮询避免低优先级饥饿，并标记消息来源通道。
 - 新增静态容量的 `LatestByKeyChannel<Key, Value, Capacity, SchemaVersion = 0>` IPC latest-value 表，跨进程按 key 合并重复更新；订阅者获取独立的当前值快照，值以本地拷贝返回，满表的新 key 明确返回 `CapacityExceeded`。
 - 为 IPC 消息增加 per-message TTL：`offer_for`、`try_claim_for`、`offer_batch_for` 将非负时长编码为同主机 `CLOCK_MONOTONIC` 截止值；订阅端在 poll/recv 时跳过过期帧并及时释放过期前缀，未过期帧和已借用 payload 仍受 Reliable/DropOldest 原契约保护。
@@ -40,6 +42,7 @@ are released.
 
 ### Changed
 
+- 具名共享控制块协议升级至 v13，固定 schema payload 长度用于接收帧定位；raw 通道仍逐消息解析长度，schema-bound 路径不再做逐条 payload 大小相等比较。旧协议须重建，所有进程须同步升级。
 - 帧头增加可选 8 字节 TTL 扩展元数据，TTL 开销计入容量、水位和批次步进；共享通道协议升至 v12，旧通道须重建并同步升级两端。
 - 共享控制段协议升级至 v11，新增消息数窗口的 producer reservation、retention 和 consumer 进度字段；旧布局通道需重建并同时升级发布端与订阅端。
 - 共享控制段协议升级为 v8，以支持独立淘汰意图字、LatestMpmc 丢旧/主动跳过计数；旧布局返回 `VersionMismatch`，需重建通道并同时升级发布端与订阅端。
@@ -48,6 +51,8 @@ are released.
 
 ### Tests
 
+- 增加 schema create/connect 匹配与 ID/版本/raw 混连拒绝、五种模式固定长度解析、schema-sized claim、fanout 独立复制和 fork 跨进程 roundtrip；mcpp module/header 测试覆盖 typed connect。新增 raw-size-check 与 schema-bound fixed-parser 的单消费者/双消费者 benchmark；本机一次 0.1 秒冒烟中 raw/schema 分别为 124/126 ns (64B)、127/137 ns (256B)、202/209 ns (1KiB)，fanout 为 183/203 ns，未显示整体加速；Google Benchmark 库为 DEBUG 构建，结果不作为性能结论。
+- 增加 typed send/copy receive 的类型约束、长度错误释放、LatestMpmc lag、TTL、五种模式 fanout、模块/头文件 roundtrip 与 1,000 次零堆分配契约测试；新增 64B/256B/1KiB typed-vs-borrowed roundtrip 和 64B 两订阅者 fanout benchmark。Release CTest 167/167、mcpp 混合消费通过；本机短基准中位约为 typed/raw 122/98 ns (64B)、134/105 ns (256B)、209/152 ns (1KiB)，两消费者 fanout typed/raw 195/155 ns。Google Benchmark 依赖是 DEBUG 构建，这些数据仅作冒烟参考。
 - 新增优先级通道测试，覆盖 3:2:1 加权轮询、流内顺序、背压隔离、LatestMpmc Lagged 隔离、borrow/release 与 poll 自动释放、跨进程发布、无效和移动后端点；增加 64B weighted-roundtrip 基准及 mcpp 模块/头文件混合 IPC roundtrip。Release/ASan/UBSan 全量、优先级 TSan 专项与 mcpp roundtrip 均通过，结果记录在能力计划中；三次 0.5 秒基准中位 0.122 us，Google Benchmark 依赖为 DEBUG 构建，该数据仅供冒烟参考。
 - 新增 LatestByKey 测试，覆盖重复 key 合并、独立及复制订阅游标、hash 冲突、满容量、模板/类型不匹配、事件日志溢出、版本与事件序列耗尽、跨进程写入、多线程一致性、锁竞争和写进程 `SIGKILL`；增加 64B 发布/接收往返压力基准及 mcpp 模块/头文件 roundtrip，并验证显式 schema 版本。
 - 新增 TTL 回归，覆盖零/负/正时长、零拷贝 claim、均匀和变长部分批次、过期前缀释放同时保留后续借用帧、借用跨过期点仍受保护、LatestMpmc retention/loss、Ordered 跨 producer 序列、物理回绕和跨进程单调时钟。Release 142/142、ASan/UBSan 141/141 通过；TSan API suite 1/1 通过，完整 TSan 另有 4 个小型契约程序因运行时 `unexpected memory mapping` 启动失败。mcpp module/header TTL IPC 测试通过。TTL expiration 短基准 3 次中位数 0.259 us/迭代；Google Benchmark 依赖是 DEBUG 构建，结果仅作冒烟参考。
@@ -59,6 +64,7 @@ are released.
 
 ### Docs
 
+- 说明显式 wire schema、连接时检查、固定帧步进、`SchemaMismatch` 与 v13 不兼容边界，并区分 raw 泛型复制 API 和 schema-bound API。
 - 补充 per-message TTL API、同主机单调时钟域、接收时惰性过期、借用期约束和 v12 协议兼容说明，并增加 TTL drain 压测入口。
 - 补充消息数窗口的配置单位、可靠/丢旧模式语义、批量部分成功行为、协议版本和压力基准说明。
 - 补充完整帧水位计算、失败写入不淘汰、每环借用限制、批量回调 pin 和协议兼容要求。

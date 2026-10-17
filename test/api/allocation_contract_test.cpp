@@ -15,6 +15,11 @@ std::atomic<bool> fail_next_allocation = false;
 std::atomic<std::int64_t> allocations_before_failure = -1;
 std::atomic<std::uint64_t> allocation_count = 0;
 
+struct TypedPayload {
+  std::uint64_t id = 0;
+  std::uint32_t sequence = 0;
+};
+
 class FailureInjection {
  public:
   explicit FailureInjection(std::int64_t budget) noexcept {
@@ -184,6 +189,31 @@ int main() {
       !check_subscriber_allocations<salias::OrderedMpmcChannel>(create_failure_config) ||
       !check_subscriber_allocations<salias::LatestMpmcChannel<4096>>(create_failure_config)) {
     return 8;
+  }
+
+  salias::Config typed_config;
+  typed_config.name = "allocations-typed-" + std::to_string(::getpid());
+  typed_config.capacity = 4096;
+  auto typed_channel = salias::FifoMpscChannel::create(typed_config);
+  if (!typed_channel) {
+    return 14;
+  }
+  auto typed_publisher = typed_channel->publisher();
+  auto typed_subscriber = typed_channel->subscriber();
+  allocation_count.store(0, std::memory_order_relaxed);
+  for (std::uint32_t sequence = 0; sequence < 1000; ++sequence) {
+    const TypedPayload typed_payload{.id = 3, .sequence = sequence};
+    if (!typed_publisher.send(typed_payload)) {
+      return 15;
+    }
+    auto typed_received = typed_subscriber.try_recv_copy<TypedPayload>();
+    if (!typed_received || !*typed_received || (**typed_received).id != typed_payload.id ||
+        (**typed_received).sequence != typed_payload.sequence) {
+      return 16;
+    }
+  }
+  if (allocation_count.load(std::memory_order_relaxed) != 0) {
+    return 17;
   }
 
   using LatestByKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 1>;

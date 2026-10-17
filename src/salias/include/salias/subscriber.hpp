@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <type_traits>
+#include <utility>
 
 #include "salias/config.hpp"
 #include "salias/error.hpp"
@@ -28,12 +29,14 @@
 namespace salias {
 
 // 前向声明：避免循环包含，实现细节定义于 L5 channel / L3 flow 实现层。
-template <Mode M>
+template <Mode M, class Schema>
 class Channel;
 template <Mode M>
 struct ChannelState;
 template <Mode M>
 struct SubscriberEndpoint;
+template <Mode M, class Schema = RawPayloadSchema>
+class Subscriber;
 
 /**
  * @brief 订阅端，从通道读取消息的消费者接口。
@@ -43,7 +46,7 @@ struct SubscriberEndpoint;
  *          需通过 release() 释放对应环空间以供生产者回收复用。
  */
 template <Mode M>
-class Subscriber {
+class Subscriber<M, RawPayloadSchema> {
  public:
   Subscriber() noexcept = default;
 
@@ -65,6 +68,27 @@ class Subscriber {
    *       Reliable 订阅端保持背压语义，不会生成 Lagged。无效端点返回 BadConfig。
    */
   Result<std::optional<Message>> try_recv_checked() noexcept;
+
+  /**
+   * @brief 按固定类型复制接收一条消息，并自动释放共享 ring 槽位。
+   * @tparam T 可按对象表示复制的固定大小消息类型。
+   * @return 本地拥有的 T；无消息时返回空 optional。
+   * @retval Error::PayloadSizeMismatch payload 大小与 sizeof(T) 不一致；该消息已被消费并释放。
+   * @retval Error::Lagged LatestMpmc 丢旧订阅端检测到游标落后于保留窗口。
+   * @note 该接口不为消息分配堆内存，但会产生一次 payload memcpy。T 及其成员不得包含进程内指针。
+   */
+  template <detail::WireMessage T>
+  Result<std::optional<T>> try_recv_copy() noexcept {
+    auto received = try_recv_checked();
+    if (!received) {
+      return std::unexpected(received.error());
+    }
+    if (!*received) {
+      return std::optional<T>{};
+    }
+
+    return copy_received<T>(**received);
+  }
 
   /// @return DropOldest 端点已观测到的淘汰条数；Reliable 端点始终为 0。
   std::uint64_t lagged_messages() const noexcept;
@@ -90,6 +114,24 @@ class Subscriber {
    *       内部经 L4 wait strategy（自旋 + 退避）等待生产者发布。
    */
   Message recv() noexcept;
+
+  /**
+   * @brief 阻塞等待并按固定类型复制接收一条消息。
+   * @tparam T 可按对象表示复制的固定大小消息类型。
+   * @return 本地拥有的 T；不可恢复错误直接返回。
+   * @retval Error::PayloadSizeMismatch 首条收到的消息长度不匹配；该消息已释放。
+   * @retval Error::BadConfig 当前端点无效。
+   * @note 与 try_recv_copy() 一样不分配堆内存，返回值脱离共享 ring 生命周期有效。
+   */
+  template <detail::WireMessage T>
+  Result<T> recv_copy() noexcept {
+    if (!valid()) {
+      return std::unexpected(Error::BadConfig);
+    }
+
+    const Message message = recv();
+    return copy_received<T>(message);
+  }
 
   /**
    * @brief 释放此前收到的消息，使通道可以复用对应环形空间。
@@ -153,6 +195,20 @@ class Subscriber {
   }
 
  private:
+  bool valid() const noexcept;
+
+  template <detail::WireMessage T>
+  Result<T> copy_received(const Message& message) noexcept {
+    if (message.payload.size() != sizeof(T)) {
+      release(message);
+      return std::unexpected(Error::PayloadSizeMismatch);
+    }
+
+    const T value = detail::copy_from_bytes<T>(message.payload);
+    release(message);
+    return Result<T>{std::in_place, value};
+  }
+
   /// 批量取回最多 cap 条已提交消息到 out[]，只推进消费者本地进度，不发布给生产者。
   /// 返回取回条数；返回 0 表示当前无可读消息。配合 flush_batch() 使用。
   std::size_t fetch_batch(Message* out, std::uint32_t cap) noexcept;
@@ -163,9 +219,67 @@ class Subscriber {
   /// 创建绑定到共享通道状态的订阅端，可携带 MPMC fanout 订阅索引。
   explicit Subscriber(std::shared_ptr<SubscriberEndpoint<M>> endpoint) noexcept;
 
+  Result<std::optional<Message>> try_recv_checked_fixed(std::uint32_t payload_size) noexcept;
+  Message recv_fixed(std::uint32_t payload_size) noexcept;
+  Result<std::uint64_t> skip_to_latest_fixed(std::uint32_t producer_id,
+                                             std::uint32_t payload_size) noexcept;
+
   std::shared_ptr<SubscriberEndpoint<M>> endpoint_;  ///< 共享通道状态的订阅端句柄。
 
-  friend class Channel<M>;  ///< Channel 通过私有构造创建 Subscriber。
+  template <Mode, class>
+  friend class Channel;  ///< Channel 通过私有构造创建 Subscriber。
+  template <Mode, class>
+  friend class Subscriber;  ///< Schema-bound facade 使用固定 schema 的解析路径。
+};
+
+/** @brief Schema-bound subscriber that returns owned values and exposes no borrowed payload API. */
+template <Mode M, detail::WireSchema Schema>
+class Subscriber<M, Schema> {
+ public:
+  using T = typename Schema::message_type;
+
+  Subscriber() noexcept = default;
+
+  Result<std::optional<T>> try_recv_copy() noexcept {
+    auto received = subscriber_.try_recv_checked_fixed(sizeof(T));
+    if (!received) {
+      return std::unexpected(received.error());
+    }
+    if (!*received) {
+      return std::optional<T>{};
+    }
+
+    const T value = detail::copy_from_bytes<T>((**received).payload);
+    subscriber_.release(**received);
+    return std::optional<T>{value};
+  }
+
+  Result<T> recv_copy() noexcept {
+    if (!subscriber_.valid()) {
+      return std::unexpected(Error::BadConfig);
+    }
+    const Message message = subscriber_.recv_fixed(sizeof(T));
+    const T value = detail::copy_from_bytes<T>(message.payload);
+    subscriber_.release(message);
+    return Result<T>{std::in_place, value};
+  }
+
+  std::uint64_t lagged_messages() const noexcept { return subscriber_.lagged_messages(); }
+  std::uint64_t skipped_messages() const noexcept { return subscriber_.skipped_messages(); }
+  std::uint64_t expired_messages() const noexcept { return subscriber_.expired_messages(); }
+
+  Result<std::uint64_t> skip_to_latest(std::uint32_t producer_id = 0) noexcept {
+    return subscriber_.skip_to_latest_fixed(producer_id, sizeof(T));
+  }
+
+ private:
+  explicit Subscriber(Subscriber<M, RawPayloadSchema> subscriber) noexcept
+      : subscriber_(std::move(subscriber)) {}
+
+  Subscriber<M, RawPayloadSchema> subscriber_;
+
+  template <Mode, class>
+  friend class Channel;
 };
 
 using FifoMpscSubscriber = Subscriber<Mode::FifoMpsc>;        ///< FIFO MPSC 订阅端别名。

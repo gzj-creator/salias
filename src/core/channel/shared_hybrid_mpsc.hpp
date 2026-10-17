@@ -550,9 +550,11 @@ class SharedHybridMpscChannel {
    *       位置 < visible_bound 表示该帧已进入连续提交水位。调用方已经 acquire
    *       过该水位，帧头用普通读即可看到 commit 之前的 payload。
    */
+  template <bool FixedPayloadSize = false>
   std::optional<flow::Message> try_read_from_ring(std::uint32_t producer_id, std::uint64_t position,
                                                   std::uint64_t target_sequence,
-                                                  std::uint64_t visible_bound) noexcept {
+                                                  std::uint64_t visible_bound,
+                                                  std::uint32_t fixed_payload_size = 0) noexcept {
     auto& producer = producer_rings_[producer_id];
     // 读位置已达可见上界，无可读帧。
     if (position >= visible_bound) {
@@ -560,7 +562,13 @@ class SharedHybridMpscChannel {
     }
 
     const std::uint64_t header = hybrid_detail::load_header_plain(producer.ring, position);
-    const std::uint32_t payload_len = static_cast<std::uint32_t>(header);
+    const std::uint32_t payload_len = [&] {
+      if constexpr (FixedPayloadSize) {
+        return fixed_payload_size;
+      } else {
+        return static_cast<std::uint32_t>(header);
+      }
+    }();
     const std::uint32_t meta = static_cast<std::uint32_t>(header >> 32u);
     // 序列号低位不匹配：该位置上的帧是上一圈回绕留下的旧帧，跳过。
     if (frame::sequence_low_from_meta(meta) != frame::sequence_low(target_sequence)) {
@@ -1214,9 +1222,12 @@ class SharedHybridMpscChannel {
      *       可见位置缓存：仅当本地读位置追平缓存可见位时才跨核刷新，稳态批量消费时
      *       把跨核 load 从"每消息"降到"每批次每环一次"。
      */
-    std::optional<flow::Message> try_recv() noexcept {
+    std::optional<flow::Message> try_recv() noexcept { return try_recv_payload<false>(0); }
+
+    template <bool FixedPayloadSize>
+    std::optional<flow::Message> try_recv_payload(std::uint32_t fixed_payload_size) noexcept {
       if constexpr (DropOldest) {
-        auto received = try_recv_latest(false);
+        auto received = try_recv_latest<FixedPayloadSize>(false, fixed_payload_size);
         return received ? *received : std::nullopt;
       } else {
         if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_) ||
@@ -1251,9 +1262,9 @@ class SharedHybridMpscChannel {
 
             const std::uint64_t target_sequence =
                 Ordering == Order::Ordered ? expected_sequence_ : next_sequences_[producer_id];
-            auto message =
-                channel_->try_read_from_ring(producer_id, read_positions_[producer_id],
-                                             target_sequence, cached_visible_pos_[producer_id]);
+            auto message = channel_->template try_read_from_ring<FixedPayloadSize>(
+                producer_id, read_positions_[producer_id], target_sequence,
+                cached_visible_pos_[producer_id], fixed_payload_size);
             if (!message) {
               continue;
             }
@@ -1281,14 +1292,19 @@ class SharedHybridMpscChannel {
     }
 
     /// Report an observed eviction once before delivering from the new retained floor.
-    ReceiveResult try_recv_checked() noexcept {
+    ReceiveResult try_recv_checked() noexcept { return try_recv_checked_payload<false>(0); }
+
+    template <bool FixedPayloadSize>
+    ReceiveResult try_recv_checked_payload(std::uint32_t fixed_payload_size) noexcept {
       if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_)) {
         return std::unexpected(ReceiveError::BadConfig);
       }
       if constexpr (DropOldest) {
-        return consumer_uses_drop_oldest() ? try_recv_latest(true) : ReceiveResult{try_recv()};
+        return consumer_uses_drop_oldest()
+                   ? try_recv_latest<FixedPayloadSize>(true, fixed_payload_size)
+                   : ReceiveResult{try_recv_payload<FixedPayloadSize>(fixed_payload_size)};
       } else {
-        return try_recv();
+        return try_recv_payload<FixedPayloadSize>(fixed_payload_size);
       }
     }
 
@@ -1302,11 +1318,19 @@ class SharedHybridMpscChannel {
     std::uint64_t expired_messages() const noexcept { return expired_messages_; }
 
     /**
-     * Move one latest ring to its last visible frame, leaving that frame unread.
-     * The return value includes evicted frames and deliberately skipped retained frames;
-     * the two cumulative counters distinguish them. No progress changes on failure.
+     * @brief Move one latest ring to its last visible frame, leaving that frame unread.
+     * @param producer_id Producer ring to advance.
+     * @return Evicted and deliberately skipped frame count, or a receive error.
+     * @note The cumulative counters distinguish evicted and skipped frames. Failure does not
+     *       change progress.
      */
     std::expected<std::uint64_t, ReceiveError> skip_to_latest(std::uint32_t producer_id) noexcept {
+      return skip_to_latest_payload<false>(producer_id, 0);
+    }
+
+    template <bool FixedPayloadSize>
+    std::expected<std::uint64_t, ReceiveError> skip_to_latest_payload(
+        std::uint32_t producer_id, std::uint32_t fixed_payload_size) noexcept {
       if constexpr (!DropOldest) {
         return std::unexpected(ReceiveError::BadConfig);
       } else {
@@ -1350,7 +1374,8 @@ class SharedHybridMpscChannel {
         auto sequence = first_sequence;
         std::optional<flow::Message> last;
         while (position < visible) {
-          auto message = channel_->try_read_from_ring(producer_id, position, sequence, visible);
+          auto message = channel_->template try_read_from_ring<FixedPayloadSize>(
+              producer_id, position, sequence, visible, fixed_payload_size);
           if (!message || (message->meta & frame::FLAG_COMMITTED) == 0) {
             clear_latest_lease(producer_id);
             return std::unexpected(ReceiveError::BadConfig);
@@ -1500,9 +1525,13 @@ class SharedHybridMpscChannel {
      * @note 无 wait_word 时退化为纯自旋；否则 acquire-load wait_word 作为期望值，
      *       交由等待策略等待(避免虚假唤醒导致的 busy-loop)。
      */
-    flow::Message recv() noexcept {
+    flow::Message recv() noexcept { return recv_payload<false>(0); }
+
+    template <bool FixedPayloadSize>
+    flow::Message recv_payload(std::uint32_t fixed_payload_size) noexcept {
       for (;;) {
-        if (auto message = try_recv(); message.has_value()) {
+        if (auto message = try_recv_payload<FixedPayloadSize>(fixed_payload_size);
+            message.has_value()) {
           return *message;
         }
         if (channel_ == nullptr || channel_->control_.wait_word == nullptr) {
@@ -1814,7 +1843,8 @@ class SharedHybridMpscChannel {
       }
     }
 
-    ReceiveResult try_recv_latest(bool report_lag) noexcept {
+    template <bool FixedPayloadSize>
+    ReceiveResult try_recv_latest(bool report_lag, std::uint32_t fixed_payload_size) noexcept {
       if (channel_ == nullptr || !channel_->has_consumer(consumer_id_, registration_token_) ||
           channel_->producer_rings_.empty()) {
         return std::nullopt;
@@ -1863,7 +1893,8 @@ class SharedHybridMpscChannel {
                               : ReceiveResult{std::nullopt};
           }
           const auto gap = lagged ? sequence - next_sequences_[producer_id] : 0;
-          auto message = channel_->try_read_from_ring(producer_id, position, sequence, visible);
+          auto message = channel_->template try_read_from_ring<FixedPayloadSize>(
+              producer_id, position, sequence, visible, fixed_payload_size);
           if (!message || (message->meta & frame::FLAG_COMMITTED) == 0) {
             clear_latest_lease(producer_id);
             if (report_lag) {

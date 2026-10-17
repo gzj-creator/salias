@@ -57,7 +57,7 @@ namespace {
 /// @brief 匿名命名空间，仅本翻译单元可见的具名通道辅助类型与函数。
 
 inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;  // ASCII "SALC"，校验控制段归属。
-inline constexpr std::uint32_t kNamedVersion = 12;  // 帧扩展元数据协议版本，connect 须严格匹配。
+inline constexpr std::uint32_t kNamedVersion = 13;  // schema 元数据协议版本，connect 须严格匹配。
 inline constexpr std::size_t kControlSize = 16u * 1024u;  // 控制段固定 16 KiB。
 inline constexpr std::size_t kCacheLineGuard = 128;  // 双 cache line 填充宽度，规避伪共享。
 inline constexpr std::size_t kMaxProducers = 16;  // 单 channel 最大 producer 数。
@@ -157,7 +157,7 @@ struct alignas(kCacheLineGuard) NamedControl {
   std::uint32_t mode = 0;      ///< channel 模式（Mode 枚举值），决定 ordering/fanout。
   std::uint32_t flags = 0;     ///< 后端/huge page 编码标志位。
   std::uint64_t capacity = 0;  ///< 单 ring 字节容量（2 的幂且页对齐）。
-  std::uint64_t reserved_record_size = 0;  ///< 保留旧布局槽位，当前协议不支持定长记录。
+  std::uint64_t fixed_payload_size = 0;  ///< 0 表示变长 payload；非零时接收路径使用定长帧。
   std::uint32_t ready = 0;  ///< 就绪标志：创建端置 1（release），连接端等 1（acquire）。
   std::uint32_t wait_word = 0;           ///< 等待策略唤醒字（wait strategy 回填）。
   std::uint64_t publication_window = 0;  ///< 发布流控窗口（0 表示不限流）。
@@ -165,7 +165,10 @@ struct alignas(kCacheLineGuard) NamedControl {
   std::uint64_t publication_window_messages = 0;  ///< 每 producer ring 的消息数窗口。
   std::uint64_t registration_gate = 0;            ///< 注册订阅者时暂时阻止新 claim。
   std::uint64_t registration_gate_process_start = 0;  ///< gate 所有者进程启动标识。
-  std::byte pad[kCacheLineGuard - 80]{};              ///< 头部填充，隔离后续热字段。
+  std::uint64_t schema_id = 0;                        ///< 应用声明的稳定 wire schema ID。
+  std::uint32_t schema_version = 0;       ///< 应用显式递增的 wire schema 版本。
+  std::uint32_t schema_flags = 0;         ///< bit 0 表示绑定了固定消息 schema。
+  std::byte pad[kCacheLineGuard - 96]{};  ///< 头部填充，隔离后续热字段。
 
   alignas(kCacheLineGuard) std::uint64_t global_sequence = 0;  ///< 全局单调序列号。
   alignas(kCacheLineGuard) std::uint32_t next_producer = 0;  ///< 下一个待分配 producer id。
@@ -1244,7 +1247,8 @@ class NamedChannelState {
 /// @retval Error::PlatformFail 共享段创建/映射失败。
 /// @note 任意 ring 创建失败时回滚已建段；最后以 release 内存序写 ready=1 唤醒连接端。
 template <Mode M>
-Result<NamedChannelState<M>> create_named_state(const Config& config) {
+Result<NamedChannelState<M>> create_named_state(const Config& config,
+                                                detail::SchemaDescriptor schema) {
   // Ordered 模式每个 producer 独立序列号域，故序列号域数等于 producer 数；FIFO 共享一域。
   const std::uint32_t sequence_domains =
       kOrdering<M> == channel::Order::Ordered ? config.num_producers : 1;
@@ -1310,6 +1314,10 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
     control->mode = static_cast<std::uint32_t>(M);
     control->flags = named_flags_for(config.huge);
     control->capacity = config.capacity;
+    control->fixed_payload_size = schema.payload_size;
+    control->schema_id = schema.schema_id;
+    control->schema_version = schema.version;
+    control->schema_flags = schema.typed ? 1u : 0u;
     control->num_producers = config.num_producers;
     control->num_consumers = config.num_consumers;
     control->publication_window = config.publication_window;
@@ -1337,7 +1345,8 @@ Result<NamedChannelState<M>> create_named_state(const Config& config) {
 /// @retval Error::BadConfig 元数据非法或与请求模式不符。
 /// @note 连接者不做任何 unlink，仅映射；owns_names 恒为 false。
 template <Mode M>
-Result<NamedChannelState<M>> connect_named_state(std::string_view name) {
+Result<NamedChannelState<M>> connect_named_state(std::string_view name,
+                                                 detail::SchemaDescriptor schema) {
   if (!is_valid_channel_name(name)) {
     return std::unexpected(Error::BadConfig);
   }
@@ -1349,6 +1358,11 @@ Result<NamedChannelState<M>> connect_named_state(std::string_view name) {
   NamedControl* control = control_mapping->control();
   if (control->magic != kNamedMagic || control->version != kNamedVersion) {
     return std::unexpected(Error::VersionMismatch);
+  }
+  if (control->fixed_payload_size != schema.payload_size ||
+      control->schema_id != schema.schema_id || control->schema_version != schema.version ||
+      control->schema_flags != (schema.typed ? 1u : 0u)) {
+    return std::unexpected(Error::SchemaMismatch);
   }
   const std::uint32_t sequence_domains =
       kOrdering<M> == channel::Order::Ordered ? control->num_producers : 1;
@@ -1395,9 +1409,13 @@ template <Mode M>
 struct ChannelTraits {
   using State = NamedChannelState<M>;  ///< 该模式对应的具名状态类型。
   /// @brief 创建具名 channel。
-  static Result<State> create(const Config& config) { return create_named_state<M>(config); }
+  static Result<State> create(const Config& config, detail::SchemaDescriptor schema) {
+    return create_named_state<M>(config, schema);
+  }
   /// @brief 连接已存在的具名 channel。
-  static Result<State> connect(std::string_view name) { return connect_named_state<M>(name); }
+  static Result<State> connect(std::string_view name, detail::SchemaDescriptor schema) {
+    return connect_named_state<M>(name, schema);
+  }
 };
 
 }  // namespace
@@ -1458,7 +1476,8 @@ struct SubscriberEndpoint {
 
 /// @brief 构造 channel，接管共享状态。
 template <Mode M>
-Channel<M>::Channel(std::shared_ptr<ChannelState<M>> state) noexcept : state_(std::move(state)) {}
+Channel<M, RawPayloadSchema>::Channel(std::shared_ptr<ChannelState<M>> state) noexcept
+    : state_(std::move(state)) {}
 
 /// @brief 静态工厂：创建具名 channel。
 /// @param config 配置。
@@ -1466,7 +1485,13 @@ Channel<M>::Channel(std::shared_ptr<ChannelState<M>> state) noexcept : state_(st
 /// @retval Error 配置非法或平台创建失败。
 /// @note 公共入口校验后再委托 ChannelTraits 创建具名状态。
 template <Mode M>
-Result<Channel<M>> Channel<M>::create(const Config& config) {
+Result<Channel<M>> Channel<M, RawPayloadSchema>::create(const Config& config) {
+  return create_with_schema(config, detail::kRawPayloadSchema);
+}
+
+template <Mode M>
+Result<Channel<M>> Channel<M, RawPayloadSchema>::create_with_schema(
+    const Config& config, detail::SchemaDescriptor schema) {
   try {
     if (config.name.empty() || !is_valid_ring_capacity(config.capacity) ||
         !is_valid_huge_capacity(config.capacity, config.huge)) {
@@ -1474,7 +1499,7 @@ Result<Channel<M>> Channel<M>::create(const Config& config) {
     }
     Config typed_config = config;
     typed_config.mode = M;  // 强制模式与本模板实例一致。
-    auto named = ChannelTraits<M>::create(typed_config);
+    auto named = ChannelTraits<M>::create(typed_config, schema);
     if (!named) {
       return std::unexpected(named.error());
     }
@@ -1489,9 +1514,15 @@ Result<Channel<M>> Channel<M>::create(const Config& config) {
 /// @retval Channel 连接成功。
 /// @retval Error 未找到、版本不匹配或配置非法。
 template <Mode M>
-Result<Channel<M>> Channel<M>::connect(std::string_view name) {
+Result<Channel<M>> Channel<M, RawPayloadSchema>::connect(std::string_view name) {
+  return connect_with_schema(name, detail::kRawPayloadSchema);
+}
+
+template <Mode M>
+Result<Channel<M>> Channel<M, RawPayloadSchema>::connect_with_schema(
+    std::string_view name, detail::SchemaDescriptor schema) {
   try {
-    auto named = ChannelTraits<M>::connect(name);
+    auto named = ChannelTraits<M>::connect(name, schema);
     if (!named) {
       return std::unexpected(named.error());
     }
@@ -1504,7 +1535,7 @@ Result<Channel<M>> Channel<M>::connect(std::string_view name) {
 /// @brief 分配一个 producer 并返回其 Publisher。
 /// @return Publisher；若 producer id 耗尽则返回无效端点。
 template <Mode M>
-Publisher<M> Channel<M>::publisher() {
+Publisher<M> Channel<M, RawPayloadSchema>::publisher() {
   const std::uint32_t producer_id =
       state_->channel.acquire_producer_id().value_or(kInvalidEndpoint);
   return Publisher<M>(std::make_shared<PublisherEndpoint<M>>(state_, producer_id));
@@ -1512,31 +1543,31 @@ Publisher<M> Channel<M>::publisher() {
 
 /// @brief 查询共享控制块中进程仍存活的订阅注册数量。
 template <Mode M>
-std::uint32_t Channel<M>::connected_consumer_count() const noexcept {
+std::uint32_t Channel<M, RawPayloadSchema>::connected_consumer_count() const noexcept {
   return state_ == nullptr ? 0 : state_->channel.connected_consumer_count();
 }
 
 template <Mode M>
-std::size_t Channel<M>::capacity() const noexcept {
+std::size_t Channel<M, RawPayloadSchema>::capacity() const noexcept {
   return state_ == nullptr ? 0 : state_->channel.capacity();
 }
 
 template <Mode M>
-std::uint32_t Channel<M>::high_watermark_percent() const noexcept {
+std::uint32_t Channel<M, RawPayloadSchema>::high_watermark_percent() const noexcept {
   return state_ == nullptr ? 0 : state_->channel.high_watermark_percent();
 }
 
 /// @brief 分配一个 consumer 并返回其 Subscriber。
 /// @return Subscriber；若 consumer id 耗尽则返回无效端点。
 template <Mode M>
-Subscriber<M> Channel<M>::subscriber() {
+Subscriber<M> Channel<M, RawPayloadSchema>::subscriber() {
   constexpr auto default_policy =
       M == Mode::LatestMpmc ? SubscriptionPolicy::DropOldest : SubscriptionPolicy::Reliable;
   return subscriber(default_policy);
 }
 
 template <Mode M>
-Subscriber<M> Channel<M>::subscriber(SubscriptionPolicy policy) {
+Subscriber<M> Channel<M, RawPayloadSchema>::subscriber(SubscriptionPolicy policy) {
   auto created = try_subscriber(policy);
   if (!created) {
     if (created.error() == Error::OutOfMemory) {
@@ -1548,14 +1579,14 @@ Subscriber<M> Channel<M>::subscriber(SubscriptionPolicy policy) {
 }
 
 template <Mode M>
-Result<Subscriber<M>> Channel<M>::try_subscriber() {
+Result<Subscriber<M>> Channel<M, RawPayloadSchema>::try_subscriber() {
   constexpr auto default_policy =
       M == Mode::LatestMpmc ? SubscriptionPolicy::DropOldest : SubscriptionPolicy::Reliable;
   return try_subscriber(default_policy);
 }
 
 template <Mode M>
-Result<Subscriber<M>> Channel<M>::try_subscriber(SubscriptionPolicy policy) {
+Result<Subscriber<M>> Channel<M, RawPayloadSchema>::try_subscriber(SubscriptionPolicy policy) {
   if (state_ == nullptr) {
     return std::unexpected(Error::BadConfig);
   }
@@ -1577,20 +1608,20 @@ Result<Subscriber<M>> Channel<M>::try_subscriber(SubscriptionPolicy policy) {
 
 /// @brief 构造 Publisher，接管端点。
 template <Mode M>
-Publisher<M>::Publisher(std::shared_ptr<PublisherEndpoint<M>> endpoint) noexcept
+Publisher<M, RawPayloadSchema>::Publisher(std::shared_ptr<PublisherEndpoint<M>> endpoint) noexcept
     : endpoint_(std::move(endpoint)) {}
 
 /// @brief 构造一个未提交的 claim，持有端点与 claim 句柄。
 /// @param endpoint publisher 端点。
 /// @param claim 底层 flow 层返回的 claim（含 payload 区域与 producer id）。
 template <Mode M>
-PublishClaim<M>::PublishClaim(std::shared_ptr<PublisherEndpoint<M>> endpoint,
-                              flow::Claim claim) noexcept
+PublishClaim<M, RawPayloadSchema>::PublishClaim(std::shared_ptr<PublisherEndpoint<M>> endpoint,
+                                                flow::Claim claim) noexcept
     : endpoint_(std::move(endpoint)), claim_(claim), committed_(false) {}
 
 /// @brief 移动构造；源对象置为已提交空状态，确保其析构不再 commit。
 template <Mode M>
-PublishClaim<M>::PublishClaim(PublishClaim&& other) noexcept
+PublishClaim<M, RawPayloadSchema>::PublishClaim(PublishClaim&& other) noexcept
     : endpoint_(std::move(other.endpoint_)), claim_(other.claim_), committed_(other.committed_) {
   other.claim_ = {};
   other.committed_ = true;
@@ -1598,7 +1629,7 @@ PublishClaim<M>::PublishClaim(PublishClaim&& other) noexcept
 
 /// @brief 移动赋值；自赋值保护，源对象置为已提交空状态。
 template <Mode M>
-PublishClaim<M>& PublishClaim<M>::operator=(PublishClaim&& other) noexcept {
+PublishClaim<M>& PublishClaim<M, RawPayloadSchema>::operator=(PublishClaim&& other) noexcept {
   if (this != &other) {
     endpoint_ = std::move(other.endpoint_);
     claim_ = other.claim_;
@@ -1612,14 +1643,14 @@ PublishClaim<M>& PublishClaim<M>::operator=(PublishClaim&& other) noexcept {
 /// @brief 返回可写的 payload 区域供调用方填充帧体。
 /// @return payload 字节视图。
 template <Mode M>
-std::span<std::byte> PublishClaim<M>::payload() noexcept {
+std::span<std::byte> PublishClaim<M, RawPayloadSchema>::payload() noexcept {
   return claim_.payload;
 }
 
 /// @brief 提交本次 claim，将帧对外可见。
 /// @note 幂等：已提交或无效端点直接返回；提交后立即释放端点引用以缩短生命周期。
 template <Mode M>
-void PublishClaim<M>::commit() noexcept {
+void PublishClaim<M, RawPayloadSchema>::commit() noexcept {
   if (committed_ || endpoint_ == nullptr || !endpoint_->valid ||
       claim_.producer_id == kInvalidEndpoint) {
     return;
@@ -1637,7 +1668,8 @@ void PublishClaim<M>::commit() noexcept {
 /// @retval Error::BadConfig 端点无效。
 /// @retval Error 转发自 flow 层（背压等）。
 template <Mode M>
-Result<PublishClaim<M>> Publisher<M>::try_claim(std::size_t payload_len) noexcept {
+Result<PublishClaim<M>> Publisher<M, RawPayloadSchema>::try_claim(
+    std::size_t payload_len) noexcept {
   if (endpoint_ == nullptr || !endpoint_->valid ||
       payload_len > std::numeric_limits<std::uint32_t>::max()) {
     return std::unexpected(payload_len > std::numeric_limits<std::uint32_t>::max()
@@ -1652,8 +1684,8 @@ Result<PublishClaim<M>> Publisher<M>::try_claim(std::size_t payload_len) noexcep
 }
 
 template <Mode M>
-Result<PublishClaim<M>> Publisher<M>::try_claim_for(std::size_t payload_len,
-                                                    std::chrono::nanoseconds ttl) noexcept {
+Result<PublishClaim<M>> Publisher<M, RawPayloadSchema>::try_claim_for(
+    std::size_t payload_len, std::chrono::nanoseconds ttl) noexcept {
   if (endpoint_ == nullptr || !endpoint_->valid ||
       payload_len > std::numeric_limits<std::uint32_t>::max()) {
     return std::unexpected(payload_len > std::numeric_limits<std::uint32_t>::max()
@@ -1676,7 +1708,7 @@ Result<PublishClaim<M>> Publisher<M>::try_claim_for(std::size_t payload_len,
 /// @retval bool 是否成功（背压时为 false）。
 /// @retval Error 端点无效或 flow 层错误。
 template <Mode M>
-Result<bool> Publisher<M>::offer(std::span<const std::byte> payload) noexcept {
+Result<bool> Publisher<M, RawPayloadSchema>::offer(std::span<const std::byte> payload) noexcept {
   if (endpoint_ == nullptr || !endpoint_->valid) {
     return std::unexpected(Error::BadConfig);
   }
@@ -1688,8 +1720,8 @@ Result<bool> Publisher<M>::offer(std::span<const std::byte> payload) noexcept {
 }
 
 template <Mode M>
-Result<bool> Publisher<M>::offer_for(std::span<const std::byte> payload,
-                                     std::chrono::nanoseconds ttl) noexcept {
+Result<bool> Publisher<M, RawPayloadSchema>::offer_for(std::span<const std::byte> payload,
+                                                       std::chrono::nanoseconds ttl) noexcept {
   if (endpoint_ == nullptr || !endpoint_->valid) {
     return std::unexpected(Error::BadConfig);
   }
@@ -1714,7 +1746,7 @@ Result<bool> Publisher<M>::offer_for(std::span<const std::byte> payload,
 /// @note 等长路径用 claim_batch 申请连续区域并 memcpy 各帧 payload（跳过帧头 kHeaderSize），
 /// 仅一次提交，显著降低 per-frame 开销；变长路径逐帧 offer。
 template <Mode M>
-Result<std::size_t> Publisher<M>::offer_batch(
+Result<std::size_t> Publisher<M, RawPayloadSchema>::offer_batch(
     std::span<const std::span<const std::byte>> payloads) noexcept {
   if (endpoint_ == nullptr || !endpoint_->valid) {
     return std::unexpected(Error::BadConfig);
@@ -1764,7 +1796,7 @@ Result<std::size_t> Publisher<M>::offer_batch(
 }
 
 template <Mode M>
-Result<std::size_t> Publisher<M>::offer_batch_for(
+Result<std::size_t> Publisher<M, RawPayloadSchema>::offer_batch_for(
     std::span<const std::span<const std::byte>> payloads, std::chrono::nanoseconds ttl) noexcept {
   if (endpoint_ == nullptr || !endpoint_->valid) {
     return std::unexpected(Error::BadConfig);
@@ -1820,19 +1852,20 @@ Result<std::size_t> Publisher<M>::offer_batch_for(
 
 /// @brief 构造 Subscriber，接管端点。
 template <Mode M>
-Subscriber<M>::Subscriber(std::shared_ptr<SubscriberEndpoint<M>> endpoint) noexcept
+Subscriber<M, RawPayloadSchema>::Subscriber(
+    std::shared_ptr<SubscriberEndpoint<M>> endpoint) noexcept
     : endpoint_(std::move(endpoint)) {}
 
 /// @brief 非阻塞尝试接收一条消息。
 /// @retval Message 收到消息。
 /// @retval std::nullopt 无消息或端点无效。
 template <Mode M>
-std::optional<Message> Subscriber<M>::try_recv() noexcept {
+std::optional<Message> Subscriber<M, RawPayloadSchema>::try_recv() noexcept {
   return endpoint_ == nullptr || !endpoint_->valid ? std::nullopt : endpoint_->rx.try_recv();
 }
 
 template <Mode M>
-Result<std::optional<Message>> Subscriber<M>::try_recv_checked() noexcept {
+Result<std::optional<Message>> Subscriber<M, RawPayloadSchema>::try_recv_checked() noexcept {
   if (endpoint_ == nullptr || !endpoint_->valid) {
     return std::unexpected(Error::BadConfig);
   }
@@ -1844,22 +1877,49 @@ Result<std::optional<Message>> Subscriber<M>::try_recv_checked() noexcept {
 }
 
 template <Mode M>
-std::uint64_t Subscriber<M>::lagged_messages() const noexcept {
+Result<std::optional<Message>> Subscriber<M, RawPayloadSchema>::try_recv_checked_fixed(
+    std::uint32_t payload_size) noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return std::unexpected(Error::BadConfig);
+  }
+  auto received = endpoint_->rx.template try_recv_checked_payload<true>(payload_size);
+  if (!received) {
+    return std::unexpected(map_receive_error(received.error()));
+  }
+  return *received;
+}
+
+template <Mode M>
+Result<std::uint64_t> Subscriber<M, RawPayloadSchema>::skip_to_latest_fixed(
+    std::uint32_t producer_id, std::uint32_t payload_size) noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return std::unexpected(Error::BadConfig);
+  }
+  auto skipped = endpoint_->rx.template skip_to_latest_payload<true>(producer_id, payload_size);
+  if (!skipped) {
+    return std::unexpected(map_receive_error(skipped.error()));
+  }
+  return *skipped;
+}
+
+template <Mode M>
+std::uint64_t Subscriber<M, RawPayloadSchema>::lagged_messages() const noexcept {
   return endpoint_ == nullptr || !endpoint_->valid ? 0 : endpoint_->rx.lagged_messages();
 }
 
 template <Mode M>
-std::uint64_t Subscriber<M>::skipped_messages() const noexcept {
+std::uint64_t Subscriber<M, RawPayloadSchema>::skipped_messages() const noexcept {
   return endpoint_ == nullptr || !endpoint_->valid ? 0 : endpoint_->rx.skipped_messages();
 }
 
 template <Mode M>
-std::uint64_t Subscriber<M>::expired_messages() const noexcept {
+std::uint64_t Subscriber<M, RawPayloadSchema>::expired_messages() const noexcept {
   return endpoint_ == nullptr || !endpoint_->valid ? 0 : endpoint_->rx.expired_messages();
 }
 
 template <Mode M>
-Result<std::uint64_t> Subscriber<M>::skip_to_latest(std::uint32_t producer_id) noexcept {
+Result<std::uint64_t> Subscriber<M, RawPayloadSchema>::skip_to_latest(
+    std::uint32_t producer_id) noexcept {
   if (endpoint_ == nullptr || !endpoint_->valid) {
     return std::unexpected(Error::BadConfig);
   }
@@ -1876,7 +1936,7 @@ Result<std::uint64_t> Subscriber<M>::skip_to_latest(std::uint32_t producer_id) n
 /// @return 实际接收条数；端点无效或参数非法返回 0。
 /// @note 与 flush_batch 配合可实现"读取-处理-确认"语义，处理失败时不推进进度。
 template <Mode M>
-std::size_t Subscriber<M>::fetch_batch(Message* out, std::uint32_t cap) noexcept {
+std::size_t Subscriber<M, RawPayloadSchema>::fetch_batch(Message* out, std::uint32_t cap) noexcept {
   if (endpoint_ == nullptr || !endpoint_->valid || out == nullptr || cap == 0) {
     return 0;
   }
@@ -1885,7 +1945,7 @@ std::size_t Subscriber<M>::fetch_batch(Message* out, std::uint32_t cap) noexcept
 
 /// @brief 提交 fetch_batch 累积的消费进度，使已读消息对生产者可见（释放槽位）。
 template <Mode M>
-void Subscriber<M>::flush_batch() noexcept {
+void Subscriber<M, RawPayloadSchema>::flush_batch() noexcept {
   if (endpoint_ != nullptr && endpoint_->valid) {
     endpoint_->rx.flush_progress();
   }
@@ -1898,8 +1958,8 @@ void Subscriber<M>::flush_batch() noexcept {
 /// @return 实际消费条数。
 /// @note 以 32 条为一块（kChunk）平衡栈空间与刷新频率；无消息即提前退出。
 template <Mode M>
-std::size_t Subscriber<M>::poll(std::uint32_t max_messages, PollCallback callback,
-                                void* user) noexcept {
+std::size_t Subscriber<M, RawPayloadSchema>::poll(std::uint32_t max_messages, PollCallback callback,
+                                                  void* user) noexcept {
   if (endpoint_ == nullptr || !endpoint_->valid || max_messages == 0 || callback == nullptr) {
     return 0;
   }
@@ -1925,14 +1985,30 @@ std::size_t Subscriber<M>::poll(std::uint32_t max_messages, PollCallback callbac
 /// @brief 阻塞接收一条消息（内部按等待策略自旋/阻塞）。
 /// @return 收到的消息。
 template <Mode M>
-Message Subscriber<M>::recv() noexcept {
+Message Subscriber<M, RawPayloadSchema>::recv() noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return {};
+  }
   return endpoint_->rx.recv();
+}
+
+template <Mode M>
+Message Subscriber<M, RawPayloadSchema>::recv_fixed(std::uint32_t payload_size) noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return {};
+  }
+  return endpoint_->rx.template recv_payload<true>(payload_size);
+}
+
+template <Mode M>
+bool Subscriber<M, RawPayloadSchema>::valid() const noexcept {
+  return endpoint_ != nullptr && endpoint_->valid;
 }
 
 /// @brief 显式释放一条消息占用的槽位（配合 fetch_batch 手动管理进度时使用）。
 /// @param message 待释放的消息。
 template <Mode M>
-void Subscriber<M>::release(const Message& message) noexcept {
+void Subscriber<M, RawPayloadSchema>::release(const Message& message) noexcept {
   if (endpoint_ != nullptr && endpoint_->valid) {
     endpoint_->rx.release(message);
   }
@@ -1946,11 +2022,11 @@ void Subscriber<M>::release(const Message& message) noexcept {
   template class PublishClaim<Mode::mode>; \
   template class Subscriber<Mode::mode>
 
-SALIAS_INSTANTIATE_MODE(FifoMpsc);       // 多生产者单消费者，FIFO 顺序。
-SALIAS_INSTANTIATE_MODE(FifoMpmc);       // 多生产者多消费者广播，FIFO 顺序。
-SALIAS_INSTANTIATE_MODE(OrderedMpsc);    // 多生产者单消费者，按序列号有序。
-SALIAS_INSTANTIATE_MODE(OrderedMpmc);    // 多生产者多消费者广播，按序列号有序。
-SALIAS_INSTANTIATE_MODE(LatestMpmc);     // 慢消费者跳过保留窗口外的旧数据。
+SALIAS_INSTANTIATE_MODE(FifoMpsc);     // 多生产者单消费者，FIFO 顺序。
+SALIAS_INSTANTIATE_MODE(FifoMpmc);     // 多生产者多消费者广播，FIFO 顺序。
+SALIAS_INSTANTIATE_MODE(OrderedMpsc);  // 多生产者单消费者，按序列号有序。
+SALIAS_INSTANTIATE_MODE(OrderedMpmc);  // 多生产者多消费者广播，按序列号有序。
+SALIAS_INSTANTIATE_MODE(LatestMpmc);   // 慢消费者跳过保留窗口外的旧数据。
 
 #undef SALIAS_INSTANTIATE_MODE
 

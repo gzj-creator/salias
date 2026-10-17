@@ -93,6 +93,10 @@ inline const char* error_name(salias::Error error) noexcept {
       return "CapacityExceeded";
     case salias::Error::SequenceExhausted:
       return "SequenceExhausted";
+    case salias::Error::PayloadSizeMismatch:
+      return "PayloadSizeMismatch";
+    case salias::Error::SchemaMismatch:
+      return "SchemaMismatch";
   }
   return "Unknown";
 }
