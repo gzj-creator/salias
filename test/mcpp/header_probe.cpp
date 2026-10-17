@@ -39,3 +39,16 @@ bool header_keyed_latest_publish(std::string_view name) {
   auto offered = publisher.offer(7, 12);
   return offered && *offered;
 }
+
+bool header_priority_publish(std::string_view high_name, std::string_view low_name) {
+  auto high = salias::FifoMpscChannel::connect(high_name);
+  auto low = salias::FifoMpscChannel::connect(low_name);
+  if (!high || !low) {
+    return false;
+  }
+  salias::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> publisher(
+      high->publisher(), low->publisher());
+  const std::array payload{std::byte{9}, std::byte{8}};
+  auto offered = publisher.offer(1, payload);
+  return offered && *offered;
+}

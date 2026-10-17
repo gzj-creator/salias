@@ -708,6 +708,53 @@ void BM_keyed_latest_roundtrip_64b(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
 }
 
+void BM_priority_weighted_roundtrip_64b(benchmark::State& state) {
+  using PriorityPublisher =
+      salias::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>;
+  using PrioritySubscriber =
+      salias::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>;
+  auto high_config = config_for(salias::Mode::FifoMpsc, 1u << 16);
+  high_config.name += "-priority-high";
+  auto low_config = config_for(salias::Mode::FifoMpsc, 1u << 16);
+  low_config.name += "-priority-low";
+  auto high = salias::FifoMpscChannel::create(high_config);
+  auto low = salias::FifoMpscChannel::create(low_config);
+  if (!high || !low) {
+    state.SkipWithError("failed to create priority roundtrip channels");
+    return;
+  }
+
+  PriorityPublisher publisher(high->publisher(), low->publisher());
+  PrioritySubscriber subscriber(high->subscriber(), low->subscriber());
+  SmallPayload payload{};
+  std::array<std::uint32_t, 2> sequence{};
+  std::uint64_t delivered = 0;
+  for (auto _ : state) {
+    const std::size_t priority = delivered % 3 == 2 ? 1 : 0;
+    payload.producer = static_cast<std::uint32_t>(priority);
+    payload.seq = sequence[priority]++;
+    auto offered = publisher.offer(priority, std::as_bytes(std::span{&payload, 1}));
+    if (!offered) {
+      state.SkipWithError("priority offer failed");
+      return;
+    }
+    auto received = subscriber.try_recv_checked();
+    if (!received || !*received || (**received).priority != priority ||
+        decode_small((**received).message.payload).producer != priority) {
+      state.SkipWithError("priority scheduling mismatch");
+      return;
+    }
+    benchmark::DoNotOptimize((**received).message.payload.data());
+    if (!subscriber.release(**received)) {
+      state.SkipWithError("priority release failed");
+      return;
+    }
+    ++delivered;
+  }
+  state.SetItemsProcessed(state.iterations());
+  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
+}
+
 }  // namespace
 
 // 注册各 stress benchmark：SPSC 往返以微秒级单位度量，MPSC 多生产者吞吐以毫秒级度量。
@@ -744,6 +791,7 @@ BENCHMARK_TEMPLATE(BM_latest_concurrent_fanout_64b, 90)
 BENCHMARK(BM_latest_checked_roundtrip_64b)->Unit(benchmark::kNanosecond);
 BENCHMARK(BM_latest_seek_64b)->Arg(4096)->Unit(benchmark::kMicrosecond);
 BENCHMARK(BM_keyed_latest_roundtrip_64b)->Unit(benchmark::kMicrosecond);
+BENCHMARK(BM_priority_weighted_roundtrip_64b)->Unit(benchmark::kMicrosecond);
 
 // Google Benchmark 主入口：解析命令行参数并运行上述所有已注册 benchmark。
 BENCHMARK_MAIN();

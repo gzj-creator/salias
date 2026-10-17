@@ -15,6 +15,7 @@
 #include "salias/keyed_latest_channel.hpp"
 #include "salias/latest_channel.hpp"
 #include "salias/message.hpp"
+#include "salias/priority_channel.hpp"
 #include "salias/publisher.hpp"
 #include "salias/ringbuffer.hpp"
 #include "salias/subscriber.hpp"

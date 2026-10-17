@@ -3,6 +3,7 @@ import salias;
 
 bool header_publish(const salias::Config& config);
 bool header_keyed_latest_publish(std::string_view name);
+bool header_priority_publish(std::string_view high_name, std::string_view low_name);
 
 namespace {
 void require(bool condition, std::source_location location = std::source_location::current()) {
@@ -171,14 +172,49 @@ int main() {
     require(!keyed_subscriber.try_recv());
     require(header_keyed_latest_publish(keyed_name));
     auto keyed_header_message = keyed_subscriber.try_recv_checked();
-    require(keyed_header_message && *keyed_header_message &&
-            (**keyed_header_message).value == 12 && (**keyed_header_message).version == 3);
+    require(keyed_header_message && *keyed_header_message && (**keyed_header_message).value == 12 &&
+            (**keyed_header_message).version == 3);
     auto keyed_connected = KeyedLatest::connect(keyed_name);
     require(keyed_connected.has_value());
 
-    std::cout
-        << "Module/header IPC, keyed latest, TTL, message windows, claim, batch, poll, checked "
-           "lag and seek passed for 5 modes\n";
+    static_assert(salias::PriorityPublisher<salias::Mode::FifoMpsc,
+                                            salias::Mode::FifoMpsc>::priority_count() == 2);
+    static_assert(salias::PrioritySubscriber<salias::Mode::FifoMpsc,
+                                             salias::Mode::FifoMpsc>::priority_count() == 2);
+    const auto priority_suffix =
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    salias::Config high_priority_config;
+    high_priority_config.name = "salias-mcpp-priority-high-" + priority_suffix;
+    high_priority_config.capacity = 4096;
+    high_priority_config.num_producers = 2;
+    salias::Config low_priority_config;
+    low_priority_config.name = "salias-mcpp-priority-low-" + priority_suffix;
+    low_priority_config.capacity = 4096;
+    low_priority_config.num_producers = 2;
+    auto high_priority = salias::FifoMpscChannel::create(high_priority_config);
+    auto low_priority = salias::FifoMpscChannel::create(low_priority_config);
+    require(high_priority && low_priority);
+    salias::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> priority_subscriber(
+        high_priority->subscriber(), low_priority->subscriber());
+    salias::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> priority_publisher(
+        high_priority->publisher(), low_priority->publisher());
+    const std::array high_priority_payload{std::byte{1}, std::byte{2}};
+    require(priority_publisher.offer<0>(high_priority_payload).has_value());
+    auto high_priority_message = priority_subscriber.try_recv_checked();
+    require(high_priority_message && *high_priority_message &&
+            (**high_priority_message).priority == 0);
+    require(priority_subscriber.release(**high_priority_message).has_value());
+    require(header_priority_publish(high_priority_config.name, low_priority_config.name));
+    auto low_priority_message = priority_subscriber.try_recv_checked();
+    require(low_priority_message && *low_priority_message &&
+            (**low_priority_message).priority == 1 &&
+            std::ranges::equal((**low_priority_message).message.payload,
+                               std::array{std::byte{9}, std::byte{8}}));
+    require(priority_subscriber.release(**low_priority_message).has_value());
+
+    std::cout << "Module/header IPC, priority, keyed latest, TTL, message windows, claim, batch, "
+                 "poll, checked "
+                 "lag and seek passed for 5 modes\n";
     return 0;
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';

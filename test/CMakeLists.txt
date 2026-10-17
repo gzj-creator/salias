@@ -210,3 +210,22 @@ if(SALIAS_ENABLE_TSAN)
 else()
   gtest_discover_tests(salias_keyed_latest_tests)
 endif()
+
+add_executable(salias_priority_tests
+  api/priority_channel_test.cpp
+)
+target_link_libraries(salias_priority_tests PRIVATE salias GTest::gtest_main)
+
+salias_enable_warnings(salias_priority_tests)
+salias_enable_sanitizers(salias_priority_tests)
+
+if(SALIAS_ENABLE_TSAN)
+  add_test(
+    NAME salias_priority_tests
+    COMMAND
+      "${SALIAS_SETARCH_EXECUTABLE}" "${CMAKE_SYSTEM_PROCESSOR}" "-R"
+      "$<TARGET_FILE:salias_priority_tests>"
+  )
+else()
+  gtest_discover_tests(salias_priority_tests)
+endif()

@@ -33,6 +33,13 @@ LatestFanout 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅�
 `try_recv_checked()` / `Publisher::offer()` 的 `Error::BackPressured` 报告；简化的
 `try_recv()` 将锁竞争视为暂时无数据，`conflated_updates()` 统计端点尚未读取前被合并掉的更新数。
 
+`PriorityPublisher<Mode...>` 和 `PrioritySubscriber<Mode...>` 把多条独立 IPC 通道组合成按优先级
+路由与读取的端点组，模板参数从高到低排列。发布操作只触及指定通道，因此某一路背压不会
+占用其他通道的容量。订阅端以权重 `N, N-1, ..., 1` 做 work-conserving 加权轮询，保证持续
+有数据的低优先级通道不会饥饿；各通道内部仍保持原顺序，通道之间不承诺全局顺序。返回消息
+带有 priority 索引并借用原通道内存，必须通过组合订阅端 `release()`，或使用会自动释放的
+`poll()`。例如两级 FIFO 通道可用 `PriorityPublisher<Mode::FifoMpsc, Mode::FifoMpsc>` 创建路由端。
+
 ## 构建
 
 要求 Linux 或 macOS、CMake 3.25+、支持 C++23 的 GCC/Clang。测试目标需要 GTest，

@@ -18,6 +18,7 @@ are released.
 
 ### Added
 
+- 新增 `PriorityPublisher<Mode...>` / `PrioritySubscriber<Mode...>`，将独立 IPC 通道按模板顺序组合；发布按优先级路由且各通道背压隔离，订阅端以 N..1 加权轮询避免低优先级饥饿，并标记消息来源通道。
 - 新增静态容量的 `KeyedLatestChannel<Key, Value, Capacity>` IPC latest-value 表，跨进程按 key 合并重复更新；订阅者获取独立的当前值快照，值以本地拷贝返回，满表的新 key 明确返回 `CapacityExceeded`。
 - 为 IPC 消息增加 per-message TTL：`offer_for`、`try_claim_for`、`offer_batch_for` 将非负时长编码为同主机 `CLOCK_MONOTONIC` 截止值；订阅端在 poll/recv 时跳过过期帧并及时释放过期前缀，未过期帧和已借用 payload 仍受 Reliable/DropOldest 原契约保护。
 - 新增 `Config::publication_window_messages`，按每个 producer ring 限制在途/保留消息数；可靠模式达到窗口后背压，LatestFanout 的 DropOldest 订阅可淘汰最旧帧，Reliable 订阅仍保护未读帧。该窗口可与字节窗口并用，LatestFanout 仍要求字节窗口为 0。
@@ -45,6 +46,7 @@ are released.
 
 ### Tests
 
+- 新增优先级通道测试，覆盖 3:2:1 加权轮询、流内顺序、背压隔离、LatestFanout Lagged 隔离、borrow/release 与 poll 自动释放、跨进程发布、无效和移动后端点；增加 64B weighted-roundtrip 基准及 mcpp 模块/头文件混合 IPC roundtrip。Release/ASan/UBSan 全量、优先级 TSan 专项与 mcpp roundtrip 均通过，结果记录在能力计划中；三次 0.5 秒基准中位 0.122 us，Google Benchmark 依赖为 DEBUG 构建，该数据仅供冒烟参考。
 - 新增 KeyedLatest 测试，覆盖重复 key 合并、独立及复制订阅游标、hash 冲突、满容量、模板/类型不匹配、事件日志溢出、版本与事件序列耗尽、跨进程写入、多线程一致性、锁竞争和写进程 `SIGKILL`；增加 64B 发布/接收往返压力基准及 mcpp 模块/头文件 roundtrip。
 - 新增 TTL 回归，覆盖零/负/正时长、零拷贝 claim、均匀和变长部分批次、过期前缀释放同时保留后续借用帧、借用跨过期点仍受保护、LatestFanout retention/loss、Ordered 跨 producer 序列、物理回绕和跨进程单调时钟。Release 142/142、ASan/UBSan 141/141 通过；TSan API suite 1/1 通过，完整 TSan 另有 4 个小型契约程序因运行时 `unexpected memory mapping` 启动失败。mcpp module/header TTL IPC 测试通过。TTL expiration 短基准 3 次中位数 0.259 us/迭代；Google Benchmark 依赖是 DEBUG 构建，结果仅作冒烟参考。
 - 新增消息数窗口测试，覆盖 Ordered 多 producer 独立上限、字节/消息窗口独立生效、fanout 最慢消费者、部分批次、poll 后恢复、connect 后限制、LatestFanout 可靠读者背压、空消息/变长帧与物理回绕；新增停滞订阅者保留 64 条消息的压测校验。Release 134/134、ASan/UBSan 133/133、TSan API suite 和 mcpp module/header IPC 测试通过；短基准 3 次复跑通过，Google Benchmark 依赖为 DEBUG 构建，结果仅作冒烟参考。
