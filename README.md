@@ -25,6 +25,14 @@ LatestFanout 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅�
 `SubscriptionPolicy::Reliable`，让其未读游标参与保留边界并在慢读时对生产者施加背压。
 其他模式仅支持 Reliable 策略。
 
+`KeyedLatestChannel<Key, Value, Capacity>` 是独立的有界 latest-value IPC 表，按 key 保存最新
+值，重复 key 更新覆盖同一槽位；订阅者各自接收当前快照，未读期间的中间更新会合并，返回的是
+本地拷贝而非共享内存借用。`Capacity` 表示最大不同 key 数，满表时新 key 返回
+`Error::CapacityExceeded`，已存在 key 仍可更新。Key 必须可平凡拷贝、具有唯一对象表示且不是指针；Value
+必须可平凡拷贝且自身及其成员都不能包含进程内指针。不同 key 之间不承诺全局顺序，锁竞争通过
+`try_recv_checked()` / `Publisher::offer()` 的 `Error::BackPressured` 报告；简化的
+`try_recv()` 将锁竞争视为暂时无数据，`conflated_updates()` 统计端点尚未读取前被合并掉的更新数。
+
 ## 构建
 
 要求 Linux 或 macOS、CMake 3.25+、支持 C++23 的 GCC/Clang。测试目标需要 GTest，
@@ -64,8 +72,9 @@ target_link_libraries(my_app PRIVATE salias::salias)
 原生包身份为 `gzj-creator.salias`，版本 `2.1.0` 与 CMake 一致。`mcpp.toml`
 编译公共库和必要的 core 实现，`src/salias.cppm` 提供 `import salias;`；默认构建不需要
 GTest、Google Benchmark 或 Aeron。模块导出公共配置、枚举、错误和结果类型、Message、
-Channel/Publisher/Subscriber/PublishClaim 模板、五种模式的端点别名及静态配置的
-`LatestFanoutChannel`，以及订阅交付策略 `SubscriptionPolicy`。应用专用别名由消费者维护。
+Channel/Publisher/Subscriber/PublishClaim 模板、五种模式的端点别名、静态配置的
+`LatestFanoutChannel` 和 `KeyedLatestChannel` 及其消息/发布/订阅端点，以及订阅交付策略
+`SubscriptionPolicy`。应用专用别名由消费者维护。
 
 安装 mcpp 和 LLVM 工具链后，在仓库中构建和验证：
 
@@ -116,6 +125,8 @@ cmake --preset release
 cmake --build --preset release
 ./build/release/bench/salias_bench_channel_stress \
   --benchmark_filter='BM_latest_' --benchmark_min_time=0.1s --benchmark_repetitions=3
+./build/release/bench/salias_bench_channel_stress \
+  --benchmark_filter='BM_keyed_latest_roundtrip_64b' --benchmark_min_time=0.1s --benchmark_repetitions=3
 ```
 
 短跑用于正确性与吞吐冒烟，不代替长期压力测试。正式性能基线需同时使用 Release 构建的

@@ -15,14 +15,14 @@ entry. No version tags, pushes or changes to the installed dependency copy.
 | G3 | Bounded IPC drop-oldest with Publisher/Subscriber endpoints | `afe8ab1`, `501f502`; LatestFanout frame/lease tests and six benchmarks in `6a1185e` |
 | G4 | Explicit latest seek, exact gap counters, and a real Lagged reporting path | `try_recv_checked`, `lagged_messages`, `skipped_messages`, `skip_to_latest` on the existing endpoints; no implicit loss in reliable modes. Cross-process and wraparound tests pass. |
 | G5 | Per-subscriber reliable or drop-oldest policy, without discarding reliable readers' data | Implemented in `f2aeedf`: LatestFanout supports independent Reliable/DropOldest slots; single and batch loans protect reliable readers. |
-| G6 | Keyed latest-value IPC primitive, bounded memory, real cross-process conflation | Pending. Key equality/collisions and updates to a borrowed value need explicit semantics, not an application-side map. |
+| G6 | Keyed latest-value IPC primitive, bounded memory, real cross-process conflation | Implemented as `KeyedLatestChannel<Key, Value, Capacity>`: exact key-byte equality, linear probing, explicit capacity exhaustion, per-subscriber snapshots and conflation counters, copied values, bounded event log with snapshot rescan on overrun, crash-released file locking and double-buffer commits. Ten focused Release/ASan/UBSan/TSan tests cover collisions, saturation, schema mismatch, event overrun, independent and fork-inherited IPC, same-process multi-handle concurrency, lock contention, key-version/event-sequence exhaustion and SIGKILL during partial writes. mcpp module/header mixed roundtrip passes. Release full suite 152/152; ASan/UBSan full suite 151/151; focused TSan suite passes. 64B publish/receive roundtrip median 13.0 us over three 0.5-second runs on 2026-10-17; Google Benchmark dependency reports DEBUG, so this is only a smoke measurement, not a calibrated baseline. |
 | G7 | Priority-aware delivery and coordinated multi-channel subscription | Pending. Define starvation/fairness and per-stream ordering, with backpressure independent across priorities. |
 | G8 | Message-count retention/flow limits alongside byte capacity | Implemented in `1d7a19f`: per-producer message limits, LatestFanout retained-count limits, partial batch handling and byte-window independence. |
 | G9 | TTL-aware IPC expiration, expired frames release capacity without dropping live reliable data | Implemented: explicit per-frame monotonic deadline metadata; poll/recv skips expired prefixes and publishes progress before returning the next live borrowed frame. It never crosses that live frame, even if its TTL expires while borrowed. No polling means no background expiry cleanup. Release 142/142; ASan/UBSan 141/141; TSan API suite 1/1; mcpp module/header TTL IPC pass. |
 
 ## Implementation Order
 
-Ringbuffer and G1-G5, G8-G9 are complete. G6 and G7 remain. The order
+Ringbuffer and G1-G6, G8-G9 are complete. G7 remains. The order
 puts gap observability before lifecycle/policy work and shares the same pinning
 contract throughout. Preserve the existing reliable modes unless the transport
 metadata says a frame has expired. Do not treat a local wrapper, docs alone, or

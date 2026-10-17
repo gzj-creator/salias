@@ -29,6 +29,8 @@ enum class Error {
   BadConfig,          ///< 配置非法（name 为空、容量或端点数量不合法等）。
   OutOfMemory,        ///< 创建或连接通道时的动态内存分配失败。
   NoSubscriberSlots,  ///< 所有订阅槽均被活动端点占用。
+  CapacityExceeded,   ///< KeyedLatest 通道中尚无空间容纳新的唯一 key。
+  SequenceExhausted,  ///< KeyedLatest 的 key 版本号或通道事件序列耗尽。
 };
 
 // 公共 API 使用的显式结果类型；保留 salias::Result<T> 名称，底层采用 C++23 std::expected。

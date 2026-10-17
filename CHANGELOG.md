@@ -18,6 +18,7 @@ are released.
 
 ### Added
 
+- 新增静态容量的 `KeyedLatestChannel<Key, Value, Capacity>` IPC latest-value 表，跨进程按 key 合并重复更新；订阅者获取独立的当前值快照，值以本地拷贝返回，满表的新 key 明确返回 `CapacityExceeded`。
 - 为 IPC 消息增加 per-message TTL：`offer_for`、`try_claim_for`、`offer_batch_for` 将非负时长编码为同主机 `CLOCK_MONOTONIC` 截止值；订阅端在 poll/recv 时跳过过期帧并及时释放过期前缀，未过期帧和已借用 payload 仍受 Reliable/DropOldest 原契约保护。
 - 新增 `Config::publication_window_messages`，按每个 producer ring 限制在途/保留消息数；可靠模式达到窗口后背压，LatestFanout 的 DropOldest 订阅可淘汰最旧帧，Reliable 订阅仍保护未读帧。该窗口可与字节窗口并用，LatestFanout 仍要求字节窗口为 0。
 - 为 `LatestFanout` 增加按订阅者选择 `Reliable` 或 `DropOldest` 的交付策略；可靠游标限制保留头推进，慢的可靠订阅者会触发背压而不会丢失未读消息，丢旧订阅者仍可独立跳过过期窗口。其他模式拒绝 `DropOldest` 策略，共享控制段版本升至 v10。
@@ -30,6 +31,7 @@ are released.
 
 ### Fixed
 
+- KeyedLatest 使用内核自动释放的跨进程文件锁和双缓冲提交字；进程在更新中被杀不会暴露半写入的值，也不会永久占住通道锁。直接指针 key/value 在编译期拒绝，避免把进程地址当作共享数据。
 - LatestFanout 单帧与等长批次严格受保留水位限制，单帧超限返回 `MessageTooLarge`，不再扩大窗口；空消息避免向空指针执行零长度拷贝，超出 32 位长度的输入不再截断。
 - 将拟淘汰位置 `retention_intent` 与实际保留头分离：lease 检查成功后才淘汰旧帧，受 pin 阻止的单条或批量写入不再额外丢消息或消耗序列号；消费者在公布 lease 后核对 intent 和保留头快照，无需共享自旋锁。
 - 淘汰前校验帧的已提交标志与长度边界，慢消费者跳读时同步本地和共享进度；修正 claim 注释，明确未提交空洞的可见性与不支持放弃 claim 的真实契约。
@@ -43,6 +45,7 @@ are released.
 
 ### Tests
 
+- 新增 KeyedLatest 测试，覆盖重复 key 合并、独立及复制订阅游标、hash 冲突、满容量、模板/类型不匹配、事件日志溢出、版本与事件序列耗尽、跨进程写入、多线程一致性、锁竞争和写进程 `SIGKILL`；增加 64B 发布/接收往返压力基准及 mcpp 模块/头文件 roundtrip。
 - 新增 TTL 回归，覆盖零/负/正时长、零拷贝 claim、均匀和变长部分批次、过期前缀释放同时保留后续借用帧、借用跨过期点仍受保护、LatestFanout retention/loss、Ordered 跨 producer 序列、物理回绕和跨进程单调时钟。Release 142/142、ASan/UBSan 141/141 通过；TSan API suite 1/1 通过，完整 TSan 另有 4 个小型契约程序因运行时 `unexpected memory mapping` 启动失败。mcpp module/header TTL IPC 测试通过。TTL expiration 短基准 3 次中位数 0.259 us/迭代；Google Benchmark 依赖是 DEBUG 构建，结果仅作冒烟参考。
 - 新增消息数窗口测试，覆盖 Ordered 多 producer 独立上限、字节/消息窗口独立生效、fanout 最慢消费者、部分批次、poll 后恢复、connect 后限制、LatestFanout 可靠读者背压、空消息/变长帧与物理回绕；新增停滞订阅者保留 64 条消息的压测校验。Release 134/134、ASan/UBSan 133/133、TSan API suite 和 mcpp module/header IPC 测试通过；短基准 3 次复跑通过，Google Benchmark 依赖为 DEBUG 构建，结果仅作冒烟参考。
 - 新增 20 个 LatestFanout 回归测试，覆盖最小/默认/全容量水位、空消息和精确帧边界、超限与部分批次、混合长度回绕、序列号低位回绕、未提交空洞、非法帧头/lease 边界、借用与批量回调生命期、独立 producer/consumer 和 `SIGKILL` 后的失效 lease 回收。

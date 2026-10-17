@@ -13,7 +13,8 @@ default = "llvm@22.1.8"
 path = "src/salias.cppm"
 
 [build]
-sources = ["src/salias.cppm", "src/salias/src/channel.cpp", "src/core/platform/mapping.cpp",
+sources = ["src/salias.cppm", "src/salias/src/channel.cpp", "src/salias/src/keyed_latest.cpp",
+           "src/core/platform/mapping.cpp",
            "src/core/flow/consumer.cpp", "src/core/flow/producer.cpp",
            "src/core/ring/magic_ring.cpp"]
 include_dirs = ["src", "src/salias/include"]

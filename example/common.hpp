@@ -89,6 +89,10 @@ inline const char* error_name(salias::Error error) noexcept {
       return "OutOfMemory";
     case salias::Error::NoSubscriberSlots:
       return "NoSubscriberSlots";
+    case salias::Error::CapacityExceeded:
+      return "CapacityExceeded";
+    case salias::Error::SequenceExhausted:
+      return "SequenceExhausted";
   }
   return "Unknown";
 }

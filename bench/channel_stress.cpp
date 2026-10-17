@@ -46,6 +46,12 @@ struct SmallPayload {
   std::array<std::byte, 56> padding{};  ///< 填充(padding)至 64 字节，模拟定长负载。
 };
 
+struct KeyedPayload {
+  std::uint64_t sequence = 0;
+  std::uint64_t inverse = 0;
+  std::array<std::byte, 48> padding{};
+};
+
 /**
  * @brief 按 benchmark 模式和容量构造公共通道配置。
  * @param mode 通道协议模式(FIFO/Ordered、MPSC/Fanout)。
@@ -667,6 +673,41 @@ void BM_latest_seek_64b(benchmark::State& state) {
   state.SetBytesProcessed(static_cast<std::int64_t>(published * sizeof(SmallPayload)));
 }
 
+void BM_keyed_latest_roundtrip_64b(benchmark::State& state) {
+  using Keyed = salias::KeyedLatestChannel<std::uint64_t, KeyedPayload, 1024>;
+  const auto name = "salias-bench-keyed-" + std::to_string(::getpid()) + "-" +
+                    std::to_string(state.thread_index());
+  auto created = Keyed::create(name);
+  if (!created) {
+    state.SkipWithError("failed to create keyed latest channel");
+    return;
+  }
+  auto publisher = created->publisher();
+  auto subscriber = created->subscriber();
+  KeyedPayload payload{};
+  constexpr std::uint64_t kKey = 17;
+
+  for (auto _ : state) {
+    payload.inverse = ~payload.sequence;
+    auto offered = publisher.offer(kKey, payload);
+    if (!offered) {
+      state.SkipWithError("keyed latest offer failed");
+      return;
+    }
+    auto received = subscriber.try_recv_checked();
+    if (!received || !*received || (**received).key != kKey ||
+        (**received).value.sequence != payload.sequence ||
+        (**received).value.inverse != ~payload.sequence) {
+      state.SkipWithError("keyed latest snapshot mismatch");
+      return;
+    }
+    benchmark::DoNotOptimize((**received).value.sequence);
+    ++payload.sequence;
+  }
+  state.SetItemsProcessed(state.iterations());
+  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
+}
+
 }  // namespace
 
 // 注册各 stress benchmark：SPSC 往返以微秒级单位度量，MPSC 多生产者吞吐以毫秒级度量。
@@ -702,6 +743,7 @@ BENCHMARK_TEMPLATE(BM_latest_concurrent_fanout_64b, 90)
     ->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_latest_checked_roundtrip_64b)->Unit(benchmark::kNanosecond);
 BENCHMARK(BM_latest_seek_64b)->Arg(4096)->Unit(benchmark::kMicrosecond);
+BENCHMARK(BM_keyed_latest_roundtrip_64b)->Unit(benchmark::kMicrosecond);
 
 // Google Benchmark 主入口：解析命令行参数并运行上述所有已注册 benchmark。
 BENCHMARK_MAIN();

@@ -2,6 +2,7 @@ import std;
 import salias;
 
 bool header_publish(const salias::Config& config);
+bool header_keyed_latest_publish(std::string_view name);
 
 namespace {
 void require(bool condition, std::source_location location = std::source_location::current()) {
@@ -154,9 +155,30 @@ int main() {
     require(checked_latest && *checked_latest && (**checked_latest).sequence == 300);
     latest_subscriber.release(**checked_latest);
 
+    using KeyedLatest = salias::KeyedLatestChannel<std::uint64_t, std::uint64_t, 4>;
+    const auto keyed_name =
+        "salias-mcpp-keyed-latest-" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    auto keyed = KeyedLatest::create(keyed_name);
+    require(keyed.has_value());
+    auto keyed_publisher = keyed->publisher();
+    require(keyed_publisher.offer(7, 10).has_value());
+    require(keyed_publisher.offer(7, 11).has_value());
+    auto keyed_subscriber = keyed->subscriber();
+    auto keyed_message = keyed_subscriber.try_recv_checked();
+    require(keyed_message && *keyed_message && (**keyed_message).key == 7 &&
+            (**keyed_message).value == 11 && (**keyed_message).version == 2);
+    require(!keyed_subscriber.try_recv());
+    require(header_keyed_latest_publish(keyed_name));
+    auto keyed_header_message = keyed_subscriber.try_recv_checked();
+    require(keyed_header_message && *keyed_header_message &&
+            (**keyed_header_message).value == 12 && (**keyed_header_message).version == 3);
+    auto keyed_connected = KeyedLatest::connect(keyed_name);
+    require(keyed_connected.has_value());
+
     std::cout
-        << "Module/header IPC, TTL, message windows, claim, batch, poll, checked lag and seek "
-           "passed for 5 modes\n";
+        << "Module/header IPC, keyed latest, TTL, message windows, claim, batch, poll, checked "
+           "lag and seek passed for 5 modes\n";
     return 0;
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';

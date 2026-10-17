@@ -1,5 +1,6 @@
 add_library(salias STATIC
   src/channel.cpp
+  src/keyed_latest.cpp
 )
 add_library(salias::salias ALIAS salias)
 

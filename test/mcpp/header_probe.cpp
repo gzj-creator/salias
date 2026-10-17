@@ -28,3 +28,14 @@ bool header_publish(const salias::Config& config) {
   }
   return false;
 }
+
+bool header_keyed_latest_publish(std::string_view name) {
+  using Keyed = salias::KeyedLatestChannel<std::uint64_t, std::uint64_t, 4>;
+  auto connected = Keyed::connect(name);
+  if (!connected) {
+    return false;
+  }
+  auto publisher = connected->publisher();
+  auto offered = publisher.offer(7, 12);
+  return offered && *offered;
+}
