@@ -4,7 +4,7 @@
  * @details 本文件位于 L7 salias 公共 API 之上，是一个独立的 benchmark 程序：
  *   通过 fork() 创建多个 producer（生产者）与 consumer（消费者）子进程，
  *   以 mmap 匿名共享内存作为跨进程的运行态/统计共享区，驱动 salias 具名
- *   channel（FifoMpsc / FifoFanout / OrderedMpsc / OrderedFanout）进行
+ *   channel（FifoMpsc / FifoMpmc / OrderedMpsc / OrderedMpmc）进行
  *   压测，并采集吞吐(msg/s)、带宽(MiB/s)与延迟分位(p50/p99/p999/max)。
  *   关键不变式：producer/consumer 子进程在就绪后必须等待父进程通过共享
  *   atomic 的 start 标志统一发令；背压(BackPressured)时 producer 自旋退避
@@ -277,9 +277,9 @@ salias::Config make_named_config(const Options& options) {
   config.num_consumers = options.consumers;
   config.publication_window = options.publication_window;
   if (options.scenario == "fifo") {
-    config.mode = options.consumers == 1 ? salias::Mode::FifoMpsc : salias::Mode::FifoFanout;
+    config.mode = options.consumers == 1 ? salias::Mode::FifoMpsc : salias::Mode::FifoMpmc;
   } else {
-    config.mode = options.consumers == 1 ? salias::Mode::OrderedMpsc : salias::Mode::OrderedFanout;
+    config.mode = options.consumers == 1 ? salias::Mode::OrderedMpsc : salias::Mode::OrderedMpmc;
   }
   return config;
 }
@@ -817,16 +817,16 @@ Result run_case_typed(const Options& options) {
  * @brief 根据场景与消费者数选择对应的模板实例运行基准。
  * @param options 全局配置。
  * @return 对应模式的基准 Result。
- * @details 映射规则：fifo 场景下单 consumer 用 FifoMpsc，多 consumer 用 FifoFanout；
- *   ordered 场景同理对应 OrderedMpsc / OrderedFanout。
+ * @details 映射规则：fifo 场景下单 consumer 用 FifoMpsc，多 consumer 用 FifoMpmc；
+ *   ordered 场景同理对应 OrderedMpsc / OrderedMpmc。
  */
 Result run_case(const Options& options) {
   if (options.scenario == "fifo") {
     return options.consumers == 1 ? run_case_typed<salias::Mode::FifoMpsc>(options)
-                                  : run_case_typed<salias::Mode::FifoFanout>(options);
+                                  : run_case_typed<salias::Mode::FifoMpmc>(options);
   }
   return options.consumers == 1 ? run_case_typed<salias::Mode::OrderedMpsc>(options)
-                                : run_case_typed<salias::Mode::OrderedFanout>(options);
+                                : run_case_typed<salias::Mode::OrderedMpmc>(options);
 }
 
 /**

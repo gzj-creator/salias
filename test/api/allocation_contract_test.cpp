@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <new>
 #include <salias/channel.hpp>
+#include <salias/latest_by_key_channel.hpp>
 #include <salias/latest_channel.hpp>
 #include <string>
 
@@ -12,6 +13,7 @@ namespace {
 
 std::atomic<bool> fail_next_allocation = false;
 std::atomic<std::int64_t> allocations_before_failure = -1;
+std::atomic<std::uint64_t> allocation_count = 0;
 
 class FailureInjection {
  public:
@@ -100,6 +102,7 @@ bool check_subscriber_allocations(const salias::Config& config) {
 }  // namespace
 
 void* operator new(std::size_t size) {
+  allocation_count.fetch_add(1, std::memory_order_relaxed);
   if (fail_next_allocation.exchange(false, std::memory_order_relaxed)) {
     throw std::bad_alloc();
   }
@@ -130,7 +133,7 @@ int main() {
 
   try {
     fail_next_allocation.store(true, std::memory_order_relaxed);
-    auto failed_latest = salias::LatestFanoutChannel<4096>::create(create_failure_config);
+    auto failed_latest = salias::LatestMpmcChannel<4096>::create(create_failure_config);
     fail_next_allocation.store(false, std::memory_order_relaxed);
     if (failed_latest || failed_latest.error() != salias::Error::OutOfMemory) {
       return 4;
@@ -151,7 +154,7 @@ int main() {
   }
 
   fail_next_allocation.store(true, std::memory_order_relaxed);
-  auto failed_latest_connect = salias::LatestFanoutChannel<4096>::connect(missing_channel_name);
+  auto failed_latest_connect = salias::LatestMpmcChannel<4096>::connect(missing_channel_name);
   fail_next_allocation.store(false, std::memory_order_relaxed);
   if (failed_latest_connect || failed_latest_connect.error() != salias::Error::OutOfMemory) {
     return 6;
@@ -161,26 +164,47 @@ int main() {
   create_failure_config.num_producers = 2;
   create_failure_config.name = "allocations-" + std::to_string(::getpid()) + std::string(64, 'c');
   if (!check_create_allocations<salias::FifoMpscChannel>(create_failure_config) ||
-      !check_create_allocations<salias::FifoFanoutChannel>(create_failure_config) ||
+      !check_create_allocations<salias::FifoMpmcChannel>(create_failure_config) ||
       !check_create_allocations<salias::OrderedMpscChannel>(create_failure_config) ||
-      !check_create_allocations<salias::OrderedFanoutChannel>(create_failure_config) ||
-      !check_create_allocations<salias::Channel<salias::Mode::LatestFanout>>(
-          create_failure_config) ||
-      !check_create_allocations<salias::LatestFanoutChannel<4096>>(create_failure_config)) {
+      !check_create_allocations<salias::OrderedMpmcChannel>(create_failure_config) ||
+      !check_create_allocations<salias::Channel<salias::Mode::LatestMpmc>>(create_failure_config) ||
+      !check_create_allocations<salias::LatestMpmcChannel<4096>>(create_failure_config)) {
     return 7;
   }
   if (!check_connect_allocations<salias::FifoMpscChannel>(create_failure_config) ||
-      !check_connect_allocations<salias::FifoFanoutChannel>(create_failure_config) ||
+      !check_connect_allocations<salias::FifoMpmcChannel>(create_failure_config) ||
       !check_connect_allocations<salias::OrderedMpscChannel>(create_failure_config) ||
-      !check_connect_allocations<salias::OrderedFanoutChannel>(create_failure_config) ||
-      !check_connect_allocations<salias::LatestFanoutChannel<4096>>(create_failure_config)) {
+      !check_connect_allocations<salias::OrderedMpmcChannel>(create_failure_config) ||
+      !check_connect_allocations<salias::LatestMpmcChannel<4096>>(create_failure_config)) {
     return 9;
   }
   if (!check_subscriber_allocations<salias::FifoMpscChannel>(create_failure_config) ||
-      !check_subscriber_allocations<salias::FifoFanoutChannel>(create_failure_config) ||
+      !check_subscriber_allocations<salias::FifoMpmcChannel>(create_failure_config) ||
       !check_subscriber_allocations<salias::OrderedMpscChannel>(create_failure_config) ||
-      !check_subscriber_allocations<salias::OrderedFanoutChannel>(create_failure_config) ||
-      !check_subscriber_allocations<salias::LatestFanoutChannel<4096>>(create_failure_config)) {
+      !check_subscriber_allocations<salias::OrderedMpmcChannel>(create_failure_config) ||
+      !check_subscriber_allocations<salias::LatestMpmcChannel<4096>>(create_failure_config)) {
     return 8;
+  }
+
+  using LatestByKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 1>;
+  const std::string latest_by_key_name = "allocations-latest-by-key-" + std::to_string(::getpid());
+  auto latest_by_key = LatestByKey::create(latest_by_key_name);
+  if (!latest_by_key) {
+    return 10;
+  }
+  auto publisher = latest_by_key->publisher();
+  auto subscriber = latest_by_key->subscriber();
+  allocation_count.store(0, std::memory_order_relaxed);
+  for (std::uint64_t sequence = 0; sequence < 1000; ++sequence) {
+    if (!publisher.offer(1, sequence)) {
+      return 11;
+    }
+    auto received = subscriber.try_recv_checked();
+    if (!received || !*received || (**received).value != sequence) {
+      return 12;
+    }
+  }
+  if (allocation_count.load(std::memory_order_relaxed) != 0) {
+    return 13;
   }
 }

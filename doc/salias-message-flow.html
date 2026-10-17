@@ -189,9 +189,9 @@
     <section class="toolbar" aria-label="动画控制器">
       <div class="modes" role="group" aria-label="通道模式">
         <button class="mode" data-mode="FifoMpsc" aria-pressed="true">FifoMpsc</button>
-        <button class="mode" data-mode="FifoFanout" aria-pressed="false">FifoFanout</button>
+        <button class="mode" data-mode="FifoMpmc" aria-pressed="false">FifoMpmc</button>
         <button class="mode" data-mode="OrderedMpsc" aria-pressed="false">OrderedMpsc</button>
-        <button class="mode" data-mode="OrderedFanout" aria-pressed="false">OrderedFanout</button>
+        <button class="mode" data-mode="OrderedMpmc" aria-pressed="false">OrderedMpmc</button>
       </div>
       <div class="controls">
         <button id="play" class="control-primary">▶ 播放</button>
@@ -320,8 +320,8 @@
           badges: ['per-producer FIFO', 'single consumer', '无共享 RMW'],
           summary: '每个 Producer 在自己的 MagicRing 内维持 FIFO；单个 Consumer 轮询所有 ring，跨 Producer 的交付次序取决于轮询时机。'
         },
-        FifoFanout: {
-          title: 'FifoFanout · 多生产者 / 多消费者扇出', ordered: false, fanout: true,
+        FifoMpmc: {
+          title: 'FifoMpmc · 多生产者 / 多消费者扇出', ordered: false, fanout: true,
           badges: ['per-producer FIFO', 'fanout cursors', '最慢订阅者施加背压'],
           summary: '所有 Subscriber 都接收每条 ring 的消息，并维护独立的 per-producer 游标；慢订阅者不会改变快订阅者的读取进度，但会影响槽位回收。'
         },
@@ -330,8 +330,8 @@
           badges: ['global total order', 'single consumer', 'global_sequence RMW'],
           summary: 'Producer 获取全局 sequence 后发布；Consumer 比较各 ring 头部序号并按 next sequence 归并，缺失序号时暂缓交付。'
         },
-        OrderedFanout: {
-          title: 'OrderedFanout · 全局有序 / 多消费者扇出', ordered: true, fanout: true,
+        OrderedMpmc: {
+          title: 'OrderedMpmc · 全局有序 / 多消费者扇出', ordered: true, fanout: true,
           badges: ['global total order', 'fanout cursors', '每个订阅者独立归并'],
           summary: '每个 Subscriber 都使用自己的游标按全局 sequence 归并多条 ring，因此看到相同的有序消息流，同时保留独立消费进度。'
         }

@@ -1,6 +1,6 @@
 /**
- * @file src/salias/include/salias/keyed_latest_channel.hpp
- * @brief Fixed-capacity, cross-process latest-value conflation keyed by exact object bytes.
+ * @file src/salias/include/salias/latest_by_key_channel.hpp
+ * @brief Fixed-capacity, cross-process latest-value conflation with exact object-byte keys.
  */
 #pragma once
 
@@ -20,25 +20,27 @@
 #include <type_traits>
 #include <vector>
 
-#include "salias/detail/keyed_latest_storage.hpp"
+#include "salias/detail/latest_by_key_storage.hpp"
 
 namespace salias {
 
 /// @brief Owned snapshot of one key's current value and per-key update version.
 template <class Key, class Value>
-struct KeyedLatestMessage {
+struct LatestByKeyMessage {
   Key key;
   Value value;
   std::uint64_t version = 0;
 };
 
-namespace keyed_latest_detail {
+namespace latest_by_key_detail {
 
 inline constexpr std::uint64_t kOccupied = 1;
 inline constexpr std::uint64_t kActiveBuffer = 2;
 inline constexpr unsigned kVersionShift = 2;
 inline constexpr std::uint64_t kMaxVersion =
     std::numeric_limits<std::uint64_t>::max() >> kVersionShift;
+inline constexpr std::uint64_t kFnvOffsetBasis = 14695981039346656037ULL;
+inline constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
 
 constexpr std::uint64_t version_of(std::uint64_t commit) noexcept {
   return commit >> kVersionShift;
@@ -52,7 +54,7 @@ constexpr std::uint64_t make_commit(std::uint64_t version, std::uint32_t active)
   return (version << kVersionShift) | (static_cast<std::uint64_t>(active) << 1) | kOccupied;
 }
 
-inline Error append_event(detail::KeyedLatestTableView table, std::size_t slot_index) noexcept {
+inline Error append_event(detail::LatestByKeyTableView table, std::size_t slot_index) noexcept {
   const std::uint64_t current =
       std::atomic_ref<std::uint64_t>(*table.event_sequence).load(std::memory_order_relaxed);
   if (current == std::numeric_limits<std::uint64_t>::max()) {
@@ -67,12 +69,10 @@ inline Error append_event(detail::KeyedLatestTableView table, std::size_t slot_i
 }
 
 inline std::uint64_t hash_key(std::span<const std::byte> bytes) noexcept {
-  constexpr std::uint64_t offset = 14695981039346656037ull;
-  constexpr std::uint64_t prime = 1099511628211ull;
-  std::uint64_t hash = offset;
+  std::uint64_t hash = kFnvOffsetBasis;
   for (const std::byte byte : bytes) {
     hash ^= std::to_integer<std::uint8_t>(byte);
-    hash *= prime;
+    hash *= kFnvPrime;
   }
   return hash;
 }
@@ -84,12 +84,26 @@ consteval std::uint64_t type_schema() {
 #else
   constexpr std::string_view signature = __FUNCSIG__;
 #endif
-  constexpr std::uint64_t offset = 14695981039346656037ull;
-  constexpr std::uint64_t prime = 1099511628211ull;
-  std::uint64_t hash = offset;
+  std::uint64_t hash = kFnvOffsetBasis;
   for (const char byte : signature) {
     hash ^= static_cast<unsigned char>(byte);
-    hash *= prime;
+    hash *= kFnvPrime;
+  }
+  return hash;
+}
+
+template <class T, std::uint64_t SchemaVersion>
+consteval std::uint64_t versioned_type_schema() {
+  if constexpr (SchemaVersion == 0) {
+    return type_schema<T>();
+  }
+
+  std::uint64_t hash = type_schema<T>();
+  constexpr unsigned schema_bits = std::numeric_limits<std::uint64_t>::digits;
+  constexpr unsigned byte_bits = std::numeric_limits<std::uint8_t>::digits;
+  for (unsigned shift = 0; shift < schema_bits; shift += byte_bits) {
+    hash ^= static_cast<std::uint8_t>(SchemaVersion >> shift);
+    hash *= kFnvPrime;
   }
   return hash;
 }
@@ -110,7 +124,7 @@ struct OfferContext {
 };
 
 template <class Key, class Value>
-Error offer(detail::KeyedLatestTableView table, void* opaque) noexcept {
+Error offer(detail::LatestByKeyTableView table, void* opaque) noexcept {
   const auto& context = *static_cast<OfferContext<Key, Value>*>(opaque);
   const std::size_t start = context.hash % table.slot_count;
   for (std::size_t probe = 0; probe < table.slot_count; ++probe) {
@@ -145,7 +159,7 @@ Error offer(detail::KeyedLatestTableView table, void* opaque) noexcept {
     if (event_result != Error::Ok) {
       return event_result;
     }
-    const std::uint32_t inactive = active_buffer_of(commit) ^ 1u;
+    const std::uint32_t inactive = active_buffer_of(commit) ^ 1U;
     std::memcpy(slot.values[inactive], context.value, sizeof(Value));
     std::atomic_ref<std::uint64_t>(*slot.commit)
         .store(make_commit(version + 1, inactive), std::memory_order_release);
@@ -156,13 +170,13 @@ Error offer(detail::KeyedLatestTableView table, void* opaque) noexcept {
 
 template <class Key, class Value>
 struct Cursor {
-  explicit Cursor(std::shared_ptr<detail::KeyedLatestStorage> storage_value, std::size_t capacity)
+  explicit Cursor(std::shared_ptr<detail::LatestByKeyStorage> storage_value, std::size_t capacity)
       : storage(std::move(storage_value)),
         seen(capacity, 0),
         initial_version(capacity, 0),
         initial_pending(capacity, false) {}
 
-  std::shared_ptr<detail::KeyedLatestStorage> storage;
+  std::shared_ptr<detail::LatestByKeyStorage> storage;
   std::vector<std::uint64_t> seen;
   std::vector<std::uint64_t> initial_version;
   std::vector<bool> initial_pending;
@@ -178,7 +192,7 @@ struct InitializeCursorContext {
 };
 
 template <class Key, class Value>
-Error initialize_cursor(detail::KeyedLatestTableView table, void* opaque) noexcept {
+Error initialize_cursor(detail::LatestByKeyTableView table, void* opaque) noexcept {
   auto& cursor = *static_cast<InitializeCursorContext<Key, Value>*>(opaque)->cursor;
   cursor.event_sequence =
       std::atomic_ref<std::uint64_t>(*table.event_sequence).load(std::memory_order_acquire);
@@ -208,7 +222,7 @@ struct ReceiveContext {
 };
 
 template <class Key, class Value>
-Error receive(detail::KeyedLatestTableView table, void* opaque) noexcept {
+Error receive(detail::LatestByKeyTableView table, void* opaque) noexcept {
   auto& context = *static_cast<ReceiveContext<Key, Value>*>(opaque);
   auto& cursor = *context.cursor;
 
@@ -300,13 +314,13 @@ Error receive(detail::KeyedLatestTableView table, void* opaque) noexcept {
   }
 }
 
-}  // namespace keyed_latest_detail
+}  // namespace latest_by_key_detail
 
-/// @brief Publisher endpoint for a KeyedLatestChannel.
+/// @brief Publisher endpoint for a LatestByKeyChannel.
 template <class Key, class Value>
-class KeyedLatestPublisher {
+class LatestByKeyPublisher {
  public:
-  KeyedLatestPublisher() noexcept = default;
+  LatestByKeyPublisher() noexcept = default;
 
   /**
    * @brief Insert a new key or replace the latest value for an existing key.
@@ -320,15 +334,15 @@ class KeyedLatestPublisher {
     if (!storage_) {
       return std::unexpected(Error::BadConfig);
     }
-    const auto key_bytes = keyed_latest_detail::to_bytes(key);
-    const auto value_bytes = keyed_latest_detail::to_bytes(value);
-    keyed_latest_detail::OfferContext<Key, Value> context{
+    const auto key_bytes = latest_by_key_detail::to_bytes(key);
+    const auto value_bytes = latest_by_key_detail::to_bytes(value);
+    latest_by_key_detail::OfferContext<Key, Value> context{
         .key = key_bytes.data(),
         .value = value_bytes.data(),
-        .hash = keyed_latest_detail::hash_key(key_bytes),
+        .hash = latest_by_key_detail::hash_key(key_bytes),
     };
-    const Error result = detail::with_keyed_latest_table(
-        storage_, &keyed_latest_detail::offer<Key, Value>, &context);
+    const Error result = detail::with_latest_by_key_table(
+        storage_, &latest_by_key_detail::offer<Key, Value>, &context);
     if (result != Error::Ok) {
       return std::unexpected(result);
     }
@@ -338,22 +352,22 @@ class KeyedLatestPublisher {
   explicit operator bool() const noexcept { return static_cast<bool>(storage_); }
 
  private:
-  explicit KeyedLatestPublisher(std::shared_ptr<detail::KeyedLatestStorage> storage) noexcept
+  explicit LatestByKeyPublisher(std::shared_ptr<detail::LatestByKeyStorage> storage) noexcept
       : storage_(std::move(storage)) {}
 
-  std::shared_ptr<detail::KeyedLatestStorage> storage_;
+  std::shared_ptr<detail::LatestByKeyStorage> storage_;
 
-  template <class, class, std::size_t>
-  friend class KeyedLatestChannel;
+  template <class, class, std::size_t, std::uint64_t>
+  friend class LatestByKeyChannel;
 };
 
-/// @brief Independent cursor over the latest snapshots retained by a keyed channel.
+/// @brief Independent cursor over the latest snapshots retained by a latest-by-key channel.
 template <class Key, class Value, std::size_t Capacity>
-class KeyedLatestSubscriber {
+class LatestByKeySubscriber {
  public:
-  using message_type = KeyedLatestMessage<Key, Value>;
+  using message_type = LatestByKeyMessage<Key, Value>;
 
-  KeyedLatestSubscriber() noexcept = default;
+  LatestByKeySubscriber() noexcept = default;
 
   /**
    * @brief Read one changed key as an owned copy without blocking.
@@ -363,39 +377,51 @@ class KeyedLatestSubscriber {
    * @note Each key is returned at most once per observed version; intermediate updates are
    *       conflated. The scan starts after the previously returned slot and has no cross-key order.
    */
-  Result<std::optional<KeyedLatestMessage<Key, Value>>> try_recv_checked() noexcept {
+  Result<std::optional<LatestByKeyMessage<Key, Value>>> try_recv_checked() noexcept {
     if (!cursor_) {
       return std::unexpected(Error::BadConfig);
     }
-    keyed_latest_detail::ObjectBytes<Key> key_bytes{};
-    keyed_latest_detail::ObjectBytes<Value> value_bytes{};
+    latest_by_key_detail::ObjectBytes<Key> key_bytes{};
+    latest_by_key_detail::ObjectBytes<Value> value_bytes{};
     std::uint64_t version = 0;
-    keyed_latest_detail::ReceiveContext<Key, Value> context{
+    latest_by_key_detail::ReceiveContext<Key, Value> context{
         .cursor = cursor_.get(), .key = &key_bytes, .value = &value_bytes, .version = &version};
-    const Error result = detail::with_keyed_latest_table(
-        cursor_->storage, &keyed_latest_detail::receive<Key, Value>, &context);
+    const Error result = detail::with_latest_by_key_table(
+        cursor_->storage, &latest_by_key_detail::receive<Key, Value>, &context);
     if (result != Error::Ok) {
       return std::unexpected(result);
     }
     if (!context.found) {
-      return std::optional<KeyedLatestMessage<Key, Value>>{};
+      return std::optional<LatestByKeyMessage<Key, Value>>{};
     }
-    return std::optional<KeyedLatestMessage<Key, Value>>{
-        std::in_place, KeyedLatestMessage<Key, Value>{std::bit_cast<Key>(key_bytes),
+    return std::optional<LatestByKeyMessage<Key, Value>>{
+        std::in_place, LatestByKeyMessage<Key, Value>{std::bit_cast<Key>(key_bytes),
                                                       std::bit_cast<Value>(value_bytes), version}};
   }
 
-  /** @brief Convenience receive; lock contention is reported as temporarily empty. */
-  std::optional<KeyedLatestMessage<Key, Value>> try_recv() noexcept {
+  /** @brief Convenience receive; checked errors are folded into an empty result. */
+  std::optional<LatestByKeyMessage<Key, Value>> try_recv() noexcept {
     auto received = try_recv_checked();
     return received ? std::move(*received) : std::nullopt;
   }
 
-  /** @brief Spin/yield until one changed key is available. */
-  KeyedLatestMessage<Key, Value> recv() noexcept {
+  /**
+   * @brief Wait until one changed key is available or an unrecoverable receive error occurs.
+   * @return The next owned snapshot.
+   * @retval Error::BadConfig This is a default or moved-from endpoint.
+   * @retval Error::PlatformFail A shared-memory operation failed.
+   * @retval Error::VersionMismatch The shared table state is inconsistent.
+   * @note Lock contention is retried internally; use try_recv_checked() for nonblocking access.
+   */
+  Result<LatestByKeyMessage<Key, Value>> recv() noexcept {
     for (;;) {
-      if (auto message = try_recv()) {
-        return std::move(*message);
+      auto received = try_recv_checked();
+      if (!received) {
+        if (received.error() != Error::BackPressured) {
+          return std::unexpected(received.error());
+        }
+      } else if (*received) {
+        return std::move(**received);
       }
       std::this_thread::yield();
     }
@@ -407,14 +433,14 @@ class KeyedLatestSubscriber {
   explicit operator bool() const noexcept { return static_cast<bool>(cursor_); }
 
  private:
-  explicit KeyedLatestSubscriber(
-      std::shared_ptr<keyed_latest_detail::Cursor<Key, Value>> cursor) noexcept
+  explicit LatestByKeySubscriber(
+      std::shared_ptr<latest_by_key_detail::Cursor<Key, Value>> cursor) noexcept
       : cursor_(std::move(cursor)) {}
 
-  std::shared_ptr<keyed_latest_detail::Cursor<Key, Value>> cursor_;
+  std::shared_ptr<latest_by_key_detail::Cursor<Key, Value>> cursor_;
 
-  template <class, class, std::size_t>
-  friend class KeyedLatestChannel;
+  template <class, class, std::size_t, std::uint64_t>
+  friend class LatestByKeyChannel;
 };
 
 /**
@@ -424,6 +450,8 @@ class KeyedLatestSubscriber {
  * @tparam Value Trivially copyable, self-contained value. It and its members must not contain
  *         process-local pointers.
  * @tparam Capacity Maximum number of distinct keys retained by the channel.
+ * @tparam SchemaVersion Application-managed key/value schema version; zero preserves automatic
+ *         type-signature checking only.
  *
  * Each key owns one fixed slot. Repeated updates replace that key's current value and are
  * independently conflated for each subscriber. New subscribers receive one current snapshot per
@@ -432,10 +460,11 @@ class KeyedLatestSubscriber {
  * no total ordering guarantee. A subscriber returns copied values, not borrowed shared-memory
  * views. When all slots contain distinct keys, a new key returns CapacityExceeded; updating an
  * existing key still succeeds. The shared table is protected by a crash-released OS file lock;
- * lock contention is reported as BackPressured.
+ * lock contention is reported as BackPressured. After fork, inherited endpoints may be used in
+ * the child only when all threads using this channel were quiescent at fork time.
  */
-template <class Key, class Value, std::size_t Capacity>
-class KeyedLatestChannel {
+template <class Key, class Value, std::size_t Capacity, std::uint64_t SchemaVersion = 0>
+class LatestByKeyChannel {
   static_assert(std::is_trivially_copyable_v<Key>, "Key must be trivially copyable");
   static_assert(!std::is_pointer_v<Key> && !std::is_member_pointer_v<Key>,
                 "Key cannot be a process-local pointer");
@@ -444,42 +473,44 @@ class KeyedLatestChannel {
   static_assert(std::is_trivially_copyable_v<Value>, "Value must be trivially copyable");
   static_assert(!std::is_pointer_v<Value> && !std::is_member_pointer_v<Value>,
                 "Value cannot be a process-local pointer");
-  static_assert(Capacity > 0, "KeyedLatestChannel capacity must be greater than zero");
+  static_assert(Capacity > 0, "LatestByKeyChannel capacity must be greater than zero");
   static_assert(Capacity <= std::numeric_limits<std::uint32_t>::max(),
-                "KeyedLatestChannel capacity exceeds the supported slot count");
+                "LatestByKeyChannel capacity exceeds the supported slot count");
 
  public:
-  using CreateResult = Result<KeyedLatestChannel>;
-  using Publisher = KeyedLatestPublisher<Key, Value>;
-  using Subscriber = KeyedLatestSubscriber<Key, Value, Capacity>;
-  using Message = KeyedLatestMessage<Key, Value>;
+  using CreateResult = Result<LatestByKeyChannel>;
+  using Publisher = LatestByKeyPublisher<Key, Value>;
+  using Subscriber = LatestByKeySubscriber<Key, Value, Capacity>;
+  using Message = LatestByKeyMessage<Key, Value>;
 
-  /** @brief Create and own a new named shared-memory keyed table. */
+  /** @brief Create and own a new named shared-memory latest-by-key table. */
   static CreateResult create(std::string_view name) {
-    auto storage = detail::create_keyed_latest_storage(name, Capacity, sizeof(Key), sizeof(Value),
-                                                       keyed_latest_detail::type_schema<Key>(),
-                                                       keyed_latest_detail::type_schema<Value>());
+    auto storage = detail::create_latest_by_key_storage(
+        name, Capacity, sizeof(Key), sizeof(Value),
+        latest_by_key_detail::versioned_type_schema<Key, SchemaVersion>(),
+        latest_by_key_detail::versioned_type_schema<Value, SchemaVersion>());
     if (!storage) {
       return std::unexpected(storage.error());
     }
-    return KeyedLatestChannel(std::move(*storage));
+    return LatestByKeyChannel(std::move(*storage));
   }
 
-  /** @brief Connect to a table and verify capacity and key/value type schemas. */
+  /** @brief Connect to a table and verify capacity, key/value type schemas, and schema version. */
   static CreateResult connect(std::string_view name) {
-    auto storage = detail::connect_keyed_latest_storage(name, Capacity, sizeof(Key), sizeof(Value),
-                                                        keyed_latest_detail::type_schema<Key>(),
-                                                        keyed_latest_detail::type_schema<Value>());
+    auto storage = detail::connect_latest_by_key_storage(
+        name, Capacity, sizeof(Key), sizeof(Value),
+        latest_by_key_detail::versioned_type_schema<Key, SchemaVersion>(),
+        latest_by_key_detail::versioned_type_schema<Value, SchemaVersion>());
     if (!storage) {
       return std::unexpected(storage.error());
     }
-    return KeyedLatestChannel(std::move(*storage));
+    return LatestByKeyChannel(std::move(*storage));
   }
 
-  KeyedLatestChannel(KeyedLatestChannel&&) noexcept = default;
-  KeyedLatestChannel& operator=(KeyedLatestChannel&&) noexcept = default;
-  KeyedLatestChannel(const KeyedLatestChannel&) = default;
-  KeyedLatestChannel& operator=(const KeyedLatestChannel&) = default;
+  LatestByKeyChannel(LatestByKeyChannel&&) noexcept = default;
+  LatestByKeyChannel& operator=(LatestByKeyChannel&&) noexcept = default;
+  LatestByKeyChannel(const LatestByKeyChannel&) = default;
+  LatestByKeyChannel& operator=(const LatestByKeyChannel&) = default;
 
   /** @brief Create a publisher endpoint sharing this table. */
   Publisher publisher() const noexcept { return Publisher(storage_); }
@@ -511,15 +542,15 @@ class KeyedLatestChannel {
   static constexpr std::size_t capacity() noexcept { return Capacity; }
 
  private:
-  explicit KeyedLatestChannel(std::shared_ptr<detail::KeyedLatestStorage> storage) noexcept
+  explicit LatestByKeyChannel(std::shared_ptr<detail::LatestByKeyStorage> storage) noexcept
       : storage_(std::move(storage)) {}
 
   Result<Subscriber> try_subscriber_impl(bool wait_for_lock) const {
     try {
-      auto cursor = std::make_shared<keyed_latest_detail::Cursor<Key, Value>>(storage_, Capacity);
-      keyed_latest_detail::InitializeCursorContext<Key, Value> context{.cursor = cursor.get()};
-      const Error result = detail::with_keyed_latest_table(
-          storage_, &keyed_latest_detail::initialize_cursor<Key, Value>, &context, wait_for_lock);
+      auto cursor = std::make_shared<latest_by_key_detail::Cursor<Key, Value>>(storage_, Capacity);
+      latest_by_key_detail::InitializeCursorContext<Key, Value> context{.cursor = cursor.get()};
+      const Error result = detail::with_latest_by_key_table(
+          storage_, &latest_by_key_detail::initialize_cursor<Key, Value>, &context, wait_for_lock);
       if (result != Error::Ok) {
         return std::unexpected(result);
       }
@@ -529,7 +560,7 @@ class KeyedLatestChannel {
     }
   }
 
-  std::shared_ptr<detail::KeyedLatestStorage> storage_;
+  std::shared_ptr<detail::LatestByKeyStorage> storage_;
 };
 
 }  // namespace salias

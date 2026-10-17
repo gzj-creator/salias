@@ -114,7 +114,7 @@ void ipc_roundtrip() {
     salias::Config config;
     config.name = name;
     config.capacity = 4096;
-    constexpr bool fanout = M == salias::Mode::FifoFanout || M == salias::Mode::OrderedFanout;
+    constexpr bool fanout = M == salias::Mode::FifoMpmc || M == salias::Mode::OrderedMpmc;
     config.num_consumers = fanout ? 2 : 1;
     auto owner = salias::Channel<M>::create(config);
     require(owner.has_value());
@@ -164,9 +164,9 @@ int main() {
     local_roundtrip<salias::channel::Order::Fifo>();
     local_roundtrip<salias::channel::Order::Ordered>();
     ipc_roundtrip<salias::Mode::FifoMpsc>();
-    ipc_roundtrip<salias::Mode::FifoFanout>();
+    ipc_roundtrip<salias::Mode::FifoMpmc>();
     ipc_roundtrip<salias::Mode::OrderedMpsc>();
-    ipc_roundtrip<salias::Mode::OrderedFanout>();
+    ipc_roundtrip<salias::Mode::OrderedMpmc>();
     std::cout << "Batch lengths, bytes, wraparound, IPC fanout and cleanup passed\n";
     return 0;
   } catch (const std::exception& error) {

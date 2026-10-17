@@ -192,23 +192,23 @@ else()
   gtest_discover_tests(salias_api_tests)
 endif()
 
-add_executable(salias_keyed_latest_tests
-  api/keyed_latest_test.cpp
+add_executable(salias_latest_by_key_tests
+  api/latest_by_key_test.cpp
 )
-target_link_libraries(salias_keyed_latest_tests PRIVATE salias GTest::gtest_main)
+target_link_libraries(salias_latest_by_key_tests PRIVATE salias GTest::gtest_main)
 
-salias_enable_warnings(salias_keyed_latest_tests)
-salias_enable_sanitizers(salias_keyed_latest_tests)
+salias_enable_warnings(salias_latest_by_key_tests)
+salias_enable_sanitizers(salias_latest_by_key_tests)
 
 if(SALIAS_ENABLE_TSAN)
   add_test(
-    NAME salias_keyed_latest_tests
+    NAME salias_latest_by_key_tests
     COMMAND
       "${SALIAS_SETARCH_EXECUTABLE}" "${CMAKE_SYSTEM_PROCESSOR}" "-R"
-      "$<TARGET_FILE:salias_keyed_latest_tests>"
+      "$<TARGET_FILE:salias_latest_by_key_tests>"
   )
 else()
-  gtest_discover_tests(salias_keyed_latest_tests)
+  gtest_discover_tests(salias_latest_by_key_tests)
 endif()
 
 add_executable(salias_priority_tests

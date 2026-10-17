@@ -2,36 +2,48 @@
 
 `salias` 是支持 Linux 与 macOS 的 C++23 低延迟具名 IPC 消息通道。当前实现收敛为一个
 per-producer magic-ring 引擎，并通过排序模式与消费者拓扑提供四种基础通道，以及
-面向低延迟 fanout 的 `LatestFanout` 保留窗口策略：
+面向低延迟 fanout 的 `LatestMpmc` 保留窗口策略：
 
 | Mode | 排序语义 | 消费者拓扑 |
 |---|---|---|
 | `FifoMpsc` | 每生产者 FIFO，不保证跨生产者顺序 | 单消费者 |
-| `FifoFanout` | 每生产者 FIFO，不保证跨生产者顺序 | 多消费者 fanout |
+| `FifoMpmc` | 每生产者 FIFO，不保证跨生产者顺序 | 多消费者 fanout |
 | `OrderedMpsc` | 跨生产者全局全序 | 单消费者 |
-| `OrderedFanout` | 跨生产者全局全序 | 多消费者 fanout |
-| `LatestFanout` | 每个生产者内 FIFO；慢消费者跳过保留窗口外的旧消息 | 多消费者 fanout |
+| `OrderedMpmc` | 跨生产者全局全序 | 多消费者 fanout |
+| `LatestMpmc` | 每个生产者内 FIFO；慢消费者跳过保留窗口外的旧消息 | 多消费者 fanout |
+
+`FifoMpmc` 和 `OrderedMpmc` 会将每条消息广播给每个订阅者，不是竞争式消费队列。
 
 FIFO 模式的生产者热路径不执行共享 RMW；ordered 模式通过单个全局 sequence
 `fetch_add` 建立跨生产者全序。每个生产者拥有独立 ring，每个 fanout 消费者拥有独立的
 per-producer 游标。
 
-`LatestFanoutChannel<Capacity, HighWatermarkPercent>` 将每个 producer ring 的字节容量和
+`LatestMpmcChannel<Capacity, HighWatermarkPercent>` 将每个 producer ring 的字节容量和
 保留水位固定为模板参数，水位默认是容量的 90%。达到水位后淘汰最旧消息；每个订阅者独立
 追赶保留窗口。`connect()` 会校验共享通道与模板参数一致。尚未 `release()` 的借用消息会
 pin 住对应 payload；若写入会覆盖仍借用的字节，发布暂时返回 `BackPressured`，释放后即可继续。
 若订阅进程在持有借用时退出，生产者会在需要复用该槽位时校验进程身份并清除失效 lease。
-LatestFanout 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者选择
+LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者选择
 `SubscriptionPolicy::Reliable`，让其未读游标参与保留边界并在慢读时对生产者施加背压。
 其他模式仅支持 Reliable 策略。
 
-`KeyedLatestChannel<Key, Value, Capacity>` 是独立的有界 latest-value IPC 表，按 key 保存最新
-值，重复 key 更新覆盖同一槽位；订阅者各自接收当前快照，未读期间的中间更新会合并，返回的是
-本地拷贝而非共享内存借用。`Capacity` 表示最大不同 key 数，满表时新 key 返回
+`LatestByKeyChannel<Key, Value, Capacity, SchemaVersion>` 是独立的有界 latest-value IPC 表，按 key
+保存最新值，重复 key 更新覆盖同一槽位；订阅者各自接收当前快照，未读期间的中间更新会合并，返回的是
+本地拷贝而非共享内存借用。`Capacity` 表示最大不同 key 数，`SchemaVersion` 默认为 0；该默认值
+仅使用编译器类型签名，不能可靠发现同名同尺寸类型的布局或语义变化。应用应在 key/value 布局或
+语义变化时显式递增版本，使不兼容的进程连接被拒绝。满表时新 key 返回
 `Error::CapacityExceeded`，已存在 key 仍可更新。Key 必须可平凡拷贝、具有唯一对象表示且不是指针；Value
 必须可平凡拷贝且自身及其成员都不能包含进程内指针。不同 key 之间不承诺全局顺序，锁竞争通过
 `try_recv_checked()` / `Publisher::offer()` 的 `Error::BackPressured` 报告；简化的
-`try_recv()` 将锁竞争视为暂时无数据，`conflated_updates()` 统计端点尚未读取前被合并掉的更新数。
+`try_recv()` 将错误折叠为空结果，`recv()` 返回 `Result<LatestByKeyMessage<...>>` 并只重试临时背压；
+`conflated_updates()` 统计端点尚未读取前被合并掉的更新数。fork 前必须暂停所有使用该 channel 的
+线程和操作；静置 fork 后子进程可使用继承端点，fork 时有线程持有内部锁不受支持。
+
+独立头文件为 `<salias/latest_by_key_channel.hpp>`，对应端点和消息类型为
+`LatestByKeyPublisher`、`LatestByKeySubscriber` 和 `LatestByKeyMessage`。
+
+Pub/Sub 端点不提供内建 CPU 绑核接口，应用可在调用端点的线程上使用操作系统 affinity API。
+当前内存映射实现不支持 NUMA 放置，指定 NUMA 节点会返回 `NumaUnavailable`。
 
 `PriorityPublisher<Mode...>` 和 `PrioritySubscriber<Mode...>` 把多条独立 IPC 通道组合成按优先级
 路由与读取的端点组，模板参数从高到低排列。发布操作只触及指定通道，因此某一路背压不会
@@ -80,7 +92,7 @@ target_link_libraries(my_app PRIVATE salias::salias)
 编译公共库和必要的 core 实现，`src/salias.cppm` 提供 `import salias;`；默认构建不需要
 GTest、Google Benchmark 或 Aeron。模块导出公共配置、枚举、错误和结果类型、Message、
 Channel/Publisher/Subscriber/PublishClaim 模板、五种模式的端点别名、静态配置的
-`LatestFanoutChannel` 和 `KeyedLatestChannel` 及其消息/发布/订阅端点，以及订阅交付策略
+`LatestMpmcChannel` 和 `LatestByKeyChannel` 及其消息/发布/订阅端点，以及订阅交付策略
 `SubscriptionPolicy`。应用专用别名由消费者维护。
 
 安装 mcpp 和 LLVM 工具链后，在仓库中构建和验证：
@@ -100,11 +112,11 @@ TTL 发送/过期跳过、模板 poll 和共享内存清理。`check_mcpp.py` �
 
 等长 `offer_batch` 保留每条消息的原始 payload 长度，接收视图不包含 ring 对齐填充。
 批量长度契约测试覆盖空消息、非对齐长度、回绕以及四种基础模式的跨进程收发和清理；
-`LatestFanout` 另覆盖跨进程慢消费者跳过旧消息、借用消息 pin 以及异常退出 lease 回收。
+`LatestMpmc` 另覆盖跨进程慢消费者跳过旧消息、借用消息 pin 以及异常退出 lease 回收。
 专项回归还覆盖 1%/50%/90%/100% 水位、完整帧边界、空消息、超限消息、部分批次、混合长度回绕、
 序列号低位回绕、三生产者与单条/批量订阅者并发、批内 payload 保留及 `SIGKILL` 后的 lease 回收。
 消息数窗口回归覆盖可靠模式的单条/批量背压、批量 poll 后恢复、fanout 慢订阅者边界、
-LatestFanout 的部分批次、可靠订阅者保护，以及变长空消息和物理回绕后的保留后缀。
+LatestMpmc 的部分批次、可靠订阅者保护，以及变长空消息和物理回绕后的保留后缀。
 共享通道协议当前为 v12；旧布局通道需重建，发布端和订阅端需一起升级。
 
 `Publisher::offer_for`、`try_claim_for` 与 `offer_batch_for` 可为消息附加 TTL，截止时间在 API
@@ -115,13 +127,13 @@ LatestFanout 的部分批次、可靠订阅者保护，以及变长空消息和�
 poll/recv 跳过过期前缀时立即推进游标，但只推进到下一条存活借用帧的起点；过期清理由接收端惰性
 触发，接收端停止轮询时没有后台线程替它回收队列容量。
 
-LatestFanout 可使用 `Subscriber::try_recv_checked()` 显式识别丢旧：首次观察到保留窗口已经
+LatestMpmc 可使用 `Subscriber::try_recv_checked()` 显式识别丢旧：首次观察到保留窗口已经
 越过本地游标时返回 `Error::Lagged`，随后重试从保留窗口读取。`lagged_messages()` 和
 `skipped_messages()` 分别统计被淘汰和主动跳过的消息；`skip_to_latest(producer_id)` 跳过
 指定 producer ring 的当前保留帧到最新已提交帧，但保留最新帧未读。Reliable 订阅者不会产生
 `Lagged`，也不支持丢旧跳读。
 
-LatestFanout 专项压测分别测量即时消费、停滞消费者持续丢旧和一快一停滞消费者的并发扇出，
+LatestMpmc 专项压测分别测量即时消费、停滞消费者持续丢旧和一快一停滞消费者的并发扇出，
 每种场景比较 50% 与默认 90% 水位；停滞场景输出保留/丢弃计数，并发场景输出接收/丢弃/背压重试计数，
 同时检查消息序列。
 消息数窗口压力基准让 DropOldest 订阅者停滞，在持续发布期间只保留最新 64 条消息，并校验
@@ -133,7 +145,7 @@ cmake --build --preset release
 ./build/release/bench/salias_bench_channel_stress \
   --benchmark_filter='BM_latest_' --benchmark_min_time=0.1s --benchmark_repetitions=3
 ./build/release/bench/salias_bench_channel_stress \
-  --benchmark_filter='BM_keyed_latest_roundtrip_64b' --benchmark_min_time=0.1s --benchmark_repetitions=3
+  --benchmark_filter='BM_latest_by_key_roundtrip_64b' --benchmark_min_time=0.1s --benchmark_repetitions=3
 ```
 
 短跑用于正确性与吞吐冒烟，不代替长期压力测试。正式性能基线需同时使用 Release 构建的
@@ -217,7 +229,7 @@ salias::Config config;
 config.name = "market-data";
 config.num_producers = 4;
 config.num_consumers = 2;
-auto owner = salias::FifoFanoutChannel::create(config);
+auto owner = salias::FifoMpmcChannel::create(config);
 ```
 
 `Publisher` 和 `Subscriber` 持有底层 Tx/Rx 端点，因此生产者背压缓存、消费者 ring 游标和
@@ -227,8 +239,8 @@ auto owner = salias::FifoFanoutChannel::create(config);
 
 `Config::huge` 支持 `None`、`Size2MB` 和 `Size1GB`。Linux 上的显式大页请求使用
 hugetlbfs，失败时返回 `PlatformFail`，不会降级。默认目录为 `/dev/hugepages`，可通过
-`SALIAS_HUGETLBFS_DIR` 覆盖。macOS 支持普通页模式；显式 HugePage 和 NUMA 属于 Linux
-专属能力，在 macOS 上会明确返回不可用。
+`SALIAS_HUGETLBFS_DIR` 覆盖。macOS 支持普通页模式；显式 HugePage 属于 Linux 专属能力。
+NUMA 放置当前尚未实现，Linux 与 macOS 请求都会明确返回 `NumaUnavailable`。
 
 普通页与大页 ring 在计时前使用 `MAP_POPULATE` prefault。控制块使用 POSIX shared memory。
 

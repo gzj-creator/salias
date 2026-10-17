@@ -1,7 +1,7 @@
 /** @file test/api/channel_api_test.cpp
  * @brief salias L7 公共 API（channel 层）的端到端集成测试。
  * @details 本文件位于 L5 channel / L7 salias 公共 API 层，验证各类 channel
- *   （FifoMpsc/OrderedMpsc/FifoFanout/OrderedFanout/LatestFanout）在 claim/commit、offer、
+ *   （FifoMpsc/OrderedMpsc/FifoMpmc/OrderedMpmc/LatestMpmc）在 claim/commit、offer、
  *   offer_batch、subscriber 轮询与 release 等关键路径上的正确性。覆盖面包括：
  *   FIFO 与全局有序两种交付语义、fanout 多消费者广播、生产者/消费者槽位
  *   耗尽与大页对齐校验，以及多进程（fork）共享 producer 槽位的 IPC 场景。
@@ -38,7 +38,12 @@ namespace {  // 匿名命名空间：测试内部辅助类型与函数，仅本�
 static_assert(!std::is_copy_constructible_v<salias::PublishClaim<salias::Mode::FifoMpsc>>);
 // 编译期断言：FIFO 与 Ordered 是两种独立 channel 类型，不可互换。
 static_assert(!std::is_same_v<salias::FifoMpscChannel, salias::OrderedMpscChannel>);
-static_assert(!std::is_same_v<salias::FifoFanoutChannel, salias::OrderedFanoutChannel>);
+static_assert(!std::is_same_v<salias::FifoMpmcChannel, salias::OrderedMpmcChannel>);
+static_assert(static_cast<std::uint32_t>(salias::Mode::FifoMpsc) == 0);
+static_assert(static_cast<std::uint32_t>(salias::Mode::FifoMpmc) == 1);
+static_assert(static_cast<std::uint32_t>(salias::Mode::OrderedMpsc) == 2);
+static_assert(static_cast<std::uint32_t>(salias::Mode::OrderedMpmc) == 3);
+static_assert(static_cast<std::uint32_t>(salias::Mode::LatestMpmc) == 4);
 
 /// @brief 测试用负载结构体。
 /// @details 模拟一条业务消息：producer 标识来源生产者编号，sequence 标识
@@ -191,8 +196,8 @@ TEST(ChannelApiTest, OrderedMpscBatchesRespectLimitsGapsAndWraparound) {
   check_ordered_batches<salias::Mode::OrderedMpsc>();
 }
 
-TEST(ChannelApiTest, OrderedFanoutBatchesRespectLimitsGapsAndWraparound) {
-  check_ordered_batches<salias::Mode::OrderedFanout>();
+TEST(ChannelApiTest, OrderedMpmcBatchesRespectLimitsGapsAndWraparound) {
+  check_ordered_batches<salias::Mode::OrderedMpmc>();
 }
 
 template <salias::Mode M>
@@ -214,7 +219,7 @@ void check_batch_retention() {
   }
   std::uint32_t callbacks = 0;
   auto check = [&](const salias::Message& message) noexcept {
-    if constexpr (M == salias::Mode::OrderedFanout) {
+    if constexpr (M == salias::Mode::OrderedMpmc) {
       EXPECT_EQ(message.sequence, callbacks % 3);
     } else {
       EXPECT_EQ(message.sequence, 0u);
@@ -246,11 +251,11 @@ void check_batch_retention() {
 }
 
 TEST(ChannelApiTest, OrderedPollKeepsPayloadUntilCallbacksAndSlowFanoutFinish) {
-  check_batch_retention<salias::Mode::OrderedFanout>();
+  check_batch_retention<salias::Mode::OrderedMpmc>();
 }
 
 TEST(ChannelApiTest, FifoPollKeepsPayloadUntilCallbacksAndSlowFanoutFinish) {
-  check_batch_retention<salias::Mode::FifoFanout>();
+  check_batch_retention<salias::Mode::FifoMpmc>();
 }
 
 template <salias::Mode M>
@@ -294,7 +299,7 @@ void check_concurrent_batches() {
     for (std::size_t c = 0; c < subscribers.size(); ++c) {
       subscribers[c].poll(c == 0 ? 17 : 31, [&, c](const salias::Message& message) noexcept {
         const auto payload = decode(message.payload);
-        if constexpr (M == salias::Mode::OrderedFanout) {
+        if constexpr (M == salias::Mode::OrderedMpmc) {
           if (message.sequence != received[c]) {
             failed.store(true, std::memory_order_relaxed);
           }
@@ -325,12 +330,12 @@ void check_concurrent_batches() {
   }
 }
 
-TEST(ChannelApiTest, OrderedFanoutConcurrentBatchesSurviveBackpressureAndWraparound) {
-  check_concurrent_batches<salias::Mode::OrderedFanout>();
+TEST(ChannelApiTest, OrderedMpmcConcurrentBatchesSurviveBackpressureAndWraparound) {
+  check_concurrent_batches<salias::Mode::OrderedMpmc>();
 }
 
-TEST(ChannelApiTest, FifoFanoutConcurrentBatchesSurviveBackpressureAndWraparound) {
-  check_concurrent_batches<salias::Mode::FifoFanout>();
+TEST(ChannelApiTest, FifoMpmcConcurrentBatchesSurviveBackpressureAndWraparound) {
+  check_concurrent_batches<salias::Mode::FifoMpmc>();
 }
 
 TEST(ChannelApiTest, FifoBatchesKeepPerRingCursorsAcrossPartialRuns) {
@@ -494,11 +499,11 @@ TEST(ChannelApiTest, OrderedMpscWaitsForEarlierGlobalSequence) {
   subscriber.release(*second_message);
 }
 
-/// @brief 验证 FifoFanout 模式下同一条消息会被广播到每一个 subscriber。
-TEST(ChannelApiTest, FifoFanoutDeliversEachMessageToEverySubscriber) {
-  auto config = config_for(salias::Mode::FifoFanout, "fifo-fanout");
+/// @brief 验证 FifoMpmc 模式下同一条消息会被广播到每一个 subscriber。
+TEST(ChannelApiTest, FifoMpmcDeliversEachMessageToEverySubscriber) {
+  auto config = config_for(salias::Mode::FifoMpmc, "fifo-fanout");
   config.num_consumers = 2;
-  auto created = salias::FifoFanoutChannel::create(config);
+  auto created = salias::FifoMpmcChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(created).value();
   auto publisher = channel.publisher();
@@ -516,13 +521,13 @@ TEST(ChannelApiTest, FifoFanoutDeliversEachMessageToEverySubscriber) {
   second_subscriber.release(*second);
 }
 
-/// @brief 验证 OrderedFanout 模式下每个 subscriber 都按全局序列号顺序收到消息，
+/// @brief 验证 OrderedMpmc 模式下每个 subscriber 都按全局序列号顺序收到消息，
 ///   且后序消息在前序消息就绪前对所有 subscriber 不可见。
-TEST(ChannelApiTest, OrderedFanoutPreservesGlobalOrderForEverySubscriber) {
-  auto config = config_for(salias::Mode::OrderedFanout, "ordered-fanout");
+TEST(ChannelApiTest, OrderedMpmcPreservesGlobalOrderForEverySubscriber) {
+  auto config = config_for(salias::Mode::OrderedMpmc, "ordered-fanout");
   config.num_producers = 2;
   config.num_consumers = 2;
-  auto created = salias::OrderedFanoutChannel::create(config);
+  auto created = salias::OrderedMpmcChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(created).value();
   auto first_publisher = channel.publisher();
@@ -805,10 +810,10 @@ TEST(ChannelApiTest, OrderedTtlSkipPreservesGlobalSequenceAcrossProducerRings) {
   subscriber.release(*message);
 }
 
-TEST(ChannelApiTest, LatestFanoutTtlFramesAreParsedDuringRetentionAndLagRecovery) {
-  auto config = config_for(salias::Mode::LatestFanout, "ttl-latest-retention");
+TEST(ChannelApiTest, LatestMpmcTtlFramesAreParsedDuringRetentionAndLagRecovery) {
+  auto config = config_for(salias::Mode::LatestMpmc, "ttl-latest-retention");
   config.publication_window_messages = 2;
-  auto created = salias::LatestFanoutChannel<4096>::create(config);
+  auto created = salias::LatestMpmcChannel<4096>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1020,10 +1025,10 @@ TEST(ChannelApiTest, MessageCountWindowConstrainsBatchesAndPersistsAcrossConnect
 }
 
 TEST(ChannelApiTest, MessageCountWindowWaitsForSlowestFanoutConsumer) {
-  auto config = config_for(salias::Mode::FifoFanout, "message-window-fanout-minimum");
+  auto config = config_for(salias::Mode::FifoMpmc, "message-window-fanout-minimum");
   config.num_consumers = 2;
   config.publication_window_messages = 2;
-  auto created = salias::FifoFanoutChannel::create(config);
+  auto created = salias::FifoMpmcChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1062,9 +1067,9 @@ TEST(ChannelApiTest, MessageCountWindowWaitsForSlowestFanoutConsumer) {
   }
 }
 
-TEST(ChannelApiTest, LatestFanoutUsesStaticCapacityAndWatermark) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
-  auto config = config_for(salias::Mode::LatestFanout, "latest-static-config");
+TEST(ChannelApiTest, LatestMpmcUsesStaticCapacityAndWatermark) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-static-config");
   config.capacity = 8192;
   config.high_watermark_percent = 90;
 
@@ -1080,62 +1085,62 @@ TEST(ChannelApiTest, LatestFanoutUsesStaticCapacityAndWatermark) {
   EXPECT_EQ(connected->capacity(), 4096u);
   EXPECT_EQ(connected->high_watermark_percent(), 50u);
 
-  auto wrong_capacity = salias::LatestFanoutChannel<8192, 50>::connect(config.name);
+  auto wrong_capacity = salias::LatestMpmcChannel<8192, 50>::connect(config.name);
   ASSERT_FALSE(wrong_capacity);
   EXPECT_EQ(wrong_capacity.error(), salias::Error::BadConfig);
 
-  auto wrong_watermark = salias::LatestFanoutChannel<4096, 90>::connect(config.name);
+  auto wrong_watermark = salias::LatestMpmcChannel<4096, 90>::connect(config.name);
   ASSERT_FALSE(wrong_watermark);
   EXPECT_EQ(wrong_watermark.error(), salias::Error::BadConfig);
 }
 
-TEST(ChannelApiTest, LatestFanoutSupportsDefaultMinimumAndFullWatermarks) {
-  using DefaultWatermark = salias::LatestFanoutChannel<4096>;
-  using MinimumWatermark = salias::LatestFanoutChannel<4096, 1>;
-  using FullWatermark = salias::LatestFanoutChannel<4096, 100>;
+TEST(ChannelApiTest, LatestMpmcSupportsDefaultMinimumAndFullWatermarks) {
+  using DefaultWatermark = salias::LatestMpmcChannel<4096>;
+  using MinimumWatermark = salias::LatestMpmcChannel<4096, 1>;
+  using FullWatermark = salias::LatestMpmcChannel<4096, 100>;
   static_assert(DefaultWatermark::high_watermark_percent() == 90);
   static_assert(MinimumWatermark::high_watermark_percent() == 1);
   static_assert(FullWatermark::high_watermark_percent() == 100);
 
   auto default_created =
-      DefaultWatermark::create(config_for(salias::Mode::LatestFanout, "latest-default-watermark"));
+      DefaultWatermark::create(config_for(salias::Mode::LatestMpmc, "latest-default-watermark"));
   ASSERT_TRUE(default_created);
   EXPECT_EQ(default_created->high_watermark_percent(), 90u);
 
   auto minimum_created =
-      MinimumWatermark::create(config_for(salias::Mode::LatestFanout, "latest-minimum-watermark"));
+      MinimumWatermark::create(config_for(salias::Mode::LatestMpmc, "latest-minimum-watermark"));
   ASSERT_TRUE(minimum_created);
   EXPECT_EQ(minimum_created->high_watermark_percent(), 1u);
 
   auto full_created =
-      FullWatermark::create(config_for(salias::Mode::LatestFanout, "latest-full-watermark"));
+      FullWatermark::create(config_for(salias::Mode::LatestMpmc, "latest-full-watermark"));
   ASSERT_TRUE(full_created);
   EXPECT_EQ(full_created->high_watermark_percent(), 100u);
 }
 
-TEST(ChannelApiTest, LatestFanoutRejectsIncompatibleFlowControlConfig) {
-  auto invalid_watermark = config_for(salias::Mode::LatestFanout, "latest-invalid-watermark");
+TEST(ChannelApiTest, LatestMpmcRejectsIncompatibleFlowControlConfig) {
+  auto invalid_watermark = config_for(salias::Mode::LatestMpmc, "latest-invalid-watermark");
   invalid_watermark.high_watermark_percent = 101;
-  auto bad_watermark = salias::Channel<salias::Mode::LatestFanout>::create(invalid_watermark);
+  auto bad_watermark = salias::Channel<salias::Mode::LatestMpmc>::create(invalid_watermark);
   ASSERT_FALSE(bad_watermark);
   EXPECT_EQ(bad_watermark.error(), salias::Error::BadConfig);
 
-  auto zero_watermark = config_for(salias::Mode::LatestFanout, "latest-zero-watermark");
+  auto zero_watermark = config_for(salias::Mode::LatestMpmc, "latest-zero-watermark");
   zero_watermark.high_watermark_percent = 0;
-  auto bad_zero_watermark = salias::Channel<salias::Mode::LatestFanout>::create(zero_watermark);
+  auto bad_zero_watermark = salias::Channel<salias::Mode::LatestMpmc>::create(zero_watermark);
   ASSERT_FALSE(bad_zero_watermark);
   EXPECT_EQ(bad_zero_watermark.error(), salias::Error::BadConfig);
 
-  auto publication_window = config_for(salias::Mode::LatestFanout, "latest-publication-window");
+  auto publication_window = config_for(salias::Mode::LatestMpmc, "latest-publication-window");
   publication_window.publication_window = publication_window.capacity;
-  auto bad_window = salias::Channel<salias::Mode::LatestFanout>::create(publication_window);
+  auto bad_window = salias::Channel<salias::Mode::LatestMpmc>::create(publication_window);
   ASSERT_FALSE(bad_window);
   EXPECT_EQ(bad_window.error(), salias::Error::BadConfig);
 }
 
-TEST(ChannelApiTest, LatestFanoutMessageWindowRetainsLatestFramesAndReliableReadersBackpressure) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 100>;
-  auto config = config_for(salias::Mode::LatestFanout, "latest-message-window-drop-oldest");
+TEST(ChannelApiTest, LatestMpmcMessageWindowRetainsLatestFramesAndReliableReadersBackpressure) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 100>;
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-message-window-drop-oldest");
   config.publication_window_messages = 3;
   auto created = TypedChannel::create(config);
   ASSERT_TRUE(created);
@@ -1160,7 +1165,7 @@ TEST(ChannelApiTest, LatestFanoutMessageWindowRetainsLatestFramesAndReliableRead
   }
 
   auto reliable_config =
-      config_for(salias::Mode::LatestFanout, "latest-message-window-reliable-reader");
+      config_for(salias::Mode::LatestMpmc, "latest-message-window-reliable-reader");
   reliable_config.publication_window_messages = 3;
   reliable_config.num_consumers = 2;
   auto reliable_created = TypedChannel::create(reliable_config);
@@ -1208,10 +1213,9 @@ TEST(ChannelApiTest, LatestFanoutMessageWindowRetainsLatestFramesAndReliableRead
   }
 }
 
-TEST(ChannelApiTest,
-     LatestFanoutMessageWindowConstrainsBatchesAndSurvivesVariableLengthWraparound) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 100>;
-  auto config = config_for(salias::Mode::LatestFanout, "latest-message-window-batch-wrap");
+TEST(ChannelApiTest, LatestMpmcMessageWindowConstrainsBatchesAndSurvivesVariableLengthWraparound) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 100>;
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-message-window-batch-wrap");
   config.publication_window_messages = 3;
   auto created = TypedChannel::create(config);
   ASSERT_TRUE(created);
@@ -1271,9 +1275,9 @@ TEST(ChannelApiTest,
   }
 }
 
-TEST(ChannelApiTest, LatestFanoutDropsOldMessagesAndPinsBorrowedPayload) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
-  auto config = config_for(salias::Mode::LatestFanout, "latest-drop-oldest");
+TEST(ChannelApiTest, LatestMpmcDropsOldMessagesAndPinsBorrowedPayload) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-drop-oldest");
   auto created = TypedChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
@@ -1314,10 +1318,10 @@ TEST(ChannelApiTest, LatestFanoutDropsOldMessagesAndPinsBorrowedPayload) {
   subscriber.release(*latest);
 }
 
-TEST(ChannelApiTest, LatestFanoutHandlesEmptyAndOverWatermarkFrames) {
-  using TinyWindow = salias::LatestFanoutChannel<4096, 1>;
+TEST(ChannelApiTest, LatestMpmcHandlesEmptyAndOverWatermarkFrames) {
+  using TinyWindow = salias::LatestMpmcChannel<4096, 1>;
   auto created =
-      TinyWindow::create(config_for(salias::Mode::LatestFanout, "latest-small-window-frames"));
+      TinyWindow::create(config_for(salias::Mode::LatestMpmc, "latest-small-window-frames"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1359,10 +1363,10 @@ TEST(ChannelApiTest, LatestFanoutHandlesEmptyAndOverWatermarkFrames) {
   subscriber.release(*claimed_empty_message);
 }
 
-TEST(ChannelApiTest, LatestFanoutFullWatermarkSupportsMaximumFramesAndPinnedRetry) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 100>;
+TEST(ChannelApiTest, LatestMpmcFullWatermarkSupportsMaximumFramesAndPinnedRetry) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 100>;
   auto created =
-      TypedChannel::create(config_for(salias::Mode::LatestFanout, "latest-full-ring-frame"));
+      TypedChannel::create(config_for(salias::Mode::LatestMpmc, "latest-full-ring-frame"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1390,10 +1394,10 @@ TEST(ChannelApiTest, LatestFanoutFullWatermarkSupportsMaximumFramesAndPinnedRetr
   subscriber.release(*message);
 }
 
-TEST(ChannelApiTest, LatestFanoutEmptyAndMixedBatchesReportPartialProgress) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 1>;
+TEST(ChannelApiTest, LatestMpmcEmptyAndMixedBatchesReportPartialProgress) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 1>;
   auto created =
-      TypedChannel::create(config_for(salias::Mode::LatestFanout, "latest-partial-batches"));
+      TypedChannel::create(config_for(salias::Mode::LatestMpmc, "latest-partial-batches"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1431,9 +1435,9 @@ TEST(ChannelApiTest, LatestFanoutEmptyAndMixedBatchesReportPartialProgress) {
   EXPECT_FALSE(subscriber.try_recv());
 }
 
-TEST(ChannelApiTest, LatestFanoutBatchIsWatermarkBoundedAndWraps) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
-  auto created = TypedChannel::create(config_for(salias::Mode::LatestFanout, "latest-batch-wrap"));
+TEST(ChannelApiTest, LatestMpmcBatchIsWatermarkBoundedAndWraps) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50>;
+  auto created = TypedChannel::create(config_for(salias::Mode::LatestMpmc, "latest-batch-wrap"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1475,10 +1479,10 @@ TEST(ChannelApiTest, LatestFanoutBatchIsWatermarkBoundedAndWraps) {
   EXPECT_EQ(expected_sequence, 384u);
 }
 
-TEST(ChannelApiTest, LatestFanoutEvictsMixedFramesOnFrameBoundariesAfterWrap) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
+TEST(ChannelApiTest, LatestMpmcEvictsMixedFramesOnFrameBoundariesAfterWrap) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50>;
   auto created =
-      TypedChannel::create(config_for(salias::Mode::LatestFanout, "latest-mixed-frame-wrap"));
+      TypedChannel::create(config_for(salias::Mode::LatestMpmc, "latest-mixed-frame-wrap"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1518,9 +1522,9 @@ TEST(ChannelApiTest, LatestFanoutEvictsMixedFramesOnFrameBoundariesAfterWrap) {
   EXPECT_EQ(expected_sequence, kMessages);
 }
 
-TEST(ChannelApiTest, LatestFanoutKeepsFastAndSlowSubscribersIndependent) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
-  auto config = config_for(salias::Mode::LatestFanout, "latest-fast-slow-consumers");
+TEST(ChannelApiTest, LatestMpmcKeepsFastAndSlowSubscribersIndependent) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-fast-slow-consumers");
   config.num_consumers = 2;
   auto created = TypedChannel::create(config);
   ASSERT_TRUE(created);
@@ -1546,9 +1550,9 @@ TEST(ChannelApiTest, LatestFanoutKeepsFastAndSlowSubscribersIndependent) {
   EXPECT_FALSE(fast_empty);
 }
 
-TEST(ChannelApiTest, LatestFanoutPinnedRingDoesNotBlockOtherProducers) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
-  auto config = config_for(salias::Mode::LatestFanout, "latest-independent-rings");
+TEST(ChannelApiTest, LatestMpmcPinnedRingDoesNotBlockOtherProducers) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-independent-rings");
   config.num_producers = 2;
   auto created = TypedChannel::create(config);
   ASSERT_TRUE(created);
@@ -1574,9 +1578,9 @@ TEST(ChannelApiTest, LatestFanoutPinnedRingDoesNotBlockOtherProducers) {
   EXPECT_TRUE(publishers[0].offer(encode(Payload{.sequence = 256})));
 }
 
-TEST(ChannelApiTest, LatestFanoutDestroyingOneSubscriberDoesNotReleaseAnotherLease) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
-  auto config = config_for(salias::Mode::LatestFanout, "latest-lease-lifetime");
+TEST(ChannelApiTest, LatestMpmcDestroyingOneSubscriberDoesNotReleaseAnotherLease) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-lease-lifetime");
   config.num_consumers = 2;
   auto created = TypedChannel::create(config);
   ASSERT_TRUE(created);
@@ -1608,7 +1612,7 @@ TEST(ChannelApiTest, LatestFanoutDestroyingOneSubscriberDoesNotReleaseAnotherLea
 
 template <std::uint32_t Watermark>
 void check_latest_concurrent_delivery() {
-  using TypedChannel = salias::LatestFanoutChannel<4096, Watermark>;
+  using TypedChannel = salias::LatestMpmcChannel<4096, Watermark>;
   constexpr std::uint32_t kProducers = 3;
   constexpr std::uint32_t kMessages = 10000;
   struct CheckedPayload {
@@ -1616,7 +1620,7 @@ void check_latest_concurrent_delivery() {
     std::uint32_t sequence = 0;
     std::array<std::uint64_t, 7> checks{};
   };
-  auto config = config_for(salias::Mode::LatestFanout, "latest-concurrent-delivery");
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-concurrent-delivery");
   config.num_producers = kProducers;
   config.num_consumers = 2;
   auto created = TypedChannel::create(config);
@@ -1724,20 +1728,20 @@ void check_latest_concurrent_delivery() {
   for (auto& worker : workers) {
     worker.join();
   }
-  EXPECT_TRUE(completed) << "LatestFanout delivery did not finish before the deadline";
+  EXPECT_TRUE(completed) << "LatestMpmc delivery did not finish before the deadline";
   EXPECT_FALSE(failed.load(std::memory_order_relaxed));
   EXPECT_EQ(producers_done.load(std::memory_order_acquire), kProducers);
 }
 
-TEST(ChannelApiTest, LatestFanoutConcurrentSingleAndBatchReadersSurviveWraparound) {
+TEST(ChannelApiTest, LatestMpmcConcurrentSingleAndBatchReadersSurviveWraparound) {
   check_latest_concurrent_delivery<50>();
   check_latest_concurrent_delivery<90>();
   check_latest_concurrent_delivery<100>();
 }
 
-TEST(ChannelApiTest, LatestFanoutPollReleasesBatchLease) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
-  auto config = config_for(salias::Mode::LatestFanout, "latest-poll-release");
+TEST(ChannelApiTest, LatestMpmcPollReleasesBatchLease) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-poll-release");
   auto created = TypedChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
@@ -1757,10 +1761,9 @@ TEST(ChannelApiTest, LatestFanoutPollReleasesBatchLease) {
   ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 256})));
 }
 
-TEST(ChannelApiTest, LatestFanoutCallbackPollPinsWholeBatchUntilAllCallbacksFinish) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
-  auto created =
-      TypedChannel::create(config_for(salias::Mode::LatestFanout, "latest-callback-pin"));
+TEST(ChannelApiTest, LatestMpmcCallbackPollPinsWholeBatchUntilAllCallbacksFinish) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50>;
+  auto created = TypedChannel::create(config_for(salias::Mode::LatestMpmc, "latest-callback-pin"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1769,7 +1772,7 @@ TEST(ChannelApiTest, LatestFanoutCallbackPollPinsWholeBatchUntilAllCallbacksFini
     ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = sequence})));
   }
   struct Context {
-    salias::LatestFanoutPublisher* publisher;
+    salias::LatestMpmcPublisher* publisher;
     std::uint32_t callbacks = 0;
     bool writes_ok = true;
     bool blocked = false;
@@ -1797,9 +1800,9 @@ TEST(ChannelApiTest, LatestFanoutCallbackPollPinsWholeBatchUntilAllCallbacksFini
   EXPECT_TRUE(publisher.offer(encode(Payload{.sequence = 384})));
 }
 
-TEST(ChannelApiTest, LatestFanoutSkipsOldMessagesAcrossProcesses) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
-  auto config = config_for(salias::Mode::LatestFanout, "latest-fork-subscriber");
+TEST(ChannelApiTest, LatestMpmcSkipsOldMessagesAcrossProcesses) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-fork-subscriber");
   auto created = TypedChannel::create(config);
   ASSERT_TRUE(created);
   auto owner = std::move(*created);
@@ -1863,9 +1866,9 @@ TEST(ChannelApiTest, LatestFanoutSkipsOldMessagesAcrossProcesses) {
   EXPECT_EQ(WEXITSTATUS(child_status), 0);
 }
 
-TEST(ChannelApiTest, LatestFanoutReclaimsLeaseFromExitedConsumer) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
-  auto config = config_for(salias::Mode::LatestFanout, "latest-dead-lease");
+TEST(ChannelApiTest, LatestMpmcReclaimsLeaseFromExitedConsumer) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-dead-lease");
   auto created = TypedChannel::create(config);
   ASSERT_TRUE(created);
   auto owner = std::move(*created);
@@ -1972,9 +1975,9 @@ TEST(ChannelApiTest, LatestFanoutReclaimsLeaseFromExitedConsumer) {
 #endif
 }
 
-TEST(ChannelApiTest, LatestFanoutReclaimsLeaseAfterConsumerIsKilled) {
-  using TypedChannel = salias::LatestFanoutChannel<4096, 50>;
-  auto config = config_for(salias::Mode::LatestFanout, "latest-killed-consumer");
+TEST(ChannelApiTest, LatestMpmcReclaimsLeaseAfterConsumerIsKilled) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50>;
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-killed-consumer");
   auto created = TypedChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
@@ -2068,16 +2071,16 @@ TEST(ChannelApiTest, RejectsInvalidProducerAndConsumerCounts) {
   ASSERT_FALSE(multiple_consumers);
   EXPECT_EQ(multiple_consumers.error(), salias::Error::BadConfig);
 
-  auto fanout_config = config_for(salias::Mode::FifoFanout, "bad-fanout-consumers");
+  auto fanout_config = config_for(salias::Mode::FifoMpmc, "bad-fanout-consumers");
   fanout_config.num_consumers = 9;
-  auto too_many_consumers = salias::FifoFanoutChannel::create(fanout_config);
+  auto too_many_consumers = salias::FifoMpmcChannel::create(fanout_config);
   ASSERT_FALSE(too_many_consumers);
   EXPECT_EQ(too_many_consumers.error(), salias::Error::BadConfig);
 }
 
-TEST(ChannelApiTest, DropOldestSubscriberPolicyIsRestrictedToLatestFanout) {
-  auto config = config_for(salias::Mode::FifoFanout, "drop-oldest-policy-invalid-mode");
-  auto created = salias::FifoFanoutChannel::create(config);
+TEST(ChannelApiTest, DropOldestSubscriberPolicyIsRestrictedToLatestMpmc) {
+  auto config = config_for(salias::Mode::FifoMpmc, "drop-oldest-policy-invalid-mode");
+  auto created = salias::FifoMpmcChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
 
@@ -2087,8 +2090,8 @@ TEST(ChannelApiTest, DropOldestSubscriberPolicyIsRestrictedToLatestFanout) {
   EXPECT_EQ(channel.connected_consumer_count(), 0u);
   EXPECT_TRUE(channel.try_subscriber());
 
-  auto latest_config = config_for(salias::Mode::LatestFanout, "drop-oldest-policy-invalid-value");
-  auto latest = salias::LatestFanoutChannel<4096>::create(latest_config);
+  auto latest_config = config_for(salias::Mode::LatestMpmc, "drop-oldest-policy-invalid-value");
+  auto latest = salias::LatestMpmcChannel<4096>::create(latest_config);
   ASSERT_TRUE(latest);
   auto invalid = latest->try_subscriber(static_cast<salias::SubscriptionPolicy>(99));
   ASSERT_FALSE(invalid);
@@ -2098,10 +2101,10 @@ TEST(ChannelApiTest, DropOldestSubscriberPolicyIsRestrictedToLatestFanout) {
 
 /// @brief 验证订阅槽位耗尽可显式报告，且最后一个端点副本销毁后可复用。
 TEST(ChannelApiTest, SubscriberSlotsReportExhaustionAndAreReusedAfterLastCopyDies) {
-  auto config = config_for(salias::Mode::FifoFanout, "slot-exhaustion");
+  auto config = config_for(salias::Mode::FifoMpmc, "slot-exhaustion");
   config.num_producers = 1;
   config.num_consumers = 1;
-  auto created = salias::FifoFanoutChannel::create(config);
+  auto created = salias::FifoMpmcChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(created).value();
   auto first_publisher = channel.publisher();
@@ -2142,9 +2145,9 @@ TEST(ChannelApiTest, SubscriberSlotsReportExhaustionAndAreReusedAfterLastCopyDie
 
 /// @brief fork 子进程析构继承的 endpoint 时，不得注销父进程的订阅槽。
 TEST(ChannelApiTest, ForkedCopyDoesNotDeregisterParentSubscriber) {
-  auto config = config_for(salias::Mode::FifoFanout, "forked-subscriber-copy");
+  auto config = config_for(salias::Mode::FifoMpmc, "forked-subscriber-copy");
   config.num_consumers = 1;
-  auto created = salias::FifoFanoutChannel::create(config);
+  auto created = salias::FifoMpmcChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -2182,8 +2185,8 @@ TEST(ChannelApiTest, ForkedCopyDoesNotDeregisterParentSubscriber) {
 
 /// @brief 注册新订阅者时从稳定 reservation 尾开始，不重放加入前的数据。
 TEST(ChannelApiTest, FanoutLateJoinStartsAtReservationBoundary) {
-  auto config = config_for(salias::Mode::FifoFanout, "fanout-late-join");
-  auto created = salias::FifoFanoutChannel::create(config);
+  auto config = config_for(salias::Mode::FifoMpmc, "fanout-late-join");
+  auto created = salias::FifoMpmcChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -2200,12 +2203,12 @@ TEST(ChannelApiTest, FanoutLateJoinStartsAtReservationBoundary) {
   subscriber.release(*next);
 }
 
-/// @brief OrderedFanout late join 从全局序列快照开始，并保留新消息的跨 ring 次序。
-TEST(ChannelApiTest, OrderedFanoutLateJoinStartsAtStableGlobalSequence) {
-  auto config = config_for(salias::Mode::OrderedFanout, "ordered-fanout-late-join");
+/// @brief OrderedMpmc late join 从全局序列快照开始，并保留新消息的跨 ring 次序。
+TEST(ChannelApiTest, OrderedMpmcLateJoinStartsAtStableGlobalSequence) {
+  auto config = config_for(salias::Mode::OrderedMpmc, "ordered-fanout-late-join");
   config.num_producers = 2;
   config.num_consumers = 2;
-  auto created = salias::OrderedFanoutChannel::create(config);
+  auto created = salias::OrderedMpmcChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   std::array publishers{channel.publisher(), channel.publisher()};
@@ -2230,9 +2233,9 @@ TEST(ChannelApiTest, OrderedFanoutLateJoinStartsAtStableGlobalSequence) {
 
 /// @brief 旧进程继承的订阅端在槽位复用后不能操作新代际的游标。
 TEST(ChannelApiTest, ReusedSlotRejectsEndpointInheritedByOlderProcess) {
-  auto config = config_for(salias::Mode::FifoFanout, "stale-subscriber-generation");
+  auto config = config_for(salias::Mode::FifoMpmc, "stale-subscriber-generation");
   config.num_consumers = 1;
-  auto created = salias::FifoFanoutChannel::create(config);
+  auto created = salias::FifoMpmcChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -2284,10 +2287,10 @@ TEST(ChannelApiTest, ReusedSlotRejectsEndpointInheritedByOlderProcess) {
 
 /// @brief 并发发布期间反复注册/注销订阅者不会撕裂新订阅边界或阻塞发布。
 TEST(ChannelApiTest, ConcurrentSubscriberChurnAndPublishingRemainConsistent) {
-  auto config = config_for(salias::Mode::FifoFanout, "subscriber-churn-publish");
+  auto config = config_for(salias::Mode::FifoMpmc, "subscriber-churn-publish");
   config.num_producers = 2;
   config.num_consumers = 2;
-  auto created = salias::FifoFanoutChannel::create(config);
+  auto created = salias::FifoMpmcChannel::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   std::array publishers{channel.publisher(), channel.publisher()};
@@ -2316,7 +2319,7 @@ TEST(ChannelApiTest, ConcurrentSubscriberChurnAndPublishingRemainConsistent) {
     });
   }
 
-  auto drain = [&](salias::FifoFanoutSubscriber& subscriber, std::array<bool, 2>& have_previous,
+  auto drain = [&](salias::FifoMpmcSubscriber& subscriber, std::array<bool, 2>& have_previous,
                    std::array<std::uint32_t, 2>& previous) {
     while (auto message = subscriber.try_recv()) {
       const auto payload = decode(message->payload);
@@ -2375,9 +2378,9 @@ TEST(ChannelApiTest, ConcurrentSubscriberChurnAndPublishingRemainConsistent) {
 
 /// @brief 验证订阅者存活数按已注册槽位和注册进程状态统计。
 TEST(ChannelApiTest, ConnectedConsumerCountTracksRegisteredProcessLiveness) {
-  auto config = config_for(salias::Mode::FifoFanout, "consumer-liveness");
+  auto config = config_for(salias::Mode::FifoMpmc, "consumer-liveness");
   config.num_consumers = 2;
-  auto created = salias::FifoFanoutChannel::create(config);
+  auto created = salias::FifoMpmcChannel::create(config);
   ASSERT_TRUE(created);
   auto owner = std::move(*created);
   EXPECT_EQ(owner.connected_consumer_count(), 0u);
@@ -2394,7 +2397,7 @@ TEST(ChannelApiTest, ConnectedConsumerCountTracksRegisteredProcessLiveness) {
   if (child == 0) {
     static_cast<void>(::close(ready_pipe[0]));
     static_cast<void>(::close(release_pipe[1]));
-    auto connected = salias::FifoFanoutChannel::connect(config.name);
+    auto connected = salias::FifoMpmcChannel::connect(config.name);
     if (!connected) {
       ::_exit(10);
     }

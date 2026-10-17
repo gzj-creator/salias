@@ -54,7 +54,7 @@ class Subscriber {
    * @brief 非阻塞尝试接收一条已提交消息。
    * @return 已提交消息的借用视图，或当前无可读消息时返回 std::nullopt。
    * @note 返回的 Message 需后续通过 release() 释放环空间。
-   *       LatestFanout 在同一 producer ring 有未释放借用时跳过该 ring，仍可读取其他 ring。
+   *       LatestMpmc 在同一 producer ring 有未释放借用时跳过该 ring，仍可读取其他 ring。
    */
   std::optional<Message> try_recv() noexcept;
 
@@ -77,7 +77,7 @@ class Subscriber {
    * @brief 将 DropOldest 订阅端的指定 producer ring 推进到最新已提交帧，保留该帧未读。
    * @return 推进的消息条数（淘汰 + 主动跳过），或 BackPressured / BadConfig。
    * @note 有未释放借用或淘汰竞争时返回 BackPressured，不改变进度或计数。
-   *       仅支持 LatestFanout 的 DropOldest 订阅端；Reliable 端点、非法索引、无效端点和
+   *       仅支持 LatestMpmc 的 DropOldest 订阅端；Reliable 端点、非法索引、无效端点和
    *       其他模式返回 BadConfig。
    *       仅对该 ring 的已发布快照生效，后续写入仍可能淘汰目标帧。
    */
@@ -106,7 +106,7 @@ class Subscriber {
    * @param user 透传给回调的用户上下文指针。
    * @return 实际处理的消息数。
    * @note callback 收到的 payload 只在当前回调期间有效，调用者不能在回调后继续持有。
-   *       LatestFanout 按最多 32 条的内部批次 pin，整批回调完成后统一释放。
+   *       LatestMpmc 按最多 32 条的内部批次 pin，整批回调完成后统一释放。
    */
   std::size_t poll(std::uint32_t max_messages, PollCallback callback, void* user) noexcept;
 
@@ -118,7 +118,7 @@ class Subscriber {
    * @return 实际处理的消息数。
    * @note handler 在头文件循环内内联执行，避免跨 .so 边界的每消息间接调用；
    *       进度按批 flush（fetch_batch + flush_batch），减少对生产者的可见进度更新。
-   *       LatestFanout 按最多 32 条的内部批次 pin，整批回调完成后统一释放。
+   *       LatestMpmc 按最多 32 条的内部批次 pin，整批回调完成后统一释放。
    */
   template <class Handler>
   std::size_t poll(std::uint32_t max_messages, Handler&& handler) noexcept {
@@ -169,9 +169,10 @@ class Subscriber {
 };
 
 using FifoMpscSubscriber = Subscriber<Mode::FifoMpsc>;        ///< FIFO MPSC 订阅端别名。
-using FifoFanoutSubscriber = Subscriber<Mode::FifoFanout>;    ///< FIFO fanout 订阅端别名。
+using FifoMpmcSubscriber = Subscriber<Mode::FifoMpmc>;  ///< FIFO 多生产者多消费者广播订阅端别名。
 using OrderedMpscSubscriber = Subscriber<Mode::OrderedMpsc>;  ///< 保序 MPSC 订阅端别名。
-using OrderedFanoutSubscriber = Subscriber<Mode::OrderedFanout>;  ///< 保序 fanout 订阅端别名。
-using LatestFanoutSubscriber = Subscriber<Mode::LatestFanout>;  ///< 丢旧 fanout 订阅端别名。
+using OrderedMpmcSubscriber =
+    Subscriber<Mode::OrderedMpmc>;  ///< 保序多生产者多消费者广播订阅端别名。
+using LatestMpmcSubscriber = Subscriber<Mode::LatestMpmc>;  ///< 丢旧 fanout 订阅端别名。
 
 }  // namespace salias

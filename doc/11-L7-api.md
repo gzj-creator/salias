@@ -1,14 +1,14 @@
 # L7 公共 API
 
-公共 API 暴露单一 per-producer-ring 引擎的四种排序/拓扑组合，并增加 `LatestFanout` 保留窗口模式：
+公共 API 暴露单一 per-producer-ring 引擎的四种排序/拓扑组合，并增加 `LatestMpmc` 保留窗口模式：
 
 ```cpp
 enum class Mode {
   FifoMpsc,
-  FifoFanout,
+  FifoMpmc,
   OrderedMpsc,
-  OrderedFanout,
-  LatestFanout,
+  OrderedMpmc,
+  LatestMpmc,
 };
 
 struct Config {
@@ -26,6 +26,7 @@ struct Config {
 
 `Channel<M>::create` 创建 owner，`connect` 连接已有通道。模板参数覆盖 `Config::mode`。
 single 模式要求 `num_consumers == 1`；fanout 模式允许 1–8 个消费者；生产者上限为 16。
+`FifoMpmc` / `OrderedMpmc` 是广播语义，每个订阅者都会收到消息，不是竞争式消费。
 `capacity` 必须为 2 的幂和系统页大小的整数倍；显式大页配置还要求它是所选大页大小的整数倍。
 `publication_window == 0` 表示满环。低延迟推荐 64KiB–256KiB：窗口把在途字节数收成窗口量级，
 从而把排队延迟压到同一量级。128KiB 对照满 4MiB 环时，p99 从约 5.7ms 降到约 350us，吞吐约少一成。
@@ -34,12 +35,12 @@ single 模式要求 `num_consumers == 1`；fanout 模式允许 1–8 个消费�
 
 `publication_window_messages == 0` 表示不启用消息数限制；正数限制每个 producer ring 中已预留、
 但尚未被最慢可靠订阅者消费的消息数。达到窗口后返回 `Error::BackPressured`，释放或批量轮询
-推进消费游标后即可恢复。该限制与字节窗口可同时启用，空 payload 也计为一条消息。`LatestFanout`
+推进消费游标后即可恢复。该限制与字节窗口可同时启用，空 payload 也计为一条消息。`LatestMpmc`
 将此值作为额外的最大保留帧数：默认 `DropOldest` 订阅者落后时淘汰最旧帧，`Reliable` 订阅者仍可
-阻止淘汰并造成背压。LatestFanout 下 `publication_window` 必须为 0，单条或批量发布受消息数和静态
+阻止淘汰并造成背压。LatestMpmc 下 `publication_window` 必须为 0，单条或批量发布受消息数和静态
 字节水位两者中更严格者约束；等长批次可返回部分成功条数。
 
-`LatestFanout` 使用 FIFO 顺序和 fanout 拓扑。`salias::LatestFanoutChannel<Capacity,
+`LatestMpmc` 使用 FIFO 顺序和 fanout 拓扑。`salias::LatestMpmcChannel<Capacity,
 HighWatermarkPercent>` 将每个 producer ring 的字节容量和保留比例固定在模板参数中，水位默认
 为 90%；创建时模板参数覆盖 `Config::capacity` 与 `Config::high_watermark_percent`，连接时会
 校验共享通道参数，不一致返回 `Error::BadConfig`。默认订阅策略为 `DropOldest`；创建
@@ -49,7 +50,7 @@ DropOldest 订阅者则可独立跳过已淘汰消息，不会拖住其他消费
 Reliable 策略，传入 `DropOldest` 返回 `Error::BadConfig`。达到保留水位后，DropOldest 慢消费者
 会在下一次读取时跳过已淘汰的旧消息。未 `release()` 的消息 payload 会被 pin；若生产者写入将覆盖借用内存，发布
 暂时返回 `Error::BackPressured`，释放该消息后恢复。
-`LatestFanout` 不支持非零 `publication_window`；该模式以静态保留水位和可选的
+`LatestMpmc` 不支持非零 `publication_window`；该模式以静态保留水位和可选的
 `publication_window_messages` 限制排队量。
 订阅进程若在持有借用时退出，生产者会在需要复用对应物理区间时检查注册进程身份并回收失效 lease。
 保留水位计算包含每帧 8 字节帧头和 8 字节对齐；单帧超过水位时，`offer`、`try_claim` 和
@@ -59,7 +60,7 @@ Reliable 策略，传入 `DropOldest` 返回 `Error::BadConfig`。达到保留�
 最多借用一条消息；未 release 时该 ring 暂不返回新消息，其他 producer ring 不受影响。
 `poll` 按最多 32 条的内部批次 pin payload，每批的最后一个回调返回后统一释放。
 
-LatestFanout 的 DropOldest 订阅端还提供 `try_recv_checked()`，用于把丢旧从静默跳过变成可观测事件。若本地游标
+LatestMpmc 的 DropOldest 订阅端还提供 `try_recv_checked()`，用于把丢旧从静默跳过变成可观测事件。若本地游标
 已落在保留水位之前，第一次 checked 接收返回 `Error::Lagged`，同时把游标推进到保留窗口
 起点且不借用消息；调用方重试后即可收到该窗口的第一条消息。`lagged_messages()` 统计
 已被淘汰的消息数，`skipped_messages()` 统计主动跳过的保留消息数；
@@ -69,7 +70,7 @@ Reliable 订阅端的 checked 接收只返回普通消息或空结果，不会�
 `skip_to_latest()`。
 
 ```cpp
-using QuoteChannel = salias::LatestFanoutChannel<1u << 20>;  // 默认保留水位为 90%
+using QuoteChannel = salias::LatestMpmcChannel<1u << 20>;  // 默认保留水位为 90%
 auto owner = QuoteChannel::create(config);
 auto publisher = owner->publisher();
 auto subscriber = owner->subscriber();
@@ -82,7 +83,7 @@ auto lossy = owner->subscriber(salias::SubscriptionPolicy::DropOldest);
 `try_subscriber()` 将分配失败转换为 `Error::OutOfMemory`。
 
 ```cpp
-auto owner = salias::FifoFanoutChannel::create(config);
+auto owner = salias::FifoMpmcChannel::create(config);
 auto publisher = owner->publisher();
 auto subscriber = owner->subscriber();
 ```
@@ -97,7 +98,7 @@ auto subscriber = owner->subscriber();
 `Channel::connected_consumer_count()` 返回当前注册槽中仍存活的订阅者数，统计的是订阅槽而非
 不同进程数或仍存活的 `Subscriber` C++ 对象。跨进程消费者须在连接后调用 `subscriber()` 注册；
 `fork()` 继承的端点仍归属于注册它的原进程，不会自动产生新的订阅槽。进程退出后该接口会
-排除死亡注册；后续订阅注册会回收死亡进程留下的槽位和 LatestFanout lease。正常析构则立即
+排除死亡注册；后续订阅注册会回收死亡进程留下的槽位和 LatestMpmc lease。正常析构则立即
 注销槽位；fork 子进程销毁继承的 `Subscriber` 副本不会注销父进程的注册。槽位回收不使旧
 endpoint 复活，也不放宽可靠通道的数据保留语义。
 
@@ -115,10 +116,20 @@ claim->commit();
 每个成功 claim 都必须提交。乱序 commit 不会把可见水位推进到空洞之后，补齐后才连续发布。
 不支持放弃未提交 claim，也不支持发布进程异常退出后的自动恢复；这类故障需要重建通道。
 
+`LatestByKeyChannel<Key, Value, Capacity, SchemaVersion>` 提供跨进程的有界 key-value 最新值表。
+可直接包含 `<salias/latest_by_key_channel.hpp>`；发布、订阅和消息类型分别为
+`LatestByKeyPublisher<Key, Value>`、`LatestByKeySubscriber<Key, Value, Capacity>` 和
+`LatestByKeyMessage<Key, Value>`，也通过 `salias.hpp` 与 `import salias;` 导出。
+`SchemaVersion` 默认为 0 以兼容三参数实例，此时只有编译器类型签名校验，不能可靠发现同名同尺寸类型的
+布局或语义变化。应用若修改 key/value 的布局或语义，应显式递增版本；不同版本之间的 `connect()` 返回
+`Error::BadConfig`。`try_recv_checked()` 保留错误信息；`try_recv()`
+将错误折叠为空结果；阻塞 `recv()` 返回 `Result<LatestByKeyMessage<...>>`，仅在临时背压时重试，
+不可恢复错误会返回给调用方。fork 前须静置所有访问该 channel 的线程，fork 时有操作持锁不受支持。
+
 `offer_for(payload, ttl)`、`try_claim_for(size, ttl)` 和 `offer_batch_for(payloads, ttl)` 提供
 按消息指定 TTL 的路径。TTL 必须非负，截止时间在 API 调用时采样，0 表示立即到期；默认不带 TTL 的
 `offer`/`try_claim`/`offer_batch` 不受影响。批次中的帧共用一个截止值，TTL 扩展头的 8 字节会
-计入 ring 容量、发布窗口和 LatestFanout 保留水位。消息元数据使用同主机 `CLOCK_MONOTONIC`
+计入 ring 容量、发布窗口和 LatestMpmc 保留水位。消息元数据使用同主机 `CLOCK_MONOTONIC`
 纳秒时间，因此跨进程订阅者可比较该截止值，但通道不能跨系统启动周期持久化复用。
 订阅端在交付前自动跳过过期帧；`Subscriber::expired_messages()` 返回本端点当前进程累计跳过数。
 过期跳过会推进可靠游标并释放容量；若后面紧接着存活帧，游标只推进到该帧起点，借用期间仍受保护，

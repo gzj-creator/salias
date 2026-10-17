@@ -1,6 +1,6 @@
 /**
- * @file test/api/keyed_latest_test.cpp
- * @brief Boundary, concurrency and process-failure tests for KeyedLatestChannel.
+ * @file test/api/latest_by_key_test.cpp
+ * @brief Boundary, concurrency and process-failure tests for LatestByKeyChannel.
  */
 #include <gtest/gtest.h>
 #include <signal.h>
@@ -23,7 +23,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "salias/salias.hpp"
+#include "salias/latest_by_key_channel.hpp"
 
 namespace {
 
@@ -42,7 +42,7 @@ static_assert(std::is_trivially_copyable_v<Value>);
 
 std::string unique_name(std::string_view tag) {
   static std::atomic<std::uint64_t> next{0};
-  return "keyed-latest-" + std::to_string(::getpid()) + "-" + std::string(tag) + "-" +
+  return "latest-by-key-" + std::to_string(::getpid()) + "-" + std::string(tag) + "-" +
          std::to_string(next.fetch_add(1, std::memory_order_relaxed));
 }
 
@@ -55,7 +55,7 @@ auto recv_until(Subscriber& subscriber) {
       return std::move(**result);
     }
     if (std::chrono::steady_clock::now() >= deadline) {
-      ADD_FAILURE() << "timed out waiting for keyed latest value";
+      ADD_FAILURE() << "timed out waiting for latest-by-key value";
       using Message = typename Subscriber::message_type;
       return Message{};
     }
@@ -63,9 +63,20 @@ auto recv_until(Subscriber& subscriber) {
   }
 }
 
-using FourKeys = salias::KeyedLatestChannel<std::uint64_t, Value, 4>;
+using FourKeys = salias::LatestByKeyChannel<std::uint64_t, Value, 4>;
 
-TEST(KeyedLatestTest, RepeatedUpdatesConflatePerSubscriberAndReturnOwnedSnapshots) {
+static_assert(
+    std::is_same_v<FourKeys::Publisher, salias::LatestByKeyPublisher<std::uint64_t, Value>>);
+static_assert(
+    std::is_same_v<FourKeys::Subscriber, salias::LatestByKeySubscriber<std::uint64_t, Value, 4>>);
+static_assert(std::is_same_v<FourKeys::Message, salias::LatestByKeyMessage<std::uint64_t, Value>>);
+
+static_assert(salias::latest_by_key_detail::versioned_type_schema<std::uint64_t, 0>() ==
+              salias::latest_by_key_detail::type_schema<std::uint64_t>());
+static_assert(salias::latest_by_key_detail::versioned_type_schema<std::uint64_t, 1>() !=
+              salias::latest_by_key_detail::versioned_type_schema<std::uint64_t, 2>());
+
+TEST(LatestByKeyTest, RepeatedUpdatesConflatePerSubscriberAndReturnOwnedSnapshots) {
   auto created = FourKeys::create(unique_name("conflate"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
@@ -112,8 +123,8 @@ TEST(KeyedLatestTest, RepeatedUpdatesConflatePerSubscriberAndReturnOwnedSnapshot
   EXPECT_EQ(late_joiner.conflated_updates(), 0u);
 }
 
-TEST(KeyedLatestTest, ExactHashCollisionsAndCapacityExhaustionAreHandled) {
-  using Tiny = salias::KeyedLatestChannel<std::uint64_t, std::uint64_t, 2>;
+TEST(LatestByKeyTest, ExactHashCollisionsAndCapacityExhaustionAreHandled) {
+  using Tiny = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 2>;
   auto created = Tiny::create(unique_name("collisions"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
@@ -123,11 +134,11 @@ TEST(KeyedLatestTest, ExactHashCollisionsAndCapacityExhaustionAreHandled) {
   std::uint64_t second_key = 0;
   bool found_collision = false;
   for (std::uint64_t left = 0; left < 100 && !found_collision; ++left) {
-    const auto left_bytes = salias::keyed_latest_detail::to_bytes(left);
-    const auto left_home = salias::keyed_latest_detail::hash_key(left_bytes) % Tiny::capacity();
+    const auto left_bytes = salias::latest_by_key_detail::to_bytes(left);
+    const auto left_home = salias::latest_by_key_detail::hash_key(left_bytes) % Tiny::capacity();
     for (std::uint64_t right = left + 1; right < 100; ++right) {
-      const auto right_bytes = salias::keyed_latest_detail::to_bytes(right);
-      if (salias::keyed_latest_detail::hash_key(right_bytes) % Tiny::capacity() == left_home) {
+      const auto right_bytes = salias::latest_by_key_detail::to_bytes(right);
+      if (salias::latest_by_key_detail::hash_key(right_bytes) % Tiny::capacity() == left_home) {
         first_key = left;
         second_key = right;
         found_collision = true;
@@ -156,8 +167,8 @@ TEST(KeyedLatestTest, ExactHashCollisionsAndCapacityExhaustionAreHandled) {
   ASSERT_TRUE(publisher.offer(second_key, 21));
 }
 
-TEST(KeyedLatestTest, EventLogOverrunFallsBackToTheCurrentPerKeySnapshot) {
-  using OneKey = salias::KeyedLatestChannel<std::uint64_t, std::uint64_t, 1>;
+TEST(LatestByKeyTest, EventLogOverrunFallsBackToTheCurrentPerKeySnapshot) {
+  using OneKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 1>;
   auto created = OneKey::create(unique_name("event-overrun"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
@@ -177,19 +188,28 @@ TEST(KeyedLatestTest, EventLogOverrunFallsBackToTheCurrentPerKeySnapshot) {
   EXPECT_FALSE(subscriber.try_recv());
 }
 
-TEST(KeyedLatestTest, ConnectChecksStaticCapacityAndSchema) {
+TEST(LatestByKeyTest, ConnectChecksStaticCapacityAndSchema) {
   const auto name = unique_name("schema");
   auto created = FourKeys::create(name);
   ASSERT_TRUE(created);
-  auto wrong_capacity = salias::KeyedLatestChannel<std::uint64_t, Value, 8>::connect(name);
+  auto wrong_capacity = salias::LatestByKeyChannel<std::uint64_t, Value, 8>::connect(name);
   EXPECT_FALSE(wrong_capacity);
 
-  using DifferentValue = salias::KeyedLatestChannel<std::uint64_t, OtherValue, 4>;
+  using DifferentValue = salias::LatestByKeyChannel<std::uint64_t, OtherValue, 4>;
   auto wrong_value = DifferentValue::connect(name);
   EXPECT_FALSE(wrong_value);
   EXPECT_EQ(wrong_value.error(), salias::Error::BadConfig);
   auto connected = FourKeys::connect(name);
   EXPECT_TRUE(connected);
+
+  using VersionOne = salias::LatestByKeyChannel<std::uint64_t, Value, 4, 1>;
+  const auto versioned_name = unique_name("schema-version");
+  auto versioned = VersionOne::create(versioned_name);
+  ASSERT_TRUE(versioned);
+  EXPECT_TRUE(VersionOne::connect(versioned_name));
+  const auto wrong_version = FourKeys::connect(versioned_name);
+  ASSERT_FALSE(wrong_version);
+  EXPECT_EQ(wrong_version.error(), salias::Error::BadConfig);
 
   auto missing = FourKeys::connect(unique_name("missing"));
   ASSERT_FALSE(missing);
@@ -199,29 +219,32 @@ TEST(KeyedLatestTest, ConnectChecksStaticCapacityAndSchema) {
   EXPECT_FALSE(FourKeys::create(name));
 }
 
-TEST(KeyedLatestTest, InvalidEndpointsAndExhaustedPerKeyVersionReturnTypedErrors) {
-  salias::KeyedLatestPublisher<std::uint64_t, std::uint64_t> invalid_publisher;
+TEST(LatestByKeyTest, InvalidEndpointsAndExhaustedPerKeyVersionReturnTypedErrors) {
+  salias::LatestByKeyPublisher<std::uint64_t, std::uint64_t> invalid_publisher;
   auto invalid_offer = invalid_publisher.offer(1, 2);
   ASSERT_FALSE(invalid_offer);
   EXPECT_EQ(invalid_offer.error(), salias::Error::BadConfig);
 
-  salias::KeyedLatestSubscriber<std::uint64_t, std::uint64_t, 1> invalid_subscriber;
+  salias::LatestByKeySubscriber<std::uint64_t, std::uint64_t, 1> invalid_subscriber;
   auto invalid_receive = invalid_subscriber.try_recv_checked();
   ASSERT_FALSE(invalid_receive);
   EXPECT_EQ(invalid_receive.error(), salias::Error::BadConfig);
+  auto invalid_blocking_receive = invalid_subscriber.recv();
+  ASSERT_FALSE(invalid_blocking_receive);
+  EXPECT_EQ(invalid_blocking_receive.error(), salias::Error::BadConfig);
 
-  using OneKey = salias::KeyedLatestChannel<std::uint64_t, std::uint64_t, 1>;
+  using OneKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 1>;
   const auto name = unique_name("version-limit");
   auto created = OneKey::create(name);
   ASSERT_TRUE(created);
   auto publisher = created->publisher();
   ASSERT_TRUE(publisher.offer(5, 10));
-  auto storage = salias::detail::connect_keyed_latest_storage(
+  auto storage = salias::detail::connect_latest_by_key_storage(
       name, OneKey::capacity(), sizeof(std::uint64_t), sizeof(std::uint64_t),
-      salias::keyed_latest_detail::type_schema<std::uint64_t>(),
-      salias::keyed_latest_detail::type_schema<std::uint64_t>());
+      salias::latest_by_key_detail::type_schema<std::uint64_t>(),
+      salias::latest_by_key_detail::type_schema<std::uint64_t>());
   ASSERT_TRUE(storage);
-  const auto set_max_version = [](salias::detail::KeyedLatestTableView table,
+  const auto set_max_version = [](salias::detail::LatestByKeyTableView table,
                                   void* context) noexcept {
     const auto key = *static_cast<const std::uint64_t*>(context);
     for (std::size_t index = 0; index < table.slot_count; ++index) {
@@ -232,40 +255,70 @@ TEST(KeyedLatestTest, InvalidEndpointsAndExhaustedPerKeyVersionReturnTypedErrors
       const auto active =
           std::atomic_ref<std::uint64_t>(*slot.commit).load(std::memory_order_acquire) & 2u;
       std::atomic_ref<std::uint64_t>(*slot.commit)
-          .store(salias::keyed_latest_detail::make_commit(salias::keyed_latest_detail::kMaxVersion,
-                                                          active >> 1),
+          .store(salias::latest_by_key_detail::make_commit(
+                     salias::latest_by_key_detail::kMaxVersion, active >> 1),
                  std::memory_order_release);
       return salias::Error::Ok;
     }
     return salias::Error::NotFound;
   };
   std::uint64_t key = 5;
-  ASSERT_EQ(salias::detail::with_keyed_latest_table(*storage, set_max_version, &key, true),
+  ASSERT_EQ(salias::detail::with_latest_by_key_table(*storage, set_max_version, &key, true),
             salias::Error::Ok);
   auto exhausted = publisher.offer(key, 11);
   ASSERT_FALSE(exhausted);
   EXPECT_EQ(exhausted.error(), salias::Error::SequenceExhausted);
 }
 
-TEST(KeyedLatestTest, ExhaustedEventSequenceRejectsOfferWithoutChangingSnapshot) {
-  using OneKey = salias::KeyedLatestChannel<std::uint64_t, std::uint64_t, 1>;
+TEST(LatestByKeyTest, BlockingReceiveReturnsTheNextSnapshot) {
+  using OneKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 1>;
+  auto created = OneKey::create(unique_name("blocking-recv"));
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+
+  std::atomic<bool> waiting{false};
+  salias::Result<OneKey::Message> received = std::unexpected(salias::Error::BadConfig);
+  std::thread receiver([&] {
+    waiting.store(true, std::memory_order_release);
+    received = subscriber.recv();
+  });
+  while (!waiting.load(std::memory_order_acquire)) {
+    std::this_thread::yield();
+  }
+  salias::Result<bool> offered = std::unexpected(salias::Error::BackPressured);
+  while (!offered && offered.error() == salias::Error::BackPressured) {
+    offered = publisher.offer(17, 42);
+    std::this_thread::yield();
+  }
+  receiver.join();
+
+  ASSERT_TRUE(offered);
+  ASSERT_TRUE(received);
+  EXPECT_EQ(received->key, 17u);
+  EXPECT_EQ(received->value, 42u);
+}
+
+TEST(LatestByKeyTest, ExhaustedEventSequenceRejectsOfferWithoutChangingSnapshot) {
+  using OneKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 1>;
   const auto name = unique_name("event-limit");
   auto created = OneKey::create(name);
   ASSERT_TRUE(created);
   auto publisher = created->publisher();
   ASSERT_TRUE(publisher.offer(5, 10));
 
-  auto storage = salias::detail::connect_keyed_latest_storage(
+  auto storage = salias::detail::connect_latest_by_key_storage(
       name, OneKey::capacity(), sizeof(std::uint64_t), sizeof(std::uint64_t),
-      salias::keyed_latest_detail::type_schema<std::uint64_t>(),
-      salias::keyed_latest_detail::type_schema<std::uint64_t>());
+      salias::latest_by_key_detail::type_schema<std::uint64_t>(),
+      salias::latest_by_key_detail::type_schema<std::uint64_t>());
   ASSERT_TRUE(storage);
-  const auto exhaust_events = [](salias::detail::KeyedLatestTableView table, void*) noexcept {
+  const auto exhaust_events = [](salias::detail::LatestByKeyTableView table, void*) noexcept {
     std::atomic_ref<std::uint64_t>(*table.event_sequence)
         .store(std::numeric_limits<std::uint64_t>::max(), std::memory_order_release);
     return salias::Error::Ok;
   };
-  ASSERT_EQ(salias::detail::with_keyed_latest_table(*storage, exhaust_events, nullptr, true),
+  ASSERT_EQ(salias::detail::with_latest_by_key_table(*storage, exhaust_events, nullptr, true),
             salias::Error::Ok);
 
   auto exhausted = publisher.offer(5, 11);
@@ -280,7 +333,7 @@ TEST(KeyedLatestTest, ExhaustedEventSequenceRejectsOfferWithoutChangingSnapshot)
   EXPECT_EQ((**snapshot).version, 1u);
 }
 
-TEST(KeyedLatestTest, IndependentProcessPublishesIntoTheSharedKeyTable) {
+TEST(LatestByKeyTest, IndependentProcessPublishesIntoTheSharedKeyTable) {
   const auto name = unique_name("ipc");
   auto created = FourKeys::create(name);
   ASSERT_TRUE(created);
@@ -326,12 +379,12 @@ TEST(KeyedLatestTest, IndependentProcessPublishesIntoTheSharedKeyTable) {
   EXPECT_EQ(latest.version, 2u);
 }
 
-TEST(KeyedLatestTest, ForkInheritedPublisherGetsAProcessPrivateLockDescriptor) {
+TEST(LatestByKeyTest, ForkInheritedPublisherGetsAProcessPrivateLockDescriptor) {
   struct LargeValue {
     std::uint64_t sequence = 0;
     std::array<std::byte, 4088> fill{};
   };
-  using LargeChannel = salias::KeyedLatestChannel<std::uint64_t, LargeValue, 1>;
+  using LargeChannel = salias::LatestByKeyChannel<std::uint64_t, LargeValue, 1>;
   auto created = LargeChannel::create(unique_name("fork-inherited"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
@@ -409,8 +462,8 @@ TEST(KeyedLatestTest, ForkInheritedPublisherGetsAProcessPrivateLockDescriptor) {
                           [fill](std::byte byte) { return byte == fill; }));
 }
 
-TEST(KeyedLatestTest, ConcurrentWritersAndReadersObserveWholeValues) {
-  using OneKey = salias::KeyedLatestChannel<std::uint64_t, Value, 1>;
+TEST(LatestByKeyTest, ConcurrentWritersAndReadersObserveWholeValues) {
+  using OneKey = salias::LatestByKeyChannel<std::uint64_t, Value, 1>;
   const auto name = unique_name("concurrent");
   auto created = OneKey::create(name);
   ASSERT_TRUE(created);
@@ -477,7 +530,7 @@ struct PartialWriteContext {
   std::uint64_t key = 0;
 };
 
-salias::Error leave_partial_value(salias::detail::KeyedLatestTableView table,
+salias::Error leave_partial_value(salias::detail::LatestByKeyTableView table,
                                   void* opaque) noexcept {
   auto& context = *static_cast<PartialWriteContext*>(opaque);
   for (std::size_t index = 0; index < table.slot_count; ++index) {
@@ -487,8 +540,8 @@ salias::Error leave_partial_value(salias::detail::KeyedLatestTableView table,
     if ((commit & 1u) == 0 || std::memcmp(slot.key, &context.key, sizeof(context.key)) != 0) {
       continue;
     }
-    const std::uint32_t inactive = salias::keyed_latest_detail::active_buffer_of(commit) ^ 1u;
-    constexpr std::uint64_t partial = 0xdeadbeefcafebabeull;
+    const std::uint32_t inactive = salias::latest_by_key_detail::active_buffer_of(commit) ^ 1u;
+    constexpr std::uint64_t partial = 0xdeadbeefcafebabeULL;
     std::memcpy(slot.values[inactive], &partial, sizeof(partial) / 2);
     const char ready = 'w';
     const auto written = ::write(context.ready_fd, &ready, 1);
@@ -501,7 +554,7 @@ salias::Error leave_partial_value(salias::detail::KeyedLatestTableView table,
   return salias::Error::NotFound;
 }
 
-TEST(KeyedLatestTest, KilledWriterCannotExposePartiallyWrittenValueAndReleasesLock) {
+TEST(LatestByKeyTest, KilledWriterCannotExposePartiallyWrittenValueAndReleasesLock) {
   const auto name = unique_name("writer-crash");
   auto created = FourKeys::create(name);
   ASSERT_TRUE(created);
@@ -522,16 +575,16 @@ TEST(KeyedLatestTest, KilledWriterCannotExposePartiallyWrittenValueAndReleasesLo
   if (child == 0) {
     static_cast<void>(::close(ready_pipe[0]));
     static_cast<void>(::close(wait_pipe[1]));
-    auto storage = salias::detail::connect_keyed_latest_storage(
+    auto storage = salias::detail::connect_latest_by_key_storage(
         name, FourKeys::capacity(), sizeof(std::uint64_t), sizeof(Value),
-        salias::keyed_latest_detail::type_schema<std::uint64_t>(),
-        salias::keyed_latest_detail::type_schema<Value>());
+        salias::latest_by_key_detail::type_schema<std::uint64_t>(),
+        salias::latest_by_key_detail::type_schema<Value>());
     if (!storage) {
       ::_exit(4);
     }
     PartialWriteContext context{ready_pipe[1], wait_pipe[0], 55};
     static_cast<void>(
-        salias::detail::with_keyed_latest_table(*storage, &leave_partial_value, &context, true));
+        salias::detail::with_latest_by_key_table(*storage, &leave_partial_value, &context, true));
     ::_exit(0);
   }
 

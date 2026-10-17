@@ -343,7 +343,7 @@ TEST(HybridMpscChannelTest, FifoConsumesReadyProducersWithoutGlobalOrdering) {
 }
 
 /// Fifo 扇出：多 consumer 各持独立游标，未全部 release 前帧空间不可回收(背压)。
-TEST(HybridMpscChannelTest, FifoFanoutConsumersHaveIndependentCursors) {
+TEST(HybridMpscChannelTest, FifoMpmcConsumersHaveIndependentCursors) {
   using FifoChannel = HybridMpscChannel<Order::Fifo>;
   auto created = FifoChannel::create(FifoChannel::Config{
       .num_producers = 1,
@@ -384,7 +384,7 @@ TEST(HybridMpscChannelTest, FifoFanoutConsumersHaveIndependentCursors) {
 }
 
 /// Ordered 扇出：每个 consumer 独立维护全序视图，各自按全局 sequence 顺序交付。
-TEST(HybridMpscChannelTest, OrderedFanoutPreservesGlobalOrderForEachConsumer) {
+TEST(HybridMpscChannelTest, OrderedMpmcPreservesGlobalOrderForEachConsumer) {
   using OrderedChannel = HybridMpscChannel<Order::Ordered>;
   auto created = OrderedChannel::create(OrderedChannel::Config{
       .num_producers = 2,

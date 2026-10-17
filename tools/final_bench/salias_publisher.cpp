@@ -103,10 +103,10 @@ int run(const salias::final_bench::Options& options) {
 int dispatch(const salias::final_bench::Options& options) {
   const bool fanout = options.consumers > 1;
   if (options.mode == "fifo") {
-    return fanout ? run<salias::Mode::FifoFanout>(options) : run<salias::Mode::FifoMpsc>(options);
+    return fanout ? run<salias::Mode::FifoMpmc>(options) : run<salias::Mode::FifoMpsc>(options);
   }
   if (options.mode == "ordered") {
-    return fanout ? run<salias::Mode::OrderedFanout>(options)
+    return fanout ? run<salias::Mode::OrderedMpmc>(options)
                   : run<salias::Mode::OrderedMpsc>(options);
   }
   return 2;

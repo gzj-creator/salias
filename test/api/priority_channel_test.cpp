@@ -321,11 +321,11 @@ TEST(PriorityChannelTest, IndependentProcessPublishesToSeparatePriorityStreams) 
 }
 
 TEST(PriorityChannelTest, LaggedHighPriorityStreamDoesNotBlockLowerPriorityData) {
-  using Latest = salias::LatestFanoutChannel<4096>;
-  using MixedPublisher = salias::PriorityPublisher<Mode::LatestFanout, Mode::FifoMpsc>;
-  using MixedReader = salias::PrioritySubscriber<Mode::LatestFanout, Mode::FifoMpsc>;
+  using Latest = salias::LatestMpmcChannel<4096>;
+  using MixedPublisher = salias::PriorityPublisher<Mode::LatestMpmc, Mode::FifoMpsc>;
+  using MixedReader = salias::PrioritySubscriber<Mode::LatestMpmc, Mode::FifoMpsc>;
   auto high_config = config(unique_name("lagged-high"));
-  high_config.mode = Mode::LatestFanout;
+  high_config.mode = Mode::LatestMpmc;
   auto high_created = Latest::create(high_config);
   auto low_created = Fifo::create(config(unique_name("lagged-low")));
   ASSERT_TRUE(high_created);

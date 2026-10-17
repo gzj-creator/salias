@@ -172,7 +172,7 @@ class PriorityPublisher {
  * order is preserved within each stream, but no total order is promised across streams. A
  * BackPressured stream is skipped for that poll attempt so another stream can make progress.
  * Returned messages borrow their source channel and must be released through this reader before
- * another message from that stream is requested. A Lagged result from an underlying LatestFanout
+ * another message from that stream is requested. A Lagged result from an underlying LatestMpmc
  * is treated as an empty attempt; inspect subscriber<Priority>().lagged_messages() for loss.
  * This object is move-only and, like its underlying subscribers, is not safe for concurrent reads.
  * Do not consume through subscriber<Priority>(); the accessor is intended for read-only counters.

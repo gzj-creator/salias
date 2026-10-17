@@ -24,13 +24,13 @@ enum class Error {
   VersionMismatch,  ///< 共享元数据版本不匹配，创建者与连接者协议版本不一致。
   BackPressured,  ///< 生产者遭遇背压：环形缓冲或字节/消息数流控窗口已满。
   MessageTooLarge,  ///< 单条消息负载超过环容量限制。
-  Lagged,  ///< LatestFanout 的 DropOldest 订阅端观测到丢旧，已推进到可读窗口。
+  Lagged,  ///< LatestMpmc 的 DropOldest 订阅端观测到丢旧，已推进到可读窗口。
   PlatformFail,       ///< 平台层失败（mmap/memfd_create/huge page 等系统调用出错）。
   BadConfig,          ///< 配置非法（name 为空、容量或端点数量不合法等）。
   OutOfMemory,        ///< 创建或连接通道时的动态内存分配失败。
   NoSubscriberSlots,  ///< 所有订阅槽均被活动端点占用。
-  CapacityExceeded,   ///< KeyedLatest 通道中尚无空间容纳新的唯一 key。
-  SequenceExhausted,  ///< KeyedLatest 的 key 版本号或通道事件序列耗尽。
+  CapacityExceeded,   ///< LatestByKey 通道中尚无空间容纳新的唯一 key。
+  SequenceExhausted,  ///< LatestByKey 的 key 版本号或通道事件序列耗尽。
 };
 
 // 公共 API 使用的显式结果类型；保留 salias::Result<T> 名称，底层采用 C++23 std::expected。

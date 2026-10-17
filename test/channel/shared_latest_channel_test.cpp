@@ -1,6 +1,6 @@
 /**
  * @file test/channel/shared_latest_channel_test.cpp
- * @brief LatestFanout retention/lease handshake and malformed shared-state regressions.
+ * @brief LatestMpmc retention/lease handshake and malformed shared-state regressions.
  */
 #include <gtest/gtest.h>
 

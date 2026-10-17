@@ -1,9 +1,7 @@
 /**
- * @file src/salias/src/keyed_latest.cpp
- * @brief Named shared-memory storage and crash-released locking for keyed latest values.
+ * @file src/salias/src/latest_by_key.cpp
+ * @brief Named shared-memory storage and crash-released locking for LatestByKeyChannel.
  */
-#include "salias/detail/keyed_latest_storage.hpp"
-
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/mman.h>
@@ -29,14 +27,19 @@
 #include <unordered_map>
 #include <utility>
 
+#include "salias/detail/latest_by_key_storage.hpp"
+
 namespace salias::detail {
 namespace {
 
-inline constexpr std::uint64_t kStorageMagic = 0x53414C4B4C415445ull;  // "SALKLATE"
+inline constexpr std::uint64_t kStorageMagic = 0x53414C4B4C415445ULL;  // "SALKLATE"
 inline constexpr std::uint32_t kStorageVersion = 1;
 inline constexpr std::size_t kMaxNameLength = 128;
+inline constexpr std::size_t kCacheLineBytes = 64;
+inline constexpr std::size_t kMinEventCount = 64;
+inline constexpr std::size_t kRegistryCleanupThreshold = 64;
 inline constexpr std::size_t kSharedAlignment =
-    std::max<std::size_t>(64, std::atomic_ref<std::uint64_t>::required_alignment);
+    std::max(kCacheLineBytes, std::atomic_ref<std::uint64_t>::required_alignment);
 
 struct alignas(kSharedAlignment) SharedHeader {
   std::uint64_t magic;
@@ -80,8 +83,8 @@ struct Layout {
 };
 
 std::uint64_t hash_bytes(std::string_view bytes) noexcept {
-  constexpr std::uint64_t offset = 14695981039346656037ull;
-  constexpr std::uint64_t prime = 1099511628211ull;
+  constexpr std::uint64_t offset = 14695981039346656037ULL;
+  constexpr std::uint64_t prime = 1099511628211ULL;
   std::uint64_t hash = offset;
   for (const unsigned char byte : bytes) {
     hash ^= byte;
@@ -94,9 +97,10 @@ std::string storage_name(std::string_view name) {
   constexpr std::array<char, 16> digits = {'0', '1', '2', '3', '4', '5', '6', '7',
                                            '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
   std::array<char, digits.size()> encoded{};
+  constexpr std::uint64_t hex_digit_mask = digits.size() - 1;
   std::uint64_t hash = hash_bytes(name);
   for (std::size_t index = encoded.size(); index != 0; --index) {
-    encoded[index - 1] = digits[hash & 0x0fu];
+    encoded[index - 1] = digits[hash & hex_digit_mask];
     hash >>= 4;
   }
   return "/salias-kl-" + std::string(encoded.data(), encoded.size());
@@ -107,8 +111,8 @@ bool valid_name(std::string_view name) noexcept {
     return false;
   }
   return std::all_of(name.begin(), name.end(), [](unsigned char c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-           c == '_' || c == '-' || c == '.';
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' ||
+           c == '-' || c == '.';
   });
 }
 
@@ -130,8 +134,7 @@ bool checked_multiply(std::size_t left, std::size_t right, std::size_t& out) noe
 
 bool align_up(std::size_t value, std::size_t alignment, std::size_t& out) noexcept {
   const std::size_t remainder = value % alignment;
-  return remainder == 0 ? (out = value, true)
-                        : checked_add(value, alignment - remainder, out);
+  return remainder == 0 ? (out = value, true) : checked_add(value, alignment - remainder, out);
 }
 
 bool make_layout(std::size_t slot_count, std::size_t key_size, std::size_t value_size,
@@ -156,7 +159,7 @@ bool make_layout(std::size_t slot_count, std::size_t key_size, std::size_t value
       !align_up(layout.event_offset, alignof(SharedEvent), layout.event_offset)) {
     return false;
   }
-  layout.event_count = std::max<std::size_t>(slot_count, 64);
+  layout.event_count = std::max(slot_count, kMinEventCount);
   std::size_t event_bytes = 0;
   return checked_multiply(layout.event_count, sizeof(SharedEvent), event_bytes) &&
          checked_add(layout.event_offset, event_bytes, layout.total_size) &&
@@ -181,7 +184,7 @@ std::shared_ptr<std::mutex> local_mutex_for(const std::string& shm_name) {
   if (auto existing = registry[shm_name].lock()) {
     return existing;
   }
-  if (registry.size() > 64) {
+  if (registry.size() > kRegistryCleanupThreshold) {
     std::erase_if(registry, [](const auto& entry) { return entry.second.expired(); });
   }
   auto created = std::make_shared<std::mutex>();
@@ -199,7 +202,7 @@ void close_fd(int fd) noexcept {
 
 }  // namespace
 
-struct KeyedLatestStorage {
+struct LatestByKeyStorage {
   int fd = -1;
   pid_t fd_pid = 0;
   void* mapping = MAP_FAILED;
@@ -231,7 +234,7 @@ struct KeyedLatestStorage {
     return Error::Ok;
   }
 
-  ~KeyedLatestStorage() noexcept {
+  ~LatestByKeyStorage() noexcept {
     if (mapping != MAP_FAILED) {
       static_cast<void>(::munmap(mapping, mapping_size));
     }
@@ -244,7 +247,7 @@ struct KeyedLatestStorage {
 
 namespace {
 
-Result<std::shared_ptr<KeyedLatestStorage>> map_storage(
+Result<std::shared_ptr<LatestByKeyStorage>> map_storage(
     int fd, std::string shm_name, bool owner, const Layout& layout, std::size_t slot_count,
     std::size_t key_size, std::size_t value_size, std::uint64_t key_schema,
     std::uint64_t value_schema, std::string_view public_name, bool initialize) {
@@ -277,7 +280,8 @@ Result<std::shared_ptr<KeyedLatestStorage>> map_storage(
       }
       auto* event_bytes = static_cast<std::byte*>(mapping) + layout.event_offset;
       for (std::size_t index = 0; index < layout.event_count; ++index) {
-        std::construct_at(reinterpret_cast<SharedEvent*>(event_bytes + index * sizeof(SharedEvent)));
+        std::construct_at(
+            reinterpret_cast<SharedEvent*>(event_bytes + index * sizeof(SharedEvent)));
       }
       std::atomic_ref<std::uint32_t>(header->ready).store(1, std::memory_order_release);
     } else {
@@ -306,7 +310,7 @@ Result<std::shared_ptr<KeyedLatestStorage>> map_storage(
     }
 
     auto process_mutex = local_mutex_for(shm_name);
-    auto storage = std::make_shared<KeyedLatestStorage>();
+    auto storage = std::make_shared<LatestByKeyStorage>();
     storage->shm_name = std::move(shm_name);
     storage->local_mutex = std::move(process_mutex);
     storage->mapping_size = layout.total_size;
@@ -334,9 +338,9 @@ Result<std::shared_ptr<KeyedLatestStorage>> map_storage(
 
 }  // namespace
 
-Result<std::shared_ptr<KeyedLatestStorage>> create_keyed_latest_storage(
-    std::string_view name, std::size_t slot_count, std::size_t key_size,
-    std::size_t value_size, std::uint64_t key_schema, std::uint64_t value_schema) {
+Result<std::shared_ptr<LatestByKeyStorage>> create_latest_by_key_storage(
+    std::string_view name, std::size_t slot_count, std::size_t key_size, std::size_t value_size,
+    std::uint64_t key_schema, std::uint64_t value_schema) {
   if (!valid_name(name)) {
     return std::unexpected(Error::BadConfig);
   }
@@ -350,8 +354,7 @@ Result<std::shared_ptr<KeyedLatestStorage>> create_keyed_latest_storage(
     for (int attempt = 0; attempt < 2; ++attempt) {
       const int fd = ::shm_open(shm_name.c_str(), O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600);
       if (fd >= 0) {
-        if (!lock_file(fd, true) ||
-            ::ftruncate(fd, static_cast<off_t>(layout.total_size)) != 0) {
+        if (!lock_file(fd, true) || ::ftruncate(fd, static_cast<off_t>(layout.total_size)) != 0) {
           close_fd(fd);
           static_cast<void>(::shm_unlink(shm_name.c_str()));
           return std::unexpected(Error::PlatformFail);
@@ -383,8 +386,8 @@ Result<std::shared_ptr<KeyedLatestStorage>> create_keyed_latest_storage(
                                     MAP_SHARED, existing, 0);
           if (header_map != MAP_FAILED) {
             auto* header = static_cast<SharedHeader*>(header_map);
-            incomplete = std::atomic_ref<std::uint32_t>(header->ready)
-                             .load(std::memory_order_acquire) != 1;
+            incomplete =
+                std::atomic_ref<std::uint32_t>(header->ready).load(std::memory_order_acquire) != 1;
             static_cast<void>(::munmap(header_map, sizeof(SharedHeader)));
           }
         }
@@ -404,9 +407,9 @@ Result<std::shared_ptr<KeyedLatestStorage>> create_keyed_latest_storage(
   return std::unexpected(Error::PlatformFail);
 }
 
-Result<std::shared_ptr<KeyedLatestStorage>> connect_keyed_latest_storage(
-    std::string_view name, std::size_t slot_count, std::size_t key_size,
-    std::size_t value_size, std::uint64_t key_schema, std::uint64_t value_schema) {
+Result<std::shared_ptr<LatestByKeyStorage>> connect_latest_by_key_storage(
+    std::string_view name, std::size_t slot_count, std::size_t key_size, std::size_t value_size,
+    std::uint64_t key_schema, std::uint64_t value_schema) {
   if (!valid_name(name)) {
     return std::unexpected(Error::BadConfig);
   }
@@ -456,9 +459,9 @@ Result<std::shared_ptr<KeyedLatestStorage>> connect_keyed_latest_storage(
   }
 }
 
-Error with_keyed_latest_table(const std::shared_ptr<KeyedLatestStorage>& storage,
-                              KeyedLatestTableCallback callback, void* context,
-                              bool wait_for_lock) noexcept {
+Error with_latest_by_key_table(const std::shared_ptr<LatestByKeyStorage>& storage,
+                               LatestByKeyTableCallback callback, void* context,
+                               bool wait_for_lock) noexcept {
   if (!storage || callback == nullptr) {
     return Error::BadConfig;
   }
@@ -484,7 +487,7 @@ Error with_keyed_latest_table(const std::shared_ptr<KeyedLatestStorage>& storage
   }
 
   auto* bytes = static_cast<std::byte*>(storage->mapping) + storage->data_offset;
-  const KeyedLatestTableView table{
+  const LatestByKeyTableView table{
       .slots = bytes,
       .events = static_cast<std::byte*>(storage->mapping) + storage->event_offset,
       .event_sequence = &static_cast<SharedHeader*>(storage->mapping)->event_sequence,

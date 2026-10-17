@@ -24,18 +24,18 @@ namespace salias {
  * 会被 pin，在 release 前生产者不会覆盖其 payload；pin 暂时阻止写入时仍返回 BackPressured。
  * 保留水位按完整帧计算（含 8 字节帧头与对齐），单帧超出水位返回 MessageTooLarge。
  * 同一订阅端每个 producer ring 同时最多持有一个单条借用或一批 poll 借用。
- * Config::publication_window 必须为 0，因为 LatestFanout 使用保留水位而非消费者游标背压；
+ * Config::publication_window 必须为 0，因为 LatestMpmc 使用保留水位而非消费者游标背压；
  * 可用 Config::publication_window_messages 进一步限制保留帧数。
  */
 template <std::size_t Capacity, std::uint32_t HighWatermarkPercent = 90>
-class LatestFanoutChannel {
-  static_assert(Capacity > 0, "LatestFanoutChannel capacity must be greater than zero");
+class LatestMpmcChannel {
+  static_assert(Capacity > 0, "LatestMpmcChannel capacity must be greater than zero");
   static_assert(HighWatermarkPercent > 0 && HighWatermarkPercent <= 100,
-                "LatestFanoutChannel watermark must be in [1, 100]");
+                "LatestMpmcChannel watermark must be in [1, 100]");
 
  public:
   /// @brief 创建结果类型。
-  using CreateResult = Result<LatestFanoutChannel>;
+  using CreateResult = Result<LatestMpmcChannel>;
 
   /**
    * @brief 创建通道；容量与丢旧水位由模板参数固定。
@@ -45,14 +45,14 @@ class LatestFanoutChannel {
   static CreateResult create(const Config& config) {
     try {
       Config typed_config = config;
-      typed_config.mode = Mode::LatestFanout;
+      typed_config.mode = Mode::LatestMpmc;
       typed_config.capacity = Capacity;
       typed_config.high_watermark_percent = HighWatermarkPercent;
-      auto channel = Channel<Mode::LatestFanout>::create(typed_config);
+      auto channel = Channel<Mode::LatestMpmc>::create(typed_config);
       if (!channel) {
         return std::unexpected(channel.error());
       }
-      return LatestFanoutChannel(std::move(*channel));
+      return LatestMpmcChannel(std::move(*channel));
     } catch (const std::bad_alloc&) {
       return std::unexpected(Error::OutOfMemory);
     }
@@ -62,7 +62,7 @@ class LatestFanoutChannel {
    * @brief 连接通道，并校验共享容量与本类型模板参数一致。
    */
   static CreateResult connect(std::string_view name) {
-    auto channel = Channel<Mode::LatestFanout>::connect(name);
+    auto channel = Channel<Mode::LatestMpmc>::connect(name);
     if (!channel) {
       return std::unexpected(channel.error());
     }
@@ -70,13 +70,13 @@ class LatestFanoutChannel {
         channel->high_watermark_percent() != HighWatermarkPercent) {
       return std::unexpected(Error::BadConfig);
     }
-    return LatestFanoutChannel(std::move(*channel));
+    return LatestMpmcChannel(std::move(*channel));
   }
 
-  LatestFanoutChannel(LatestFanoutChannel&&) noexcept = default;
-  LatestFanoutChannel& operator=(LatestFanoutChannel&&) noexcept = default;
-  LatestFanoutChannel(const LatestFanoutChannel&) = default;
-  LatestFanoutChannel& operator=(const LatestFanoutChannel&) = default;
+  LatestMpmcChannel(LatestMpmcChannel&&) noexcept = default;
+  LatestMpmcChannel& operator=(LatestMpmcChannel&&) noexcept = default;
+  LatestMpmcChannel(const LatestMpmcChannel&) = default;
+  LatestMpmcChannel& operator=(const LatestMpmcChannel&) = default;
 
   /// @return 当前存活的已注册订阅槽数量。
   std::uint32_t connected_consumer_count() const noexcept {
@@ -84,21 +84,19 @@ class LatestFanoutChannel {
   }
 
   /// @return 创建绑定到该通道的丢旧发布端。
-  LatestFanoutPublisher publisher() { return channel_.publisher(); }
+  LatestMpmcPublisher publisher() { return channel_.publisher(); }
 
   /// @return 创建绑定到该通道的丢旧订阅端。
-  LatestFanoutSubscriber subscriber() { return channel_.subscriber(); }
+  LatestMpmcSubscriber subscriber() { return channel_.subscriber(); }
 
   /// @return 创建丢旧订阅端；槽位耗尽或端点分配失败时返回明确错误。
-  Result<LatestFanoutSubscriber> try_subscriber() { return channel_.try_subscriber(); }
+  Result<LatestMpmcSubscriber> try_subscriber() { return channel_.try_subscriber(); }
 
   /// @return 按指定交付策略创建订阅端。
-  LatestFanoutSubscriber subscriber(SubscriptionPolicy policy) {
-    return channel_.subscriber(policy);
-  }
+  LatestMpmcSubscriber subscriber(SubscriptionPolicy policy) { return channel_.subscriber(policy); }
 
   /// @return 按指定交付策略创建订阅端；槽位耗尽或端点分配失败时返回明确错误。
-  Result<LatestFanoutSubscriber> try_subscriber(SubscriptionPolicy policy) {
+  Result<LatestMpmcSubscriber> try_subscriber(SubscriptionPolicy policy) {
     return channel_.try_subscriber(policy);
   }
 
@@ -109,10 +107,10 @@ class LatestFanoutChannel {
   static constexpr std::uint32_t high_watermark_percent() noexcept { return HighWatermarkPercent; }
 
  private:
-  explicit LatestFanoutChannel(Channel<Mode::LatestFanout> channel) noexcept
+  explicit LatestMpmcChannel(Channel<Mode::LatestMpmc> channel) noexcept
       : channel_(std::move(channel)) {}
 
-  Channel<Mode::LatestFanout> channel_;
+  Channel<Mode::LatestMpmc> channel_;
 };
 
 }  // namespace salias

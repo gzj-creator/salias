@@ -17,21 +17,21 @@ bool header_publish(const salias::Config& config) {
   switch (config.mode) {
     case salias::Mode::FifoMpsc:
       return publish_from_header<salias::Mode::FifoMpsc>(config);
-    case salias::Mode::FifoFanout:
-      return publish_from_header<salias::Mode::FifoFanout>(config);
+    case salias::Mode::FifoMpmc:
+      return publish_from_header<salias::Mode::FifoMpmc>(config);
     case salias::Mode::OrderedMpsc:
       return publish_from_header<salias::Mode::OrderedMpsc>(config);
-    case salias::Mode::OrderedFanout:
-      return publish_from_header<salias::Mode::OrderedFanout>(config);
-    case salias::Mode::LatestFanout:
-      return publish_from_header<salias::Mode::LatestFanout>(config);
+    case salias::Mode::OrderedMpmc:
+      return publish_from_header<salias::Mode::OrderedMpmc>(config);
+    case salias::Mode::LatestMpmc:
+      return publish_from_header<salias::Mode::LatestMpmc>(config);
   }
   return false;
 }
 
-bool header_keyed_latest_publish(std::string_view name) {
-  using Keyed = salias::KeyedLatestChannel<std::uint64_t, std::uint64_t, 4>;
-  auto connected = Keyed::connect(name);
+bool header_latest_by_key_publish(std::string_view name) {
+  using LatestByKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 4>;
+  auto connected = LatestByKey::connect(name);
   if (!connected) {
     return false;
   }

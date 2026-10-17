@@ -98,7 +98,7 @@ class Publisher {
    * @param payload_len 期望的负载字节数。
    * @retval PublishClaim 预留成功，用户写入后需 commit()。
    * @retval Error::BackPressured 字节/消息数流控窗口达上限，或环形缓冲已满。
-   * @retval Error::MessageTooLarge payload_len 超过环容量，或 LatestFanout 单帧超过保留水位。
+   * @retval Error::MessageTooLarge payload_len 超过环容量，或 LatestMpmc 单帧超过保留水位。
    * @note 成功后调用方必须写入 payload 并调用 PublishClaim::commit() 发布消息。
    */
   Result<PublishClaim<M>> try_claim(std::size_t payload_len) noexcept;
@@ -119,7 +119,7 @@ class Publisher {
    * @param payload 待发布的负载数据视图。
    * @retval true 发布成功。
    * @retval Error::BackPressured 字节/消息数流控窗口达上限，或当前无法复用环空间。
-   * @retval Error::MessageTooLarge payload 超过环容量，或 LatestFanout 单帧超过保留水位。
+   * @retval Error::MessageTooLarge payload 超过环容量，或 LatestMpmc 单帧超过保留水位。
    */
   Result<bool> offer(std::span<const std::byte> payload) noexcept;
 
@@ -153,9 +153,10 @@ class Publisher {
 };
 
 using FifoMpscPublisher = Publisher<Mode::FifoMpsc>;            ///< FIFO MPSC 发布端别名。
-using FifoFanoutPublisher = Publisher<Mode::FifoFanout>;        ///< FIFO fanout 发布端别名。
+using FifoMpmcPublisher = Publisher<Mode::FifoMpmc>;  ///< FIFO 多生产者多消费者广播发布端别名。
 using OrderedMpscPublisher = Publisher<Mode::OrderedMpsc>;      ///< 保序 MPSC 发布端别名。
-using OrderedFanoutPublisher = Publisher<Mode::OrderedFanout>;  ///< 保序 fanout 发布端别名。
-using LatestFanoutPublisher = Publisher<Mode::LatestFanout>;  ///< 丢旧 fanout 发布端别名。
+using OrderedMpmcPublisher =
+    Publisher<Mode::OrderedMpmc>;  ///< 保序多生产者多消费者广播发布端别名。
+using LatestMpmcPublisher = Publisher<Mode::LatestMpmc>;  ///< 丢旧 fanout 发布端别名。
 
 }  // namespace salias

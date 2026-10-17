@@ -89,12 +89,12 @@ class Channel {
 
   /// @return 共享通道中每个 producer ring 的字节容量。
   std::size_t capacity() const noexcept;
-  /// @return LatestFanout 通道的编译配置水位比例；其他模式返回 0。
+  /// @return LatestMpmc 通道的编译配置水位比例；其他模式返回 0。
   std::uint32_t high_watermark_percent() const noexcept;
 
   /**
    * @brief 创建绑定到当前通道的订阅端。
-   * @return 绑定该通道共享状态的 Subscriber<M>；LatestFanout 默认 DropOldest，其他模式默认
+   * @return 绑定该通道共享状态的 Subscriber<M>；LatestMpmc 默认 DropOldest，其他模式默认
    * Reliable。
    * @note 分配失败时可能抛出 std::bad_alloc；槽位耗尽时返回无效端点。
    */
@@ -102,7 +102,7 @@ class Channel {
 
   /**
    * @brief 按指定交付策略创建订阅端。
-   * @note DropOldest 仅支持 LatestFanout；其他模式传入该策略返回无效端点。
+   * @note DropOldest 仅支持 LatestMpmc；其他模式传入该策略返回无效端点。
    */
   Subscriber<M> subscriber(SubscriptionPolicy policy);
 
@@ -126,8 +126,8 @@ class Channel {
 };
 
 using FifoMpscChannel = Channel<Mode::FifoMpsc>;        ///< FIFO 多生产者单消费者通道别名。
-using FifoFanoutChannel = Channel<Mode::FifoFanout>;    ///< FIFO 多消费者扇出通道别名。
+using FifoMpmcChannel = Channel<Mode::FifoMpmc>;  ///< FIFO 多生产者多消费者广播通道别名。
 using OrderedMpscChannel = Channel<Mode::OrderedMpsc>;  ///< 保序多生产者单消费者通道别名。
-using OrderedFanoutChannel = Channel<Mode::OrderedFanout>;  ///< 保序多消费者扇出通道别名。
+using OrderedMpmcChannel = Channel<Mode::OrderedMpmc>;  ///< 保序多生产者多消费者广播通道别名。
 
 }  // namespace salias

@@ -2,7 +2,7 @@ import std;
 import salias;
 
 bool header_publish(const salias::Config& config);
-bool header_keyed_latest_publish(std::string_view name);
+bool header_latest_by_key_publish(std::string_view name);
 bool header_priority_publish(std::string_view high_name, std::string_view low_name);
 
 namespace {
@@ -86,13 +86,13 @@ void roundtrip() {
 int main() {
   try {
     static_assert(std::is_same_v<salias::FifoMpscChannel, salias::Channel<salias::Mode::FifoMpsc>>);
-    static_assert(std::is_same_v<salias::OrderedFanoutSubscriber,
-                                 salias::Subscriber<salias::Mode::OrderedFanout>>);
+    static_assert(std::is_same_v<salias::OrderedMpmcSubscriber,
+                                 salias::Subscriber<salias::Mode::OrderedMpmc>>);
     roundtrip<salias::Mode::FifoMpsc>();
-    roundtrip<salias::Mode::FifoFanout>();
+    roundtrip<salias::Mode::FifoMpmc>();
     roundtrip<salias::Mode::OrderedMpsc>();
-    roundtrip<salias::Mode::OrderedFanout>();
-    roundtrip<salias::Mode::LatestFanout>();
+    roundtrip<salias::Mode::OrderedMpmc>();
+    roundtrip<salias::Mode::LatestMpmc>();
 
     salias::Config window_config;
     window_config.name =
@@ -120,10 +120,10 @@ int main() {
     latest_config.name =
         "salias-mcpp-latest-typed-" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-    latest_config.mode = salias::Mode::LatestFanout;
+    latest_config.mode = salias::Mode::LatestMpmc;
     latest_config.capacity = 8192;
     latest_config.num_consumers = 2;
-    using LatestChannel = salias::LatestFanoutChannel<4096, 75>;
+    using LatestChannel = salias::LatestMpmcChannel<4096, 75>;
     auto latest = LatestChannel::create(latest_config);
     require(latest.has_value());
     require(latest->capacity() == 4096 && latest->high_watermark_percent() == 75);
@@ -156,26 +156,39 @@ int main() {
     require(checked_latest && *checked_latest && (**checked_latest).sequence == 300);
     latest_subscriber.release(**checked_latest);
 
-    using KeyedLatest = salias::KeyedLatestChannel<std::uint64_t, std::uint64_t, 4>;
-    const auto keyed_name =
-        "salias-mcpp-keyed-latest-" +
+    using LatestByKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 4>;
+    static_assert(std::is_same_v<LatestByKey::Publisher,
+                                 salias::LatestByKeyPublisher<std::uint64_t, std::uint64_t>>);
+    static_assert(std::is_same_v<LatestByKey::Subscriber,
+                                 salias::LatestByKeySubscriber<std::uint64_t, std::uint64_t, 4>>);
+    static_assert(std::is_same_v<LatestByKey::Message,
+                                 salias::LatestByKeyMessage<std::uint64_t, std::uint64_t>>);
+    const auto latest_by_key_name =
+        "salias-mcpp-latest-by-key-" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
-    auto keyed = KeyedLatest::create(keyed_name);
-    require(keyed.has_value());
-    auto keyed_publisher = keyed->publisher();
-    require(keyed_publisher.offer(7, 10).has_value());
-    require(keyed_publisher.offer(7, 11).has_value());
-    auto keyed_subscriber = keyed->subscriber();
-    auto keyed_message = keyed_subscriber.try_recv_checked();
-    require(keyed_message && *keyed_message && (**keyed_message).key == 7 &&
-            (**keyed_message).value == 11 && (**keyed_message).version == 2);
-    require(!keyed_subscriber.try_recv());
-    require(header_keyed_latest_publish(keyed_name));
-    auto keyed_header_message = keyed_subscriber.try_recv_checked();
-    require(keyed_header_message && *keyed_header_message && (**keyed_header_message).value == 12 &&
-            (**keyed_header_message).version == 3);
-    auto keyed_connected = KeyedLatest::connect(keyed_name);
-    require(keyed_connected.has_value());
+    auto latest_by_key = LatestByKey::create(latest_by_key_name);
+    require(latest_by_key.has_value());
+    auto latest_by_key_publisher = latest_by_key->publisher();
+    require(latest_by_key_publisher.offer(7, 10).has_value());
+    require(latest_by_key_publisher.offer(7, 11).has_value());
+    auto latest_by_key_subscriber = latest_by_key->subscriber();
+    auto latest_by_key_message = latest_by_key_subscriber.try_recv_checked();
+    require(latest_by_key_message && *latest_by_key_message && (**latest_by_key_message).key == 7 &&
+            (**latest_by_key_message).value == 11 && (**latest_by_key_message).version == 2);
+    require(!latest_by_key_subscriber.try_recv());
+    require(header_latest_by_key_publish(latest_by_key_name));
+    auto latest_by_key_header_message = latest_by_key_subscriber.try_recv_checked();
+    require(latest_by_key_header_message && *latest_by_key_header_message &&
+            (**latest_by_key_header_message).value == 12 &&
+            (**latest_by_key_header_message).version == 3);
+    auto latest_by_key_connected = LatestByKey::connect(latest_by_key_name);
+    require(latest_by_key_connected.has_value());
+
+    using VersionedLatestByKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 4, 1>;
+    const auto versioned_latest_by_key_name = latest_by_key_name + "-v1";
+    auto versioned_latest_by_key = VersionedLatestByKey::create(versioned_latest_by_key_name);
+    require(versioned_latest_by_key.has_value());
+    require(VersionedLatestByKey::connect(versioned_latest_by_key_name).has_value());
 
     static_assert(salias::PriorityPublisher<salias::Mode::FifoMpsc,
                                             salias::Mode::FifoMpsc>::priority_count() == 2);
@@ -212,7 +225,7 @@ int main() {
                                std::array{std::byte{9}, std::byte{8}}));
     require(priority_subscriber.release(**low_priority_message).has_value());
 
-    std::cout << "Module/header IPC, priority, keyed latest, TTL, message windows, claim, batch, "
+    std::cout << "Module/header IPC, priority, latest-by-key, TTL, message windows, claim, batch, "
                  "poll, checked "
                  "lag and seek passed for 5 modes\n";
     return 0;

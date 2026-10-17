@@ -187,22 +187,21 @@ static_assert(sizeof(NamedProducerSlot) == 2 * kCacheLineGuard + 64 * kMaxConsum
 static_assert(sizeof(NamedControl) <= kControlSize);
 
 /// @brief 依据 channel 模式推导 ordering 语义。
-/// @details FifoMpsc/FifoFanout 采用 FIFO 顺序；OrderedMpsc/OrderedFanout 采用有序（按
+/// @details FifoMpsc/FifoMpmc 采用 FIFO 顺序；OrderedMpsc/OrderedMpmc 采用有序（按
 /// 序列号）语义。
 template <Mode M>
 inline constexpr channel::Order kOrdering =
-    M == Mode::FifoMpsc || M == Mode::FifoFanout || M == Mode::LatestFanout
-        ? channel::Order::Fifo
-        : channel::Order::Ordered;
+    M == Mode::FifoMpsc || M == Mode::FifoMpmc || M == Mode::LatestMpmc ? channel::Order::Fifo
+                                                                        : channel::Order::Ordered;
 
 /// @brief 依据 channel 模式判断是否为 fanout（多消费者广播）模式。
 template <Mode M>
 inline constexpr bool kFanout =
-    M == Mode::FifoFanout || M == Mode::OrderedFanout || M == Mode::LatestFanout;
+    M == Mode::FifoMpmc || M == Mode::OrderedMpmc || M == Mode::LatestMpmc;
 
 /// @brief 依据 channel 模式判断是否启用覆盖旧数据的保留窗口。
 template <Mode M>
-inline constexpr bool kDropOldest = M == Mode::LatestFanout;
+inline constexpr bool kDropOldest = M == Mode::LatestMpmc;
 
 /// @brief 校验具名 channel 名称合法性，仅允许字母数字与 -_. 且长度在 [1,128]。
 /// @param name 待校验的名称。
@@ -952,7 +951,7 @@ class NamedChannelState {
 
   std::uint32_t high_watermark_percent() const noexcept {
     const NamedControl* control = control_.control();
-    return control == nullptr || control->mode != static_cast<std::uint32_t>(Mode::LatestFanout)
+    return control == nullptr || control->mode != static_cast<std::uint32_t>(Mode::LatestMpmc)
                ? 0
                : control->high_watermark_percent;
   }
@@ -1532,7 +1531,7 @@ std::uint32_t Channel<M>::high_watermark_percent() const noexcept {
 template <Mode M>
 Subscriber<M> Channel<M>::subscriber() {
   constexpr auto default_policy =
-      M == Mode::LatestFanout ? SubscriptionPolicy::DropOldest : SubscriptionPolicy::Reliable;
+      M == Mode::LatestMpmc ? SubscriptionPolicy::DropOldest : SubscriptionPolicy::Reliable;
   return subscriber(default_policy);
 }
 
@@ -1551,7 +1550,7 @@ Subscriber<M> Channel<M>::subscriber(SubscriptionPolicy policy) {
 template <Mode M>
 Result<Subscriber<M>> Channel<M>::try_subscriber() {
   constexpr auto default_policy =
-      M == Mode::LatestFanout ? SubscriptionPolicy::DropOldest : SubscriptionPolicy::Reliable;
+      M == Mode::LatestMpmc ? SubscriptionPolicy::DropOldest : SubscriptionPolicy::Reliable;
   return try_subscriber(default_policy);
 }
 
@@ -1561,7 +1560,7 @@ Result<Subscriber<M>> Channel<M>::try_subscriber(SubscriptionPolicy policy) {
     return std::unexpected(Error::BadConfig);
   }
   if ((policy != SubscriptionPolicy::Reliable && policy != SubscriptionPolicy::DropOldest) ||
-      (M != Mode::LatestFanout && policy == SubscriptionPolicy::DropOldest)) {
+      (M != Mode::LatestMpmc && policy == SubscriptionPolicy::DropOldest)) {
     return std::unexpected(Error::BadConfig);
   }
   try {
@@ -1939,7 +1938,7 @@ void Subscriber<M>::release(const Message& message) noexcept {
   }
 }
 
-// 显式实例化四种 channel 模式的全部模板类，使头文件中的声明在本翻译单元落地为符号。
+// 显式实例化五种 channel 模式的全部模板类，使头文件中的声明在本翻译单元落地为符号。
 // 注意：宏体使用反斜杠续行，此处不得在续行行尾追加 // 注释。
 #define SALIAS_INSTANTIATE_MODE(mode)      \
   template class Channel<Mode::mode>;      \
@@ -1948,10 +1947,10 @@ void Subscriber<M>::release(const Message& message) noexcept {
   template class Subscriber<Mode::mode>
 
 SALIAS_INSTANTIATE_MODE(FifoMpsc);       // 多生产者单消费者，FIFO 顺序。
-SALIAS_INSTANTIATE_MODE(FifoFanout);     // 多生产者多消费者广播，FIFO 顺序。
+SALIAS_INSTANTIATE_MODE(FifoMpmc);       // 多生产者多消费者广播，FIFO 顺序。
 SALIAS_INSTANTIATE_MODE(OrderedMpsc);    // 多生产者单消费者，按序列号有序。
-SALIAS_INSTANTIATE_MODE(OrderedFanout);  // 多生产者多消费者广播，按序列号有序。
-SALIAS_INSTANTIATE_MODE(LatestFanout);   // 慢消费者跳过保留窗口外的旧数据。
+SALIAS_INSTANTIATE_MODE(OrderedMpmc);    // 多生产者多消费者广播，按序列号有序。
+SALIAS_INSTANTIATE_MODE(LatestMpmc);     // 慢消费者跳过保留窗口外的旧数据。
 
 #undef SALIAS_INSTANTIATE_MODE
 

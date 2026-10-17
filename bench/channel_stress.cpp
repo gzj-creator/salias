@@ -7,7 +7,7 @@
  *              度量单条 64 字节 payload 的发布-提交-消费往返耗时；
  *          (2) 四生产者单消费者(MPSC)并发吞吐(BM_four_producers_64b)，在 FIFO 与
  *              Ordered 两种协议模式下度量多线程争用下的稳定吞吐与校验和正确性。
- *          (3) LatestFanout 50%/90% 水位下的即时消费、停滞消费者持续丢旧与并发扇出。
+ *          (3) LatestMpmc 50%/90% 水位下的即时消费、停滞消费者持续丢旧与并发扇出。
  *          所有 benchmark 使用 Google Benchmark 框架，通过 BENCHMARK_MAIN() 注册并运行。
  *          关键不变式：MPSC 场景消费完成后以 producer_sum / seq_sum 校验和断言消息无丢失、
  *          无重复、各生产者序列号连续。线程模型：生产者以独立 std::thread 运行，
@@ -46,7 +46,7 @@ struct SmallPayload {
   std::array<std::byte, 56> padding{};  ///< 填充(padding)至 64 字节，模拟定长负载。
 };
 
-struct KeyedPayload {
+struct LatestByKeyPayload {
   std::uint64_t sequence = 0;
   std::uint64_t inverse = 0;
   std::array<std::byte, 48> padding{};
@@ -302,8 +302,8 @@ void BM_four_producers_64b(benchmark::State& state) {
 
 template <std::uint32_t Watermark>
 void BM_latest_fast_subscriber_64b(benchmark::State& state) {
-  using LatestChannel = salias::LatestFanoutChannel<1u << 16, Watermark>;
-  auto created = LatestChannel::create(config_for(salias::Mode::LatestFanout));
+  using LatestChannel = salias::LatestMpmcChannel<1u << 16, Watermark>;
+  auto created = LatestChannel::create(config_for(salias::Mode::LatestMpmc));
   if (!created) {
     state.SkipWithError("failed to create latest fanout channel");
     return;
@@ -332,8 +332,8 @@ void BM_latest_fast_subscriber_64b(benchmark::State& state) {
 
 template <bool ChurnSubscriber>
 void BM_fanout_registration_roundtrip_64b(benchmark::State& state) {
-  auto config = config_for(salias::Mode::FifoFanout, 4096);
-  auto created = salias::FifoFanoutChannel::create(config);
+  auto config = config_for(salias::Mode::FifoMpmc, 4096);
+  auto created = salias::FifoMpmcChannel::create(config);
   if (!created) {
     state.SkipWithError("failed to create fifo fanout channel");
     return;
@@ -342,7 +342,7 @@ void BM_fanout_registration_roundtrip_64b(benchmark::State& state) {
   auto publisher = channel.publisher();
   SmallPayload payload{};
 
-  auto exchange = [&](salias::FifoFanoutSubscriber& subscriber) {
+  auto exchange = [&](salias::FifoMpmcSubscriber& subscriber) {
     auto offered = publisher.offer(std::as_bytes(std::span{&payload, 1}));
     if (!offered) {
       state.SkipWithError("fifo fanout offer failed");
@@ -384,8 +384,8 @@ void BM_fanout_registration_roundtrip_64b(benchmark::State& state) {
 
 template <salias::SubscriptionPolicy Policy>
 void BM_latest_policy_roundtrip_64b(benchmark::State& state) {
-  using LatestChannel = salias::LatestFanoutChannel<4096, 90>;
-  auto created = LatestChannel::create(config_for(salias::Mode::LatestFanout, 4096));
+  using LatestChannel = salias::LatestMpmcChannel<4096, 90>;
+  auto created = LatestChannel::create(config_for(salias::Mode::LatestMpmc, 4096));
   if (!created) {
     state.SkipWithError("failed to create latest fanout channel");
     return;
@@ -423,8 +423,8 @@ void BM_latest_slow_subscriber_64b(benchmark::State& state) {
   constexpr std::size_t kCapacity = 1u << 16;
   constexpr std::size_t kRetention = (kCapacity * Watermark) / 100;
   constexpr std::size_t kFrameSize = sizeof(SmallPayload) + 8;
-  using LatestChannel = salias::LatestFanoutChannel<kCapacity, Watermark>;
-  auto created = LatestChannel::create(config_for(salias::Mode::LatestFanout));
+  using LatestChannel = salias::LatestMpmcChannel<kCapacity, Watermark>;
+  auto created = LatestChannel::create(config_for(salias::Mode::LatestMpmc));
   if (!created) {
     state.SkipWithError("failed to create latest fanout channel");
     return;
@@ -466,8 +466,8 @@ void BM_latest_slow_subscriber_64b(benchmark::State& state) {
 
 void BM_latest_message_window_64b(benchmark::State& state) {
   constexpr std::uint64_t kMessageWindow = 64;
-  using LatestChannel = salias::LatestFanoutChannel<1u << 16, 90>;
-  auto config = config_for(salias::Mode::LatestFanout);
+  using LatestChannel = salias::LatestMpmcChannel<1u << 16, 90>;
+  auto config = config_for(salias::Mode::LatestMpmc);
   config.publication_window_messages = kMessageWindow;
   auto created = LatestChannel::create(config);
   if (!created) {
@@ -520,13 +520,13 @@ void BM_latest_message_window_64b(benchmark::State& state) {
 // One active subscriber races the writer; the second remains idle and must not block either.
 template <std::uint32_t Watermark>
 void BM_latest_concurrent_fanout_64b(benchmark::State& state) {
-  using LatestChannel = salias::LatestFanoutChannel<1u << 16, Watermark>;
+  using LatestChannel = salias::LatestMpmcChannel<1u << 16, Watermark>;
   const auto messages = static_cast<std::uint32_t>(state.range(0));
   std::uint64_t received_total = 0;
   std::uint64_t retries_total = 0;
   for (auto _ : state) {
     state.PauseTiming();
-    auto config = config_for(salias::Mode::LatestFanout);
+    auto config = config_for(salias::Mode::LatestMpmc);
     config.num_consumers = 2;
     auto created = LatestChannel::create(config);
     if (!created) {
@@ -604,8 +604,7 @@ void BM_latest_concurrent_fanout_64b(benchmark::State& state) {
 }
 
 void BM_latest_checked_roundtrip_64b(benchmark::State& state) {
-  auto created =
-      salias::LatestFanoutChannel<1u << 16>::create(config_for(salias::Mode::LatestFanout));
+  auto created = salias::LatestMpmcChannel<1u << 16>::create(config_for(salias::Mode::LatestMpmc));
   if (!created) {
     state.SkipWithError("failed to create checked latest channel");
     return;
@@ -633,8 +632,7 @@ void BM_latest_checked_roundtrip_64b(benchmark::State& state) {
 
 // Seek after each burst, checking that loss + skips + delivery account for every frame.
 void BM_latest_seek_64b(benchmark::State& state) {
-  auto created =
-      salias::LatestFanoutChannel<1u << 16>::create(config_for(salias::Mode::LatestFanout));
+  auto created = salias::LatestMpmcChannel<1u << 16>::create(config_for(salias::Mode::LatestMpmc));
   if (!created) {
     state.SkipWithError("failed to create latest seek channel");
     return;
@@ -673,32 +671,32 @@ void BM_latest_seek_64b(benchmark::State& state) {
   state.SetBytesProcessed(static_cast<std::int64_t>(published * sizeof(SmallPayload)));
 }
 
-void BM_keyed_latest_roundtrip_64b(benchmark::State& state) {
-  using Keyed = salias::KeyedLatestChannel<std::uint64_t, KeyedPayload, 1024>;
-  const auto name = "salias-bench-keyed-" + std::to_string(::getpid()) + "-" +
+void BM_latest_by_key_roundtrip_64b(benchmark::State& state) {
+  using LatestByKey = salias::LatestByKeyChannel<std::uint64_t, LatestByKeyPayload, 1024>;
+  const auto name = "salias-bench-latest-by-key-" + std::to_string(::getpid()) + "-" +
                     std::to_string(state.thread_index());
-  auto created = Keyed::create(name);
+  auto created = LatestByKey::create(name);
   if (!created) {
-    state.SkipWithError("failed to create keyed latest channel");
+    state.SkipWithError("failed to create latest-by-key channel");
     return;
   }
   auto publisher = created->publisher();
   auto subscriber = created->subscriber();
-  KeyedPayload payload{};
+  LatestByKeyPayload payload{};
   constexpr std::uint64_t kKey = 17;
 
   for (auto _ : state) {
     payload.inverse = ~payload.sequence;
     auto offered = publisher.offer(kKey, payload);
     if (!offered) {
-      state.SkipWithError("keyed latest offer failed");
+      state.SkipWithError("latest-by-key offer failed");
       return;
     }
     auto received = subscriber.try_recv_checked();
     if (!received || !*received || (**received).key != kKey ||
         (**received).value.sequence != payload.sequence ||
         (**received).value.inverse != ~payload.sequence) {
-      state.SkipWithError("keyed latest snapshot mismatch");
+      state.SkipWithError("latest-by-key snapshot mismatch");
       return;
     }
     benchmark::DoNotOptimize((**received).value.sequence);
@@ -790,7 +788,7 @@ BENCHMARK_TEMPLATE(BM_latest_concurrent_fanout_64b, 90)
     ->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_latest_checked_roundtrip_64b)->Unit(benchmark::kNanosecond);
 BENCHMARK(BM_latest_seek_64b)->Arg(4096)->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_keyed_latest_roundtrip_64b)->Unit(benchmark::kMicrosecond);
+BENCHMARK(BM_latest_by_key_roundtrip_64b)->Unit(benchmark::kMicrosecond);
 BENCHMARK(BM_priority_weighted_roundtrip_64b)->Unit(benchmark::kMicrosecond);
 
 // Google Benchmark 主入口：解析命令行参数并运行上述所有已注册 benchmark。

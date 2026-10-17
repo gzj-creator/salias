@@ -36,7 +36,7 @@ std::uint64_t decode(const salias::Message& message) {
 
 class LatestSubscriptionTest : public ::testing::Test {
  protected:
-  using Channel = salias::LatestFanoutChannel<4096, 50>;
+  using Channel = salias::LatestMpmcChannel<4096, 50>;
 
   void SetUp() override {
     config_.name = channel_name();
@@ -47,7 +47,7 @@ class LatestSubscriptionTest : public ::testing::Test {
     channel_.emplace(std::move(*created));
   }
 
-  static bool offer(salias::LatestFanoutPublisher& publisher, std::uint64_t sequence) {
+  static bool offer(salias::LatestMpmcPublisher& publisher, std::uint64_t sequence) {
     return publisher.offer(std::as_bytes(std::span{&sequence, 1})).has_value();
   }
 
@@ -313,9 +313,9 @@ void check_reliable_receive() {
 
 TEST_F(LatestSubscriptionTest, ReliableModesSupportCheckedReceiveButRejectLossySeek) {
   check_reliable_receive<salias::Mode::FifoMpsc>();
-  check_reliable_receive<salias::Mode::FifoFanout>();
+  check_reliable_receive<salias::Mode::FifoMpmc>();
   check_reliable_receive<salias::Mode::OrderedMpsc>();
-  check_reliable_receive<salias::Mode::OrderedFanout>();
+  check_reliable_receive<salias::Mode::OrderedMpmc>();
 }
 
 TEST_F(LatestSubscriptionTest, SubscriberCopiesShareCountersAndSeekProgress) {
@@ -560,7 +560,7 @@ TEST_F(LatestSubscriptionTest, CrossProcessReliablePolicyProtectsUnreadFrames) {
   bool backpressured = false;
   bool resumed = false;
   std::uint64_t failed_at = 0;
-  std::optional<salias::LatestFanoutSubscriber> lossy;
+  std::optional<salias::LatestMpmcSubscriber> lossy;
   if (child_registered) {
     auto subscriber_result = channel_->try_subscriber(salias::SubscriptionPolicy::DropOldest);
     if (!subscriber_result) {
@@ -610,8 +610,8 @@ TEST_F(LatestSubscriptionTest, CrossProcessReliablePolicyProtectsUnreadFrames) {
   }
 }
 
-void check_concurrent_delivery(salias::LatestFanoutPublisher publisher,
-                               salias::LatestFanoutSubscriber subscriber, bool seek) {
+void check_concurrent_delivery(salias::LatestMpmcPublisher publisher,
+                               salias::LatestMpmcSubscriber subscriber, bool seek) {
   constexpr std::uint64_t kMessages = 30000;
   for (std::uint64_t sequence = 0; sequence < 300; ++sequence) {
     ASSERT_TRUE(publisher.offer(std::as_bytes(std::span{&sequence, 1})));

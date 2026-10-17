@@ -19,40 +19,42 @@ are released.
 ### Added
 
 - 新增 `PriorityPublisher<Mode...>` / `PrioritySubscriber<Mode...>`，将独立 IPC 通道按模板顺序组合；发布按优先级路由且各通道背压隔离，订阅端以 N..1 加权轮询避免低优先级饥饿，并标记消息来源通道。
-- 新增静态容量的 `KeyedLatestChannel<Key, Value, Capacity>` IPC latest-value 表，跨进程按 key 合并重复更新；订阅者获取独立的当前值快照，值以本地拷贝返回，满表的新 key 明确返回 `CapacityExceeded`。
+- 新增静态容量的 `LatestByKeyChannel<Key, Value, Capacity, SchemaVersion = 0>` IPC latest-value 表，跨进程按 key 合并重复更新；订阅者获取独立的当前值快照，值以本地拷贝返回，满表的新 key 明确返回 `CapacityExceeded`。
 - 为 IPC 消息增加 per-message TTL：`offer_for`、`try_claim_for`、`offer_batch_for` 将非负时长编码为同主机 `CLOCK_MONOTONIC` 截止值；订阅端在 poll/recv 时跳过过期帧并及时释放过期前缀，未过期帧和已借用 payload 仍受 Reliable/DropOldest 原契约保护。
-- 新增 `Config::publication_window_messages`，按每个 producer ring 限制在途/保留消息数；可靠模式达到窗口后背压，LatestFanout 的 DropOldest 订阅可淘汰最旧帧，Reliable 订阅仍保护未读帧。该窗口可与字节窗口并用，LatestFanout 仍要求字节窗口为 0。
-- 为 `LatestFanout` 增加按订阅者选择 `Reliable` 或 `DropOldest` 的交付策略；可靠游标限制保留头推进，慢的可靠订阅者会触发背压而不会丢失未读消息，丢旧订阅者仍可独立跳过过期窗口。其他模式拒绝 `DropOldest` 策略，共享控制段版本升至 v10。
+- 新增 `Config::publication_window_messages`，按每个 producer ring 限制在途/保留消息数；可靠模式达到窗口后背压，LatestMpmc 的 DropOldest 订阅可淘汰最旧帧，Reliable 订阅仍保护未读帧。该窗口可与字节窗口并用，LatestMpmc 仍要求字节窗口为 0。
+- 为 `LatestMpmc` 增加按订阅者选择 `Reliable` 或 `DropOldest` 的交付策略；可靠游标限制保留头推进，慢的可靠订阅者会触发背压而不会丢失未读消息，丢旧订阅者仍可独立跳过过期窗口。其他模式拒绝 `DropOldest` 策略，共享控制段版本升至 v10。
 - 为 IPC 订阅者增加可复用注册槽：最后一个 `Subscriber` 副本销毁时注销，后续注册回收进程崩溃遗留槽位；代际令牌隔离旧端点，late join 从稳定的 reservation 尾开始。新增 `Channel::try_subscriber()` 与 `Error::NoSubscriberSlots`，共享控制段版本升至 v9。
 - 新增编译期定容量的 `salias::Ringbuffer<T, Capacity, HighWatermarkPercent>`，默认以 90% 高水位丢弃最旧元素并保留最新数据；明确该类型为进程内单线程容器，不改变 IPC channel 的背压语义。
 - 新增 `Channel::connected_consumer_count()`，按共享注册槽记录的 PID 与进程启动标识统计仍存活的消费者，并在跨进程消费者退出后将其排除；该诊断能力不回收槽位，也不改变背压语义。
-- 新增 `LatestFanout` IPC 通道策略及对应 Publisher / Subscriber 端点；`LatestFanoutChannel<Capacity, HighWatermarkPercent>` 在编译期固定 ring 容量与保留水位（默认 90%），慢消费者可跳过保留窗口外的消息，连接时校验模板配置，并在借用 payload 时防止覆盖、在订阅进程退出后回收失效 lease。共享控制段版本升至 v8，旧布局通道不能与新版本交叉连接。
-- 新增 6 项 LatestFanout 专项压测，覆盖 50%/90% 水位下的即时消费、停滞持续丢旧和并发扇出，校验保留后缀与消息顺序，并输出接收、丢弃和背压重试计数；并发场景按实际经过时间计量，README 补充复跑命令。
-- `Subscriber::try_recv_checked()` 在 LatestFanout 观测到消费者进度被淘汰时返回 `Error::Lagged`，并推进到可读保留窗口；新增 `skip_to_latest()`、`lagged_messages()` 和 `skipped_messages()`，支持显式跳到指定 producer ring 的最新已提交帧，同时保留缺口计数。
+- 新增 `LatestMpmc` IPC 通道策略及对应 Publisher / Subscriber 端点；`LatestMpmcChannel<Capacity, HighWatermarkPercent>` 在编译期固定 ring 容量与保留水位（默认 90%），慢消费者可跳过保留窗口外的消息，连接时校验模板配置，并在借用 payload 时防止覆盖、在订阅进程退出后回收失效 lease。共享控制段版本升至 v8，旧布局通道不能与新版本交叉连接。
+- 新增 6 项 LatestMpmc 专项压测，覆盖 50%/90% 水位下的即时消费、停滞持续丢旧和并发扇出，校验保留后缀与消息顺序，并输出接收、丢弃和背压重试计数；并发场景按实际经过时间计量，README 补充复跑命令。
+- `Subscriber::try_recv_checked()` 在 LatestMpmc 观测到消费者进度被淘汰时返回 `Error::Lagged`，并推进到可读保留窗口；新增 `skip_to_latest()`、`lagged_messages()` 和 `skipped_messages()`，支持显式跳到指定 producer ring 的最新已提交帧，同时保留缺口计数。
 
 ### Fixed
 
-- KeyedLatest 使用内核自动释放的跨进程文件锁和双缓冲提交字；进程在更新中被杀不会暴露半写入的值，也不会永久占住通道锁。直接指针 key/value 在编译期拒绝，避免把进程地址当作共享数据。
-- LatestFanout 单帧与等长批次严格受保留水位限制，单帧超限返回 `MessageTooLarge`，不再扩大窗口；空消息避免向空指针执行零长度拷贝，超出 32 位长度的输入不再截断。
+- LatestByKey 使用内核自动释放的跨进程文件锁和双缓冲提交字；进程在更新中被杀不会暴露半写入的值，也不会永久占住通道锁。直接指针 key/value 在编译期拒绝，避免把进程地址当作共享数据。
+- LatestMpmc 单帧与等长批次严格受保留水位限制，单帧超限返回 `MessageTooLarge`，不再扩大窗口；空消息避免向空指针执行零长度拷贝，超出 32 位长度的输入不再截断。
 - 将拟淘汰位置 `retention_intent` 与实际保留头分离：lease 检查成功后才淘汰旧帧，受 pin 阻止的单条或批量写入不再额外丢消息或消耗序列号；消费者在公布 lease 后核对 intent 和保留头快照，无需共享自旋锁。
 - 淘汰前校验帧的已提交标志与长度边界，慢消费者跳读时同步本地和共享进度；修正 claim 注释，明确未提交空洞的可见性与不支持放弃 claim 的真实契约。
-- 修复静态 LatestFanout 包装器复制配置时泄漏 `bad_alloc`，以及共享引擎/订阅端初始化错误的 `noexcept` 导致分配失败直接终止进程的问题；将创建阶段的 reserve 纳入回滚范围，通过移动清理名称避免 OOM 路径遗留共享内存。
+- 修复静态 LatestMpmc 包装器复制配置时泄漏 `bad_alloc`，以及共享引擎/订阅端初始化错误的 `noexcept` 导致分配失败直接终止进程的问题；将创建阶段的 reserve 纳入回滚范围，通过移动清理名称避免 OOM 路径遗留共享内存。
 
 ### Changed
 
 - 帧头增加可选 8 字节 TTL 扩展元数据，TTL 开销计入容量、水位和批次步进；共享通道协议升至 v12，旧通道须重建并同步升级两端。
 - 共享控制段协议升级至 v11，新增消息数窗口的 producer reservation、retention 和 consumer 进度字段；旧布局通道需重建并同时升级发布端与订阅端。
-- 共享控制段协议升级为 v8，以支持独立淘汰意图字、LatestFanout 丢旧/主动跳过计数；旧布局返回 `VersionMismatch`，需重建通道并同时升级发布端与订阅端。
+- 共享控制段协议升级为 v8，以支持独立淘汰意图字、LatestMpmc 丢旧/主动跳过计数；旧布局返回 `VersionMismatch`，需重建通道并同时升级发布端与订阅端。
+- 公共多消费者模式统一命名为 `FifoMpmc`、`OrderedMpmc` 和 `LatestMpmc`，按 key 合并最新值的 channel、端点、消息及内部 storage 统一命名为 `LatestByKey*` / `latest_by_key_*`；`Mode` 数值保持 0..4，既有共享内存布局不变，下游源码需更新旧 API 标识符。
+- `LatestByKeyChannel` 增加应用管理的 `SchemaVersion` 模板参数以显式拒绝不兼容的数据模式；阻塞 `recv()` 返回带错误的 `Result`，仅重试临时背压，并明确 fork 前静置线程的约束。
 
 ### Tests
 
-- 新增优先级通道测试，覆盖 3:2:1 加权轮询、流内顺序、背压隔离、LatestFanout Lagged 隔离、borrow/release 与 poll 自动释放、跨进程发布、无效和移动后端点；增加 64B weighted-roundtrip 基准及 mcpp 模块/头文件混合 IPC roundtrip。Release/ASan/UBSan 全量、优先级 TSan 专项与 mcpp roundtrip 均通过，结果记录在能力计划中；三次 0.5 秒基准中位 0.122 us，Google Benchmark 依赖为 DEBUG 构建，该数据仅供冒烟参考。
-- 新增 KeyedLatest 测试，覆盖重复 key 合并、独立及复制订阅游标、hash 冲突、满容量、模板/类型不匹配、事件日志溢出、版本与事件序列耗尽、跨进程写入、多线程一致性、锁竞争和写进程 `SIGKILL`；增加 64B 发布/接收往返压力基准及 mcpp 模块/头文件 roundtrip。
-- 新增 TTL 回归，覆盖零/负/正时长、零拷贝 claim、均匀和变长部分批次、过期前缀释放同时保留后续借用帧、借用跨过期点仍受保护、LatestFanout retention/loss、Ordered 跨 producer 序列、物理回绕和跨进程单调时钟。Release 142/142、ASan/UBSan 141/141 通过；TSan API suite 1/1 通过，完整 TSan 另有 4 个小型契约程序因运行时 `unexpected memory mapping` 启动失败。mcpp module/header TTL IPC 测试通过。TTL expiration 短基准 3 次中位数 0.259 us/迭代；Google Benchmark 依赖是 DEBUG 构建，结果仅作冒烟参考。
-- 新增消息数窗口测试，覆盖 Ordered 多 producer 独立上限、字节/消息窗口独立生效、fanout 最慢消费者、部分批次、poll 后恢复、connect 后限制、LatestFanout 可靠读者背压、空消息/变长帧与物理回绕；新增停滞订阅者保留 64 条消息的压测校验。Release 134/134、ASan/UBSan 133/133、TSan API suite 和 mcpp module/header IPC 测试通过；短基准 3 次复跑通过，Google Benchmark 依赖为 DEBUG 构建，结果仅作冒烟参考。
-- 新增 20 个 LatestFanout 回归测试，覆盖最小/默认/全容量水位、空消息和精确帧边界、超限与部分批次、混合长度回绕、序列号低位回绕、未提交空洞、非法帧头/lease 边界、借用与批量回调生命期、独立 producer/consumer 和 `SIGKILL` 后的失效 lease 回收。
+- 新增优先级通道测试，覆盖 3:2:1 加权轮询、流内顺序、背压隔离、LatestMpmc Lagged 隔离、borrow/release 与 poll 自动释放、跨进程发布、无效和移动后端点；增加 64B weighted-roundtrip 基准及 mcpp 模块/头文件混合 IPC roundtrip。Release/ASan/UBSan 全量、优先级 TSan 专项与 mcpp roundtrip 均通过，结果记录在能力计划中；三次 0.5 秒基准中位 0.122 us，Google Benchmark 依赖为 DEBUG 构建，该数据仅供冒烟参考。
+- 新增 LatestByKey 测试，覆盖重复 key 合并、独立及复制订阅游标、hash 冲突、满容量、模板/类型不匹配、事件日志溢出、版本与事件序列耗尽、跨进程写入、多线程一致性、锁竞争和写进程 `SIGKILL`；增加 64B 发布/接收往返压力基准及 mcpp 模块/头文件 roundtrip，并验证显式 schema 版本。
+- 新增 TTL 回归，覆盖零/负/正时长、零拷贝 claim、均匀和变长部分批次、过期前缀释放同时保留后续借用帧、借用跨过期点仍受保护、LatestMpmc retention/loss、Ordered 跨 producer 序列、物理回绕和跨进程单调时钟。Release 142/142、ASan/UBSan 141/141 通过；TSan API suite 1/1 通过，完整 TSan 另有 4 个小型契约程序因运行时 `unexpected memory mapping` 启动失败。mcpp module/header TTL IPC 测试通过。TTL expiration 短基准 3 次中位数 0.259 us/迭代；Google Benchmark 依赖是 DEBUG 构建，结果仅作冒烟参考。
+- 新增消息数窗口测试，覆盖 Ordered 多 producer 独立上限、字节/消息窗口独立生效、fanout 最慢消费者、部分批次、poll 后恢复、connect 后限制、LatestMpmc 可靠读者背压、空消息/变长帧与物理回绕；新增停滞订阅者保留 64 条消息的压测校验。Release 134/134、ASan/UBSan 133/133、TSan API suite 和 mcpp module/header IPC 测试通过；短基准 3 次复跑通过，Google Benchmark 依赖为 DEBUG 构建，结果仅作冒烟参考。
+- 新增 20 个 LatestMpmc 回归测试，覆盖最小/默认/全容量水位、空消息和精确帧边界、超限与部分批次、混合长度回绕、序列号低位回绕、未提交空洞、非法帧头/lease 边界、借用与批量回调生命期、独立 producer/consumer 和 `SIGKILL` 后的失效 lease 回收。
 - Linux x86_64 上 ASan/UBSan 全量 99/99、Release 全量 100/100（含 benchmark smoke）通过；三生产者与单条/批量双订阅者并发回绕在 ASan/UBSan、Release 下各复跑 50 轮，TSan 下复跑 10 轮。
-- 分配契约测试逐点注入五模式及静态 LatestFanout 的创建、连接和订阅端分配失败，验证 typed error/异常传播与同名通道重建。静态包装器 OOM 测试修复前失败、修复后通过；五模式 mcpp 模块/头文件混合消费复验通过。macOS 和长期压力运行未在本次验证。
+- 分配契约测试逐点注入五模式及静态 LatestMpmc 的创建、连接和订阅端分配失败，验证 typed error/异常传播与同名通道重建。静态包装器 OOM 测试修复前失败、修复后通过；五模式 mcpp 模块/头文件混合消费复验通过。macOS 和长期压力运行未在本次验证。
 - 6 项专项短压测各重复 3 次，保留后缀及并发顺序校验通过；当前 Google Benchmark 依赖提示以 DEBUG 构建，结果不作为正式性能基线。
 
 ### Docs
@@ -60,7 +62,8 @@ are released.
 - 补充 per-message TTL API、同主机单调时钟域、接收时惰性过期、借用期约束和 v12 协议兼容说明，并增加 TTL drain 压测入口。
 - 补充消息数窗口的配置单位、可靠/丢旧模式语义、批量部分成功行为、协议版本和压力基准说明。
 - 补充完整帧水位计算、失败写入不淘汰、每环借用限制、批量回调 pin 和协议兼容要求。
-- 补充 checked 接收、LatestFanout 主动跳读、缺口计数和可靠模式不丢失的 API 语义。
+- 补充 checked 接收、LatestMpmc 主动跳读、缺口计数和可靠模式不丢失的 API 语义。
+- 补充 LatestByKey schema 版本、接收错误、fork 约束及 Pub/Sub 绑核和 NUMA 能力边界说明。
 
 ## [v2.1.0] - 2026-10-11
 

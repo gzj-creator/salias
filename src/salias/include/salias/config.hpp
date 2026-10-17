@@ -18,17 +18,24 @@ namespace salias {
 
 /**
  * @brief 通道传输协议模式枚举。
- * @details FIFO/Ordered 模式按投递顺序与消费者拓扑组合；LatestFanout 保留每个 producer
- *          ring 的最新有界窗口，默认订阅者可跳过旧数据，也可单独选 Reliable 策略。
+ * @details FIFO/Ordered 模式按投递顺序与消费者拓扑组合；Mpmc 模式将每条消息广播给各订阅者，
+ *          不是由多个订阅者竞争消费。LatestMpmc 保留每个 producer ring 的最新有界窗口，
+ *          默认订阅者可跳过旧数据，也可单独选 Reliable 策略。
  *          - FIFO：生产者侧按 claim 顺序提交，适合日志类场景。
  *          - Ordered：进一步保证跨生产者的全局有序，适合事件溯源。
  *          模式一经创建不可变更。
  */
-enum class Mode { FifoMpsc, FifoFanout, OrderedMpsc, OrderedFanout, LatestFanout };
+enum class Mode {
+  FifoMpsc = 0,
+  FifoMpmc = 1,
+  OrderedMpsc = 2,
+  OrderedMpmc = 3,
+  LatestMpmc = 4,
+};
 
 /**
  * @brief 单个订阅者的交付策略。
- * @details Reliable 保留背压语义；DropOldest 仅适用于 LatestFanout，允许该订阅者跳过
+ * @details Reliable 保留背压语义；DropOldest 仅适用于 LatestMpmc，允许该订阅者跳过
  *          已离开保留窗口的数据。Reliable 订阅者仍会阻止生产者覆盖其未读消息。
  */
 enum class SubscriptionPolicy : std::uint32_t { Reliable = 0, DropOldest = 1 };
@@ -58,10 +65,10 @@ struct Config {
   // cached_consumer_pos 更频繁失效，拐点需要按负载复测。
   std::size_t publication_window = 0;
   // 每个 producer ring 的消息数窗口，0 表示不限制。可靠模式按最慢订阅者进度背压；
-  // LatestFanout 将其作为最大保留帧数，DropOldest 满窗淘汰最旧帧，Reliable 仍可触发背压。
-  // 可与 publication_window 同时使用；LatestFanout 不支持非零 publication_window。
+  // LatestMpmc 将其作为最大保留帧数，DropOldest 满窗淘汰最旧帧，Reliable 仍可触发背压。
+  // 可与 publication_window 同时使用；LatestMpmc 不支持非零 publication_window。
   std::size_t publication_window_messages = 0;
-  std::uint32_t high_watermark_percent = 90;  ///< LatestFanout 的丢旧水位比例。
+  std::uint32_t high_watermark_percent = 90;  ///< LatestMpmc 的丢旧水位比例。
 };
 
 }  // namespace salias
