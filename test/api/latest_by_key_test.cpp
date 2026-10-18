@@ -2,14 +2,17 @@
  * @file test/api/latest_by_key_test.cpp
  * @brief Boundary, concurrency and process-failure tests for LatestByKeyChannel.
  */
+#include <fcntl.h>
 #include <gtest/gtest.h>
 #include <signal.h>
+#include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cerrno>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -188,6 +191,57 @@ TEST(LatestByKeyTest, EventLogOverrunFallsBackToTheCurrentPerKeySnapshot) {
   EXPECT_FALSE(subscriber.try_recv());
 }
 
+TEST(LatestByKeyTest, InitialAndOverrunScansFinishWhileTheHotKeyKeepsChanging) {
+  using Sparse = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 128>;
+  const auto name = unique_name("bounded-scan");
+  auto channel = Sparse::create(name);
+  ASSERT_TRUE(channel);
+  auto publisher = channel->publisher();
+  ASSERT_TRUE(publisher.offer(17, 1));
+  auto storage = salias::detail::connect_latest_by_key_storage(
+      name, Sparse::capacity(), sizeof(std::uint64_t), sizeof(std::uint64_t),
+      salias::latest_by_key_detail::type_schema<std::uint64_t>(),
+      salias::latest_by_key_detail::type_schema<std::uint64_t>());
+  ASSERT_TRUE(storage);
+  salias::latest_by_key_detail::Cursor<std::uint64_t, std::uint64_t> cursor(*storage,
+                                                                            Sparse::capacity());
+  salias::latest_by_key_detail::InitializeCursorContext<std::uint64_t, std::uint64_t> initialize{
+      .cursor = &cursor};
+  ASSERT_EQ(
+      salias::detail::with_latest_by_key_table(
+          *storage, &salias::latest_by_key_detail::initialize_cursor<std::uint64_t, std::uint64_t>,
+          &initialize, true),
+      salias::Error::Ok);
+  salias::latest_by_key_detail::ObjectBytes<std::uint64_t> key{};
+  salias::latest_by_key_detail::ObjectBytes<std::uint64_t> value{};
+  std::uint64_t version = 0;
+  salias::latest_by_key_detail::ReceiveContext<std::uint64_t, std::uint64_t> receive{
+      .cursor = &cursor, .key = &key, .value = &value, .version = &version};
+  const auto poll = [&] {
+    receive.found = false;
+    return salias::detail::with_latest_by_key_table(
+        *storage, &salias::latest_by_key_detail::receive<std::uint64_t, std::uint64_t>, &receive,
+        true);
+  };
+  ASSERT_EQ(poll(), salias::Error::Ok);
+  ASSERT_TRUE(receive.found);
+  ASSERT_TRUE(publisher.offer(17, 2));
+  ASSERT_EQ(poll(), salias::Error::Ok);
+  ASSERT_TRUE(receive.found);
+  EXPECT_EQ(cursor.scan_remaining, 0u);
+  for (std::uint64_t sequence = 3; sequence < 300; ++sequence) {
+    ASSERT_TRUE(publisher.offer(17, sequence));
+  }
+  ASSERT_EQ(poll(), salias::Error::Ok);
+  ASSERT_TRUE(receive.found);
+  ASSERT_TRUE(publisher.offer(17, 300));
+  ASSERT_EQ(poll(), salias::Error::Ok);
+  ASSERT_TRUE(receive.found);
+  EXPECT_EQ(cursor.scan_remaining, 0u);
+  EXPECT_EQ(std::bit_cast<std::uint64_t>(value), 300u);
+  EXPECT_EQ(cursor.conflated, 296u);
+}
+
 TEST(LatestByKeyTest, ConnectChecksStaticCapacityAndSchema) {
   const auto name = unique_name("schema");
   auto created = FourKeys::create(name);
@@ -217,6 +271,59 @@ TEST(LatestByKeyTest, ConnectChecksStaticCapacityAndSchema) {
   EXPECT_FALSE(FourKeys::create("bad/name"));
   EXPECT_FALSE(FourKeys::create(""));
   EXPECT_FALSE(FourKeys::create(name));
+}
+
+TEST(LatestByKeyTest, LegacyVersionOneSharedSegmentIsRejected) {
+  struct alignas(64) LegacyHeader {
+    std::uint64_t magic;
+    std::uint32_t version;
+    std::uint32_t ready;
+    std::uint64_t total_size;
+    std::uint64_t slot_count;
+    std::uint64_t key_size;
+    std::uint64_t value_size;
+    std::uint64_t key_schema;
+    std::uint64_t value_schema;
+    std::uint64_t name_hash;
+    std::uint64_t event_count;
+    std::uint64_t event_sequence;
+    char name[129];
+  };
+  const auto name = unique_name("legacy-layout");
+  const auto hash = salias::latest_by_key_detail::hash_key(std::as_bytes(std::span(name)));
+  constexpr std::string_view digits = "0123456789abcdef";
+  std::string shm_name = "/salias-kl-";
+  for (unsigned offset = 64; offset != 0; offset -= 4) {
+    shm_name += digits[(hash >> (offset - 4)) & 15u];
+  }
+  const int descriptor = ::shm_open(shm_name.c_str(), O_CREAT | O_EXCL | O_RDWR, 0600);
+  ASSERT_GE(descriptor, 0);
+  constexpr std::size_t old_stride =
+      2 * sizeof(std::uint64_t) + sizeof(std::uint64_t) + 2 * sizeof(Value);
+  constexpr auto total_size =
+      sizeof(LegacyHeader) + FourKeys::capacity() * old_stride + 64 * 2 * sizeof(std::uint64_t);
+  LegacyHeader header{};
+  header.magic = 0x53414C4B4C415445ULL;
+  header.version = 1;
+  header.ready = 1;
+  header.total_size = total_size;
+  header.slot_count = FourKeys::capacity();
+  header.key_size = sizeof(std::uint64_t);
+  header.value_size = sizeof(Value);
+  header.key_schema = salias::latest_by_key_detail::type_schema<std::uint64_t>();
+  header.value_schema = salias::latest_by_key_detail::type_schema<Value>();
+  header.name_hash = hash;
+  header.event_count = 64;
+  std::memcpy(header.name, name.data(), name.size());
+  EXPECT_EQ(::ftruncate(descriptor, total_size), 0);
+  EXPECT_EQ(::pwrite(descriptor, &header, sizeof(header), 0), static_cast<ssize_t>(sizeof(header)));
+  const auto connected = FourKeys::connect(name);
+  EXPECT_FALSE(connected);
+  if (!connected) {
+    EXPECT_EQ(connected.error(), salias::Error::VersionMismatch);
+  }
+  EXPECT_EQ(::close(descriptor), 0);
+  EXPECT_EQ(::shm_unlink(shm_name.c_str()), 0);
 }
 
 TEST(LatestByKeyTest, InvalidEndpointsAndExhaustedPerKeyVersionReturnTypedErrors) {
@@ -379,7 +486,7 @@ TEST(LatestByKeyTest, IndependentProcessPublishesIntoTheSharedKeyTable) {
   EXPECT_EQ(latest.version, 2u);
 }
 
-TEST(LatestByKeyTest, ForkInheritedPublisherGetsAProcessPrivateLockDescriptor) {
+TEST(LatestByKeyTest, ForkInheritedPublisherRemainsSerializedAfterQuiescentFork) {
   struct LargeValue {
     std::uint64_t sequence = 0;
     std::array<std::byte, 4088> fill{};
@@ -553,6 +660,343 @@ salias::Error leave_partial_value(salias::detail::LatestByKeyTableView table,
   }
   return salias::Error::NotFound;
 }
+
+enum class CrashWindow { InsertBeforeCommit, ReplaceBeforeCommit, AfterCommit, EventBeforePublish };
+
+struct CrashWindowContext {
+  CrashWindow window;
+  int ready_fd = -1;
+  int wait_fd = -1;
+};
+
+salias::Error stop_in_crash_window(salias::detail::LatestByKeyTableView table,
+                                   void* opaque) noexcept {
+  auto& context = *static_cast<CrashWindowContext*>(opaque);
+  const std::uint64_t key = context.window == CrashWindow::InsertBeforeCommit ? 99 : 55;
+  const Value value{101, ~std::uint64_t{101}};
+  const auto bytes = salias::latest_by_key_detail::to_bytes(key);
+  const auto hash = salias::latest_by_key_detail::hash_key(bytes);
+  std::size_t index = hash % table.slot_count;
+  for (std::size_t probe = 0; probe < table.slot_count; ++probe) {
+    const auto slot = table.slot(index);
+    const auto commit =
+        std::atomic_ref<std::uint64_t>(*slot.commit).load(std::memory_order_acquire);
+    if ((commit & 1u) == 0 ||
+        (*slot.hash == hash && std::memcmp(slot.key, &key, sizeof(key)) == 0)) {
+      break;
+    }
+    index = (index + 1) % table.slot_count;
+  }
+  auto slot = table.slot(index);
+  if (context.window == CrashWindow::EventBeforePublish) {
+    const auto sequence =
+        std::atomic_ref<std::uint64_t>(*table.event_sequence).load(std::memory_order_acquire);
+    auto event = table.event((sequence + 1) % table.event_count);
+    *event.slot_index = table.slot_count;
+  } else {
+    const auto appended = salias::latest_by_key_detail::append_event(table, index);
+    if (appended != salias::Error::Ok) {
+      return appended;
+    }
+    const auto commit =
+        std::atomic_ref<std::uint64_t>(*slot.commit).load(std::memory_order_acquire);
+    const auto active =
+        (commit & 1u) == 0 ? 0u : salias::latest_by_key_detail::active_buffer_of(commit) ^ 1u;
+    if ((commit & 1u) == 0) {
+      *slot.hash = hash;
+      std::memcpy(slot.key, &key, sizeof(key));
+    }
+    if (context.window == CrashWindow::AfterCommit) {
+      std::memcpy(slot.values[active], &value, sizeof(value));
+      std::atomic_ref<std::uint64_t>(*slot.commit)
+          .store(salias::latest_by_key_detail::make_commit(
+                     salias::latest_by_key_detail::version_of(commit) + 1, active),
+                 std::memory_order_release);
+    } else {
+      std::memcpy(slot.values[active], &value, sizeof(value) / 2);
+    }
+  }
+  const char ready = 'w';
+  const auto written = ::write(context.ready_fd, &ready, 1);
+  static_cast<void>(written);
+  char wait = 0;
+  const auto read = ::read(context.wait_fd, &wait, 1);
+  static_cast<void>(read);
+  return salias::Error::Ok;
+}
+
+TEST(LatestByKeyTest, KilledWriterRecoversEveryPublicationWindow) {
+  for (const auto window : {CrashWindow::InsertBeforeCommit, CrashWindow::ReplaceBeforeCommit,
+                            CrashWindow::AfterCommit, CrashWindow::EventBeforePublish}) {
+    SCOPED_TRACE(static_cast<int>(window));
+    const auto name = unique_name("publication-crash");
+    auto channel = FourKeys::create(name);
+    ASSERT_TRUE(channel);
+    auto publisher = channel->publisher();
+    ASSERT_TRUE(publisher.offer(55, Value{100, ~std::uint64_t{100}}));
+    auto subscriber = channel->subscriber();
+    ASSERT_TRUE(subscriber.try_recv());
+    ASSERT_FALSE(subscriber.try_recv());
+    int ready_pipe[2]{};
+    int wait_pipe[2]{};
+    ASSERT_EQ(::pipe(ready_pipe), 0);
+    ASSERT_EQ(::pipe(wait_pipe), 0);
+    const auto child = ::fork();
+    ASSERT_GE(child, 0);
+    if (child == 0) {
+      static_cast<void>(::close(ready_pipe[0]));
+      static_cast<void>(::close(wait_pipe[1]));
+      auto storage = salias::detail::connect_latest_by_key_storage(
+          name, FourKeys::capacity(), sizeof(std::uint64_t), sizeof(Value),
+          salias::latest_by_key_detail::type_schema<std::uint64_t>(),
+          salias::latest_by_key_detail::type_schema<Value>());
+      if (!storage) {
+        ::_exit(4);
+      }
+      CrashWindowContext context{window, ready_pipe[1], wait_pipe[0]};
+      static_cast<void>(salias::detail::with_latest_by_key_table(*storage, &stop_in_crash_window,
+                                                                 &context, true));
+      ::_exit(5);
+    }
+    static_cast<void>(::close(ready_pipe[1]));
+    static_cast<void>(::close(wait_pipe[0]));
+    char ready = 0;
+    ASSERT_EQ(::read(ready_pipe[0], &ready, 1), 1);
+    ASSERT_EQ(ready, 'w');
+    ASSERT_EQ(::kill(child, SIGKILL), 0);
+    int status = 0;
+    ASSERT_EQ(::waitpid(child, &status, 0), child);
+    ASSERT_TRUE(WIFSIGNALED(status));
+    EXPECT_EQ(WTERMSIG(status), SIGKILL);
+    static_cast<void>(::close(ready_pipe[0]));
+    static_cast<void>(::close(wait_pipe[1]));
+    auto snapshot = subscriber.try_recv_checked();
+    ASSERT_TRUE(snapshot);
+    if (window == CrashWindow::AfterCommit) {
+      ASSERT_TRUE(*snapshot);
+      EXPECT_EQ((**snapshot).value.sequence, 101u);
+      EXPECT_EQ((**snapshot).value.inverse, ~std::uint64_t{101});
+      EXPECT_EQ((**snapshot).version, 2u);
+    } else {
+      EXPECT_FALSE(*snapshot);
+    }
+    ASSERT_TRUE(publisher.offer(55, Value{102, ~std::uint64_t{102}}));
+    auto recovered = subscriber.try_recv();
+    ASSERT_TRUE(recovered);
+    EXPECT_EQ(recovered->value.sequence, 102u);
+    EXPECT_EQ(recovered->value.inverse, ~std::uint64_t{102});
+    EXPECT_EQ(recovered->version, window == CrashWindow::AfterCommit ? 3u : 2u);
+    ASSERT_TRUE(publisher.offer(99, Value{103, ~std::uint64_t{103}}));
+    auto inserted = subscriber.try_recv();
+    ASSERT_TRUE(inserted);
+    EXPECT_EQ(inserted->key, 99u);
+    EXPECT_EQ(inserted->value.sequence, 103u);
+    EXPECT_EQ(inserted->value.inverse, ~std::uint64_t{103});
+    EXPECT_EQ(inserted->version, 1u);
+  }
+}
+
+struct UnpublishedEventContext {
+  int ready_fd = -1;
+  int wait_fd = -1;
+  std::uint64_t target_key = 0;
+};
+
+salias::Error overwrite_old_event_without_publishing(salias::detail::LatestByKeyTableView table,
+                                                     void* opaque) noexcept {
+  auto& context = *static_cast<UnpublishedEventContext*>(opaque);
+  std::size_t target_slot = table.slot_count;
+  for (std::size_t index = 0; index < table.slot_count; ++index) {
+    const auto slot = table.slot(index);
+    if (std::memcmp(slot.key, &context.target_key, sizeof(context.target_key)) == 0) {
+      target_slot = index;
+      break;
+    }
+  }
+  if (target_slot == table.slot_count) {
+    return salias::Error::NotFound;
+  }
+  const auto current =
+      std::atomic_ref<std::uint64_t>(*table.event_sequence).load(std::memory_order_acquire);
+  const auto overwritten = table.event((current + 1) % table.event_count);
+  *overwritten.slot_index = target_slot;
+  const char ready = 'w';
+  const auto written = ::write(context.ready_fd, &ready, 1);
+  static_cast<void>(written);
+  char wait = 0;
+  const auto read = ::read(context.wait_fd, &wait, 1);
+  static_cast<void>(read);
+  return salias::Error::Ok;
+}
+
+TEST(LatestByKeyTest, KilledWriterInvalidatesAnOverwrittenUnreadEvent) {
+  using TwoKeys = salias::LatestByKeyChannel<std::uint64_t, Value, 2>;
+  const auto name = unique_name("event-overwrite-crash");
+  auto channel = TwoKeys::create(name);
+  ASSERT_TRUE(channel);
+  auto publisher = channel->publisher();
+  auto subscriber = channel->subscriber();
+  ASSERT_FALSE(subscriber.try_recv());
+  ASSERT_TRUE(publisher.offer(55, Value{1, ~std::uint64_t{1}}));
+  for (std::uint64_t sequence = 1; sequence <= 63; ++sequence) {
+    ASSERT_TRUE(publisher.offer(56, Value{sequence, ~sequence}));
+  }
+  int ready_pipe[2]{};
+  int wait_pipe[2]{};
+  ASSERT_EQ(::pipe(ready_pipe), 0);
+  ASSERT_EQ(::pipe(wait_pipe), 0);
+  const auto child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    static_cast<void>(::close(ready_pipe[0]));
+    static_cast<void>(::close(wait_pipe[1]));
+    auto storage = salias::detail::connect_latest_by_key_storage(
+        name, TwoKeys::capacity(), sizeof(std::uint64_t), sizeof(Value),
+        salias::latest_by_key_detail::type_schema<std::uint64_t>(),
+        salias::latest_by_key_detail::type_schema<Value>());
+    if (!storage) {
+      ::_exit(4);
+    }
+    UnpublishedEventContext context{ready_pipe[1], wait_pipe[0], 56};
+    static_cast<void>(salias::detail::with_latest_by_key_table(
+        *storage, &overwrite_old_event_without_publishing, &context, true));
+    ::_exit(5);
+  }
+  static_cast<void>(::close(ready_pipe[1]));
+  static_cast<void>(::close(wait_pipe[0]));
+  char ready = 0;
+  ASSERT_EQ(::read(ready_pipe[0], &ready, 1), 1);
+  ASSERT_EQ(ready, 'w');
+  ASSERT_EQ(::kill(child, SIGKILL), 0);
+  int status = 0;
+  ASSERT_EQ(::waitpid(child, &status, 0), child);
+  EXPECT_TRUE(WIFSIGNALED(status));
+  EXPECT_EQ(WTERMSIG(status), SIGKILL);
+  static_cast<void>(::close(ready_pipe[0]));
+  static_cast<void>(::close(wait_pipe[1]));
+
+  auto first = subscriber.try_recv_checked();
+  ASSERT_TRUE(first);
+  ASSERT_TRUE(*first);
+  EXPECT_EQ((**first).key, 55u);
+  EXPECT_EQ((**first).value.sequence, 1u);
+  auto second = subscriber.try_recv_checked();
+  ASSERT_TRUE(second);
+  ASSERT_TRUE(*second);
+  EXPECT_EQ((**second).key, 56u);
+  EXPECT_EQ((**second).value.sequence, 63u);
+  EXPECT_FALSE(subscriber.try_recv());
+}
+
+#if defined(__linux__)
+struct AbandonLockContext {
+  std::atomic<bool>* entered = nullptr;
+  std::atomic<bool>* release = nullptr;
+};
+
+void signal_and_wait_for_release(void* opaque) noexcept {
+  auto& context = *static_cast<AbandonLockContext*>(opaque);
+  context.entered->store(true, std::memory_order_release);
+  while (!context.release->load(std::memory_order_acquire)) {
+    std::this_thread::yield();
+  }
+}
+
+bool wait_for_child_with_timeout(pid_t child, int& status, int timeout_ms) noexcept {
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+  for (;;) {
+    const pid_t result = ::waitpid(child, &status, WNOHANG);
+    if (result == child) {
+      return true;
+    }
+    if (result < 0) {
+      return false;
+    }
+    if (std::chrono::steady_clock::now() >= deadline) {
+      static_cast<void>(::kill(child, SIGKILL));
+      while (::waitpid(child, &status, 0) < 0 && errno == EINTR) {
+      }
+      return false;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+}
+
+TEST(LatestByKeyTest, RobustMutexRecoversWhenAnOwningThreadExits) {
+  using OneKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 1>;
+  const auto name = unique_name("owner-thread-exit");
+  auto channel = OneKey::create(name);
+  ASSERT_TRUE(channel);
+  auto publisher = channel->publisher();
+  ASSERT_TRUE(publisher.offer(1, 10));
+  auto storage = salias::detail::connect_latest_by_key_storage(
+      name, OneKey::capacity(), sizeof(std::uint64_t), sizeof(std::uint64_t),
+      salias::latest_by_key_detail::type_schema<std::uint64_t>(),
+      salias::latest_by_key_detail::type_schema<std::uint64_t>());
+  ASSERT_TRUE(storage);
+  auto subscriber = channel->subscriber();
+
+  for (std::uint32_t iteration = 0; iteration < 20; ++iteration) {
+    const auto child = ::fork();
+    ASSERT_GE(child, 0);
+    if (child != 0) {
+      int status = 0;
+      ASSERT_TRUE(wait_for_child_with_timeout(child, status, 15000));
+      ASSERT_TRUE(WIFEXITED(status));
+      ASSERT_EQ(WEXITSTATUS(status), 0);
+      continue;
+    }
+    const std::uint64_t sequence = 11 + static_cast<std::uint64_t>(iteration) * 2;
+      std::atomic<bool> entered{false};
+      std::atomic<bool> release{false};
+      std::atomic<salias::Error> hook_result{salias::Error::PlatformFail};
+      AbandonLockContext context{&entered, &release};
+      std::thread owner([&] {
+        hook_result.store(salias::detail::abandon_latest_by_key_lock_for_testing(
+                              *storage, &signal_and_wait_for_release, &context),
+                          std::memory_order_release);
+      });
+
+      const auto entered_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+      while (!entered.load(std::memory_order_acquire) &&
+             std::chrono::steady_clock::now() < entered_deadline) {
+        std::this_thread::yield();
+      }
+      if (!entered.load(std::memory_order_acquire)) {
+        ::_exit(5);
+      }
+      const auto blocked_offer = publisher.offer(1, sequence);
+      if (blocked_offer || blocked_offer.error() != salias::Error::BackPressured) {
+        ::_exit(6);
+      }
+      release.store(true, std::memory_order_release);
+      owner.join();
+      if (hook_result.load(std::memory_order_acquire) != salias::Error::Ok) {
+        ::_exit(7);
+      }
+      const auto first = publisher.offer(1, sequence);
+      if (!first) {
+        ::_exit(8);
+      }
+      auto first_snapshot = subscriber.try_recv_checked();
+      const std::uint64_t version = sequence - 9;
+      if (!first_snapshot || !*first_snapshot || (**first_snapshot).value != sequence ||
+          (**first_snapshot).version != version) {
+        ::_exit(9);
+      }
+      const auto next = publisher.offer(1, sequence + 1);
+      if (!next) {
+        ::_exit(10);
+      }
+      auto next_snapshot = subscriber.try_recv_checked();
+      if (!next_snapshot || !*next_snapshot || (**next_snapshot).value != sequence + 1 ||
+          (**next_snapshot).version != version + 1) {
+        ::_exit(11);
+      }
+    ::_exit(0);
+  }
+}
+#endif
 
 TEST(LatestByKeyTest, KilledWriterCannotExposePartiallyWrittenValueAndReleasesLock) {
   const auto name = unique_name("writer-crash");

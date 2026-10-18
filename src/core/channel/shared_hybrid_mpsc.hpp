@@ -39,6 +39,7 @@
 #include "core/platform/monotonic_clock.hpp"
 #include "core/ring/magic_ring.hpp"
 #include "core/wait/spin_pause.hpp"
+#include "core/wait/futex_wait.hpp"
 #include "core/wait/wait_strategy.hpp"
 
 /// channel 层：在 ring 与 flow 之上封装生产/消费端句柄与等待策略。
@@ -87,6 +88,7 @@ template <Order Ordering = Order::Ordered, wait::WaitStrategy Wait = wait::SpinP
           bool DropOldest = false>
 class SharedHybridMpscChannel {
  public:
+  enum class WaitTicketState { Armed, Consumed, Invalid };
   /**
    * @brief 指向共享内存中全局控制字的指针集合(非拥有)。
    * @details 所有指针由建表/连接方从命名共享内存控制块复制得到，指向 MAP_SHARED 区域。
@@ -98,6 +100,7 @@ class SharedHybridMpscChannel {
     std::vector<std::uint64_t*>
         consumer_sequences;  ///< 各 consumer 的期望序列号(Ordered)，共享内存原子字。
     std::uint32_t* wait_word = nullptr;          ///< 等待策略唤醒事件计数字。
+    std::uint32_t* notification_enabled = nullptr;  ///< sticky Adaptive 通知开关。
     std::uint64_t* registration_gate = nullptr;  ///< 注册边界快照期间阻止新 claim。
     std::uint32_t* num_producers = nullptr;      ///< producer 总数(只读)。
     std::uint32_t* num_consumers = nullptr;      ///< consumer 总数(只读)。
@@ -126,6 +129,7 @@ class SharedHybridMpscChannel {
     std::uint64_t* process_start = nullptr;     ///< 进程启动标识，用于识别 PID 复用。
     std::uint32_t* delivery_policy = nullptr;   ///< 该订阅槽的交付策略。
     std::uint64_t* registration_state = nullptr;  ///< 注册代际与阶段。
+    std::uint64_t* notification_ticket = nullptr;  ///< Adaptive one-shot token。
     std::uint64_t* cursor_generation = nullptr;   ///< 游标所属注册代际。
     std::uint64_t* lagged_messages = nullptr;  ///< 该 consumer 在此 ring 观测到的丢旧数。
     std::uint64_t* skipped_messages = nullptr;  ///< 该 consumer 在此 ring 主动跳过数。
@@ -174,6 +178,11 @@ class SharedHybridMpscChannel {
                           std::vector<ProducerSharedState> producer_states, SharedControl control,
                           Wait wait = Wait{})
       : producer_rings_(), control_(control), wait_(std::move(wait)) {
+    if constexpr (requires(Wait& strategy, std::uint32_t* enabled) {
+                    strategy.bind(enabled);
+                  }) {
+      wait_.bind(control_.notification_enabled);
+    }
     producer_rings_.reserve(rings.size());
     for (std::size_t i = 0; i < rings.size(); ++i) {
       producer_rings_.push_back(ProducerRing{
@@ -232,6 +241,127 @@ class SharedHybridMpscChannel {
   Rx rx(std::uint32_t consumer_id = 0) { return Rx(*this, consumer_id); }
   Rx rx(std::uint32_t consumer_id, std::uint64_t registration_token) {
     return Rx(*this, consumer_id, registration_token);
+  }
+
+  /// Try to activate sticky notifications and arm the current registration's one-shot ticket.
+  /// The registration gate is acquired with a single CAS.  If another registration operation is
+  /// active, or a producer is in its claim critical section, the caller uses its bounded polling
+  /// fallback for this receive attempt.
+  std::optional<bool> try_arm_wait_notification(std::uint32_t consumer_id,
+                                                 std::uint64_t registration_token) noexcept {
+    if (consumer_id >= consumer_count() || !has_consumer(consumer_id, registration_token) ||
+        producer_rings_.empty() || registration_token == 0) {
+      return std::nullopt;
+    }
+
+    if (!wait_.needs_wake()) {
+      if constexpr (requires(Wait& strategy) { strategy.activate(); }) {
+        if (control_.registration_gate == nullptr) {
+          return false;
+        }
+        const auto gate_token = consumer_registration::make_token(
+            consumer_registration::generation(registration_token),
+            consumer_registration::process_id(registration_token),
+            consumer_registration::kPreparing);
+        auto gate = std::atomic_ref<std::uint64_t>(*control_.registration_gate);
+        std::uint64_t expected_gate = 0;
+        if (!gate.compare_exchange_strong(expected_gate, gate_token, std::memory_order_seq_cst,
+                                          std::memory_order_acquire)) {
+          return false;
+        }
+
+        bool claims_idle = true;
+        for (const auto& producer : producer_rings_) {
+          if (producer.shared.claim_active == nullptr ||
+              std::atomic_ref<std::uint32_t>(*producer.shared.claim_active)
+                      .load(std::memory_order_seq_cst) != 0) {
+            claims_idle = false;
+            break;
+          }
+        }
+        if (claims_idle) {
+          static_cast<void>(wait_.activate());
+        }
+        auto owned_gate = gate_token;
+        static_cast<void>(gate.compare_exchange_strong(owned_gate, 0, std::memory_order_seq_cst,
+                                                       std::memory_order_relaxed));
+        if (!claims_idle || !wait_.needs_wake()) {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+
+    auto& consumer = producer_rings_.front().shared.consumers[consumer_id];
+    if (consumer.notification_ticket == nullptr ||
+        !has_consumer(consumer_id, registration_token)) {
+      return std::nullopt;
+    }
+    auto ticket = std::atomic_ref<std::uint64_t>(*consumer.notification_ticket);
+    std::uint64_t expected_ticket = 0;
+    const bool armed =
+        ticket.compare_exchange_strong(expected_ticket, registration_token,
+                                       std::memory_order_seq_cst, std::memory_order_acquire) ||
+        expected_ticket == registration_token;
+    if (!armed) {
+      return std::nullopt;
+    }
+    // Registration can be released immediately after the CAS above.  Revalidate the complete
+    // token before reporting success; otherwise a dying consumer could leave its old-generation
+    // ticket in the slot and prevent the next registration from arming.  The cleanup CAS is
+    // token-specific, so it cannot clear a ticket belonging to a reused slot generation.
+    if (!has_consumer(consumer_id, registration_token)) {
+      auto owned_ticket = registration_token;
+      static_cast<void>(ticket.compare_exchange_strong(owned_ticket, 0,
+                                                        std::memory_order_seq_cst,
+                                                        std::memory_order_relaxed));
+      return std::nullopt;
+    }
+    return true;
+  }
+
+  WaitTicketState wait_ticket_state(std::uint32_t consumer_id,
+                                    std::uint64_t registration_token) const noexcept {
+    if (consumer_id >= consumer_count() || !has_consumer(consumer_id, registration_token) ||
+        producer_rings_.empty() || consumer_id >= producer_rings_.front().shared.consumers.size()) {
+      return WaitTicketState::Invalid;
+    }
+    auto* ticket_word =
+        producer_rings_.front().shared.consumers[consumer_id].notification_ticket;
+    if (ticket_word == nullptr) {
+      return WaitTicketState::Invalid;
+    }
+    const auto token = std::atomic_ref<std::uint64_t>(*ticket_word).load(std::memory_order_seq_cst);
+    if (token == registration_token) {
+      return WaitTicketState::Armed;
+    }
+    return token == 0 ? WaitTicketState::Consumed : WaitTicketState::Invalid;
+  }
+
+  void clear_wait_notification(std::uint32_t consumer_id,
+                               std::uint64_t registration_token) noexcept {
+    if (consumer_id >= consumer_count() || producer_rings_.empty() ||
+        consumer_id >= producer_rings_.front().shared.consumers.size()) {
+      return;
+    }
+    auto* ticket_word =
+        producer_rings_.front().shared.consumers[consumer_id].notification_ticket;
+    if (ticket_word == nullptr) {
+      return;
+    }
+    auto expected = registration_token;
+    static_cast<void>(std::atomic_ref<std::uint64_t>(*ticket_word).compare_exchange_strong(
+        expected, 0, std::memory_order_seq_cst, std::memory_order_relaxed));
+  }
+
+  wait::FutexWaitToken notification_token() const noexcept {
+    if (control_.wait_word == nullptr || !wait_.needs_wake()) {
+      return {};
+    }
+    return wait::FutexWaitToken{
+        control_.wait_word,
+        std::atomic_ref<std::uint32_t>(*control_.wait_word).load(std::memory_order_acquire)};
   }
 
  private:
@@ -392,8 +522,10 @@ class SharedHybridMpscChannel {
     return minimum == std::numeric_limits<std::uint64_t>::max() ? 0 : minimum;
   }
 
-  std::uint64_t minimum_reliable_position(const ProducerRing& producer) const noexcept {
-    std::uint64_t minimum = std::numeric_limits<std::uint64_t>::max();
+  bool reliable_consumers_allow_retention(const ProducerRing& producer,
+                                          std::uint64_t retained_position,
+                                          std::uint64_t retained_messages, bool check_position,
+                                          bool check_messages) const noexcept {
     for (const auto& consumer : producer.shared.consumers) {
       if (consumer.delivery_policy == nullptr) {
         continue;
@@ -412,29 +544,36 @@ class SharedHybridMpscChannel {
            consumer_registration::generation(state) !=
                std::atomic_ref<std::uint64_t>(*consumer.cursor_generation)
                    .load(std::memory_order_acquire))) {
-        return 0;
+        return false;
       }
-      if (control_.is_process_alive != nullptr && consumer.process_id != nullptr &&
-          consumer.process_start != nullptr &&
-          !control_.is_process_alive(
-              std::atomic_ref<std::uint32_t>(*consumer.process_id).load(std::memory_order_relaxed),
-              std::atomic_ref<std::uint64_t>(*consumer.process_start)
-                  .load(std::memory_order_relaxed))) {
-        continue;
+      if ((check_position && consumer.position == nullptr) ||
+          (check_messages && consumer.message_sequence == nullptr)) {
+        return false;
       }
-      if (consumer.position == nullptr) {
-        return 0;
+      const bool blocked =
+          (check_position &&
+           std::atomic_ref<std::uint64_t>(*consumer.position).load(std::memory_order_acquire) <
+               retained_position) ||
+          (check_messages && std::atomic_ref<std::uint64_t>(*consumer.message_sequence)
+                                     .load(std::memory_order_acquire) < retained_messages);
+      bool alive = true;
+      if (blocked && control_.is_process_alive != nullptr && consumer.process_id != nullptr &&
+          consumer.process_start != nullptr) {
+        alive = control_.is_process_alive(
+            std::atomic_ref<std::uint32_t>(*consumer.process_id).load(std::memory_order_relaxed),
+            std::atomic_ref<std::uint64_t>(*consumer.process_start)
+                .load(std::memory_order_relaxed));
       }
-      minimum = std::min(
-          minimum,
-          std::atomic_ref<std::uint64_t>(*consumer.position).load(std::memory_order_acquire));
       if (consumer.registration_state != nullptr &&
           std::atomic_ref<std::uint64_t>(*consumer.registration_state)
                   .load(std::memory_order_acquire) != state) {
-        return 0;
+        return false;
+      }
+      if (blocked && alive) {
+        return false;
       }
     }
-    return minimum;
+    return true;
   }
 
   std::uint64_t minimum_consumer_message_sequence(const ProducerRing& producer,
@@ -904,7 +1043,7 @@ class SharedHybridMpscChannel {
           claim.start_pos +
           frame::frame_len(claim.payload_len, (claim.meta & frame::FLAG_HAS_EXPIRY) != 0);
       if (publish_contiguous(producer, claim.start_pos, committed_end)) {
-        wake_consumer();
+        wake_consumer(producer);
       }
     }
 
@@ -933,7 +1072,7 @@ class SharedHybridMpscChannel {
       const std::uint64_t committed_end =
           batch.start_pos + static_cast<std::uint64_t>(batch.frame_len) * batch.frame_count;
       if (publish_contiguous(producer, batch.start_pos, committed_end)) {
-        wake_consumer();
+        wake_consumer(producer);
       }
     }
 
@@ -1049,12 +1188,11 @@ class SharedHybridMpscChannel {
         return false;
       }
 
-      if (retained > previous_retained &&
-          retained > channel_->minimum_reliable_position(producer)) {
-        return false;
-      }
-      if (retained_messages > previous_retained_messages &&
-          retained_messages > channel_->minimum_consumer_message_sequence(producer, true)) {
+      if ((retained > previous_retained ||
+           (target_messages != 0 && retained_messages > previous_retained_messages)) &&
+          !channel_->reliable_consumers_allow_retention(
+              producer, retained, retained_messages, retained > previous_retained,
+              target_messages != 0 && retained_messages > previous_retained_messages)) {
         return false;
       }
 
@@ -1083,11 +1221,29 @@ class SharedHybridMpscChannel {
 
         if (channel_->control_.is_process_alive != nullptr && consumer.process_id != nullptr &&
             consumer.process_start != nullptr) {
+          const auto state = consumer.registration_state == nullptr
+                                 ? consumer_registration::kActive
+                                 : std::atomic_ref<std::uint64_t>(*consumer.registration_state)
+                                       .load(std::memory_order_acquire);
+          if (consumer.registration_state != nullptr &&
+              ((state & consumer_registration::kPhaseMask) != consumer_registration::kActive ||
+               consumer.cursor_generation == nullptr ||
+               consumer_registration::generation(state) !=
+                   std::atomic_ref<std::uint64_t>(*consumer.cursor_generation)
+                       .load(std::memory_order_acquire))) {
+            return false;
+          }
           const auto process_id =
               std::atomic_ref<std::uint32_t>(*consumer.process_id).load(std::memory_order_relaxed);
           const auto process_start = std::atomic_ref<std::uint64_t>(*consumer.process_start)
                                          .load(std::memory_order_relaxed);
-          if (!channel_->control_.is_process_alive(process_id, process_start)) {
+          const bool alive = channel_->control_.is_process_alive(process_id, process_start);
+          if (consumer.registration_state != nullptr &&
+              std::atomic_ref<std::uint64_t>(*consumer.registration_state)
+                      .load(std::memory_order_acquire) != state) {
+            return false;
+          }
+          if (!alive) {
             std::atomic_ref<std::uint64_t>(*consumer.lease_start)
                 .store(kNoLease, std::memory_order_seq_cst);
             continue;
@@ -1128,12 +1284,41 @@ class SharedHybridMpscChannel {
       return false;
     }
 
-    /// @brief 水位前进后按等待策略唤醒消费者。
-    void wake_consumer() noexcept {
-      if (channel_->control_.wait_word != nullptr && channel_->wait_.needs_wake()) {
-        std::atomic_ref<std::uint32_t>(*channel_->control_.wait_word)
-            .fetch_add(1, std::memory_order_release);
-        channel_->wait_.wake(channel_->control_.wait_word);
+    /// @brief 发布水位后推进 epoch；仅成功消费注册票据时执行第二次 epoch 更新和 wake。
+    void wake_consumer(ProducerRing& producer) noexcept {
+      if (channel_->control_.wait_word == nullptr || !channel_->wait_.needs_wake()) {
+        return;
+      }
+      auto epoch = std::atomic_ref<std::uint32_t>(*channel_->control_.wait_word);
+      epoch.fetch_add(1, std::memory_order_seq_cst);
+      if constexpr (requires(Wait& strategy) { strategy.activate(); }) {
+        bool consumed_ticket = false;
+        for (const auto& consumer : producer.shared.consumers) {
+          if (consumer.notification_ticket == nullptr || consumer.registration_state == nullptr) {
+            continue;
+          }
+          const auto registration =
+              std::atomic_ref<std::uint64_t>(*consumer.registration_state)
+                  .load(std::memory_order_seq_cst);
+          if ((registration & consumer_registration::kPhaseMask) !=
+              consumer_registration::kActive) {
+            continue;
+          }
+          auto ticket = std::atomic_ref<std::uint64_t>(*consumer.notification_ticket);
+          const auto observed_ticket = ticket.load(std::memory_order_seq_cst);
+          if (observed_ticket == 0 || observed_ticket != registration) {
+            continue;
+          }
+          auto expected = registration;
+          if (ticket.compare_exchange_strong(expected, 0, std::memory_order_seq_cst,
+                                             std::memory_order_relaxed)) {
+            consumed_ticket = true;
+          }
+        }
+        if (consumed_ticket) {
+          epoch.fetch_add(1, std::memory_order_seq_cst);
+          channel_->wait_.wake(channel_->control_.wait_word);
+        }
       }
     }
   };
@@ -1148,6 +1333,7 @@ class SharedHybridMpscChannel {
   class Rx {
    public:
     using ReceiveResult = std::expected<std::optional<flow::Message>, ReceiveError>;
+    using WaitTicketState = typename SharedHybridMpscChannel::WaitTicketState;
 
     /**
      * @brief 构造接收端句柄，从共享内存 acquire-load 各进度字初始化本地缓存。
@@ -1527,20 +1713,122 @@ class SharedHybridMpscChannel {
      */
     flow::Message recv() noexcept { return recv_payload<false>(0); }
 
+    /// Try activation and arm this registration's one-shot notification ticket.  nullopt means
+    /// the endpoint identity is invalid; false means the nonblocking activation gate was busy.
+    std::optional<bool> try_arm_wait_notification() noexcept {
+      return channel_ == nullptr
+                 ? std::nullopt
+                 : channel_->try_arm_wait_notification(consumer_id_, registration_token_);
+    }
+
+    typename SharedHybridMpscChannel::WaitTicketState wait_ticket_state() const noexcept {
+      return channel_ == nullptr
+                 ? SharedHybridMpscChannel::WaitTicketState::Invalid
+                 : channel_->wait_ticket_state(consumer_id_, registration_token_);
+    }
+
+    void clear_wait_notification() noexcept {
+      if (channel_ != nullptr) {
+        channel_->clear_wait_notification(consumer_id_, registration_token_);
+      }
+    }
+
+    /// Return an epoch snapshot after arming and before the caller's complete data scan.
+    wait::FutexWaitToken notification_token() const noexcept {
+      return channel_ == nullptr ? wait::FutexWaitToken{} : channel_->notification_token();
+    }
+
     template <bool FixedPayloadSize>
     flow::Message recv_payload(std::uint32_t fixed_payload_size) noexcept {
+      std::uint32_t spin_attempts = 0;
       for (;;) {
+        if (channel_ == nullptr) {
+          return {};
+        }
+
+        bool notification_armed = false;
+        bool notifications_active = channel_->wait_.needs_wake();
+        if constexpr (requires(Wait& strategy) { strategy.activate(); }) {
+          // Blocking receive uses the same one-shot wake protocol as Priority's Adaptive policy.
+          // The first 64 checks stay on the cheap polling path; after that, arm before taking the
+          // epoch snapshot so a publication racing the following scan either becomes visible or
+          // consumes this ticket and wakes the compare-wait below.
+          if (spin_attempts >= 64) {
+            const auto armed = try_arm_wait_notification();
+            if (!armed) {
+              return {};
+            }
+            notification_armed = *armed;
+            notifications_active = channel_->wait_.needs_wake();
+          }
+        }
+
+        struct TicketCleanup {
+          Rx* rx;
+          bool armed;
+          ~TicketCleanup() noexcept {
+            if (armed) {
+              rx->clear_wait_notification();
+            }
+          }
+        } ticket_cleanup{this, notification_armed};
+
+        // Snapshot after arming and before the complete data scan. If publication races the
+        // scan, the compare-wait observes the changed epoch; if it precedes the snapshot, the
+        // scan sees the newly visible water mark.
+        std::uint32_t expected = 0;
+        if (channel_->control_.wait_word != nullptr) {
+          expected = std::atomic_ref<std::uint32_t>(*channel_->control_.wait_word)
+                         .load(std::memory_order_acquire);
+        }
         if (auto message = try_recv_payload<FixedPayloadSize>(fixed_payload_size);
             message.has_value()) {
           return *message;
         }
-        if (channel_ == nullptr || channel_->control_.wait_word == nullptr) {
+
+        if (channel_->control_.wait_word == nullptr) {
+          wait::cpu_relax();
+          if (spin_attempts < 64) {
+            ++spin_attempts;
+          }
           continue;
         }
-        // acquire 读 wait_word 作为期望值，与生产者唤醒的 release 配对。
-        const auto expected = std::atomic_ref<std::uint32_t>(*channel_->control_.wait_word)
-                                  .load(std::memory_order_acquire);
-        channel_->wait_.wait(channel_->control_.wait_word, expected);
+
+        if (spin_attempts < 64) {
+          wait::cpu_relax();
+          ++spin_attempts;
+          continue;
+        }
+
+        if constexpr (requires(Wait& strategy) { strategy.activate(); }) {
+          if (!notifications_active) {
+            for (std::uint32_t attempt = 0; attempt < 64; ++attempt) {
+              wait::cpu_relax();
+            }
+            continue;
+          }
+          if (notification_armed) {
+            const auto ticket = wait_ticket_state();
+            if (ticket == WaitTicketState::Invalid) {
+              return {};
+            }
+            if (ticket == WaitTicketState::Consumed) {
+              continue;
+            }
+          }
+          // A busy activation gate takes this bounded fallback for this pass. A registered
+          // ticket instead lets the producer issue FUTEX_WAKE after consuming the ticket.
+          // AdaptiveFutex bounds either path to a one millisecond rescan.
+          channel_->wait_.wait(channel_->control_.wait_word, expected);
+        } else if (!channel_->wait_.needs_wake()) {
+          // Polling strategies deliberately omit producer-side notification. Keep their empty
+          // receive bounded without waiting on a word the producer does not update.
+          for (std::uint32_t attempt = 0; attempt < 64; ++attempt) {
+            wait::cpu_relax();
+          }
+        } else {
+          channel_->wait_.wait(channel_->control_.wait_word, expected);
+        }
       }
     }
 

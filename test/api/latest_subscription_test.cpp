@@ -3,6 +3,7 @@
  * @brief Explicit latest seek, eviction reporting and loss accounting over named IPC.
  */
 #include <gtest/gtest.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -107,9 +108,10 @@ TEST_F(LatestSubscriptionTest, SingleAndBothPollOverloadsAccountForLossIndepende
   EXPECT_EQ(single.lagged_messages(), 172u);
   EXPECT_EQ(callable.lagged_messages(), 0u);
   std::uint64_t expected = 172;
-  EXPECT_EQ(callable.poll(1000, [&](const salias::Message& message) noexcept {
-              EXPECT_EQ(decode(message), expected++);
-            }),
+  EXPECT_EQ(callable.poll(1000,
+                          [&](const salias::Message& message) noexcept {
+                            EXPECT_EQ(decode(message), expected++);
+                          }),
             128u);
   EXPECT_EQ(expected, 300u);
   EXPECT_EQ(callable.lagged_messages(), 172u);
@@ -368,8 +370,7 @@ TEST_F(LatestSubscriptionTest, CheckedLagAndSeekWorkAcrossProcesses) {
       ::_exit(13);
     }
     auto lagged = subscriber.try_recv_checked();
-    if (lagged || lagged.error() != salias::Error::Lagged ||
-        subscriber.lagged_messages() != 172) {
+    if (lagged || lagged.error() != salias::Error::Lagged || subscriber.lagged_messages() != 172) {
       ::_exit(14);
     }
     auto skipped = subscriber.skip_to_latest();
@@ -608,6 +609,114 @@ TEST_F(LatestSubscriptionTest, CrossProcessReliablePolicyProtectsUnreadFrames) {
     EXPECT_EQ(lagged.error(), salias::Error::Lagged);
     EXPECT_EQ(lossy->lagged_messages(), 1u);
   }
+}
+
+class DeadReliableTest : public ::testing::TestWithParam<bool> {
+ protected:
+  void SetUp() override { ::alarm(15); }
+  void TearDown() override { ::alarm(0); }
+};
+
+INSTANTIATE_TEST_SUITE_P(ExitModes, DeadReliableTest, ::testing::Bool());
+
+TEST_P(DeadReliableTest, ResumesBeforeReplacementAndRecoversBorrowAcrossRingWrap) {
+  using Channel = salias::LatestMpmcChannel<4096, 50>;
+  salias::Config config;
+  config.name = channel_name();
+  config.num_consumers = 1;
+  auto channel = Channel::create(config);
+  ASSERT_TRUE(channel);
+  auto publisher = channel->publisher();
+  int ready_pipe[2]{};
+  int command_pipe[2]{};
+  ASSERT_EQ(::pipe(ready_pipe), 0);
+  ASSERT_EQ(::pipe(command_pipe), 0);
+  const auto child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    ::alarm(10);
+    static_cast<void>(::close(ready_pipe[0]));
+    static_cast<void>(::close(command_pipe[1]));
+    auto connected = Channel::connect(config.name);
+    if (!connected) {
+      ::_exit(1);
+    }
+    auto subscriber = connected->try_subscriber(salias::SubscriptionPolicy::Reliable);
+    if (!subscriber || ::write(ready_pipe[1], "r", 1) != 1) {
+      ::_exit(2);
+    }
+    char command = 0;
+    if (::read(command_pipe[0], &command, 1) != 1) {
+      ::_exit(3);
+    }
+    auto held = subscriber->try_recv_checked();
+    if (!held || !*held || decode(**held) != 0 || ::write(ready_pipe[1], "b", 1) != 1) {
+      ::_exit(4);
+    }
+    if (::read(command_pipe[0], &command, 1) != 1) {
+      ::_exit(5);
+    }
+    ::_exit(0);
+  }
+  static_cast<void>(::close(ready_pipe[1]));
+  static_cast<void>(::close(command_pipe[0]));
+  char ready = 0;
+  ASSERT_EQ(::read(ready_pipe[0], &ready, 1), 1);
+  ASSERT_EQ(ready, 'r');
+  for (std::uint64_t sequence = 0; sequence < 128; ++sequence) {
+    ASSERT_TRUE(publisher.offer(std::as_bytes(std::span{&sequence, 1})));
+  }
+  const std::uint64_t boundary = 128;
+  auto blocked = publisher.offer(std::as_bytes(std::span{&boundary, 1}));
+  ASSERT_FALSE(blocked);
+  EXPECT_EQ(blocked.error(), salias::Error::BackPressured);
+  ASSERT_EQ(::write(command_pipe[1], "b", 1), 1);
+  ASSERT_EQ(::read(ready_pipe[0], &ready, 1), 1);
+  ASSERT_EQ(ready, 'b');
+  if (GetParam()) {
+    ASSERT_EQ(::kill(child, SIGKILL), 0);
+  } else {
+    ASSERT_EQ(::write(command_pipe[1], "x", 1), 1);
+  }
+  int status = 0;
+  bool reaped = false;
+#if defined(__linux__)
+  if (!GetParam()) {
+    siginfo_t exited{};
+    ASSERT_EQ(::waitid(P_PID, static_cast<id_t>(child), &exited, WEXITED | WNOWAIT), 0);
+    EXPECT_EQ(exited.si_pid, child);
+  } else {
+    ASSERT_EQ(::waitpid(child, &status, 0), child);
+    reaped = true;
+  }
+#else
+  ASSERT_EQ(::waitpid(child, &status, 0), child);
+  reaped = true;
+#endif
+  for (std::uint64_t sequence = 128; sequence < 1024; ++sequence) {
+    ASSERT_TRUE(publisher.offer(std::as_bytes(std::span{&sequence, 1}))) << sequence;
+  }
+  if (!reaped) {
+    ASSERT_EQ(::waitpid(child, &status, 0), child);
+  }
+  if (GetParam()) {
+    EXPECT_TRUE(WIFSIGNALED(status));
+    EXPECT_EQ(WTERMSIG(status), SIGKILL);
+  } else {
+    EXPECT_TRUE(WIFEXITED(status));
+    EXPECT_EQ(WEXITSTATUS(status), 0);
+  }
+  static_cast<void>(::close(ready_pipe[0]));
+  static_cast<void>(::close(command_pipe[1]));
+  auto replacement = channel->try_subscriber(salias::SubscriptionPolicy::Reliable);
+  ASSERT_TRUE(replacement);
+  const std::uint64_t value = 1024;
+  ASSERT_TRUE(publisher.offer(std::as_bytes(std::span{&value, 1})));
+  auto message = replacement->try_recv_checked();
+  ASSERT_TRUE(message);
+  ASSERT_TRUE(*message);
+  EXPECT_EQ(decode(**message), value);
+  replacement->release(**message);
 }
 
 void check_concurrent_delivery(salias::LatestMpmcPublisher publisher,

@@ -17,6 +17,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "core/wait/cpu_relax.hpp"
 #include "salias/config.hpp"
 #include "salias/error.hpp"
 #include "salias/message.hpp"
@@ -34,6 +35,8 @@ template <Mode First, Mode... Rest>
 struct ModeAt<0, First, Rest...> : std::integral_constant<Mode, First> {};
 
 }  // namespace priority_detail
+
+enum class PriorityWaitPolicy : std::uint32_t { Yield, Spin, Adaptive };
 
 /// @brief Borrowed message tagged with its zero-based priority stream index.
 struct PriorityMessage {
@@ -251,9 +254,31 @@ class PrioritySubscriber {
     return received ? std::move(*received) : std::nullopt;
   }
 
-  /** @brief Block until one stream produces a message; non-contention errors are returned. */
-  Result<PriorityMessage> recv() noexcept {
+  /** @brief Wait for a message using Yield by default; non-contention errors are returned. */
+  Result<PriorityMessage> recv(PriorityWaitPolicy policy = PriorityWaitPolicy::Yield) noexcept {
+    if (policy != PriorityWaitPolicy::Yield && policy != PriorityWaitPolicy::Spin &&
+        policy != PriorityWaitPolicy::Adaptive) {
+      return std::unexpected(Error::BadConfig);
+    }
+    std::uint32_t spin_attempts = 0;
     for (;;) {
+      // Arm every stream before the full receive scan.  A producer racing this scan increments
+      // the corresponding epoch, causing futex_waitv to return immediately; a publication that
+      // happened before the snapshot is visible to the scan itself.
+      std::array<wait::FutexWaitToken, kPriorityCount> adaptive_tokens{};
+      const bool adaptive_park =
+          policy == PriorityWaitPolicy::Adaptive && spin_attempts >= 64;
+      AdaptiveTicketGuard ticket_guard{*this, adaptive_park};
+      AdaptiveArmStatus arm_status = AdaptiveArmStatus::Armed;
+      if (adaptive_park) {
+        arm_status = arm_adaptive_notifications();
+        if (arm_status == AdaptiveArmStatus::Invalid) {
+          return std::unexpected(Error::BadConfig);
+        }
+        if (arm_status == AdaptiveArmStatus::Armed) {
+          adaptive_tokens = snapshot_adaptive_notifications();
+        }
+      }
       auto received = try_recv_checked();
       if (!received) {
         if (received.error() != Error::BackPressured) {
@@ -262,7 +287,38 @@ class PrioritySubscriber {
       } else if (*received) {
         return std::move(**received);
       }
-      std::this_thread::yield();
+      if (policy == PriorityWaitPolicy::Yield) {
+        std::this_thread::yield();
+      } else if (policy == PriorityWaitPolicy::Spin || spin_attempts < 64) {
+        wait::cpu_relax();
+        if (policy == PriorityWaitPolicy::Adaptive) {
+          ++spin_attempts;
+        }
+      } else {
+        if (arm_status != AdaptiveArmStatus::Armed) {
+          // A busy activation gate is never held while waiting.  This receive attempt falls back
+          // to a bounded one millisecond rescan, then retries activation on the next pass.
+          std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        } else {
+          const auto ticket_state = adaptive_wait_tickets_state();
+          if (ticket_state == AdaptiveTicketState::Invalid) {
+            return std::unexpected(Error::BadConfig);
+          }
+          if (ticket_state == AdaptiveTicketState::Consumed) {
+            continue;
+          }
+          const auto waited =
+              wait::AdaptiveFutex::waitv(adaptive_tokens, std::chrono::milliseconds{1});
+          if (waited == wait::FutexWaitResult::PlatformFail) {
+            return std::unexpected(Error::PlatformFail);
+          }
+          if (waited == wait::FutexWaitResult::Unsupported) {
+            // Unsupported kernels/macOS use the bounded full-scan fallback.  The one millisecond
+            // sleep is a fresh deadline only after waitv reports that the backend is unavailable.
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+          }
+        }
+      }
     }
   }
 
@@ -310,6 +366,26 @@ class PrioritySubscriber {
   static constexpr std::size_t priority_count() noexcept { return kPriorityCount; }
 
  private:
+  enum class AdaptiveArmStatus { Armed, Busy, Invalid };
+  enum class AdaptiveTicketState { Armed, Consumed, Invalid };
+
+  class AdaptiveTicketGuard {
+   public:
+    AdaptiveTicketGuard(PrioritySubscriber& owner, bool active) noexcept
+        : owner_(&owner), active_(active) {}
+    AdaptiveTicketGuard(const AdaptiveTicketGuard&) = delete;
+    AdaptiveTicketGuard& operator=(const AdaptiveTicketGuard&) = delete;
+    ~AdaptiveTicketGuard() noexcept {
+      if (owner_ != nullptr && active_) {
+        owner_->clear_adaptive_notifications();
+      }
+    }
+
+   private:
+    PrioritySubscriber* owner_;
+    bool active_;
+  };
+
   void advance_priority() noexcept {
     next_priority_ = (next_priority_ + 1) % kPriorityCount;
     remaining_credit_ = kPriorityCount - next_priority_;
@@ -357,6 +433,73 @@ class PrioritySubscriber {
       return release_at<Index + 1>(priority, message);
     }
   }
+
+  template <std::size_t Index = 0>
+  AdaptiveArmStatus arm_adaptive_notifications_impl() noexcept {
+    if constexpr (Index < kPriorityCount) {
+      auto& subscriber = std::get<Index>(subscribers_);
+      auto result = subscriber.try_arm_adaptive_wait();
+      if (!result) {
+        return AdaptiveArmStatus::Invalid;
+      }
+      if (!*result) {
+        return AdaptiveArmStatus::Busy;
+      }
+      return arm_adaptive_notifications_impl<Index + 1>();
+    } else {
+      return AdaptiveArmStatus::Armed;
+    }
+  }
+
+  AdaptiveArmStatus arm_adaptive_notifications() noexcept {
+    return arm_adaptive_notifications_impl();
+  }
+
+  template <std::size_t Index = 0>
+  void snapshot_adaptive_notifications_impl(
+      std::array<wait::FutexWaitToken, kPriorityCount>& tokens) const noexcept {
+    if constexpr (Index < kPriorityCount) {
+      tokens[Index] = std::get<Index>(subscribers_).adaptive_wait_token();
+      snapshot_adaptive_notifications_impl<Index + 1>(tokens);
+    }
+  }
+
+  std::array<wait::FutexWaitToken, kPriorityCount> snapshot_adaptive_notifications() const noexcept {
+    std::array<wait::FutexWaitToken, kPriorityCount> tokens{};
+    snapshot_adaptive_notifications_impl(tokens);
+    return tokens;
+  }
+
+  template <std::size_t Index = 0>
+  AdaptiveTicketState adaptive_wait_tickets_state_impl() const noexcept {
+    if constexpr (Index < kPriorityCount) {
+      const auto state = std::get<Index>(subscribers_).adaptive_wait_ticket_state();
+      using SubscriberState = decltype(state);
+      if (state == SubscriberState::Invalid) {
+        return AdaptiveTicketState::Invalid;
+      }
+      if (state == SubscriberState::Consumed) {
+        return AdaptiveTicketState::Consumed;
+      }
+      return adaptive_wait_tickets_state_impl<Index + 1>();
+    } else {
+      return AdaptiveTicketState::Armed;
+    }
+  }
+
+  AdaptiveTicketState adaptive_wait_tickets_state() const noexcept {
+    return adaptive_wait_tickets_state_impl();
+  }
+
+  template <std::size_t Index = 0>
+  void clear_adaptive_notifications_impl() noexcept {
+    if constexpr (Index < kPriorityCount) {
+      std::get<Index>(subscribers_).clear_adaptive_wait_ticket();
+      clear_adaptive_notifications_impl<Index + 1>();
+    }
+  }
+
+  void clear_adaptive_notifications() noexcept { clear_adaptive_notifications_impl(); }
 
   std::tuple<Subscriber<Modes>...> subscribers_{};
   std::array<bool, kPriorityCount> outstanding_{};

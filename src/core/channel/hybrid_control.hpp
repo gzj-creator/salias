@@ -46,6 +46,8 @@ struct alignas(128) HybridSharedControl {
   alignas(128) std::atomic<std::uint64_t> consumer_seq{0};
   /// 等待策略唤醒事件计数字，consumer 阻塞前 acquire-load、producer 唤醒时 release 自增。
   alignas(128) std::uint32_t wait_word = 0;
+  /// Adaptive 通知是否已在该 channel 激活；激活前 producer 不执行 wait_word RMW。
+  std::uint32_t notification_enabled = 0;
   /// producer 总数，创建/连接共享内存时由建表方写入，运行期视为只读。
   std::uint32_t num_producers = 0;
   // 发布流控窗口（字节，0 表示满环）；限制生产者领先消费者的在途字节数。

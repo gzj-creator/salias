@@ -20,39 +20,31 @@ salias_enable_sanitizers(salias_minimal_ordered)
 
 if(BUILD_TESTING)
   find_program(SALIAS_BASH_EXECUTABLE bash REQUIRED)
-  if(SALIAS_ENABLE_TSAN)
-    find_program(SALIAS_EXAMPLE_SETARCH_EXECUTABLE setarch REQUIRED)
-    add_test(
-      NAME salias_example_smoke
-      COMMAND
-        "${SALIAS_EXAMPLE_SETARCH_EXECUTABLE}" "${CMAKE_SYSTEM_PROCESSOR}" "-R"
-        "${SALIAS_BASH_EXECUTABLE}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/example_smoke.sh"
-        "$<TARGET_FILE:salias_mpsc_subscriber>"
-        "$<TARGET_FILE:salias_mpsc_publisher>"
-    )
-    add_test(
-      NAME salias_minimal_fifo
-      COMMAND
-        "${SALIAS_EXAMPLE_SETARCH_EXECUTABLE}" "${CMAKE_SYSTEM_PROCESSOR}" "-R"
-        "$<TARGET_FILE:salias_minimal_fifo>"
-    )
-    add_test(
-      NAME salias_minimal_ordered
-      COMMAND
-        "${SALIAS_EXAMPLE_SETARCH_EXECUTABLE}" "${CMAKE_SYSTEM_PROCESSOR}" "-R"
-        "$<TARGET_FILE:salias_minimal_ordered>"
-    )
-  else()
-    add_test(
-      NAME salias_example_smoke
-      COMMAND
-        "${SALIAS_BASH_EXECUTABLE}"
-        "${CMAKE_CURRENT_SOURCE_DIR}/example_smoke.sh"
-        "$<TARGET_FILE:salias_mpsc_subscriber>"
-        "$<TARGET_FILE:salias_mpsc_publisher>"
-    )
-    add_test(NAME salias_minimal_fifo COMMAND "$<TARGET_FILE:salias_minimal_fifo>")
-    add_test(NAME salias_minimal_ordered COMMAND "$<TARGET_FILE:salias_minimal_ordered>")
+  set(SALIAS_TEST_LAUNCHER "${PROJECT_SOURCE_DIR}/cmake/salias_test_launcher.sh")
+  set(salias_example_launch_prefix "${SALIAS_TEST_LAUNCHER}")
+  if(DEFINED SALIAS_TEST_TSAN_PROBE AND NOT SALIAS_TEST_TSAN_PROBE STREQUAL "")
+    set(salias_example_launch_prefix
+      "${SALIAS_TEST_LAUNCHER};--tsan-probe;${SALIAS_TEST_TSAN_PROBE};--")
   endif()
+  add_test(
+    NAME salias_example_smoke
+    COMMAND
+      ${salias_example_launch_prefix}
+      "${SALIAS_BASH_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/example_smoke.sh"
+      "$<TARGET_FILE:salias_mpsc_subscriber>"
+      "$<TARGET_FILE:salias_mpsc_publisher>"
+  )
+  add_test(
+    NAME salias_minimal_fifo
+    COMMAND ${salias_example_launch_prefix} "$<TARGET_FILE:salias_minimal_fifo>"
+  )
+  add_test(
+    NAME salias_minimal_ordered
+    COMMAND ${salias_example_launch_prefix} "$<TARGET_FILE:salias_minimal_ordered>"
+  )
+  set_tests_properties(
+    salias_example_smoke salias_minimal_fifo salias_minimal_ordered
+    PROPERTIES TIMEOUT 120
+  )
 endif()

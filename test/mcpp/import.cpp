@@ -237,17 +237,15 @@ int main() {
         high_priority->publisher(), low_priority->publisher());
     const std::array high_priority_payload{std::byte{1}, std::byte{2}};
     require(priority_publisher.offer<0>(high_priority_payload).has_value());
-    auto high_priority_message = priority_subscriber.try_recv_checked();
-    require(high_priority_message && *high_priority_message &&
-            (**high_priority_message).priority == 0);
-    require(priority_subscriber.release(**high_priority_message).has_value());
+    auto high_priority_message = priority_subscriber.recv(salias::PriorityWaitPolicy::Spin);
+    require(high_priority_message && high_priority_message->priority == 0);
+    require(priority_subscriber.release(*high_priority_message).has_value());
     require(header_priority_publish(high_priority_config.name, low_priority_config.name));
-    auto low_priority_message = priority_subscriber.try_recv_checked();
-    require(low_priority_message && *low_priority_message &&
-            (**low_priority_message).priority == 1 &&
-            std::ranges::equal((**low_priority_message).message.payload,
+    auto low_priority_message = priority_subscriber.recv(salias::PriorityWaitPolicy::Adaptive);
+    require(low_priority_message && low_priority_message->priority == 1 &&
+            std::ranges::equal(low_priority_message->message.payload,
                                std::array{std::byte{9}, std::byte{8}}));
-    require(priority_subscriber.release(**low_priority_message).has_value());
+    require(priority_subscriber.release(*low_priority_message).has_value());
 
     std::cout << "Module/header IPC, priority, latest-by-key, TTL, message windows, claim, batch, "
                  "poll, checked "

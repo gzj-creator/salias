@@ -3,6 +3,7 @@
  * @brief Fair scheduling and independent backpressure tests for priority endpoints.
  */
 #include <gtest/gtest.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -28,6 +29,17 @@ using PriorityPub = salias::PriorityPublisher<Mode::FifoMpsc, Mode::FifoMpsc>;
 using PrioritySub = salias::PrioritySubscriber<Mode::FifoMpsc, Mode::FifoMpsc>;
 using ThreePriorityPub = salias::PriorityPublisher<Mode::FifoMpsc, Mode::FifoMpsc, Mode::FifoMpsc>;
 using ThreePrioritySub = salias::PrioritySubscriber<Mode::FifoMpsc, Mode::FifoMpsc, Mode::FifoMpsc>;
+
+class PriorityWaitTest : public ::testing::TestWithParam<salias::PriorityWaitPolicy> {
+ protected:
+  void SetUp() override { ::alarm(10); }
+  void TearDown() override { ::alarm(0); }
+};
+
+INSTANTIATE_TEST_SUITE_P(Policies, PriorityWaitTest,
+                         ::testing::Values(salias::PriorityWaitPolicy::Yield,
+                                           salias::PriorityWaitPolicy::Spin,
+                                           salias::PriorityWaitPolicy::Adaptive));
 
 std::string unique_name(std::string_view suffix) {
   static std::atomic<std::uint64_t> next{0};
@@ -347,6 +359,206 @@ TEST(PriorityChannelTest, LaggedHighPriorityStreamDoesNotBlockLowerPriorityData)
   EXPECT_EQ(read_value(**received), low_value);
   EXPECT_GT(reader.subscriber<0>().lagged_messages(), 0u);
   ASSERT_TRUE(reader.release(**received));
+}
+
+TEST_P(PriorityWaitTest, ImmediateAndDelayedMessagesPreserveOrderAndBorrowAcrossMove) {
+  auto high = Fifo::create(config(unique_name("wait-high")));
+  auto low = Fifo::create(config(unique_name("wait-low")));
+  ASSERT_TRUE(high);
+  ASSERT_TRUE(low);
+  PrioritySub reader(high->subscriber(), low->subscriber());
+  PriorityPub publisher(high->publisher(), low->publisher());
+  const std::uint64_t value = 99;
+  ASSERT_TRUE(publisher.offer(0, bytes_of(value)));
+  auto held = reader.recv(GetParam());
+  ASSERT_TRUE(held);
+  EXPECT_EQ(held->priority, 0u);
+  EXPECT_EQ(read_value(*held), value);
+  PrioritySub moved(std::move(reader));
+  auto invalid = reader.recv(GetParam());
+  ASSERT_FALSE(invalid);
+  EXPECT_EQ(invalid.error(), salias::Error::BadConfig);
+  std::atomic<bool> published{false};
+  std::thread writer([&] {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    auto result = publisher.offer(1, bytes_of(value));
+    published.store(result && *result, std::memory_order_release);
+  });
+  auto delayed = moved.recv(GetParam());
+  writer.join();
+  ASSERT_TRUE(delayed);
+  EXPECT_TRUE(published.load(std::memory_order_acquire));
+  EXPECT_EQ(delayed->priority, 1u);
+  EXPECT_EQ(read_value(*held), value);
+  EXPECT_EQ(read_value(*delayed), value);
+  EXPECT_TRUE(moved.release(*held));
+  EXPECT_TRUE(moved.release(*delayed));
+  EXPECT_FALSE(moved.try_recv());
+}
+
+TEST_P(PriorityWaitTest, MoveAssignmentPreservesPartialCreditAndOutstandingBorrow) {
+  auto high = Fifo::create(config(unique_name("assign-high")));
+  auto low = Fifo::create(config(unique_name("assign-low")));
+  ASSERT_TRUE(high);
+  ASSERT_TRUE(low);
+  PrioritySub reader(high->subscriber(), low->subscriber());
+  PriorityPub publisher(high->publisher(), low->publisher());
+  const std::uint64_t value = 10;
+  ASSERT_TRUE(publisher.offer(0, bytes_of(value)));
+  ASSERT_TRUE(publisher.offer(0, bytes_of(value)));
+  ASSERT_TRUE(publisher.offer(1, bytes_of(value)));
+  auto held = reader.recv(GetParam());
+  ASSERT_TRUE(held);
+  PrioritySub assigned;
+  assigned = std::move(reader);
+  auto invalid = reader.recv(GetParam());
+  ASSERT_FALSE(invalid);
+  EXPECT_EQ(invalid.error(), salias::Error::BadConfig);
+  EXPECT_TRUE(assigned.release(*held));
+  auto remaining_credit = assigned.recv(GetParam());
+  ASSERT_TRUE(remaining_credit);
+  EXPECT_EQ(remaining_credit->priority, 0u);
+  EXPECT_TRUE(assigned.release(*remaining_credit));
+  auto low_message = assigned.recv(GetParam());
+  ASSERT_TRUE(low_message);
+  EXPECT_EQ(low_message->priority, 1u);
+  EXPECT_TRUE(assigned.release(*low_message));
+}
+
+TEST_P(PriorityWaitTest, RepeatedIdleCallsStartFreshAndDeliverExactlyOnce) {
+  auto high = Fifo::create(config(unique_name("repeat-high")));
+  auto low = Fifo::create(config(unique_name("repeat-low")));
+  ASSERT_TRUE(high);
+  ASSERT_TRUE(low);
+  PrioritySub reader(high->subscriber(), low->subscriber());
+  auto publisher = low->publisher();
+  std::atomic<std::uint64_t> acknowledged{0};
+  std::atomic<bool> failed{false};
+  std::thread writer([&] {
+    for (std::uint64_t sequence = 1; sequence <= 8; ++sequence) {
+      while (acknowledged.load(std::memory_order_acquire) != sequence - 1) {
+        std::this_thread::yield();
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      auto offered = publisher.offer(bytes_of(sequence));
+      if (!offered || !*offered) {
+        failed.store(true, std::memory_order_release);
+        return;
+      }
+    }
+  });
+  for (std::uint64_t sequence = 1; sequence <= 8; ++sequence) {
+    auto message = reader.recv(GetParam());
+    ASSERT_TRUE(message);
+    EXPECT_EQ(read_value(*message), sequence);
+    EXPECT_TRUE(reader.release(*message));
+    EXPECT_FALSE(reader.try_recv());
+    acknowledged.store(sequence, std::memory_order_release);
+  }
+  writer.join();
+  EXPECT_FALSE(failed.load(std::memory_order_acquire));
+}
+
+TEST_P(PriorityWaitTest, BlockingReceivePreservesWeightedRoundRobin) {
+  auto high = Fifo::create(config(unique_name("wait-wrr-high")));
+  auto low = Fifo::create(config(unique_name("wait-wrr-low")));
+  ASSERT_TRUE(high);
+  ASSERT_TRUE(low);
+  PrioritySub reader(high->subscriber(), low->subscriber());
+  PriorityPub publisher(high->publisher(), low->publisher());
+  for (std::uint64_t sequence = 0; sequence < 6; ++sequence) {
+    ASSERT_TRUE(publisher.offer(0, bytes_of(sequence)));
+    if (sequence < 3) {
+      ASSERT_TRUE(publisher.offer(1, bytes_of(sequence)));
+    }
+  }
+  std::array<std::uint64_t, 2> next_sequence{};
+  for (const std::uint32_t priority : {0u, 0u, 1u, 0u, 0u, 1u, 0u, 0u, 1u}) {
+    auto message = reader.recv(GetParam());
+    ASSERT_TRUE(message);
+    EXPECT_EQ(message->priority, priority);
+    EXPECT_EQ(read_value(*message), next_sequence[priority]++);
+    EXPECT_TRUE(reader.release(*message));
+  }
+}
+
+TEST_P(PriorityWaitTest, ExpiredLatestFramesDoNotBlockDelayedFifoMessage) {
+  using Latest = salias::LatestMpmcChannel<4096>;
+  auto high = Latest::create(config(unique_name("wait-ttl-high")));
+  auto low = Fifo::create(config(unique_name("wait-ttl-low")));
+  ASSERT_TRUE(high);
+  ASSERT_TRUE(low);
+  salias::PrioritySubscriber<Mode::LatestMpmc, Mode::FifoMpsc> reader(high->subscriber(),
+                                                                      low->subscriber());
+  auto high_publisher = high->publisher();
+  auto low_publisher = low->publisher();
+  const std::uint64_t value = 42;
+  ASSERT_TRUE(high_publisher.offer_for(bytes_of(value), std::chrono::nanoseconds{0}));
+  std::atomic<bool> published{false};
+  std::thread writer([&] {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    auto result = low_publisher.offer(bytes_of(value));
+    published.store(result && *result, std::memory_order_release);
+  });
+  auto message = reader.recv(GetParam());
+  writer.join();
+  ASSERT_TRUE(message);
+  EXPECT_TRUE(published.load(std::memory_order_acquire));
+  EXPECT_EQ(message->priority, 1u);
+  EXPECT_EQ(read_value(*message), value);
+  EXPECT_EQ(reader.subscriber<0>().expired_messages(), 1u);
+  EXPECT_TRUE(reader.release(*message));
+}
+
+TEST_P(PriorityWaitTest, IndependentProcessWakesBlockedReader) {
+  auto high_config = config(unique_name("wait-ipc-high"));
+  auto low_config = config(unique_name("wait-ipc-low"));
+  auto high = Fifo::create(high_config);
+  auto low = Fifo::create(low_config);
+  ASSERT_TRUE(high);
+  ASSERT_TRUE(low);
+  PrioritySub reader(high->subscriber(), low->subscriber());
+  const auto child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    ::alarm(5);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    auto connected = Fifo::connect(low_config.name);
+    if (!connected) {
+      ::_exit(1);
+    }
+    auto publisher = connected->publisher();
+    const std::uint64_t value = 123;
+    auto result = publisher.offer(bytes_of(value));
+    ::_exit(result && *result ? 0 : 2);
+  }
+  auto message = reader.recv(GetParam());
+  int status = 0;
+  ASSERT_EQ(::waitpid(child, &status, 0), child);
+  ASSERT_TRUE(WIFEXITED(status));
+  EXPECT_EQ(WEXITSTATUS(status), 0);
+  ASSERT_TRUE(message);
+  EXPECT_EQ(message->priority, 1u);
+  EXPECT_EQ(read_value(*message), 123u);
+  EXPECT_TRUE(reader.release(*message));
+}
+
+TEST(PriorityChannelTest, InvalidWaitPolicyIsRejectedBeforeConsumingReadableMessage) {
+  auto high = Fifo::create(config(unique_name("invalid-wait-high")));
+  auto low = Fifo::create(config(unique_name("invalid-wait-low")));
+  ASSERT_TRUE(high);
+  ASSERT_TRUE(low);
+  PrioritySub reader(high->subscriber(), low->subscriber());
+  auto publisher = high->publisher();
+  const std::uint64_t value = 1;
+  ASSERT_TRUE(publisher.offer(bytes_of(value)));
+  auto invalid = reader.recv(static_cast<salias::PriorityWaitPolicy>(999));
+  ASSERT_FALSE(invalid);
+  EXPECT_EQ(invalid.error(), salias::Error::BadConfig);
+  auto message = reader.recv();
+  ASSERT_TRUE(message);
+  EXPECT_EQ(read_value(*message), value);
+  EXPECT_TRUE(reader.release(*message));
 }
 
 }  // namespace

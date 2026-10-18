@@ -62,8 +62,9 @@ inline Error append_event(detail::LatestByKeyTableView table, std::size_t slot_i
   }
   const std::uint64_t next = current + 1;
   auto event = table.event(next % table.event_count);
+  std::atomic_ref<std::uint64_t>(*event.sequence).store(0, std::memory_order_release);
   *event.slot_index = slot_index;
-  event.sequence[0] = next;
+  std::atomic_ref<std::uint64_t>(*event.sequence).store(next, std::memory_order_release);
   std::atomic_ref<std::uint64_t>(*table.event_sequence).store(next, std::memory_order_release);
   return Error::Ok;
 }
@@ -174,7 +175,8 @@ struct Cursor {
       : storage(std::move(storage_value)),
         seen(capacity, 0),
         initial_version(capacity, 0),
-        initial_pending(capacity, false) {}
+        initial_pending(capacity, false),
+        scan_remaining(capacity) {}
 
   std::shared_ptr<detail::LatestByKeyStorage> storage;
   std::vector<std::uint64_t> seen;
@@ -182,7 +184,7 @@ struct Cursor {
   std::vector<bool> initial_pending;
   std::size_t next_slot = 0;
   std::uint64_t event_sequence = 0;
-  bool scan_pending = true;
+  std::size_t scan_remaining = 0;
   std::uint64_t conflated = 0;
 };
 
@@ -261,20 +263,16 @@ Error receive(detail::LatestByKeyTableView table, void* opaque) noexcept {
   };
 
   for (;;) {
-    if (cursor.scan_pending) {
-      const std::size_t scan_start = cursor.next_slot;
-      for (std::size_t offset = 0; offset < table.slot_count; ++offset) {
-        const std::size_t index = (scan_start + offset) % table.slot_count;
+    if (cursor.scan_remaining != 0) {
+      while (cursor.scan_remaining != 0) {
+        const std::size_t index = cursor.next_slot;
+        cursor.next_slot = (index + 1) % table.slot_count;
+        --cursor.scan_remaining;
         const Error result = deliver_slot(index);
         if (result != Error::Ok || context.found) {
-          if (context.found) {
-            cursor.next_slot = (index + 1) % table.slot_count;
-          }
           return result;
         }
       }
-      cursor.next_slot = (scan_start + 1) % table.slot_count;
-      cursor.scan_pending = false;
     }
 
     const std::uint64_t current =
@@ -288,7 +286,7 @@ Error receive(detail::LatestByKeyTableView table, void* opaque) noexcept {
     if (current - cursor.event_sequence > table.event_count) {
       cursor.event_sequence = current;
       cursor.next_slot = 0;
-      cursor.scan_pending = true;
+      cursor.scan_remaining = table.slot_count;
       continue;
     }
 
@@ -298,7 +296,7 @@ Error receive(detail::LatestByKeyTableView table, void* opaque) noexcept {
       if (*event.sequence != next || *event.slot_index >= table.slot_count) {
         cursor.event_sequence = current;
         cursor.next_slot = 0;
-        cursor.scan_pending = true;
+        cursor.scan_remaining = table.slot_count;
         break;
       }
       const Error result = deliver_slot(static_cast<std::size_t>(*event.slot_index));
@@ -381,6 +379,10 @@ class LatestByKeySubscriber {
     if (!cursor_) {
       return std::unexpected(Error::BadConfig);
     }
+    if (cursor_->scan_remaining == 0 &&
+        detail::latest_by_key_table_unchanged(cursor_->storage, cursor_->event_sequence)) {
+      return std::optional<LatestByKeyMessage<Key, Value>>{};
+    }
     latest_by_key_detail::ObjectBytes<Key> key_bytes{};
     latest_by_key_detail::ObjectBytes<Value> value_bytes{};
     std::uint64_t version = 0;
@@ -459,9 +461,10 @@ class LatestByKeySubscriber {
  * subscribers rescan the current snapshot after event-log overrun. Updates to different keys have
  * no total ordering guarantee. A subscriber returns copied values, not borrowed shared-memory
  * views. When all slots contain distinct keys, a new key returns CapacityExceeded; updating an
- * existing key still succeeds. The shared table is protected by a crash-released OS file lock;
- * lock contention is reported as BackPressured. After fork, inherited endpoints may be used in
- * the child only when all threads using this channel were quiescent at fork time.
+ * existing key still succeeds. The shared table uses a robust process-shared mutex on Linux and
+ * a crash-released OS file lock on macOS; operations on the table are serialized and contention
+ * is reported as BackPressured. Empty polls use an atomic fast path. After fork, endpoints may be
+ * used in the child only when all threads using this channel were quiescent at fork time.
  */
 template <class Key, class Value, std::size_t Capacity, std::uint64_t SchemaVersion = 0>
 class LatestByKeyChannel {

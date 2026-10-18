@@ -33,6 +33,7 @@ using ::salias::OrderedMpscSubscriber;
 using ::salias::PriorityMessage;
 using ::salias::PriorityPublisher;
 using ::salias::PrioritySubscriber;
+using ::salias::PriorityWaitPolicy;
 using ::salias::PublishClaim;
 using ::salias::Publisher;
 using ::salias::Result;

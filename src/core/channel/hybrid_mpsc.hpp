@@ -952,12 +952,31 @@ class HybridMpscChannel {
      *       futex/eventfd 则阻塞)。
      */
     flow::Message recv() noexcept {
+      // Snapshot the notification epoch before scanning the rings.  A producer can publish
+      // between an empty scan and the old snapshot; taking the snapshot first closes that
+      // classic wait/notify lost-wakeup window.  Polling strategies do not receive a producer
+      // notification, so they only perform a bounded pause before rescanning.
       for (;;) {
+        if (channel_ == nullptr || channel_->control_ == nullptr) {
+          return {};
+        }
+
+        const bool needs_wake = channel_->wait_.needs_wake();
+        const auto expected =
+            std::atomic_ref<std::uint32_t>(channel_->control_->wait_word)
+                .load(std::memory_order_acquire);
         if (auto message = try_recv(); message.has_value()) {
           return *message;
         }
-        const auto expected = std::atomic_ref<std::uint32_t>(channel_->control_->wait_word)
-                                  .load(std::memory_order_acquire);
+
+        if (!needs_wake) {
+          // The producer intentionally does not touch wait_word for a polling strategy. Calling
+          // wait() here would therefore spin forever on a value that can never change.
+          for (std::uint32_t attempt = 0; attempt < 64; ++attempt) {
+            wait::cpu_relax();
+          }
+          continue;
+        }
         channel_->wait_.wait(&channel_->control_->wait_word, expected);
       }
     }

@@ -1,5 +1,19 @@
 # L7 公共 API
 
+## Priority 等待策略
+
+`PrioritySubscriber::recv(PriorityWaitPolicy policy = PriorityWaitPolicy::Yield)` 直接接受
+`enum class PriorityWaitPolicy : std::uint32_t { Yield, Spin, Adaptive }`，无独立无参重载。
+默认 `Yield` 在每次失败扫描后让出调度，保持原行为，空闲时仍可能占满一个核心。
+`Spin` 使用 CPU pause 持续轮询，偏向低延迟但不保证所有拓扑更快。`Adaptive` 先执行
+64 次失败扫描，然后在 Linux 支持时使用共享 epoch 的 `futex_waitv`，每次停车采用 1ms
+单调时钟绝对截止时间；不支持的 Linux 内核和 macOS 使用 1ms 全流重扫回退。发布者只有
+在通道曾激活 Adaptive 后才执行通知 epoch 更新；一次性注册票据保证槽位代际不会误唤醒。
+每次调用重新开始等待，空结果与 `BackPressured` 都推进等待。
+非法枚举在读取前返回 `BadConfig`，不可恢复错误立即返回。`try_recv*()` 和 `poll()`
+仍然非阻塞，WRR、借用与 TTL 语义不变。默认参数兼容普通无参调用，但成员函数指针
+类型随新签名变化。
+
 公共 API 暴露单一 per-producer-ring 引擎的四种排序/拓扑组合，并增加 `LatestMpmc` 保留窗口模式：
 
 ```cpp
@@ -167,6 +181,10 @@ claim->commit();
 `Error::BadConfig`。`try_recv_checked()` 保留错误信息；`try_recv()`
 将错误折叠为空结果；阻塞 `recv()` 返回 `Result<LatestByKeyMessage<...>>`，仅在临时背压时重试，
 不可恢复错误会返回给调用方。fork 前须静置所有访问该 channel 的线程，fork 时有操作持锁不受支持。
+Linux 使用进程共享 robust mutex，持锁线程或进程终止后校验已提交元数据并恢复；macOS 使用
+故障自动释放的文件锁。所有读写快照仍由整表锁串行保护，普通内存拷贝不与写入并发。
+初始快照和事件溢出扫描都只遍历一轮；完成扫描后的空轮询通过原子事件序列检查避免加锁。
+内部共享布局版本为 2，不兼容的旧布局返回 `Error::VersionMismatch`，升级须重新创建通道。
 
 `offer_for(payload, ttl)`、`try_claim_for(size, ttl)` 和 `offer_batch_for(payloads, ttl)` 提供
 按消息指定 TTL 的路径。TTL 必须非负，截止时间在 API 调用时采样，0 表示立即到期；默认不带 TTL 的

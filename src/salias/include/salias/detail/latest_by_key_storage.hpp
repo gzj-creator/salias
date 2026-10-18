@@ -68,4 +68,22 @@ Error with_latest_by_key_table(const std::shared_ptr<LatestByKeyStorage>& storag
                                LatestByKeyTableCallback callback, void* context,
                                bool wait_for_lock = false) noexcept;
 
+bool latest_by_key_table_unchanged(const std::shared_ptr<LatestByKeyStorage>& storage,
+                                   std::uint64_t event_sequence) noexcept;
+
+#if defined(SALIAS_TEST_HOOKS) && defined(__linux__)
+// Test-only hook used to verify pthread robust-mutex owner-death recovery.
+// The callback runs while the shared table mutex is held.  The hook deliberately
+// leaves that mutex locked when it returns; the calling std::thread then exits
+// normally, allowing the next operation to observe EOWNERDEAD through the real
+// pthread/thread bookkeeping.  This declaration is hidden from normal and
+// installed consumers by the SALIAS_TEST_HOOKS guard.
+using LatestByKeyAbandonCallback = void (*)(void*) noexcept;
+
+Error abandon_latest_by_key_lock_for_testing(
+    const std::shared_ptr<LatestByKeyStorage>& storage,
+    LatestByKeyAbandonCallback callback,
+    void* context) noexcept;
+#endif
+
 }  // namespace salias::detail

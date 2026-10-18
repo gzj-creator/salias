@@ -72,6 +72,9 @@ LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者
 `try_recv()` 将错误折叠为空结果，`recv()` 返回 `Result<LatestByKeyMessage<...>>` 并只重试临时背压；
 `conflated_updates()` 统计端点尚未读取前被合并掉的更新数。fork 前必须暂停所有使用该 channel 的
 线程和操作；静置 fork 后子进程可使用继承端点，fork 时有线程持有内部锁不受支持。
+Linux 的表操作使用进程共享 robust mutex，macOS 使用故障自动释放的文件锁，发布和有数据的
+接收仍按整个表串行；完成初始扫描后的空轮询仅检查原子通知状态。内部共享布局版本为 2，
+旧版本共享段的连接返回 `Error::VersionMismatch`，升级时须重新创建通道。
 
 独立头文件为 `<salias/latest_by_key_channel.hpp>`，对应端点和消息类型为
 `LatestByKeyPublisher`、`LatestByKeySubscriber` 和 `LatestByKeyMessage`。
@@ -85,6 +88,13 @@ Pub/Sub 端点不提供内建 CPU 绑核接口，应用可在调用端点的线�
 有数据的低优先级通道不会饥饿；各通道内部仍保持原顺序，通道之间不承诺全局顺序。返回消息
 带有 priority 索引并借用原通道内存，必须通过组合订阅端 `release()`，或使用会自动释放的
 `poll()`。例如两级 FIFO 通道可用 `PriorityPublisher<Mode::FifoMpsc, Mode::FifoMpsc>` 创建路由端。
+阻塞读取直接使用 `recv(PriorityWaitPolicy policy = PriorityWaitPolicy::Yield)`：默认 `Yield`
+维持原行为，空扫描后让出调度；`Spin` 使用 CPU pause 持续轮询以偏向低延迟（不保证所有
+拓扑更快）。`Adaptive` 先执行 64 次短自旋，然后在 Linux 支持时使用共享 epoch 的
+`futex_waitv`，每次等待以 1ms 单调时钟绝对截止时间兜底；不支持该后端或在 macOS 上退回
+1ms 全流重扫。等待期间的发布会通过一次性注册票据唤醒，票据失效或超时都会重新完整扫描。
+每次调用独立开始等待；非法策略返回 `BadConfig`，不会消费消息。`try_recv*()` 与 `poll()`
+仍为非阻塞。默认参数保留普通无参调用兼容，但成员函数指针类型随新签名改变。
 
 ## 构建
 
@@ -151,8 +161,12 @@ TTL 发送/过期跳过、模板 poll 和共享内存清理。`check_mcpp.py` �
 序列号低位回绕、三生产者与单条/批量订阅者并发、批内 payload 保留及 `SIGKILL` 后的 lease 回收。
 消息数窗口回归覆盖可靠模式的单条/批量背压、批量 poll 后恢复、fanout 慢订阅者边界、
 LatestMpmc 的部分批次、可靠订阅者保护，以及变长空消息和物理回绕后的保留后缀。
-共享通道协议当前为 v13；旧布局通道需重建，发布端和订阅端需一起升级。raw 与 schema-bound 通道
+共享通道协议当前为 v14；旧布局通道需重建，发布端和订阅端需一起升级。raw 与 schema-bound 通道
 不能互连；所有参与进程必须使用一致的 schema ID 和版本。
+
+Linux Adaptive 接收在 64 次短自旋后使用共享 epoch 的 futex 事件等待，并以 1ms 单调时钟期限
+重扫兜底；内核不支持 `futex_waitv` 时，以及 macOS 上，使用 1ms 全流轮询。普通阻塞接收也会
+注册逐消费者一次性通知票据，发布端成功消费票据后才执行 futex 唤醒。
 
 `Publisher::offer_for`、`try_claim_for` 与 `offer_batch_for` 可为消息附加 TTL，截止时间在 API
 调用时采样，因此 `try_claim_for` 返回后的 payload 填充时间也计入 TTL。截止值以同一主机

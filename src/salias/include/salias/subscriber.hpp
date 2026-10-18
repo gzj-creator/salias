@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "core/wait/futex_wait.hpp"
 #include "salias/config.hpp"
 #include "salias/error.hpp"
 #include "salias/message.hpp"
@@ -37,6 +38,8 @@ template <Mode M>
 struct SubscriberEndpoint;
 template <Mode M, class Schema = RawPayloadSchema>
 class Subscriber;
+template <Mode... Modes>
+class PrioritySubscriber;
 
 /**
  * @brief 订阅端，从通道读取消息的消费者接口。
@@ -195,6 +198,14 @@ class Subscriber<M, RawPayloadSchema> {
   }
 
  private:
+  // Internal ticket hooks used only by PrioritySubscriber's Adaptive policy.  Keeping them
+  // private leaves the public subscriber API and installed consumer surface unchanged.
+  enum class AdaptiveTicketState : std::uint8_t { Armed, Consumed, Invalid };
+  std::optional<bool> try_arm_adaptive_wait() noexcept;
+  wait::FutexWaitToken adaptive_wait_token() const noexcept;
+  AdaptiveTicketState adaptive_wait_ticket_state() const noexcept;
+  void clear_adaptive_wait_ticket() noexcept;
+
   bool valid() const noexcept;
 
   template <detail::WireMessage T>
@@ -230,6 +241,8 @@ class Subscriber<M, RawPayloadSchema> {
   friend class Channel;  ///< Channel 通过私有构造创建 Subscriber。
   template <Mode, class>
   friend class Subscriber;  ///< Schema-bound facade 使用固定 schema 的解析路径。
+  template <Mode...>
+  friend class PrioritySubscriber;
 };
 
 /** @brief Schema-bound subscriber that returns owned values and exposes no borrowed payload API. */

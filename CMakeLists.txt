@@ -35,6 +35,13 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(warnings)
 include(sanitizers)
 
+if(BUILD_TESTING AND SALIAS_ENABLE_TSAN)
+  add_executable(salias_tsan_runtime_probe test/support/tsan_runtime_probe.cpp)
+  salias_enable_warnings(salias_tsan_runtime_probe)
+  salias_enable_sanitizers(salias_tsan_runtime_probe)
+  set(SALIAS_TEST_TSAN_PROBE "$<TARGET_FILE:salias_tsan_runtime_probe>")
+endif()
+
 add_subdirectory(src/core)
 add_subdirectory(src/salias)
 
@@ -97,13 +104,42 @@ install(
 )
 
 if(BUILD_TESTING)
-  add_test(
-    NAME salias_install_consumer
-    COMMAND
-      "${CMAKE_COMMAND}"
-      "-DSALIAS_BUILD_DIR=${PROJECT_BINARY_DIR}"
-      "-DSALIAS_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
-      "-DSALIAS_TEST_CONFIG=$<CONFIG>"
-      -P "${PROJECT_SOURCE_DIR}/cmake/install_consumer_test.cmake"
+  set(salias_install_test_command
+    "${CMAKE_COMMAND}"
+    "-DSALIAS_BUILD_DIR=${PROJECT_BINARY_DIR}"
+    "-DSALIAS_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+    "-DSALIAS_TEST_CONFIG=$<CONFIG>"
+    "-DSALIAS_CMAKE_GENERATOR=${CMAKE_GENERATOR}"
+    "-DSALIAS_CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
+    "-DSALIAS_CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+    "-DSALIAS_CMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
+    "-DSALIAS_TEST_LAUNCHER=${PROJECT_SOURCE_DIR}/cmake/salias_test_launcher.sh"
   )
+  if(DEFINED CMAKE_C_COMPILER AND NOT CMAKE_C_COMPILER STREQUAL "")
+    list(APPEND salias_install_test_command "-DSALIAS_CMAKE_C_COMPILER=${CMAKE_C_COMPILER}")
+  endif()
+  if(DEFINED CMAKE_GENERATOR_PLATFORM AND NOT CMAKE_GENERATOR_PLATFORM STREQUAL "")
+    list(APPEND salias_install_test_command
+      "-DSALIAS_CMAKE_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}")
+  endif()
+  if(DEFINED CMAKE_GENERATOR_TOOLSET AND NOT CMAKE_GENERATOR_TOOLSET STREQUAL "")
+    list(APPEND salias_install_test_command
+      "-DSALIAS_CMAKE_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}")
+  endif()
+  if(DEFINED CMAKE_GENERATOR_INSTANCE AND NOT CMAKE_GENERATOR_INSTANCE STREQUAL "")
+    list(APPEND salias_install_test_command
+      "-DSALIAS_CMAKE_GENERATOR_INSTANCE=${CMAKE_GENERATOR_INSTANCE}")
+  endif()
+  if(DEFINED CMAKE_TOOLCHAIN_FILE AND NOT CMAKE_TOOLCHAIN_FILE STREQUAL "")
+    list(APPEND salias_install_test_command
+      "-DSALIAS_CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}")
+  endif()
+  if(DEFINED SALIAS_TEST_TSAN_PROBE AND NOT SALIAS_TEST_TSAN_PROBE STREQUAL "")
+    list(APPEND salias_install_test_command
+      "-DSALIAS_TEST_TSAN_PROBE=${SALIAS_TEST_TSAN_PROBE}")
+  endif()
+  list(APPEND salias_install_test_command
+    -P "${PROJECT_SOURCE_DIR}/cmake/install_consumer_test.cmake")
+  add_test(NAME salias_install_consumer COMMAND ${salias_install_test_command})
+  set_tests_properties(salias_install_consumer PROPERTIES TIMEOUT 600)
 endif()

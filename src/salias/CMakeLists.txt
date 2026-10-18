@@ -3,6 +3,7 @@ add_library(salias STATIC
   src/latest_by_key.cpp
 )
 add_library(salias::salias ALIAS salias)
+find_package(Threads REQUIRED)
 
 target_compile_features(salias PUBLIC cxx_std_23)
 target_include_directories(salias
@@ -13,7 +14,7 @@ target_include_directories(salias
   PRIVATE
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
 )
-target_link_libraries(salias PUBLIC salias_core)
+target_link_libraries(salias PUBLIC salias_core Threads::Threads)
 
 salias_enable_warnings(salias)
 salias_enable_sanitizers(salias)

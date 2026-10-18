@@ -7,6 +7,9 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#if defined(__linux__)
+#include <pthread.h>
+#endif
 
 #include <algorithm>
 #include <array>
@@ -33,7 +36,7 @@ namespace salias::detail {
 namespace {
 
 inline constexpr std::uint64_t kStorageMagic = 0x53414C4B4C415445ULL;  // "SALKLATE"
-inline constexpr std::uint32_t kStorageVersion = 1;
+inline constexpr std::uint32_t kStorageVersion = 2;
 inline constexpr std::size_t kMaxNameLength = 128;
 inline constexpr std::size_t kCacheLineBytes = 64;
 inline constexpr std::size_t kMinEventCount = 64;
@@ -54,7 +57,11 @@ struct alignas(kSharedAlignment) SharedHeader {
   std::uint64_t name_hash;
   std::uint64_t event_count;
   std::uint64_t event_sequence;
+  std::uint64_t operation_active;
   char name[kMaxNameLength + 1];
+#if defined(__linux__)
+  alignas(kCacheLineBytes) pthread_mutex_t table_mutex;
+#endif
 };
 
 struct alignas(std::atomic_ref<std::uint64_t>::required_alignment) SharedSlotPrefix {
@@ -177,6 +184,7 @@ bool lock_file(int fd, bool wait) noexcept {
   return true;
 }
 
+#if !defined(__linux__)
 std::shared_ptr<std::mutex> local_mutex_for(const std::string& shm_name) {
   static std::mutex registry_mutex;
   static std::unordered_map<std::string, std::weak_ptr<std::mutex>> registry;
@@ -191,8 +199,21 @@ std::shared_ptr<std::mutex> local_mutex_for(const std::string& shm_name) {
   registry[shm_name] = created;
   return created;
 }
+#endif
 
 void unlock_file(int fd) noexcept { static_cast<void>(::flock(fd, LOCK_UN)); }
+
+void invalidate_unpublished_event(void* mapping, std::size_t event_offset, std::size_t event_count,
+                                  SharedHeader* header) noexcept {
+  const auto sequence =
+      std::atomic_ref<std::uint64_t>(header->event_sequence).load(std::memory_order_acquire);
+  if (sequence == std::numeric_limits<std::uint64_t>::max()) {
+    return;
+  }
+  auto* events = reinterpret_cast<SharedEvent*>(static_cast<std::byte*>(mapping) + event_offset);
+  auto& next = events[(sequence + 1) % event_count];
+  std::atomic_ref<std::uint64_t>(next.sequence).store(0, std::memory_order_release);
+}
 
 void close_fd(int fd) noexcept {
   if (fd >= 0) {
@@ -215,6 +236,7 @@ struct LatestByKeyStorage {
   std::size_t key_offset = 0;
   std::size_t value0_offset = 0;
   std::size_t value1_offset = 0;
+  std::size_t key_size = 0;
   std::string shm_name;
   pid_t owner_pid = 0;
   std::shared_ptr<std::mutex> local_mutex;
@@ -274,6 +296,24 @@ Result<std::shared_ptr<LatestByKeyStorage>> map_storage(
       header->name_hash = hash_bytes(public_name);
       header->event_count = layout.event_count;
       std::memcpy(header->name, public_name.data(), public_name.size());
+#if defined(__linux__)
+      pthread_mutexattr_t attributes;
+      if (::pthread_mutexattr_init(&attributes) != 0) {
+        static_cast<void>(::munmap(mapping, layout.total_size));
+        static_cast<void>(::shm_unlink(shm_name.c_str()));
+        return std::unexpected(Error::PlatformFail);
+      }
+      const bool mutex_ready =
+          ::pthread_mutexattr_setpshared(&attributes, PTHREAD_PROCESS_SHARED) == 0 &&
+          ::pthread_mutexattr_setrobust(&attributes, PTHREAD_MUTEX_ROBUST) == 0 &&
+          ::pthread_mutex_init(&header->table_mutex, &attributes) == 0;
+      static_cast<void>(::pthread_mutexattr_destroy(&attributes));
+      if (!mutex_ready) {
+        static_cast<void>(::munmap(mapping, layout.total_size));
+        static_cast<void>(::shm_unlink(shm_name.c_str()));
+        return std::unexpected(Error::PlatformFail);
+      }
+#endif
       auto* slot_bytes = static_cast<std::byte*>(mapping) + layout.data_offset;
       for (std::size_t index = 0; index < slot_count; ++index) {
         std::construct_at(reinterpret_cast<SharedSlotPrefix*>(slot_bytes + index * layout.stride));
@@ -309,10 +349,11 @@ Result<std::shared_ptr<LatestByKeyStorage>> map_storage(
       }
     }
 
-    auto process_mutex = local_mutex_for(shm_name);
     auto storage = std::make_shared<LatestByKeyStorage>();
     storage->shm_name = std::move(shm_name);
-    storage->local_mutex = std::move(process_mutex);
+#if !defined(__linux__)
+    storage->local_mutex = local_mutex_for(storage->shm_name);
+#endif
     storage->mapping_size = layout.total_size;
     storage->data_offset = layout.data_offset;
     storage->slot_count = slot_count;
@@ -322,6 +363,7 @@ Result<std::shared_ptr<LatestByKeyStorage>> map_storage(
     storage->key_offset = layout.key_offset;
     storage->value0_offset = layout.value0_offset;
     storage->value1_offset = layout.value1_offset;
+    storage->key_size = key_size;
     storage->owner_pid = owner ? ::getpid() : 0;
     storage->fd_pid = ::getpid();
     storage->mapping = mapping;
@@ -466,6 +508,49 @@ Error with_latest_by_key_table(const std::shared_ptr<LatestByKeyStorage>& storag
     return Error::BadConfig;
   }
 
+  auto* header = static_cast<SharedHeader*>(storage->mapping);
+#if defined(__linux__)
+  const int locked = wait_for_lock ? ::pthread_mutex_lock(&header->table_mutex)
+                                   : ::pthread_mutex_trylock(&header->table_mutex);
+  if (locked == EOWNERDEAD) {
+    invalidate_unpublished_event(storage->mapping, storage->event_offset, storage->event_count,
+                                 header);
+    bool valid = true;
+    auto* slots = static_cast<std::byte*>(storage->mapping) + storage->data_offset;
+    for (std::size_t index = 0; index < storage->slot_count && valid; ++index) {
+      auto* slot = reinterpret_cast<SharedSlotPrefix*>(slots + index * storage->stride);
+      const auto commit =
+          std::atomic_ref<std::uint64_t>(slot->commit).load(std::memory_order_acquire);
+      if ((commit & 1u) != 0) {
+        const auto* key = reinterpret_cast<const char*>(slot) + storage->key_offset;
+        valid = (commit >> 2) != 0 &&
+                slot->hash == hash_bytes(std::string_view(key, storage->key_size));
+      } else {
+        valid = commit == 0;
+      }
+    }
+    const auto sequence =
+        std::atomic_ref<std::uint64_t>(header->event_sequence).load(std::memory_order_acquire);
+    if (valid && sequence != 0) {
+      auto* events = reinterpret_cast<SharedEvent*>(static_cast<std::byte*>(storage->mapping) +
+                                                    storage->event_offset);
+      const auto& latest = events[sequence % storage->event_count];
+      valid = latest.sequence == sequence && latest.slot_index < storage->slot_count;
+    }
+    if (!valid) {
+      static_cast<void>(::pthread_mutex_unlock(&header->table_mutex));
+      return Error::VersionMismatch;
+    }
+    if (::pthread_mutex_consistent(&header->table_mutex) != 0) {
+      static_cast<void>(::pthread_mutex_unlock(&header->table_mutex));
+      return Error::PlatformFail;
+    }
+  } else if (locked != 0) {
+    return locked == EBUSY
+               ? Error::BackPressured
+               : (locked == ENOTRECOVERABLE ? Error::VersionMismatch : Error::PlatformFail);
+  }
+#else
   if (!storage->local_mutex) {
     return Error::BadConfig;
   }
@@ -485,6 +570,13 @@ Error with_latest_by_key_table(const std::shared_ptr<LatestByKeyStorage>& storag
                                 ? Error::BackPressured
                                 : Error::PlatformFail);
   }
+  if (std::atomic_ref<std::uint64_t>(header->operation_active).load(std::memory_order_acquire) !=
+      0) {
+    invalidate_unpublished_event(storage->mapping, storage->event_offset, storage->event_count,
+                                 header);
+  }
+#endif
+  std::atomic_ref<std::uint64_t>(header->operation_active).store(1, std::memory_order_release);
 
   auto* bytes = static_cast<std::byte*>(storage->mapping) + storage->data_offset;
   const LatestByKeyTableView table{
@@ -499,8 +591,61 @@ Error with_latest_by_key_table(const std::shared_ptr<LatestByKeyStorage>& storag
       .value1_offset = storage->value1_offset,
   };
   const Error result = callback(table, context);
+  std::atomic_ref<std::uint64_t>(header->operation_active).store(0, std::memory_order_release);
+#if defined(__linux__)
+  static_cast<void>(::pthread_mutex_unlock(&header->table_mutex));
+#else
   unlock_file(storage->fd);
+#endif
   return result;
 }
+
+bool latest_by_key_table_unchanged(const std::shared_ptr<LatestByKeyStorage>& storage,
+                                   std::uint64_t event_sequence) noexcept {
+  if (!storage) {
+    return false;
+  }
+  auto* header = static_cast<SharedHeader*>(storage->mapping);
+  const auto current =
+      std::atomic_ref<std::uint64_t>(header->event_sequence).load(std::memory_order_acquire);
+  return current == event_sequence &&
+         std::atomic_ref<std::uint64_t>(header->operation_active).load(std::memory_order_acquire) ==
+             0;
+}
+
+#if defined(SALIAS_TEST_HOOKS) && defined(__linux__)
+Error abandon_latest_by_key_lock_for_testing(
+    const std::shared_ptr<LatestByKeyStorage>& storage,
+    LatestByKeyAbandonCallback callback,
+    void* context) noexcept {
+  if (!storage || callback == nullptr) {
+    return Error::BadConfig;
+  }
+
+  auto* header = static_cast<SharedHeader*>(storage->mapping);
+  const int locked = ::pthread_mutex_lock(&header->table_mutex);
+  if (locked == EOWNERDEAD) {
+    // The hook is also useful after a previous recovery test.  Mark the mutex
+    // consistent before handing it to the callback, while intentionally
+    // retaining ownership until this thread exits.
+    if (::pthread_mutex_consistent(&header->table_mutex) != 0) {
+      static_cast<void>(::pthread_mutex_unlock(&header->table_mutex));
+      return Error::PlatformFail;
+    }
+  } else if (locked != 0) {
+    return locked == EBUSY ? Error::BackPressured : Error::PlatformFail;
+  }
+
+  std::atomic_ref<std::uint64_t>(header->operation_active).store(1,
+                                                                  std::memory_order_release);
+  callback(context);
+
+  // Deliberately do not clear operation_active or unlock table_mutex.  The
+  // owning std::thread returns normally and pthread robust-mutex machinery
+  // reports EOWNERDEAD to the next operation.  This path is compiled only in
+  // test builds and is never exported by a production installation.
+  return Error::Ok;
+}
+#endif
 
 }  // namespace salias::detail

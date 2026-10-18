@@ -57,7 +57,7 @@ namespace {
 /// @brief 匿名命名空间，仅本翻译单元可见的具名通道辅助类型与函数。
 
 inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;  // ASCII "SALC"，校验控制段归属。
-inline constexpr std::uint32_t kNamedVersion = 13;  // schema 元数据协议版本，connect 须严格匹配。
+inline constexpr std::uint32_t kNamedVersion = 14;  // schema 元数据协议版本，connect 须严格匹配。
 inline constexpr std::size_t kControlSize = 16u * 1024u;  // 控制段固定 16 KiB。
 inline constexpr std::size_t kCacheLineGuard = 128;  // 双 cache line 填充宽度，规避伪共享。
 inline constexpr std::size_t kMaxProducers = 16;  // 单 channel 最大 producer 数。
@@ -106,7 +106,8 @@ struct alignas(64) NamedConsumerSlot {
   std::uint32_t pid = 0;    ///< 注册该订阅者的进程 ID。
   std::uint32_t delivery_policy = channel::consumer_registration::kReliablePolicy;
   std::uint64_t process_start = 0;  ///< 进程启动标识，用于识别 PID 复用。
-  std::byte pad[64 - (2 * sizeof(std::uint64_t) + 2 * sizeof(std::uint32_t))]{};
+  std::uint64_t notification_ticket = 0;  ///< Adaptive one-shot registration token。
+  std::byte pad[64 - (3 * sizeof(std::uint64_t) + 2 * sizeof(std::uint32_t))]{};
 };
 
 /// @brief 某 producer 视角下一个 consumer 的游标（position + sequence），64 字节对齐。
@@ -160,6 +161,7 @@ struct alignas(kCacheLineGuard) NamedControl {
   std::uint64_t fixed_payload_size = 0;  ///< 0 表示变长 payload；非零时接收路径使用定长帧。
   std::uint32_t ready = 0;  ///< 就绪标志：创建端置 1（release），连接端等 1（acquire）。
   std::uint32_t wait_word = 0;           ///< 等待策略唤醒字（wait strategy 回填）。
+  std::uint32_t notification_enabled = 0;  ///< Adaptive 通知 sticky 开关。
   std::uint64_t publication_window = 0;  ///< 发布流控窗口（0 表示不限流）。
   std::uint32_t high_watermark_percent = 90;      ///< 丢旧模式的保留水位比例。
   std::uint64_t publication_window_messages = 0;  ///< 每 producer ring 的消息数窗口。
@@ -746,7 +748,7 @@ Result<ControlMapping> open_control_when_ready(const std::string& name) {
 /// @brief 按 Mode 选定底层 SharedHybridMpscChannel 的 ordering 类型的别名。
 template <Mode M>
 using SharedChannel =
-    channel::SharedHybridMpscChannel<kOrdering<M>, wait::SpinPause, kDropOldest<M>>;
+    channel::SharedHybridMpscChannel<kOrdering<M>, wait::AdaptiveFutex, kDropOldest<M>>;
 
 /// @brief 从控制段提取 channel 级共享状态（全局序列号、consumer sequences 等）。
 /// @param control 控制段引用。
@@ -756,6 +758,7 @@ typename SharedChannel<M>::SharedControl make_shared_control(NamedControl& contr
   typename SharedChannel<M>::SharedControl shared{};
   shared.global_seq = &control.global_sequence;
   shared.wait_word = &control.wait_word;
+  shared.notification_enabled = &control.notification_enabled;
   shared.registration_gate = &control.registration_gate;
   shared.num_producers = &control.num_producers;
   shared.num_consumers = &control.num_consumers;
@@ -811,6 +814,7 @@ std::vector<typename SharedChannel<M>::ProducerSharedState> make_producer_states
           .process_start = &control.consumers[consumer_id].process_start,
           .delivery_policy = &control.consumers[consumer_id].delivery_policy,
           .registration_state = &control.consumers[consumer_id].state,
+          .notification_ticket = &control.consumers[consumer_id].notification_ticket,
           .cursor_generation = &control.producers[producer_id].consumers[consumer_id].generation,
           .lagged_messages = &control.producers[producer_id].consumers[consumer_id].lagged_messages,
           .skipped_messages =
@@ -1011,6 +1015,8 @@ class NamedChannelState {
                                            std::memory_order_acquire)) {
           continue;
         }
+        std::atomic_ref<std::uint64_t>(slot.notification_ticket)
+            .store(0, std::memory_order_seq_cst);
         clear_consumer_cursors(*control, consumer_id, generation);
         std::atomic_ref<std::uint32_t>(slot.pid).store(0, std::memory_order_relaxed);
         std::atomic_ref<std::uint32_t>(slot.delivery_policy)
@@ -1035,6 +1041,8 @@ class NamedChannelState {
       std::atomic_ref<std::uint32_t>(slot.delivery_policy)
           .store(static_cast<std::uint32_t>(policy), std::memory_order_relaxed);
       std::atomic_ref<std::uint64_t>(slot.process_start).store(start, std::memory_order_relaxed);
+      std::atomic_ref<std::uint64_t>(slot.notification_ticket)
+          .store(0, std::memory_order_seq_cst);
       const auto ordered_sequence = [&] {
         if constexpr (kOrdering<M> == channel::Order::Ordered) {
           return std::atomic_ref<std::uint64_t>(control->global_sequence)
@@ -1205,6 +1213,10 @@ class NamedChannelState {
                                        std::memory_order_acquire)) {
       return;
     }
+    auto ticket = token;
+    static_cast<void>(std::atomic_ref<std::uint64_t>(slot.notification_ticket)
+                          .compare_exchange_strong(ticket, 0, std::memory_order_seq_cst,
+                                                   std::memory_order_relaxed));
     const auto generation = channel::consumer_registration::generation(token);
     clear_consumer_cursors(*control, consumer_id, generation);
     std::atomic_ref<std::uint32_t>(slot.pid).store(0, std::memory_order_relaxed);
@@ -1990,6 +2002,48 @@ Message Subscriber<M, RawPayloadSchema>::recv() noexcept {
     return {};
   }
   return endpoint_->rx.recv();
+}
+
+template <Mode M>
+std::optional<bool> Subscriber<M, RawPayloadSchema>::try_arm_adaptive_wait() noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return std::nullopt;
+  }
+  return endpoint_->rx.try_arm_wait_notification();
+}
+
+template <Mode M>
+wait::FutexWaitToken Subscriber<M, RawPayloadSchema>::adaptive_wait_token() const noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return {};
+  }
+  return endpoint_->rx.notification_token();
+}
+
+template <Mode M>
+typename Subscriber<M, RawPayloadSchema>::AdaptiveTicketState
+Subscriber<M, RawPayloadSchema>::adaptive_wait_ticket_state() const noexcept {
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    return AdaptiveTicketState::Invalid;
+  }
+  using Rx = typename SubscriberEndpoint<M>::Rx;
+  using TicketState = typename Rx::WaitTicketState;
+  switch (endpoint_->rx.wait_ticket_state()) {
+    case TicketState::Armed:
+      return AdaptiveTicketState::Armed;
+    case TicketState::Consumed:
+      return AdaptiveTicketState::Consumed;
+    case TicketState::Invalid:
+      return AdaptiveTicketState::Invalid;
+  }
+  return AdaptiveTicketState::Invalid;
+}
+
+template <Mode M>
+void Subscriber<M, RawPayloadSchema>::clear_adaptive_wait_ticket() noexcept {
+  if (endpoint_ != nullptr && endpoint_->valid) {
+    endpoint_->rx.clear_wait_notification();
+  }
 }
 
 template <Mode M>

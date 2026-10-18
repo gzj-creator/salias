@@ -229,6 +229,87 @@ TEST(ChannelApiTest, TypedSendAndCopyReceiveRoundTripWithoutBorrowedRelease) {
   EXPECT_EQ(*blocking, expected);
 }
 
+TEST(ChannelApiTest, BlockingRawReceiveFindsDelayedPublicationBeforeAdaptiveActivation) {
+  auto config = config_for(salias::Mode::FifoMpsc, "blocking-raw-unactivated");
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+  const Payload expected{.producer = 3, .sequence = 91};
+  const auto bytes = encode(expected);
+
+  std::atomic<bool> published{false};
+  std::thread delayed_publisher([&] {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    const auto offered = publisher.offer(bytes);
+    published.store(offered && *offered, std::memory_order_release);
+  });
+  const auto message = subscriber.recv();
+  delayed_publisher.join();
+
+  ASSERT_TRUE(published.load(std::memory_order_acquire));
+  ASSERT_EQ(message.payload.size(), sizeof(Payload));
+  EXPECT_EQ(decode(message.payload), expected);
+  subscriber.release(message);
+}
+
+TEST(ChannelApiTest, BlockingFixedReceiveFindsDelayedPublicationBeforeAdaptiveActivation) {
+  auto config = config_for(salias::Mode::FifoMpsc, "blocking-fixed-unactivated");
+  auto created = TypedFifoChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+  const Payload expected{.producer = 5, .sequence = 137};
+
+  std::atomic<bool> published{false};
+  std::thread delayed_publisher([&] {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    const auto sent = publisher.send(expected);
+    published.store(sent.has_value(), std::memory_order_release);
+  });
+  const auto received = subscriber.recv_copy();
+  delayed_publisher.join();
+
+  ASSERT_TRUE(published.load(std::memory_order_acquire));
+  ASSERT_TRUE(received);
+  EXPECT_EQ(*received, expected);
+}
+
+TEST(ChannelApiTest, BlockingRawReceiveWakesForIndependentProcessPublication) {
+  auto config = config_for(salias::Mode::FifoMpsc, "blocking-raw-ipc-wake");
+  auto created = salias::FifoMpscChannel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto subscriber = channel.subscriber();
+
+  const auto child = ::fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    ::alarm(5);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    auto connected = salias::FifoMpscChannel::connect(config.name);
+    if (!connected) {
+      ::_exit(1);
+    }
+    auto publisher = connected->publisher();
+    const Payload expected{.producer = 17, .sequence = 231};
+    const auto payload = encode(expected);
+    const auto offered = publisher.offer(payload);
+    ::_exit(offered && *offered ? 0 : 2);
+  }
+
+  const auto message = subscriber.recv();
+  int status = 0;
+  ASSERT_EQ(::waitpid(child, &status, 0), child);
+  ASSERT_TRUE(WIFEXITED(status));
+  EXPECT_EQ(WEXITSTATUS(status), 0);
+  ASSERT_EQ(message.payload.size(), sizeof(Payload));
+  EXPECT_EQ(decode(message.payload), (Payload{.producer = 17, .sequence = 231}));
+  subscriber.release(message);
+}
+
 TEST(ChannelApiTest, SchemaBoundChannelRoundTripsWithFixedClaimSize) {
   auto config = config_for(salias::Mode::FifoMpsc, "schema-fixed-roundtrip");
   auto created = TypedFifoChannel::create(config);
