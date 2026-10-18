@@ -476,11 +476,15 @@ class SharedHybridMpscChannel {
   /**
    * @brief 计算该 producer 所有 consumer 中最小的消费位置(字节位置)。
    * @param producer 待查询的 ProducerRing。
+   * @param tail 本次申请的写尾位置。
+   * @param need 本次至少需要的字节数；批量申请按一帧判断是否阻塞。
    * @return 最小消费位置；无 consumer 或任一 position 为空时返回 0。
    * @note 该值代表"最慢消费者"的进度，用于 claim 时计算可用空间(背压闸门)。
    *       以 acquire 读取各 consumer 的共享位置字，看到其 release-store 的最新值。
    */
-  std::uint64_t minimum_consumer_position(const ProducerRing& producer) const noexcept {
+  std::uint64_t minimum_consumer_position(const ProducerRing& producer, std::uint64_t tail,
+                                         std::size_t need) const noexcept {
+    const auto capacity = effective_capacity(producer.ring.capacity());
     std::uint64_t minimum = std::numeric_limits<std::uint64_t>::max();
     for (const auto& consumer : producer.shared.consumers) {
       if (consumer.position == nullptr) {
@@ -503,20 +507,24 @@ class SharedHybridMpscChannel {
                   .load(std::memory_order_acquire)) {
         return 0;
       }
-      if (control_.is_process_alive != nullptr && consumer.process_id != nullptr &&
-          consumer.process_start != nullptr &&
-          !control_.is_process_alive(
-              std::atomic_ref<std::uint32_t>(*consumer.process_id).load(std::memory_order_relaxed),
-              std::atomic_ref<std::uint64_t>(*consumer.process_start)
-                  .load(std::memory_order_relaxed))) {
-        continue;
+      const auto position =
+          std::atomic_ref<std::uint64_t>(*consumer.position).load(std::memory_order_acquire);
+      // 已推进且能容纳本次申请的游标不需要探测进程；只有阻塞者才需区分背压与退出。
+      bool alive = true;
+      if (!hybrid_detail::has_capacity(capacity, tail, position, need) &&
+          control_.is_process_alive != nullptr && consumer.process_id != nullptr &&
+          consumer.process_start != nullptr) {
+        alive = control_.is_process_alive(
+            std::atomic_ref<std::uint32_t>(*consumer.process_id).load(std::memory_order_relaxed),
+            std::atomic_ref<std::uint64_t>(*consumer.process_start).load(std::memory_order_relaxed));
       }
-      minimum = std::min(
-          minimum,
-          std::atomic_ref<std::uint64_t>(*consumer.position).load(std::memory_order_acquire));
+      // 死亡探测也必须验证同一注册快照，不能把已复用槽位的新消费者一并忽略。
       if (std::atomic_ref<std::uint64_t>(*consumer.registration_state)
               .load(std::memory_order_acquire) != state) {
         return 0;
+      }
+      if (alive) {
+        minimum = std::min(minimum, position);
       }
     }
     return minimum == std::numeric_limits<std::uint64_t>::max() ? 0 : minimum;
@@ -601,25 +609,31 @@ class SharedHybridMpscChannel {
                    .load(std::memory_order_acquire))) {
         return 0;
       }
-      if (control_.is_process_alive != nullptr && consumer.process_id != nullptr &&
-          consumer.process_start != nullptr &&
-          !control_.is_process_alive(
-              std::atomic_ref<std::uint32_t>(*consumer.process_id).load(std::memory_order_relaxed),
-              std::atomic_ref<std::uint64_t>(*consumer.process_start)
-                  .load(std::memory_order_relaxed))) {
-        continue;
-      }
       if (consumer.message_sequence == nullptr) {
         return 0;
       }
-      minimum = std::min(minimum, std::atomic_ref<std::uint64_t>(*consumer.message_sequence)
-                                      .load(std::memory_order_acquire));
+      const auto sequence = std::atomic_ref<std::uint64_t>(*consumer.message_sequence)
+                                .load(std::memory_order_acquire);
+      // 消息窗口同样先看进度；构造 Tx 时窗口尚有余量也不应探测健康消费者。
+      const auto window = control_.publication_window_messages;
+      const bool blocked = producer.message_sequence < sequence ||
+                           (window != 0 && producer.message_sequence - sequence >= window);
+      bool alive = true;
+      if (blocked && control_.is_process_alive != nullptr && consumer.process_id != nullptr &&
+          consumer.process_start != nullptr) {
+        alive = control_.is_process_alive(
+            std::atomic_ref<std::uint32_t>(*consumer.process_id).load(std::memory_order_relaxed),
+            std::atomic_ref<std::uint64_t>(*consumer.process_start).load(std::memory_order_relaxed));
+      }
       if (consumer.registration_state != nullptr &&
           std::atomic_ref<std::uint64_t>(*consumer.registration_state)
                   .load(std::memory_order_acquire) != state) {
         return 0;
       }
-      found = true;
+      if (alive) {
+        minimum = std::min(minimum, sequence);
+        found = true;
+      }
     }
     if (found) {
       return minimum;
@@ -841,7 +855,7 @@ class SharedHybridMpscChannel {
         // 先用缓存的消费者位置判空间(快路径，避免跨核 load)。
         if (!hybrid_detail::has_capacity(effective_cap, tail, cached_consumer_pos_, need)) {
           // 缓存过期，跨核刷新最小消费者位置后再判一次(慢路径)。
-          cached_consumer_pos_ = channel_->minimum_consumer_position(producer);
+          cached_consumer_pos_ = channel_->minimum_consumer_position(producer, tail, need);
           if (!hybrid_detail::has_capacity(effective_cap, tail, cached_consumer_pos_, need)) {
             return std::unexpected(flow::FlowError::BackPressured);
           }
@@ -961,7 +975,7 @@ class SharedHybridMpscChannel {
         fit = hybrid_detail::batch_fit(effective_cap, tail, cached_consumer_pos_, per, max_frames);
         if (fit == 0) {
           // 慢路径：跨核刷新最小消费者位置后重算。
-          cached_consumer_pos_ = channel_->minimum_consumer_position(producer);
+          cached_consumer_pos_ = channel_->minimum_consumer_position(producer, tail, per);
           fit =
               hybrid_detail::batch_fit(effective_cap, tail, cached_consumer_pos_, per, max_frames);
           if (fit == 0) {

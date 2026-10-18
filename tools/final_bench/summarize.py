@@ -5,6 +5,9 @@ import re
 import statistics
 from collections import defaultdict
 
+PAYLOAD_BYTES = 64
+MIB_PER_MMSG = PAYLOAD_BYTES * 1_000_000 / (1024 * 1024)
+
 
 def percentile(values, fraction):
     ordered = sorted(values)
@@ -35,8 +38,8 @@ for line in open(args.log, encoding="utf-8"):
     groups[key].append(fields)
 
 if args.markdown:
-    print("| Library | Mode | Topology | Capacity | Batch | N | Publish median | p10-p90 | Delivery median | Backpressure median |")
-    print("|---|---|---|---:|---:|---:|---:|---:|---:|---:|")
+    print("| Library | Mode | Topology | Capacity | Batch | N | Publish median | p10-p90 | Delivery median | Publish payload MiB/s | Delivery payload MiB/s | Backpressure median |")
+    print("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
 for key, rows in sorted(groups.items()):
     library, mode, topology, capacity, batch = key
     publish = [float(row["publish_msg_per_sec"]) / 1e6 for row in rows]
@@ -48,6 +51,8 @@ for key, rows in sorted(groups.items()):
             f"| {statistics.median(publish):.3f} M/s "
             f"| {percentile(publish, .1):.3f}-{percentile(publish, .9):.3f} "
             f"| {statistics.median(delivery):.3f} M/s "
+            f"| {statistics.median(publish) * MIB_PER_MMSG:.3f} "
+            f"| {statistics.median(delivery) * MIB_PER_MMSG:.3f} "
             f"| {statistics.median(backpressure):.3f}% |"
         )
     else:
@@ -56,5 +61,7 @@ for key, rows in sorted(groups.items()):
             f"batch={batch} samples={len(rows)} publish_median_mmsg_s={statistics.median(publish):.6f} "
             f"publish_p10_mmsg_s={percentile(publish,.1):.6f} publish_p90_mmsg_s={percentile(publish,.9):.6f} "
             f"delivery_median_mmsg_s={statistics.median(delivery):.6f} "
+            f"publish_payload_mib_s={statistics.median(publish) * MIB_PER_MMSG:.6f} "
+            f"delivery_payload_mib_s={statistics.median(delivery) * MIB_PER_MMSG:.6f} "
             f"backpressure_median_pct={statistics.median(backpressure):.6f}"
         )
