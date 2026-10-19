@@ -311,6 +311,18 @@ NUMA 放置当前尚未实现，Linux 与 macOS 请求都会明确返回 `NumaUn
 
 ## 最终性能
 
+2026-10-19 的 [Salias/Aeron 设计级延迟诊断](doc/aeron-design-diagnosis-2026-10-19.md)
+提供真实 perf/火焰图、缓存布局与轮询 A/B，以及长尾与调度抢占的逐事件关联。
+约 100 ns 典型延迟差仍存在；未验收原型未合入产品，不将 p50 与 p99.9 混为一谈。
+
+后续[设计级优化实作](doc/aeron-design-implementation-2026-10-19.md)移除了空 poll 的
+2 KiB 描述符清零，并实测调度策略和帧内发布原型；RT 限流与变长回绕反例均保留，
+不将不安全原型的低延迟列为产品收益。
+
+2026-10-18 的 [Publisher 尾延迟相对收益验收](doc/publisher-tail-relative-acceptance-2026-10-18.md)
+已完成三组 ABBA、48 分钟正式测量；新候选未通过，已撤销，不计入已验收优化。
+诊断、复跑工具和原始证据保留，不能与下方历史 Aeron 吞吐结果混用。
+
 2026-09-25 的 FIFO 消费热路径改动、对照数据与回归测试见
 [本地优化验证报告](doc/performance-optimization-2026-09-25.md)。该报告仅验证本次改动，
 测量环境和指标与以下独立进程验收不同。
@@ -356,4 +368,5 @@ example/             FIFO MPSC 示例
   1/4 MiB；64 MiB 虽消除背压，但扩大工作集后吞吐下降。容量主要用于突发吸收，不能替代
   Consumer 稳定吞吐能力或受控的 `publication_window`。
 - ARM Colima VM 只用于功能回归；最终性能验收必须在公平绑核的 x86 真机完成。
-- 当前唯一有效的性能结论见 `doc/performance-report.md`。
+- salias/Aeron 独立进程吞吐对比见 `doc/performance-report.md`；Publisher 尾延迟验收见
+  `doc/publisher-tail-relative-acceptance-2026-10-18.md`，两者的负载、计时与通过标准不同。

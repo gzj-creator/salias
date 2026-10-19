@@ -1,0 +1,11 @@
+control 964824000
+control;_start;__libc_start_main@@GLIBC_2.34;__libc_start_call_main;exit;__run_exit_handlers;_dl_fini;_dl_call_fini;[libstdc++.so.6.0.33];__cxa_finalize;std::ios_base::Init::~Init;std::ostream::flush;_IO_fflush;_IO_file_sync@@GLIBC_2.2.5;_IO_do_write@@GLIBC_2.2.5;_IO_file_write@@GLIBC_2.2.5;__GI___libc_write;entry_SYSCALL_64_after_hwframe;do_syscall_64;x64_sys_call;__x64_sys_write;ksys_write;vfs_write;ext4_file_write_iter;ext4_buffered_write_iter;generic_perform_write;ext4_da_write_begin;ext4_block_write_begin;ext4_da_get_block_prep;ext4_da_map_blocks.constprop.0;ext4_map_query_blocks.constprop.0;ext4_ext_map_blocks;ext4_ext_determine_insert_hole;ext4_es_insert_extent;__es_insert_extent;_raw_spin_unlock;__raw_callee_save___pv_queued_spin_unlock 5025125
+control;clock_gettime@@GLIBC_2.17 125628125
+control;clock_gettime@@GLIBC_2.17;[[vdso]] 1869346500
+control;clock_gettime@@GLIBC_2.17;__vdso_clock_gettime 25125625
+control;salias::channel::SharedHybridMpscChannel< 1804019875
+control;std::chrono::_V2::steady_clock::now 75376875
+control;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17 15075375
+control;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17;[[vdso]] 1110552625
+control;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17;__vdso_clock_gettime 25125625
+control;std::chrono::_V2::steady_clock::now;clock_gettime@plt 5025125

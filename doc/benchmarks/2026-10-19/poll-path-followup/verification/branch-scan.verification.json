@@ -1,0 +1,37 @@
+{
+  "variant": "branch-scan",
+  "tests": 96,
+  "failures": 0,
+  "reused_release_test_objects": true,
+  "link_command": [
+    "c++",
+    "-O3",
+    "-DNDEBUG",
+    "-flto=1",
+    "-fno-fat-lto-objects",
+    "/data/disk1/projects/salias/build/release/test/CMakeFiles/salias_api_tests.dir/api/channel_api_test.cpp.o",
+    "/data/disk1/projects/salias/build/release/test/CMakeFiles/salias_api_tests.dir/api/latest_subscription_test.cpp.o",
+    "/data/disk1/projects/salias/build/benchmarks/poll-path-20261019/branch-scan/channel.o",
+    "/data/disk1/projects/salias/build/release/src/salias/CMakeFiles/salias.dir/src/latest_by_key.cpp.o",
+    "/usr/lib/x86_64-linux-gnu/libgtest_main.a",
+    "/data/disk1/projects/salias/build/release/src/core/libsalias_core.a",
+    "/usr/lib/x86_64-linux-gnu/libgtest.a",
+    "-pthread",
+    "-o",
+    "/data/disk1/projects/salias/build/benchmarks/poll-path-20261019/bin/branch-scan-api"
+  ],
+  "run_command": [
+    "/data/disk1/projects/salias/build/benchmarks/poll-path-20261019/bin/branch-scan-api",
+    "--gtest_output=json:/data/disk1/projects/salias/build/benchmarks/poll-path-20261019/verification/branch-scan.api.json"
+  ],
+  "inputs_sha256": {
+    "/data/disk1/projects/salias/build/release/test/CMakeFiles/salias_api_tests.dir/api/channel_api_test.cpp.o": "03313fe971d99310050881f2a5af11fbfd52f921333de49f614a0971dc4b9a3d",
+    "/data/disk1/projects/salias/build/release/test/CMakeFiles/salias_api_tests.dir/api/latest_subscription_test.cpp.o": "21c740d829225f09e0fb2346dd6a844161097f1e6be126b11a50b9d1ff2d72e1",
+    "/data/disk1/projects/salias/build/benchmarks/poll-path-20261019/branch-scan/channel.o": "745ed9e2746265c0bf934280f82f77ab2248e38cb3919ecc953564baa4bb8909",
+    "/data/disk1/projects/salias/build/release/src/salias/CMakeFiles/salias.dir/src/latest_by_key.cpp.o": "25295fb8864119bb5ae92f63c97bda43ac5428140b0857edd42dc13e6b5f6292",
+    "/usr/lib/x86_64-linux-gnu/libgtest_main.a": "ad7bc95a69657ccdbdc82113215aea0d661ef926272fa12573bb6814c50990e6",
+    "/data/disk1/projects/salias/build/release/src/core/libsalias_core.a": "ab30beceaa771fe9c596182d69a2293631c08c034f6b6096add4bbed02d8d720",
+    "/usr/lib/x86_64-linux-gnu/libgtest.a": "08d40aac7385c171b47b81d98573e4e5f7ba823d112fa993b3cdea18118a0479"
+  },
+  "binary_sha256": "315cb9a04dce5e96da7fb376f34a6461248b06327361f0552a2a993b13eca684"
+}

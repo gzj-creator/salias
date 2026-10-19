@@ -1,0 +1,14 @@
+baseline 844221000
+baseline;__memset_evex_unaligned_erms 447236125
+baseline;__memset_evex_unaligned_erms;asm_sysvec_apic_timer_interrupt;sysvec_apic_timer_interrupt;irq_exit_rcu;__irq_exit_rcu;handle_softirqs;run_timer_softirq;__run_timers;call_timer_fn;tcp_write_timer;tcp_write_timer_handler;tcp_rack_reo_timeout;tcp_xmit_retransmit_queue;tcp_xmit_retransmit_queue.part.0;tcp_retransmit_skb;__tcp_retransmit_skb;__tcp_retransmit_skb.part.0;__tcp_transmit_skb;ip_queue_xmit;__ip_queue_xmit 5025125
+baseline;clock_gettime@@GLIBC_2.17 376884375
+baseline;clock_gettime@@GLIBC_2.17;[[vdso]] 1708542500
+baseline;clock_gettime@@GLIBC_2.17;[[vdso]];asm_common_interrupt;common_interrupt;irq_exit_rcu;__irq_exit_rcu;handle_softirqs;net_rx_action;__napi_poll;virtnet_poll;napi_complete_done;enqueue_to_backlog 5025125
+baseline;clock_gettime@@GLIBC_2.17;__vdso_clock_gettime 15075375
+baseline;memset@plt 20100500
+baseline;salias::channel::SharedHybridMpscChannel< 1628140500
+baseline;std::chrono::_V2::steady_clock::now 75376875
+baseline;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17 50251250
+baseline;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17;[[vdso]] 819095375
+baseline;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17;__vdso_clock_gettime 10050250
+baseline;std::chrono::_V2::steady_clock::now;clock_gettime@plt 10050250

@@ -1,0 +1,2 @@
+[ perf record: Woken up 2 times to write data ]
+[ perf record: Captured and wrote 4.994 MB build/benchmarks/poll-path-20261019/profiles/006-baseline-normal-attempt-1000000-64-r1.perf.data (1199 samples) ]

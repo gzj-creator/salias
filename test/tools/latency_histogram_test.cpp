@@ -10,6 +10,7 @@
  *  所有被测函数均无状态、noexcept，桶数组由调用方持有。
  */
 #include "tools/aeron_compare/latency_histogram.hpp"
+#include "tools/aeron_compare/latency_pacing.hpp"
 
 #include <gtest/gtest.h>
 
@@ -21,6 +22,18 @@ namespace {
 
 /// benchmark 工具内部命名空间的别名，简化测试中 latency 域函数的引用。
 namespace latency = salias::tools::latency;
+
+TEST(LatencyPacingTest, RetainsOriginalScheduleAcrossSecondBoundaries) {
+  EXPECT_EQ(latency::planned_arrival_ns(100, 0, 100000, 0, 2), 100u);
+  EXPECT_EQ(latency::planned_arrival_ns(100, 1, 100000, 0, 2), 10100u);
+  EXPECT_EQ(latency::planned_arrival_ns(100, 100001, 100000, 0, 2), 1000010100u);
+}
+
+TEST(LatencyPacingTest, StaggersPublishersWithoutResettingLateArrivals) {
+  EXPECT_EQ(latency::planned_arrival_ns(100, 0, 100000, 1, 2), 5100u);
+  EXPECT_EQ(latency::planned_arrival_ns(100, 100001, 100000, 1, 2), 1000015100u);
+  EXPECT_EQ(latency::planned_arrival_ns(0, 4, 3, 0, 1), 1333333333u);
+}
 
 /**
  * @brief 验证 bucket_index 在精确区与对数区边界处的映射，以及 bucket_upper_bound_ns

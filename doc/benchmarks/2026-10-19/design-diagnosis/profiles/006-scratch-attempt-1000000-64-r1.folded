@@ -1,0 +1,15 @@
+scratch 788944625
+scratch;clock_gettime@@GLIBC_2.17 115577875
+scratch;clock_gettime@@GLIBC_2.17;[[vdso]] 1969849000
+scratch;clock_gettime@@GLIBC_2.17;__vdso_clock_gettime 25125625
+scratch;clock_gettime@plt 25125625
+scratch;salias::channel::SharedHybridMpscChannel< 85427125
+scratch;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17 20100500
+scratch;void (anonymous namespace)::run_consumer_child< 251256250
+scratch;void (anonymous namespace)::run_consumer_child<;clock_gettime@@GLIBC_2.17;[[vdso]] 10050250
+scratch;void (anonymous namespace)::run_consumer_child<;salias::channel::SharedHybridMpscChannel< 1517587750
+scratch;void (anonymous namespace)::run_consumer_child<;std::chrono::_V2::steady_clock::now 75376875
+scratch;void (anonymous namespace)::run_consumer_child<;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17 30150750
+scratch;void (anonymous namespace)::run_consumer_child<;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17;[[vdso]] 1080401875
+scratch;void (anonymous namespace)::run_consumer_child<;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17;__vdso_clock_gettime 5025125
+scratch;void (anonymous namespace)::run_consumer_child<;std::chrono::_V2::steady_clock::now;clock_gettime@plt 20100500

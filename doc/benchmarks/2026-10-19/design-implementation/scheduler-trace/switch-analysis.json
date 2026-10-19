@@ -1,0 +1,3977 @@
+[
+  {
+    "trace": "build/benchmarks/design-implementation-20261019/scheduler-trace/001-baseline-normal-planned-1000000-64-r0.switch.data",
+    "pid_cpus": {
+      "583165": [
+        1,
+        3
+      ],
+      "583166": [
+        2,
+        3
+      ],
+      "583163": [
+        1,
+        3
+      ]
+    },
+    "longest_preemptions": [
+      {
+        "pid": 583163,
+        "cpu": 1,
+        "start_ns": 90483168873000,
+        "end_ns": 90483169235000,
+        "off_cpu_ns": 362000,
+        "preempted": true
+      },
+      {
+        "pid": 583165,
+        "cpu": 3,
+        "start_ns": 90483168808000,
+        "end_ns": 90483168875000,
+        "off_cpu_ns": 67000,
+        "preempted": true
+      },
+      {
+        "pid": 583165,
+        "cpu": 1,
+        "start_ns": 90483169232000,
+        "end_ns": 90483169269000,
+        "off_cpu_ns": 37000,
+        "preempted": true
+      },
+      {
+        "pid": 583165,
+        "cpu": 1,
+        "start_ns": 90483335783000,
+        "end_ns": 90483335816000,
+        "off_cpu_ns": 33000,
+        "preempted": true
+      },
+      {
+        "pid": 583165,
+        "cpu": 1,
+        "start_ns": 90483835866000,
+        "end_ns": 90483835894000,
+        "off_cpu_ns": 28000,
+        "preempted": true
+      },
+      {
+        "pid": 583166,
+        "cpu": 3,
+        "start_ns": 90483168918000,
+        "end_ns": 90483168941000,
+        "off_cpu_ns": 23000,
+        "preempted": true
+      },
+      {
+        "pid": 583165,
+        "cpu": 1,
+        "start_ns": 90484314020000,
+        "end_ns": 90484314036000,
+        "off_cpu_ns": 16000,
+        "preempted": true
+      },
+      {
+        "pid": 583166,
+        "cpu": 2,
+        "start_ns": 90483994020000,
+        "end_ns": 90483994035000,
+        "off_cpu_ns": 15000,
+        "preempted": true
+      },
+      {
+        "pid": 583165,
+        "cpu": 1,
+        "start_ns": 90485146019000,
+        "end_ns": 90485146034000,
+        "off_cpu_ns": 15000,
+        "preempted": true
+      },
+      {
+        "pid": 583166,
+        "cpu": 2,
+        "start_ns": 90483290020000,
+        "end_ns": 90483290034000,
+        "off_cpu_ns": 14000,
+        "preempted": true
+      }
+    ],
+    "tail_events": [
+      {
+        "consumer": 0,
+        "send_ns": 90483344093007,
+        "receive_ns": 90483344170488,
+        "latency_ns": 77481,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483344109007,
+        "receive_ns": 90483344172670,
+        "latency_ns": 63663,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483335757007,
+        "receive_ns": 90483335820353,
+        "latency_ns": 63346,
+        "overlaps": [
+          {
+            "pid": 583165,
+            "cpu": 1,
+            "start_ns": 90483335783000,
+            "end_ns": 90483335816000,
+            "off_cpu_ns": 33000,
+            "preempted": true,
+            "overlap_ns": 33000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483870765007,
+        "receive_ns": 90483870823589,
+        "latency_ns": 58582,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90485132989007,
+        "receive_ns": 90485133046325,
+        "latency_ns": 57318,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484872765007,
+        "receive_ns": 90484872818398,
+        "latency_ns": 53391,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484819005007,
+        "receive_ns": 90484819056743,
+        "latency_ns": 51736,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483344125007,
+        "receive_ns": 90483344174862,
+        "latency_ns": 49855,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483335773007,
+        "receive_ns": 90483335820933,
+        "latency_ns": 47926,
+        "overlaps": [
+          {
+            "pid": 583165,
+            "cpu": 1,
+            "start_ns": 90483335783000,
+            "end_ns": 90483335816000,
+            "off_cpu_ns": 33000,
+            "preempted": true,
+            "overlap_ns": 33000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483835853007,
+        "receive_ns": 90483835898629,
+        "latency_ns": 45622,
+        "overlaps": [
+          {
+            "pid": 583165,
+            "cpu": 1,
+            "start_ns": 90483835866000,
+            "end_ns": 90483835894000,
+            "off_cpu_ns": 28000,
+            "preempted": true,
+            "overlap_ns": 28000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484964013007,
+        "receive_ns": 90484964056931,
+        "latency_ns": 43924,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484802061007,
+        "receive_ns": 90484802104320,
+        "latency_ns": 43313,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483870781007,
+        "receive_ns": 90483870823900,
+        "latency_ns": 42893,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90485133005007,
+        "receive_ns": 90485133046616,
+        "latency_ns": 41609,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484619005007,
+        "receive_ns": 90484619046252,
+        "latency_ns": 41245,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90485136605007,
+        "receive_ns": 90485136645548,
+        "latency_ns": 40541,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484872781007,
+        "receive_ns": 90484872820631,
+        "latency_ns": 39624,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484262125007,
+        "receive_ns": 90484262161674,
+        "latency_ns": 36667,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90485066013007,
+        "receive_ns": 90485066049160,
+        "latency_ns": 36153,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483344141007,
+        "receive_ns": 90483344177050,
+        "latency_ns": 36043,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484819021007,
+        "receive_ns": 90484819056995,
+        "latency_ns": 35988,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483913677007,
+        "receive_ns": 90483913712179,
+        "latency_ns": 35172,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483335789007,
+        "receive_ns": 90483335821687,
+        "latency_ns": 32680,
+        "overlaps": [
+          {
+            "pid": 583165,
+            "cpu": 1,
+            "start_ns": 90483335783000,
+            "end_ns": 90483335816000,
+            "off_cpu_ns": 33000,
+            "preempted": true,
+            "overlap_ns": 26993
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484881677007,
+        "receive_ns": 90484881709169,
+        "latency_ns": 32162,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483835869007,
+        "receive_ns": 90483835898977,
+        "latency_ns": 29970,
+        "overlaps": [
+          {
+            "pid": 583165,
+            "cpu": 1,
+            "start_ns": 90483835866000,
+            "end_ns": 90483835894000,
+            "off_cpu_ns": 28000,
+            "preempted": true,
+            "overlap_ns": 24993
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484474013007,
+        "receive_ns": 90484474041584,
+        "latency_ns": 28577,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484964029007,
+        "receive_ns": 90484964057536,
+        "latency_ns": 28529,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484871757007,
+        "receive_ns": 90484871784921,
+        "latency_ns": 27914,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483646013007,
+        "receive_ns": 90483646040682,
+        "latency_ns": 27675,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90484802077007,
+        "receive_ns": 90484802104615,
+        "latency_ns": 27608,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483870797007,
+        "receive_ns": 90483870824382,
+        "latency_ns": 27375,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90483803005007,
+        "receive_ns": 90483803031982,
+        "latency_ns": 26975,
+        "overlaps": [
+          {
+            "pid": 583165,
+            "cpu": 1,
+            "start_ns": 90483803015000,
+            "end_ns": 90483803029000,
+            "off_cpu_ns": 14000,
+            "preempted": true,
+            "overlap_ns": 14000
+          },
+          {
+            "pid": 583166,
+            "cpu": 2,
+            "start_ns": 90483803020000,
+            "end_ns": 90483803029000,
+            "off_cpu_ns": 9000,
+            "preempted": true,
+            "overlap_ns": 9000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "trace": "build/benchmarks/design-implementation-20261019/scheduler-trace/002-baseline-fifo1-planned-1000000-64-r0.switch.data",
+    "pid_cpus": {
+      "583194": [
+        2,
+        3
+      ],
+      "583196": [
+        2,
+        3
+      ],
+      "583197": [
+        1
+      ],
+      "583198": [
+        2,
+        3
+      ]
+    },
+    "longest_preemptions": [
+      {
+        "pid": 583198,
+        "cpu": 2,
+        "start_ns": 90488787014000,
+        "end_ns": 90488837162000,
+        "off_cpu_ns": 50148000,
+        "preempted": true
+      },
+      {
+        "pid": 583197,
+        "cpu": 1,
+        "start_ns": 90488787016000,
+        "end_ns": 90488837158000,
+        "off_cpu_ns": 50142000,
+        "preempted": true
+      },
+      {
+        "pid": 583197,
+        "cpu": 1,
+        "start_ns": 90487788015000,
+        "end_ns": 90487837160000,
+        "off_cpu_ns": 49145000,
+        "preempted": true
+      },
+      {
+        "pid": 583198,
+        "cpu": 2,
+        "start_ns": 90487788014000,
+        "end_ns": 90487837154000,
+        "off_cpu_ns": 49140000,
+        "preempted": true
+      },
+      {
+        "pid": 583198,
+        "cpu": 3,
+        "start_ns": 90486806030000,
+        "end_ns": 90486807330000,
+        "off_cpu_ns": 1300000,
+        "preempted": true
+      },
+      {
+        "pid": 583196,
+        "cpu": 3,
+        "start_ns": 90486805967000,
+        "end_ns": 90486806044000,
+        "off_cpu_ns": 77000,
+        "preempted": true
+      },
+      {
+        "pid": 583198,
+        "cpu": 2,
+        "start_ns": 90486807714000,
+        "end_ns": 90486807755000,
+        "off_cpu_ns": 41000,
+        "preempted": true
+      },
+      {
+        "pid": 583197,
+        "cpu": 1,
+        "start_ns": 90488067645000,
+        "end_ns": 90488067655000,
+        "off_cpu_ns": 10000,
+        "preempted": true
+      },
+      {
+        "pid": 583198,
+        "cpu": 2,
+        "start_ns": 90488068644000,
+        "end_ns": 90488068653000,
+        "off_cpu_ns": 9000,
+        "preempted": true
+      }
+    ],
+    "tail_events": [
+      {
+        "consumer": 0,
+        "send_ns": 90488787005172,
+        "receive_ns": 90488837171678,
+        "latency_ns": 50166506,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 50148000
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 50142000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787021172,
+        "receive_ns": 90488837173754,
+        "latency_ns": 50152582,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 50140828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 50136828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787037172,
+        "receive_ns": 90488837176444,
+        "latency_ns": 50139272,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 50124828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 50120828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787053172,
+        "receive_ns": 90488837180540,
+        "latency_ns": 50127368,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 50108828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 50104828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787069172,
+        "receive_ns": 90488837182939,
+        "latency_ns": 50113767,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 50092828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 50088828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787085172,
+        "receive_ns": 90488837186243,
+        "latency_ns": 50101071,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 50076828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 50072828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787101172,
+        "receive_ns": 90488837189371,
+        "latency_ns": 50088199,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 50060828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 50056828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787117172,
+        "receive_ns": 90488837192639,
+        "latency_ns": 50075467,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 50044828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 50040828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787133172,
+        "receive_ns": 90488837195260,
+        "latency_ns": 50062088,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 50028828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 50024828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787149172,
+        "receive_ns": 90488837197814,
+        "latency_ns": 50048642,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 50012828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 50008828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787165172,
+        "receive_ns": 90488837199982,
+        "latency_ns": 50034810,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49996828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49992828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787181172,
+        "receive_ns": 90488837202671,
+        "latency_ns": 50021499,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49980828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49976828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787197172,
+        "receive_ns": 90488837205459,
+        "latency_ns": 50008287,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49964828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49960828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787213172,
+        "receive_ns": 90488837208465,
+        "latency_ns": 49995293,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49948828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49944828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787229172,
+        "receive_ns": 90488837211417,
+        "latency_ns": 49982245,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49932828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49928828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787245172,
+        "receive_ns": 90488837214635,
+        "latency_ns": 49969463,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49916828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49912828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787261172,
+        "receive_ns": 90488837217611,
+        "latency_ns": 49956439,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49900828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49896828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787277172,
+        "receive_ns": 90488837220948,
+        "latency_ns": 49943776,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49884828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49880828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787293172,
+        "receive_ns": 90488837223940,
+        "latency_ns": 49930768,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49868828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49864828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787309172,
+        "receive_ns": 90488837227081,
+        "latency_ns": 49917909,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49852828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49848828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787325172,
+        "receive_ns": 90488837229835,
+        "latency_ns": 49904663,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49836828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49832828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787341172,
+        "receive_ns": 90488837233079,
+        "latency_ns": 49891907,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49820828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49816828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787357172,
+        "receive_ns": 90488837235797,
+        "latency_ns": 49878625,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49804828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49800828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787373172,
+        "receive_ns": 90488837239046,
+        "latency_ns": 49865874,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49788828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49784828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787389172,
+        "receive_ns": 90488837241838,
+        "latency_ns": 49852666,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49772828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49768828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787405172,
+        "receive_ns": 90488837244740,
+        "latency_ns": 49839568,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49756828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49752828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787421172,
+        "receive_ns": 90488837247974,
+        "latency_ns": 49826802,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49740828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49736828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787437172,
+        "receive_ns": 90488837250910,
+        "latency_ns": 49813738,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49724828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49720828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787453172,
+        "receive_ns": 90488837254464,
+        "latency_ns": 49801292,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49708828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49704828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787469172,
+        "receive_ns": 90488837257190,
+        "latency_ns": 49788018,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49692828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49688828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787485172,
+        "receive_ns": 90488837259976,
+        "latency_ns": 49774804,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49676828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49672828
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90488787501172,
+        "receive_ns": 90488837262592,
+        "latency_ns": 49761420,
+        "overlaps": [
+          {
+            "pid": 583198,
+            "cpu": 2,
+            "start_ns": 90488787014000,
+            "end_ns": 90488837162000,
+            "off_cpu_ns": 50148000,
+            "preempted": true,
+            "overlap_ns": 49660828
+          },
+          {
+            "pid": 583197,
+            "cpu": 1,
+            "start_ns": 90488787016000,
+            "end_ns": 90488837158000,
+            "off_cpu_ns": 50142000,
+            "preempted": true,
+            "overlap_ns": 49656828
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "trace": "build/benchmarks/design-implementation-20261019/scheduler-trace/003-baseline-fifo1-planned-1000000-64-r1.switch.data",
+    "pid_cpus": {
+      "583245": [
+        1,
+        3
+      ],
+      "583247": [
+        1,
+        2,
+        3
+      ],
+      "583248": [
+        1,
+        3
+      ],
+      "583249": [
+        2,
+        3
+      ]
+    },
+    "longest_preemptions": [
+      {
+        "pid": 583248,
+        "cpu": 1,
+        "start_ns": 90491787022000,
+        "end_ns": 90491837172000,
+        "off_cpu_ns": 50150000,
+        "preempted": true
+      },
+      {
+        "pid": 583249,
+        "cpu": 2,
+        "start_ns": 90491788017000,
+        "end_ns": 90491837184000,
+        "off_cpu_ns": 49167000,
+        "preempted": true
+      },
+      {
+        "pid": 583247,
+        "cpu": 1,
+        "start_ns": 90490486061000,
+        "end_ns": 90490486288000,
+        "off_cpu_ns": 227000,
+        "preempted": true
+      },
+      {
+        "pid": 583248,
+        "cpu": 1,
+        "start_ns": 90490486286000,
+        "end_ns": 90490486427000,
+        "off_cpu_ns": 141000,
+        "preempted": true
+      },
+      {
+        "pid": 583248,
+        "cpu": 3,
+        "start_ns": 90490486022000,
+        "end_ns": 90490486063000,
+        "off_cpu_ns": 41000,
+        "preempted": true
+      },
+      {
+        "pid": 583247,
+        "cpu": 2,
+        "start_ns": 90492496779000,
+        "end_ns": 90492496813000,
+        "off_cpu_ns": 34000,
+        "preempted": true
+      },
+      {
+        "pid": 583249,
+        "cpu": 3,
+        "start_ns": 90490486107000,
+        "end_ns": 90490486129000,
+        "off_cpu_ns": 22000,
+        "preempted": true
+      },
+      {
+        "pid": 583245,
+        "cpu": 3,
+        "start_ns": 90490481057000,
+        "end_ns": 90490481071000,
+        "off_cpu_ns": 14000,
+        "preempted": true
+      },
+      {
+        "pid": 583248,
+        "cpu": 1,
+        "start_ns": 90492067644000,
+        "end_ns": 90492067653000,
+        "off_cpu_ns": 9000,
+        "preempted": true
+      },
+      {
+        "pid": 583249,
+        "cpu": 2,
+        "start_ns": 90492068644000,
+        "end_ns": 90492068653000,
+        "off_cpu_ns": 9000,
+        "preempted": true
+      }
+    ],
+    "tail_events": [
+      {
+        "consumer": 0,
+        "send_ns": 90491787014861,
+        "receive_ns": 90491837181884,
+        "latency_ns": 50167023,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 50150000
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49164884
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787030861,
+        "receive_ns": 90491837182602,
+        "latency_ns": 50151741,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 50141139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49165602
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787046861,
+        "receive_ns": 90491837183727,
+        "latency_ns": 50136866,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 50125139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49166727
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787062861,
+        "receive_ns": 90491837183946,
+        "latency_ns": 50121085,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 50109139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49166946
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787078861,
+        "receive_ns": 90491837184928,
+        "latency_ns": 50106067,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 50093139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787094861,
+        "receive_ns": 90491837185054,
+        "latency_ns": 50090193,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 50077139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787110861,
+        "receive_ns": 90491837186334,
+        "latency_ns": 50075473,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 50061139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787126861,
+        "receive_ns": 90491837186525,
+        "latency_ns": 50059664,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 50045139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787142861,
+        "receive_ns": 90491837187039,
+        "latency_ns": 50044178,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 50029139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787158861,
+        "receive_ns": 90491837187160,
+        "latency_ns": 50028299,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 50013139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787174861,
+        "receive_ns": 90491837188483,
+        "latency_ns": 50013622,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49997139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787190861,
+        "receive_ns": 90491837188666,
+        "latency_ns": 49997805,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49981139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787206861,
+        "receive_ns": 90491837189120,
+        "latency_ns": 49982259,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49965139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787222861,
+        "receive_ns": 90491837189227,
+        "latency_ns": 49966366,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49949139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787238861,
+        "receive_ns": 90491837191390,
+        "latency_ns": 49952529,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49933139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787254861,
+        "receive_ns": 90491837191500,
+        "latency_ns": 49936639,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49917139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787270861,
+        "receive_ns": 90491837192123,
+        "latency_ns": 49921262,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49901139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787286861,
+        "receive_ns": 90491837192252,
+        "latency_ns": 49905391,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49885139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787302861,
+        "receive_ns": 90491837193455,
+        "latency_ns": 49890594,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49869139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787318861,
+        "receive_ns": 90491837193563,
+        "latency_ns": 49874702,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49853139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787334861,
+        "receive_ns": 90491837194656,
+        "latency_ns": 49859795,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49837139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787350861,
+        "receive_ns": 90491837194841,
+        "latency_ns": 49843980,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49821139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787366861,
+        "receive_ns": 90491837195366,
+        "latency_ns": 49828505,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49805139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787382861,
+        "receive_ns": 90491837195485,
+        "latency_ns": 49812624,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49789139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787398861,
+        "receive_ns": 90491837197104,
+        "latency_ns": 49798243,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49773139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787414861,
+        "receive_ns": 90491837197282,
+        "latency_ns": 49782421,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49757139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787430861,
+        "receive_ns": 90491837197959,
+        "latency_ns": 49767098,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49741139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787446861,
+        "receive_ns": 90491837198068,
+        "latency_ns": 49751207,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49725139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787462861,
+        "receive_ns": 90491837199537,
+        "latency_ns": 49736676,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49709139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787478861,
+        "receive_ns": 90491837199648,
+        "latency_ns": 49720787,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49693139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787494861,
+        "receive_ns": 90491837200122,
+        "latency_ns": 49705261,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49677139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90491787510861,
+        "receive_ns": 90491837200238,
+        "latency_ns": 49689377,
+        "overlaps": [
+          {
+            "pid": 583248,
+            "cpu": 1,
+            "start_ns": 90491787022000,
+            "end_ns": 90491837172000,
+            "off_cpu_ns": 50150000,
+            "preempted": true,
+            "overlap_ns": 49661139
+          },
+          {
+            "pid": 583249,
+            "cpu": 2,
+            "start_ns": 90491788017000,
+            "end_ns": 90491837184000,
+            "off_cpu_ns": 49167000,
+            "preempted": true,
+            "overlap_ns": 49167000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "trace": "build/benchmarks/design-implementation-20261019/scheduler-trace/004-baseline-normal-planned-1000000-64-r1.switch.data",
+    "pid_cpus": {
+      "583292": [
+        1,
+        2
+      ],
+      "583293": [
+        2
+      ],
+      "583289": [
+        1
+      ]
+    },
+    "longest_preemptions": [
+      {
+        "pid": 583293,
+        "cpu": 2,
+        "start_ns": 90494656153000,
+        "end_ns": 90494656220000,
+        "off_cpu_ns": 67000,
+        "preempted": true
+      },
+      {
+        "pid": 583292,
+        "cpu": 2,
+        "start_ns": 90494125664000,
+        "end_ns": 90494125701000,
+        "off_cpu_ns": 37000,
+        "preempted": true
+      },
+      {
+        "pid": 583292,
+        "cpu": 1,
+        "start_ns": 90494299013000,
+        "end_ns": 90494299026000,
+        "off_cpu_ns": 13000,
+        "preempted": true
+      },
+      {
+        "pid": 583293,
+        "cpu": 2,
+        "start_ns": 90494426020000,
+        "end_ns": 90494426032000,
+        "off_cpu_ns": 12000,
+        "preempted": true
+      },
+      {
+        "pid": 583293,
+        "cpu": 2,
+        "start_ns": 90495322016000,
+        "end_ns": 90495322028000,
+        "off_cpu_ns": 12000,
+        "preempted": true
+      },
+      {
+        "pid": 583292,
+        "cpu": 1,
+        "start_ns": 90495514025000,
+        "end_ns": 90495514037000,
+        "off_cpu_ns": 12000,
+        "preempted": true
+      },
+      {
+        "pid": 583293,
+        "cpu": 2,
+        "start_ns": 90494810017000,
+        "end_ns": 90494810028000,
+        "off_cpu_ns": 11000,
+        "preempted": true
+      },
+      {
+        "pid": 583292,
+        "cpu": 1,
+        "start_ns": 90494810019000,
+        "end_ns": 90494810030000,
+        "off_cpu_ns": 11000,
+        "preempted": true
+      },
+      {
+        "pid": 583292,
+        "cpu": 1,
+        "start_ns": 90495834016000,
+        "end_ns": 90495834027000,
+        "off_cpu_ns": 11000,
+        "preempted": true
+      },
+      {
+        "pid": 583293,
+        "cpu": 2,
+        "start_ns": 90496026017000,
+        "end_ns": 90496026028000,
+        "off_cpu_ns": 11000,
+        "preempted": true
+      }
+    ],
+    "tail_events": [
+      {
+        "consumer": 0,
+        "send_ns": 90495885786339,
+        "receive_ns": 90495888064439,
+        "latency_ns": 2278100,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885802339,
+        "receive_ns": 90495888065461,
+        "latency_ns": 2263122,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885818339,
+        "receive_ns": 90495888066538,
+        "latency_ns": 2248199,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885834339,
+        "receive_ns": 90495888066725,
+        "latency_ns": 2232386,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885850339,
+        "receive_ns": 90495888068019,
+        "latency_ns": 2217680,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885866339,
+        "receive_ns": 90495888068255,
+        "latency_ns": 2201916,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885882339,
+        "receive_ns": 90495888068908,
+        "latency_ns": 2186569,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885898339,
+        "receive_ns": 90495888069066,
+        "latency_ns": 2170727,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885914339,
+        "receive_ns": 90495888070236,
+        "latency_ns": 2155897,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885930339,
+        "receive_ns": 90495888070432,
+        "latency_ns": 2140093,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885946339,
+        "receive_ns": 90495888071077,
+        "latency_ns": 2124738,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885962339,
+        "receive_ns": 90495888071273,
+        "latency_ns": 2108934,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885978339,
+        "receive_ns": 90495888072262,
+        "latency_ns": 2093923,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495885994339,
+        "receive_ns": 90495888072523,
+        "latency_ns": 2078184,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886010339,
+        "receive_ns": 90495888073726,
+        "latency_ns": 2063387,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886026339,
+        "receive_ns": 90495888073878,
+        "latency_ns": 2047539,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886042339,
+        "receive_ns": 90495888074634,
+        "latency_ns": 2032295,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886058339,
+        "receive_ns": 90495888074802,
+        "latency_ns": 2016463,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886074339,
+        "receive_ns": 90495888075947,
+        "latency_ns": 2001608,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886090339,
+        "receive_ns": 90495888076094,
+        "latency_ns": 1985755,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886106339,
+        "receive_ns": 90495888076765,
+        "latency_ns": 1970426,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886122339,
+        "receive_ns": 90495888076914,
+        "latency_ns": 1954575,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886138339,
+        "receive_ns": 90495888077697,
+        "latency_ns": 1939358,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886154339,
+        "receive_ns": 90495888077859,
+        "latency_ns": 1923520,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886170339,
+        "receive_ns": 90495888078493,
+        "latency_ns": 1908154,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886186339,
+        "receive_ns": 90495888078648,
+        "latency_ns": 1892309,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886202339,
+        "receive_ns": 90495888079279,
+        "latency_ns": 1876940,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886218339,
+        "receive_ns": 90495888079455,
+        "latency_ns": 1861116,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886234339,
+        "receive_ns": 90495888080197,
+        "latency_ns": 1845858,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886250339,
+        "receive_ns": 90495888080320,
+        "latency_ns": 1829981,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886266339,
+        "receive_ns": 90495888080846,
+        "latency_ns": 1814507,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90495886282339,
+        "receive_ns": 90495888080962,
+        "latency_ns": 1798623,
+        "overlaps": []
+      }
+    ]
+  },
+  {
+    "trace": "build/benchmarks/design-implementation-20261019/scheduler-trace/005-baseline-normal-planned-1000000-64-r2.switch.data",
+    "pid_cpus": {
+      "583312": [
+        2,
+        3
+      ],
+      "583314": [
+        1,
+        2
+      ],
+      "583315": [
+        1,
+        2
+      ]
+    },
+    "longest_preemptions": [
+      {
+        "pid": 583314,
+        "cpu": 1,
+        "start_ns": 90497987180000,
+        "end_ns": 90497987451000,
+        "off_cpu_ns": 271000,
+        "preempted": true
+      },
+      {
+        "pid": 583314,
+        "cpu": 2,
+        "start_ns": 90497762748000,
+        "end_ns": 90497762860000,
+        "off_cpu_ns": 112000,
+        "preempted": true
+      },
+      {
+        "pid": 583315,
+        "cpu": 2,
+        "start_ns": 90499099997000,
+        "end_ns": 90499100039000,
+        "off_cpu_ns": 42000,
+        "preempted": true
+      },
+      {
+        "pid": 583314,
+        "cpu": 1,
+        "start_ns": 90498635014000,
+        "end_ns": 90498635045000,
+        "off_cpu_ns": 31000,
+        "preempted": true
+      },
+      {
+        "pid": 583315,
+        "cpu": 1,
+        "start_ns": 90497762842000,
+        "end_ns": 90497762867000,
+        "off_cpu_ns": 25000,
+        "preempted": true
+      },
+      {
+        "pid": 583312,
+        "cpu": 3,
+        "start_ns": 90497761021000,
+        "end_ns": 90497761035000,
+        "off_cpu_ns": 14000,
+        "preempted": true
+      },
+      {
+        "pid": 583314,
+        "cpu": 1,
+        "start_ns": 90497819013000,
+        "end_ns": 90497819026000,
+        "off_cpu_ns": 13000,
+        "preempted": true
+      },
+      {
+        "pid": 583314,
+        "cpu": 1,
+        "start_ns": 90498330022000,
+        "end_ns": 90498330035000,
+        "off_cpu_ns": 13000,
+        "preempted": true
+      },
+      {
+        "pid": 583315,
+        "cpu": 2,
+        "start_ns": 90498650017000,
+        "end_ns": 90498650030000,
+        "off_cpu_ns": 13000,
+        "preempted": true
+      },
+      {
+        "pid": 583314,
+        "cpu": 1,
+        "start_ns": 90499034017000,
+        "end_ns": 90499034030000,
+        "off_cpu_ns": 13000,
+        "preempted": true
+      }
+    ],
+    "tail_events": [
+      {
+        "consumer": 0,
+        "send_ns": 90497987183604,
+        "receive_ns": 90497987457125,
+        "latency_ns": 273521,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 267396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987199604,
+        "receive_ns": 90497987457862,
+        "latency_ns": 258258,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 251396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987215604,
+        "receive_ns": 90497987458705,
+        "latency_ns": 243101,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 235396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987231604,
+        "receive_ns": 90497987458914,
+        "latency_ns": 227310,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 219396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987247604,
+        "receive_ns": 90497987460391,
+        "latency_ns": 212787,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 203396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987263604,
+        "receive_ns": 90497987460628,
+        "latency_ns": 197024,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 187396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987279604,
+        "receive_ns": 90497987461055,
+        "latency_ns": 181451,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 171396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987295604,
+        "receive_ns": 90497987461244,
+        "latency_ns": 165640,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 155396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987311604,
+        "receive_ns": 90497987462415,
+        "latency_ns": 150811,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 139396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987327604,
+        "receive_ns": 90497987462658,
+        "latency_ns": 135054,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 123396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987343604,
+        "receive_ns": 90497987463156,
+        "latency_ns": 119552,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 107396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987359604,
+        "receive_ns": 90497987463574,
+        "latency_ns": 103970,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 91396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987375604,
+        "receive_ns": 90497987464799,
+        "latency_ns": 89195,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 75396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90499144447604,
+        "receive_ns": 90499144521521,
+        "latency_ns": 73917,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987391604,
+        "receive_ns": 90497987465001,
+        "latency_ns": 73397,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 59396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90498047743604,
+        "receive_ns": 90498047805634,
+        "latency_ns": 62030,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90499144463604,
+        "receive_ns": 90499144521795,
+        "latency_ns": 58191,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987407604,
+        "receive_ns": 90497987465568,
+        "latency_ns": 57964,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 43396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90498745487604,
+        "receive_ns": 90498745543867,
+        "latency_ns": 56263,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90498626207604,
+        "receive_ns": 90498626257055,
+        "latency_ns": 49451,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90499071759604,
+        "receive_ns": 90499071808354,
+        "latency_ns": 48750,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90498047759604,
+        "receive_ns": 90498047806060,
+        "latency_ns": 46456,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90499099999604,
+        "receive_ns": 90499100045361,
+        "latency_ns": 45757,
+        "overlaps": [
+          {
+            "pid": 583315,
+            "cpu": 2,
+            "start_ns": 90499099997000,
+            "end_ns": 90499100039000,
+            "off_cpu_ns": 42000,
+            "preempted": true,
+            "overlap_ns": 39396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90499144479604,
+        "receive_ns": 90499144522902,
+        "latency_ns": 43298,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90498635007604,
+        "receive_ns": 90498635050054,
+        "latency_ns": 42450,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90498635014000,
+            "end_ns": 90498635045000,
+            "off_cpu_ns": 31000,
+            "preempted": true,
+            "overlap_ns": 31000
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497987423604,
+        "receive_ns": 90497987465783,
+        "latency_ns": 42179,
+        "overlaps": [
+          {
+            "pid": 583314,
+            "cpu": 1,
+            "start_ns": 90497987180000,
+            "end_ns": 90497987451000,
+            "off_cpu_ns": 271000,
+            "preempted": true,
+            "overlap_ns": 27396
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90498745503604,
+        "receive_ns": 90498745544480,
+        "latency_ns": 40876,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90499369615604,
+        "receive_ns": 90499369652560,
+        "latency_ns": 36956,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90498719967604,
+        "receive_ns": 90498720002239,
+        "latency_ns": 34635,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90497934367604,
+        "receive_ns": 90497934401761,
+        "latency_ns": 34157,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90498719983604,
+        "receive_ns": 90498720017499,
+        "latency_ns": 33895,
+        "overlaps": []
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90499368111604,
+        "receive_ns": 90499368145447,
+        "latency_ns": 33843,
+        "overlaps": []
+      }
+    ]
+  },
+  {
+    "trace": "build/benchmarks/design-implementation-20261019/scheduler-trace/006-baseline-fifo1-planned-1000000-64-r2.switch.data",
+    "pid_cpus": {
+      "583363": [
+        2
+      ],
+      "583365": [
+        1,
+        3
+      ],
+      "583366": [
+        1,
+        2
+      ],
+      "583367": [
+        2
+      ]
+    },
+    "longest_preemptions": [
+      {
+        "pid": 583367,
+        "cpu": 2,
+        "start_ns": 90502788013000,
+        "end_ns": 90502837186000,
+        "off_cpu_ns": 49173000,
+        "preempted": true
+      },
+      {
+        "pid": 583366,
+        "cpu": 1,
+        "start_ns": 90502788014000,
+        "end_ns": 90502837176000,
+        "off_cpu_ns": 49162000,
+        "preempted": true
+      },
+      {
+        "pid": 583366,
+        "cpu": 2,
+        "start_ns": 90501413935000,
+        "end_ns": 90501413958000,
+        "off_cpu_ns": 23000,
+        "preempted": true
+      },
+      {
+        "pid": 583363,
+        "cpu": 2,
+        "start_ns": 90501405143000,
+        "end_ns": 90501405165000,
+        "off_cpu_ns": 22000,
+        "preempted": true
+      }
+    ],
+    "tail_events": [
+      {
+        "consumer": 0,
+        "send_ns": 90502788016190,
+        "receive_ns": 90502837196852,
+        "latency_ns": 49180662,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 49169810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 49159810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788032190,
+        "receive_ns": 90502837199422,
+        "latency_ns": 49167232,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 49153810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 49143810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788048190,
+        "receive_ns": 90502837202095,
+        "latency_ns": 49153905,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 49137810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 49127810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788064190,
+        "receive_ns": 90502837204448,
+        "latency_ns": 49140258,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 49121810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 49111810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788080190,
+        "receive_ns": 90502837206911,
+        "latency_ns": 49126721,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 49105810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 49095810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788096190,
+        "receive_ns": 90502837209348,
+        "latency_ns": 49113158,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 49089810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 49079810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788112190,
+        "receive_ns": 90502837211885,
+        "latency_ns": 49099695,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 49073810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 49063810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788128190,
+        "receive_ns": 90502837214488,
+        "latency_ns": 49086298,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 49057810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 49047810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788144190,
+        "receive_ns": 90502837217244,
+        "latency_ns": 49073054,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 49041810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 49031810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788160190,
+        "receive_ns": 90502837220031,
+        "latency_ns": 49059841,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 49025810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 49015810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788176190,
+        "receive_ns": 90502837222533,
+        "latency_ns": 49046343,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 49009810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48999810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788192190,
+        "receive_ns": 90502837225536,
+        "latency_ns": 49033346,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48993810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48983810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788208190,
+        "receive_ns": 90502837228923,
+        "latency_ns": 49020733,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48977810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48967810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788224190,
+        "receive_ns": 90502837231503,
+        "latency_ns": 49007313,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48961810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48951810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788240190,
+        "receive_ns": 90502837234842,
+        "latency_ns": 48994652,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48945810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48935810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788256190,
+        "receive_ns": 90502837237894,
+        "latency_ns": 48981704,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48929810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48919810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788272190,
+        "receive_ns": 90502837246924,
+        "latency_ns": 48974734,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48913810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48903810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788288190,
+        "receive_ns": 90502837249478,
+        "latency_ns": 48961288,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48897810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48887810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788304190,
+        "receive_ns": 90502837253142,
+        "latency_ns": 48948952,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48881810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48871810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788320190,
+        "receive_ns": 90502837256421,
+        "latency_ns": 48936231,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48865810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48855810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788336190,
+        "receive_ns": 90502837258601,
+        "latency_ns": 48922411,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48849810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48839810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788352190,
+        "receive_ns": 90502837261160,
+        "latency_ns": 48908970,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48833810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48823810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788368190,
+        "receive_ns": 90502837263584,
+        "latency_ns": 48895394,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48817810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48807810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788384190,
+        "receive_ns": 90502837266117,
+        "latency_ns": 48881927,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48801810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48791810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788400190,
+        "receive_ns": 90502837268643,
+        "latency_ns": 48868453,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48785810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48775810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788416190,
+        "receive_ns": 90502837271126,
+        "latency_ns": 48854936,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48769810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48759810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788432190,
+        "receive_ns": 90502837273475,
+        "latency_ns": 48841285,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48753810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48743810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788448190,
+        "receive_ns": 90502837276408,
+        "latency_ns": 48828218,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48737810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48727810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788464190,
+        "receive_ns": 90502837278817,
+        "latency_ns": 48814627,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48721810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48711810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788480190,
+        "receive_ns": 90502837281505,
+        "latency_ns": 48801315,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48705810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48695810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788496190,
+        "receive_ns": 90502837283876,
+        "latency_ns": 48787686,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48689810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48679810
+          }
+        ]
+      },
+      {
+        "consumer": 0,
+        "send_ns": 90502788512190,
+        "receive_ns": 90502837286424,
+        "latency_ns": 48774234,
+        "overlaps": [
+          {
+            "pid": 583367,
+            "cpu": 2,
+            "start_ns": 90502788013000,
+            "end_ns": 90502837186000,
+            "off_cpu_ns": 49173000,
+            "preempted": true,
+            "overlap_ns": 48673810
+          },
+          {
+            "pid": 583366,
+            "cpu": 1,
+            "start_ns": 90502788014000,
+            "end_ns": 90502837176000,
+            "off_cpu_ns": 49162000,
+            "preempted": true,
+            "overlap_ns": 48663810
+          }
+        ]
+      }
+    ]
+  }
+]

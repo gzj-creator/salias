@@ -1,0 +1,25 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 1K of event 'cpu-clock'
+# Event count (approx.): 6025124875
+#
+# Overhead      Pid:Command  Shared Object        Symbol                                                                                                                                                                          IPC   [IPC Coverage]
+# ........  ...............  ...................  ..............................................................................................................................................................................  ....................
+#
+    25.02%   629517:control  control              [.] salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)             -      -            
+    16.93%   629518:control  [vdso]               [.] 0x0000000000000c6a                                                                                                                                                          -      -            
+    12.59%   629518:control  control              [.] (anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)                                                 -      -            
+     9.59%   629517:control  [vdso]               [.] 0x0000000000000c6a                                                                                                                                                          -      -            
+     4.17%   629518:control  control              [.] salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Tx::claim(unsigned int, unsigned long, bool) [clone .constprop.0]  -      -            
+     3.42%   629517:control  control              [.] (anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)                                                 -      -            
+     2.09%   629518:control  libc.so.6            [.] clock_gettime@@GLIBC_2.17                                                                                                                                                   -      -            
+     1.25%   629518:control  [vdso]               [.] 0x0000000000000c93                                                                                                                                                          -      -            
+     1.00%   629517:control  libstdc++.so.6.0.33  [.] std::chrono::_V2::steady_clock::now()                                                                                                                                       -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

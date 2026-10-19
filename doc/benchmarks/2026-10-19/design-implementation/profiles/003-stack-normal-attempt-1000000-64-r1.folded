@@ -1,0 +1,14 @@
+baseline 592964750
+baseline;__memcmp_evex_movbe 5025125
+baseline;asm_sysvec_apic_timer_interrupt;sysvec_apic_timer_interrupt;irqentry_exit;irqentry_exit_to_user_mode;schedule;__schedule;finish_task_switch.isra.0 5025125
+baseline;clock_gettime@@GLIBC_2.17 55276375
+baseline;clock_gettime@@GLIBC_2.17;[[vdso]] 1246231000
+baseline;clock_gettime@@GLIBC_2.17;__vdso_clock_gettime 20100500
+baseline;memcmp@plt 5025125
+baseline;salias::channel::SharedHybridMpscChannel< 1160803875
+baseline;salias::channel::SharedHybridMpscChannel<;salias::channel::SharedHybridMpscChannel< 5025125
+baseline;std::chrono::_V2::steady_clock::now 50251250
+baseline;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17 25125625
+baseline;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17;[[vdso]] 824120500
+baseline;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17;__vdso_clock_gettime 15075375
+baseline;std::chrono::_V2::steady_clock::now;clock_gettime@plt 10050250

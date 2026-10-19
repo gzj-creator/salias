@@ -1,0 +1,493 @@
+ Percent |	Source code & Disassembly of cursor-pack for cpu-clock (316 samples, percent: local period)
+-----------------------------------------------------------------------------------------------------------
+         :
+         :
+         :
+         : 3     Disassembly of section .text:
+         :
+         : 5     00000000000193e0 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)>:
+    1.58 :   193e0:  endbr64
+    0.00 :   193e4:  push   %r15
+    0.00 :   193e6:  push   %r14
+    1.27 :   193e8:  push   %r13
+    0.00 :   193ea:  push   %r12
+    0.32 :   193ec:  push   %rbp
+    0.00 :   193ed:  push   %rbx
+    0.95 :   193ee:  sub    $0xc8,%rsp
+    0.32 :   193f5:  mov    %rsi,0x38(%rsp)
+    0.00 :   193fa:  mov    %edx,0x34(%rsp)
+    0.63 :   193fe:  mov    %fs:0x28,%rax
+    0.00 :   19407:  mov    %rax,0xb8(%rsp)
+    0.00 :   1940f:  xor    %eax,%eax
+    0.00 :   19411:  test   %rsi,%rsi
+    0.00 :   19414:  je     19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.63 :   19416:  mov    (%rdi),%rax
+    0.00 :   19419:  mov    %rdi,%r9
+    0.00 :   1941c:  test   %rax,%rax
+    0.00 :   1941f:  je     19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.00 :   19421:  mov    0x58(%rax),%rcx
+    0.00 :   19425:  test   %rcx,%rcx
+    0.00 :   19428:  je     19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.00 :   1942a:  mov    0x10(%rdi),%rsi
+    0.00 :   1942e:  mov    0x8(%rdi),%edx
+    0.00 :   19431:  mov    (%rcx),%ecx
+    1.27 :   19433:  cmp    %ecx,%edx
+    0.00 :   19435:  jae    19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.00 :   19437:  mov    (%rax),%rcx
+    0.00 :   1943a:  cmp    %rcx,0x8(%rax)
+    0.00 :   1943e:  je     19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.00 :   19440:  mov    0x80(%rcx),%rdi
+    0.63 :   19447:  mov    0x88(%rcx),%rax
+    0.00 :   1944e:  movabs $0x4ec4ec4ec4ec4ec5,%rcx
+    0.00 :   19458:  sub    %rdi,%rax
+    0.00 :   1945b:  sar    $0x3,%rax
+    1.27 :   1945f:  imul   %rcx,%rax
+    0.00 :   19463:  cmp    %rax,%rdx
+    0.00 :   19466:  jae    19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.00 :   19468:  imul   $0x68,%rdx,%rdx
+    0.00 :   1946c:  mov    0x40(%rdi,%rdx,1),%rax
+    0.95 :   19471:  test   %rax,%rax
+    0.00 :   19474:  je     194bf <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xdf>
+    0.32 :   19476:  mov    %rsi,%rdx
+    0.00 :   19479:  and    $0x7,%edx
+    0.00 :   1947c:  cmp    $0x3,%rdx
+    1.27 :   19480:  je     19bcc <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x7ec>
+    0.00 :   19486:  cs nopw 0x0(%rax,%rax,1)
+    0.95 :   19490:  xor    %r8d,%r8d
+    0.00 :   19493:  mov    0xb8(%rsp),%rax
+    0.00 :   1949b:  sub    %fs:0x28,%rax
+    0.00 :   194a4:  jne    19bdd <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x7fd>
+    0.00 :   194aa:  add    $0xc8,%rsp
+    1.58 :   194b1:  mov    %r8d,%eax
+    0.00 :   194b4:  pop    %rbx
+    0.00 :   194b5:  pop    %rbp
+    0.00 :   194b6:  pop    %r12
+    2.22 :   194b8:  pop    %r13
+    0.00 :   194ba:  pop    %r14
+    0.00 :   194bc:  pop    %r15
+    0.00 :   194be:  ret
+    0.00 :   194bf:  test   %rsi,%rsi
+    0.00 :   194c2:  jne    19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.63 :   194c4:  mov    (%r9),%rdx
+    0.00 :   194c7:  mov    0x8(%rdx),%rax
+    0.00 :   194cb:  mov    (%rdx),%rcx
+    0.00 :   194ce:  cmp    %rcx,%rax
+    0.00 :   194d1:  je     19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.63 :   194d3:  sub    %rcx,%rax
+    0.00 :   194d6:  movabs $0xcf3cf3cf3cf3cf3d,%rdx
+    0.00 :   194e0:  mov    0x20(%r9),%rsi
+    0.00 :   194e4:  sar    $0x3,%rax
+    0.00 :   194e8:  imul   %rdx,%rax
+    0.00 :   194ec:  movabs $0xcccccccccccccccd,%rdx
+    0.00 :   194f6:  mov    %rax,%r15
+    0.00 :   194f9:  mov    0x28(%r9),%rax
+    1.27 :   194fd:  mov    %rax,%rdi
+    0.00 :   19500:  sub    %rsi,%rdi
+    0.32 :   19503:  sar    $0x3,%rdi
+    0.00 :   19507:  imul   %rdx,%rdi
+    1.27 :   1950b:  cmp    %rax,%rsi
+    0.00 :   1950e:  je     19ba6 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x7c6>
+    0.00 :   19514:  mov    %rsi,%rax
+    0.00 :   19517:  xor    %edx,%edx
+    0.00 :   19519:  jmp    19530 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x150>
+    0.00 :   1951b:  nopl   0x0(%rax,%rax,1)
+    0.63 :   19520:  inc    %rdx
+    0.00 :   19523:  add    $0x28,%rax
+    0.00 :   19527:  cmp    %rdi,%rdx
+    0.00 :   1952a:  jae    19ba6 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x7c6>
+    0.63 :   19530:  mov    (%rax),%rbx
+    0.00 :   19533:  cmp    %rbx,0x20(%rax)
+    0.00 :   19537:  je     19520 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x140>
+    0.00 :   19539:  movb   $0x0,0x57(%rsp)
+    0.95 :   1953e:  xor    %edi,%edi
+    0.00 :   19540:  xor    %r14d,%r14d
+    0.00 :   19543:  lea    0xa0(%rsp),%rax
+    0.00 :   1954b:  movq   $0x0,0x10(%rsp)
+    0.63 :   19554:  mov    %rax,0x90(%rsp)
+    0.00 :   1955c:  kmovb  %edi,%k0
+    0.00 :   19560:  mov    %r14,0x28(%rsp)
+    0.00 :   19565:  mov    %r15,0x48(%rsp)
+    0.32 :   1956a:  jmp    195b6 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x1d6>
+    0.00 :   1956c:  nopl   0x0(%rax)
+    1.58 :   19570:  mov    0x28(%rcx,%rsi,1),%rax
+    0.00 :   19575:  test   %rax,%rax
+    0.00 :   19578:  je     19594 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x1b4>
+    0.95 :   1957a:  mov    (%rax),%r14
+   26.27 :   1957d:  mov    0x20(%r9),%rax
+    0.00 :   19581:  add    %rbx,%rax
+    0.00 :   19584:  mov    (%rax),%rbp
+    0.00 :   19587:  mov    %r14,0x18(%rax)
+    0.63 :   1958b:  cmp    %r14,%rbp
+    0.00 :   1958e:  jb     19a80 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x6a0>
+    0.00 :   19594:  incq   0x28(%rsp)
+    0.63 :   19599:  mov    0x48(%rsp),%rdx
+    0.00 :   1959e:  mov    0x28(%rsp),%rax
+    0.00 :   195a3:  cmp    %rdx,%rax
+    0.00 :   195a6:  jae    19b48 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x768>
+    0.00 :   195ac:  mov    (%r9),%rax
+    0.00 :   195af:  mov    0x20(%r9),%rsi
+    0.00 :   195b3:  mov    (%rax),%rcx
+    0.00 :   195b6:  mov    0x28(%rsp),%rbx
+    0.00 :   195bb:  mov    0x18(%r9),%eax
+    0.00 :   195bf:  xor    %edx,%edx
+    1.27 :   195c1:  add    %rbx,%rax
+    0.00 :   195c4:  divq   0x48(%rsp)
+   17.41 :   195c9:  mov    %edx,%edi
+    0.00 :   195cb:  mov    %rdx,0x78(%rsp)
+    0.00 :   195d0:  lea    (%rdi,%rdi,4),%rax
+    0.00 :   195d4:  mov    %rdi,0x80(%rsp)
+    0.95 :   195dc:  lea    0x0(,%rax,8),%rbx
+    0.00 :   195e4:  lea    (%rsi,%rbx,1),%rax
+    0.00 :   195e8:  mov    %rbx,0x88(%rsp)
+    0.00 :   195f0:  imul   $0xa8,%rdi,%rsi
+    1.27 :   195f7:  mov    (%rax),%rbp
+    2.22 :   195fa:  mov    0x18(%rax),%r14
+    0.63 :   195fe:  mov    %rsi,0x40(%rsp)
+    0.00 :   19603:  cmp    %r14,%rbp
+    0.00 :   19606:  jae    19570 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x190>
+    0.00 :   1960c:  mov    0x78(%rsp),%edx
+    0.00 :   19610:  mov    0x8(%rax),%r12
+    0.00 :   19614:  movq   $0x0,0x8(%rsp)
+    0.00 :   1961d:  xor    %r15d,%r15d
+    0.00 :   19620:  mov    0x10(%rax),%rax
+    0.00 :   19624:  xor    %ebx,%ebx
+    0.00 :   19626:  mov    %r14,%r10
+    0.00 :   19629:  mov    %edx,0x50(%rsp)
+    0.00 :   1962d:  mov    %rax,0x98(%rsp)
+    0.00 :   19635:  nopl   (%rax)
+    0.00 :   19638:  cmp    %r10,%rbp
+    0.00 :   1963b:  jb     19690 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x2b0>
+    0.63 :   1963d:  test   %r15,%r15
+    0.00 :   19640:  je     19661 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x281>
+    0.00 :   19642:  mov    0x88(%rsp),%rax
+    0.00 :   1964a:  vmovq  %rbp,%xmm3
+    0.00 :   1964f:  vpinsrq $0x1,%r12,%xmm3,%xmm0
+    0.00 :   19655:  add    0x20(%r9),%rax
+    0.00 :   19659:  add    %r15,0x10(%rax)
+    0.00 :   1965d:  vmovdqu %xmm0,(%rax)
+    0.00 :   19661:  test   %ebx,%ebx
+    0.00 :   19663:  je     19594 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x1b4>
+    0.00 :   19669:  mov    0x48(%rsp),%r15
+    0.00 :   1966e:  mov    %ebx,%r8d
+    0.00 :   19671:  nopl   0x0(%rax)
+    0.00 :   19678:  mov    0x78(%rsp),%rax
+    0.00 :   1967d:  xor    %edx,%edx
+    0.00 :   1967f:  inc    %eax
+    0.00 :   19681:  div    %r15
+    0.32 :   19684:  mov    %edx,0x18(%r9)
+    0.00 :   19688:  jmp    19493 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb3>
+    0.00 :   1968d:  nopl   (%rax)
+    0.00 :   19690:  mov    0x40(%rsp),%rax
+    0.00 :   19695:  add    %rax,%rcx
+    0.00 :   19698:  mov    0x8(%rcx),%rsi
+    0.32 :   1969c:  mov    (%rcx),%rdx
+    0.00 :   1969f:  mov    %r12d,%ecx
+    0.00 :   196a2:  cmp    $0x7,%rsi
+    0.00 :   196a6:  setbe  %al
+    0.63 :   196a9:  test   %rdx,%rdx
+    0.00 :   196ac:  sete   %r11b
+    0.00 :   196b0:  and    $0xffffff,%ecx
+    0.00 :   196b6:  test   %r11b,%r11b
+    0.00 :   196b9:  jne    196c3 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x2e3>
+    0.00 :   196bb:  test   %al,%al
+    0.00 :   196bd:  je     19780 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x3a0>
+    0.00 :   196c3:  test   %ecx,%ecx
+    0.00 :   196c5:  jne    1963d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x25d>
+    0.00 :   196cb:  lea    0x8(%rbp),%r13
+    0.00 :   196cf:  cmp    %r13,%r10
+    0.00 :   196d2:  jb     1963d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x25d>
+    0.00 :   196d8:  test   %al,%al
+    0.00 :   196da:  jne    1963d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x25d>
+    0.00 :   196e0:  vpxor  %xmm0,%xmm0,%xmm0
+    0.00 :   196e4:  vpinsrq $0x1,%rbp,%xmm0,%xmm0
+    0.00 :   196ea:  cmp    %r10,%r13
+    0.00 :   196ed:  jb     19bbf <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x7df>
+    0.00 :   196f3:  movl   $0x0,0x24(%rsp)
+    0.00 :   196fb:  lea    0x1(%r12),%r11
+    0.00 :   19700:  inc    %r15
+    0.00 :   19703:  xor    %ecx,%ecx
+    0.00 :   19705:  xor    %r14d,%r14d
+    0.00 :   19708:  nopl   0x0(%rax,%rax,1)
+    0.00 :   19710:  test   %ebx,%ebx
+    0.00 :   19712:  sete   %dl
+    0.00 :   19715:  cmpq   $0x0,0x8(%rsp)
+    0.00 :   1971b:  setne  %al
+    0.00 :   1971e:  test   %al,%dl
+    0.00 :   19720:  je     1972d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x34d>
+    0.00 :   19722:  cmpb   $0x0,0x57(%rsp)
+    0.00 :   19727:  jne    19910 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x530>
+    0.00 :   1972d:  mov    0x38(%rsp),%rdi
+    0.00 :   19732:  mov    %ebx,%eax
+    0.00 :   19734:  mov    0x24(%rsp),%esi
+    0.00 :   19738:  inc    %ebx
+    0.00 :   1973a:  shl    $0x6,%rax
+    0.00 :   1973e:  mov    %r13,%rbp
+    0.00 :   19741:  add    %rdi,%rax
+    0.00 :   19744:  mov    0x50(%rsp),%edi
+    0.00 :   19748:  mov    %r12,0x28(%rax)
+    0.00 :   1974c:  mov    %r11,%r12
+    0.00 :   1974f:  mov    %rcx,(%rax)
+    0.00 :   19752:  mov    %r13,0x18(%rax)
+    0.00 :   19756:  mov    %esi,0x20(%rax)
+    0.00 :   19759:  mov    %edi,0x30(%rax)
+    0.63 :   1975c:  mov    %r14,0x38(%rax)
+    0.00 :   19760:  vmovdqu %xmm0,0x8(%rax)
+    0.00 :   19765:  mov    0x34(%rsp),%eax
+    0.00 :   19769:  cmp    %eax,%ebx
+    0.00 :   1976b:  jae    19a40 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x660>
+    0.00 :   19771:  mov    (%r9),%rax
+    0.00 :   19774:  mov    (%rax),%rcx
+    0.00 :   19777:  jmp    19638 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x258>
+    0.00 :   1977c:  nopl   0x0(%rax)
+    0.00 :   19780:  lea    -0x1(%rsi),%rdi
+    0.00 :   19784:  mov    %rdi,%rax
+    0.00 :   19787:  and    %rbp,%rax
+    0.00 :   1978a:  mov    (%rdx,%rax,1),%r13
+   12.34 :   1978e:  mov    %r13,%rax
+    0.00 :   19791:  shr    $0x20,%rax
+    0.32 :   19795:  mov    %eax,%r14d
+    0.00 :   19798:  mov    %eax,0x24(%rsp)
+    0.00 :   1979c:  shr    $0x8,%r14d
+    0.00 :   197a0:  cmp    %ecx,%r14d
+    0.00 :   197a3:  jne    1963d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x25d>
+    0.00 :   197a9:  mov    %r13d,%ecx
+    0.00 :   197ac:  mov    %rcx,%r8
+    0.00 :   197af:  add    $0x7,%rcx
+    0.00 :   197b3:  and    $0xfffffffffffffff8,%rcx
+    0.00 :   197b7:  and    $0x10,%eax
+    0.00 :   197ba:  je     19a90 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x6b0>
+    0.00 :   197c0:  add    $0x10,%rcx
+    0.00 :   197c4:  lea    (%rcx,%rbp,1),%r13
+    0.00 :   197c8:  cmp    %rcx,%rsi
+    0.00 :   197cb:  jb     1963d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x25d>
+    0.00 :   197d1:  cmp    %r13,%r10
+    0.00 :   197d4:  jb     1963d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x25d>
+    0.00 :   197da:  cmp    %r8,%rsi
+    0.00 :   197dd:  jae    19bb0 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x7d0>
+    0.00 :   197e3:  xor    %r8d,%r8d
+    0.00 :   197e6:  xor    %ecx,%ecx
+    0.00 :   197e8:  lea    0x8(%rbp),%rax
+    0.00 :   197ec:  vmovq  %r8,%xmm4
+    0.00 :   197f1:  and    %rdi,%rax
+    0.00 :   197f4:  vpinsrq $0x1,%rbp,%xmm4,%xmm0
+    0.00 :   197fa:  mov    (%rdx,%rax,1),%r14
+    0.00 :   197fe:  mov    $0x10,%eax
+    0.00 :   19803:  cmp    %r10,%r13
+    0.00 :   19806:  jb     19a15 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x635>
+    0.00 :   1980c:  nopl   0x0(%rax)
+    0.00 :   19810:  lea    0x1(%r12),%r11
+    0.00 :   19815:  inc    %r15
+    0.00 :   19818:  test   %eax,%eax
+    0.00 :   1981a:  je     19710 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x330>
+    0.00 :   19820:  kmovb  %k0,%eax
+    0.00 :   19824:  test   %al,%al
+    0.00 :   19826:  je     19860 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x480>
+    0.00 :   19828:  cmp    %r14,0x10(%rsp)
+    0.00 :   1982d:  jb     19710 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x330>
+    0.00 :   19833:  mov    0x60(%r9),%rax
+    0.00 :   19837:  cmp    $0xffffffffffffffff,%rax
+    0.00 :   1983b:  je     19844 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x464>
+    0.00 :   1983d:  inc    %rax
+    0.00 :   19840:  mov    %rax,0x60(%r9)
+    0.00 :   19844:  test   %ebx,%ebx
+    0.00 :   19846:  jne    19a28 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x648>
+    0.00 :   1984c:  incq   0x8(%rsp)
+    0.00 :   19851:  mov    %r13,%rbp
+    0.00 :   19854:  mov    %r11,%r12
+    0.00 :   19857:  jmp    19771 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x391>
+    0.00 :   1985c:  nopl   0x0(%rax)
+    0.00 :   19860:  mov    0x90(%rsp),%rsi
+    0.00 :   19868:  vpxor  %xmm1,%xmm1,%xmm1
+    0.00 :   1986c:  mov    $0x1,%edi
+    0.00 :   19871:  mov    %r11,0x70(%rsp)
+    0.00 :   19876:  mov    %r9,0x68(%rsp)
+    0.00 :   1987b:  mov    %r10,0x60(%rsp)
+    0.00 :   19880:  mov    %rcx,0x58(%rsp)
+    0.00 :   19885:  vmovdqa %xmm0,0x10(%rsp)
+    0.00 :   1988b:  vmovdqa %xmm1,0xa0(%rsp)
+    0.00 :   19894:  call   35a0 <clock_gettime@plt>
+    0.00 :   19899:  vmovdqa 0x10(%rsp),%xmm0
+    0.00 :   1989f:  mov    0x58(%rsp),%rcx
+    0.00 :   198a4:  test   %eax,%eax
+    0.00 :   198a6:  mov    0x60(%rsp),%r10
+    0.00 :   198ab:  mov    0x68(%rsp),%r9
+    0.00 :   198b0:  mov    0x70(%rsp),%r11
+    0.00 :   198b5:  jne    19900 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x520>
+    0.00 :   198b7:  mov    0xa0(%rsp),%rsi
+    0.00 :   198bf:  test   %rsi,%rsi
+    0.00 :   198c2:  js     19900 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x520>
+    0.00 :   198c4:  mov    0xa8(%rsp),%rdi
+    0.00 :   198cc:  movq   $0x0,0x10(%rsp)
+    0.00 :   198d5:  cmp    $0x3b9ac9ff,%rdi
+    0.00 :   198dc:  jbe    19af0 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x710>
+    0.00 :   198e2:  nopw   0x0(%rax,%rax,1)
+    0.00 :   198e8:  mov    $0x1,%eax
+    0.00 :   198ed:  kmovb  %eax,%k0
+    0.00 :   198f1:  jmp    19828 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x448>
+    0.00 :   198f6:  cs nopw 0x0(%rax,%rax,1)
+    0.00 :   19900:  movq   $0x0,0x10(%rsp)
+    0.00 :   19909:  jmp    198e8 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x508>
+    0.00 :   1990b:  nopl   0x0(%rax,%rax,1)
+    0.00 :   19910:  mov    (%r9),%rax
+    0.00 :   19913:  test   %rax,%rax
+    0.00 :   19916:  je     1972d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x34d>
+    0.00 :   1991c:  mov    (%rax),%rdx
+    0.00 :   1991f:  mov    0x8(%rax),%rax
+    0.00 :   19923:  movabs $0xcf3cf3cf3cf3cf3d,%rsi
+    0.00 :   1992d:  sub    %rdx,%rax
+    0.00 :   19930:  sar    $0x3,%rax
+    0.00 :   19934:  imul   %rsi,%rax
+    0.00 :   19938:  cmp    %rax,0x80(%rsp)
+    0.00 :   19940:  jae    1972d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x34d>
+    0.00 :   19946:  mov    0x40(%rsp),%rax
+    0.00 :   1994b:  mov    0x8(%r9),%esi
+    0.00 :   1994f:  add    %rax,%rdx
+    0.00 :   19952:  mov    0x80(%rdx),%rdi
+    0.00 :   19959:  mov    0x88(%rdx),%rax
+    0.00 :   19960:  movabs $0x4ec4ec4ec4ec4ec5,%rdx
+    0.00 :   1996a:  sub    %rdi,%rax
+    0.00 :   1996d:  sar    $0x3,%rax
+    0.00 :   19971:  imul   %rdx,%rax
+    0.00 :   19975:  cmp    %rax,%rsi
+    0.00 :   19978:  jae    1972d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x34d>
+    0.00 :   1997e:  imul   $0x68,%rsi,%rsi
+    0.00 :   19982:  add    %rsi,%rdi
+    0.00 :   19985:  mov    (%rdi),%rax
+    0.00 :   19988:  test   %rax,%rax
+    0.00 :   1998b:  je     1972d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x34d>
+    0.00 :   19991:  cmpq   $0x0,0x8(%rdi)
+    0.00 :   19996:  je     1972d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x34d>
+    0.00 :   1999c:  mov    %rbp,(%rax)
+    0.00 :   1999f:  mov    0x8(%rdi),%rax
+    0.00 :   199a3:  mov    %r12,(%rax)
+    0.00 :   199a6:  mov    0x20(%rdi),%rax
+    0.00 :   199aa:  test   %rax,%rax
+    0.00 :   199ad:  je     199c2 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x5e2>
+    0.00 :   199af:  mov    0x8(%rsp),%rdx
+    0.00 :   199b4:  mov    0x98(%rsp),%rsi
+    0.00 :   199bc:  add    %rsi,%rdx
+    0.00 :   199bf:  mov    %rdx,(%rax)
+    0.00 :   199c2:  mov    0x20(%r9),%rax
+    0.00 :   199c6:  mov    0x88(%rsp),%rdx
+    0.00 :   199ce:  mov    %rbp,0x20(%rax,%rdx,1)
+    0.00 :   199d3:  jmp    1972d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x34d>
+    0.00 :   199d8:  nopl   0x0(%rax,%rax,1)
+    0.00 :   199e0:  vpxor  %xmm0,%xmm0,%xmm0
+    0.00 :   199e4:  xor    %ecx,%ecx
+    0.00 :   199e6:  xor    %r14d,%r14d
+    0.00 :   199e9:  vpinsrq $0x1,%rbp,%xmm0,%xmm0
+    0.00 :   199ef:  cmp    %r10,%r13
+    0.00 :   199f2:  jae    19810 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x430>
+    0.00 :   199f8:  xor    %eax,%eax
+    0.00 :   199fa:  xor    %ecx,%ecx
+    0.00 :   199fc:  xor    %r14d,%r14d
+    0.00 :   199ff:  test   %rsi,%rsi
+    0.00 :   19a02:  je     19ae0 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x700>
+    0.00 :   19a08:  test   %r11b,%r11b
+    0.00 :   19a0b:  jne    19ae0 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x700>
+    0.00 :   19a11:  lea    -0x1(%rsi),%rdi
+    0.00 :   19a15:  and    %r13,%rdi
+    0.00 :   19a18:  add    %rdi,%rdx
+    0.00 :   19a1b:  prefetcht0 (%rdx)
+    0.00 :   19a1e:  jmp    19810 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x430>
+    0.00 :   19a23:  nopl   0x0(%rax,%rax,1)
+    0.00 :   19a28:  mov    0x34(%rsp),%eax
+    0.00 :   19a2c:  mov    %r13,%rbp
+    0.00 :   19a2f:  mov    %r11,%r12
+    0.00 :   19a32:  cmp    %eax,%ebx
+    0.00 :   19a34:  jb     19771 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x391>
+    0.00 :   19a3a:  nopw   0x0(%rax,%rax,1)
+    0.00 :   19a40:  mov    %r13,%rcx
+    0.00 :   19a43:  mov    %r15,%r13
+    0.00 :   19a46:  mov    %ebx,%r8d
+    0.00 :   19a49:  mov    0x48(%rsp),%r15
+    0.00 :   19a4e:  test   %r13,%r13
+    0.00 :   19a51:  je     19678 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x298>
+    0.00 :   19a57:  mov    0x88(%rsp),%rax
+    0.00 :   19a5f:  vmovq  %rcx,%xmm2
+    0.00 :   19a64:  vpinsrq $0x1,%r11,%xmm2,%xmm0
+    0.00 :   19a6a:  add    0x20(%r9),%rax
+    0.00 :   19a6e:  add    %r13,0x10(%rax)
+    0.00 :   19a72:  vmovdqu %xmm0,(%rax)
+    0.00 :   19a76:  jmp    19678 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x298>
+    0.00 :   19a7b:  nopl   0x0(%rax,%rax,1)
+    0.95 :   19a80:  mov    (%r9),%rdx
+    1.27 :   19a83:  mov    (%rdx),%rcx
+    0.32 :   19a86:  jmp    1960c <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x22c>
+    0.00 :   19a8b:  nopl   0x0(%rax,%rax,1)
+    0.00 :   19a90:  add    $0x8,%rcx
+    0.00 :   19a94:  lea    (%rcx,%rbp,1),%r13
+    0.00 :   19a98:  cmp    %rcx,%rsi
+    0.00 :   19a9b:  jb     1963d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x25d>
+    0.00 :   19aa1:  cmp    %r13,%r10
+    0.00 :   19aa4:  jb     1963d <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x25d>
+    0.00 :   19aaa:  lea    0x8(%rbp),%rcx
+    0.00 :   19aae:  cmp    %r8,%rsi
+    0.00 :   19ab1:  jb     199e0 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x600>
+    0.00 :   19ab7:  and    %rdi,%rcx
+    0.00 :   19aba:  vmovq  %r8,%xmm5
+    0.00 :   19abf:  xor    %r14d,%r14d
+    0.00 :   19ac2:  add    %rdx,%rcx
+    0.00 :   19ac5:  vpinsrq $0x1,%rbp,%xmm5,%xmm0
+    0.00 :   19acb:  cmp    %r10,%r13
+    0.00 :   19ace:  jae    19810 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x430>
+    0.00 :   19ad4:  jmp    19a15 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x635>
+    0.00 :   19ad9:  nopl   0x0(%rax)
+    0.00 :   19ae0:  xor    %edx,%edx
+    0.00 :   19ae2:  jmp    19a1b <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x63b>
+    0.00 :   19ae7:  nopw   0x0(%rax,%rax,1)
+    0.00 :   19af0:  mov    %rdi,%rdx
+    0.00 :   19af3:  not    %rdx
+    0.00 :   19af6:  mov    %rdx,%rax
+    0.00 :   19af9:  movabs $0x44b82fa09b5a53,%rdx
+    0.00 :   19b03:  shr    $0x9,%rax
+    0.00 :   19b07:  mul    %rdx
+    0.00 :   19b0a:  shr    $0xb,%rdx
+    0.00 :   19b0e:  cmp    %rsi,%rdx
+    0.00 :   19b11:  jae    19b30 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x750>
+    0.00 :   19b13:  mov    $0x1,%eax
+    0.00 :   19b18:  movq   $0xffffffffffffffff,0x10(%rsp)
+    0.00 :   19b21:  kmovb  %eax,%k0
+    0.00 :   19b25:  jmp    19833 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x453>
+    0.00 :   19b2a:  nopw   0x0(%rax,%rax,1)
+    0.00 :   19b30:  imul   $0x3b9aca00,%rsi,%rsi
+    0.00 :   19b37:  lea    (%rsi,%rdi,1),%rax
+    0.00 :   19b3b:  mov    %rax,0x10(%rsp)
+    0.00 :   19b40:  jmp    198e8 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x508>
+    0.00 :   19b45:  nopl   (%rax)
+    0.00 :   19b48:  cmpb   $0x0,0x57(%rsp)
+    0.63 :   19b4d:  je     19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.00 :   19b53:  mov    0x28(%r9),%rdx
+    0.00 :   19b57:  mov    0x20(%r9),%rax
+    0.00 :   19b5b:  movabs $0xcccccccccccccccd,%rsi
+    0.00 :   19b65:  mov    %rdx,%rcx
+    0.00 :   19b68:  sub    %rax,%rcx
+    0.00 :   19b6b:  sar    $0x3,%rcx
+    0.00 :   19b6f:  imul   %rsi,%rcx
+    2.85 :   19b73:  cmp    %rdx,%rax
+    0.00 :   19b76:  je     19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.00 :   19b7c:  xor    %edx,%edx
+    0.00 :   19b7e:  jmp    19b90 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x7b0>
+    0.00 :   19b80:  inc    %rdx
+    0.00 :   19b83:  add    $0x28,%rax
+    0.00 :   19b87:  cmp    %rcx,%rdx
+    0.00 :   19b8a:  jae    19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.00 :   19b90:  mov    0x20(%rax),%rsi
+    0.95 :   19b94:  cmp    %rsi,(%rax)
+    0.00 :   19b97:  je     19b80 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x7a0>
+    0.00 :   19b99:  mov    %r9,%rdi
+    0.00 :   19b9c:  call   19260 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::flush_progress()>
+    0.00 :   19ba1:  jmp    19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.32 :   19ba6:  movb   $0x1,0x57(%rsp)
+    0.00 :   19bab:  jmp    1953e <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x15e>
+    0.00 :   19bb0:  lea    0x10(%rbp),%rcx
+    0.00 :   19bb4:  and    %rdi,%rcx
+    0.00 :   19bb7:  add    %rdx,%rcx
+    0.00 :   19bba:  jmp    197e8 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x408>
+    0.00 :   19bbf:  movl   $0x0,0x24(%rsp)
+    0.00 :   19bc7:  jmp    199f8 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0x618>
+    0.00 :   19bcc:  mov    (%rax),%rax
+    0.32 :   19bcf:  cmp    %rax,%rsi
+    0.00 :   19bd2:  jne    19490 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xb0>
+    0.00 :   19bd8:  jmp    194c4 <salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)+0xe4>
+    0.00 :   19bdd:  call   3600 <__stack_chk_fail@plt>

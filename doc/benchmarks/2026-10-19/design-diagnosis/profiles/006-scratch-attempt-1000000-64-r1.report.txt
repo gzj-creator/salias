@@ -1,0 +1,25 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 1K of event 'cpu-clock'
+# Event count (approx.): 6020099750
+#
+# Overhead      Pid:Command  Shared Object        Symbol                                                                                                                                                                                IPC   [IPC Coverage]
+# ........  ...............  ...................  ....................................................................................................................................................................................  ....................
+#
+    25.21%   537280:scratch  scratch              [.] salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)                   -      -            
+    16.86%   537281:scratch  [vdso]               [.] 0x0000000000000c6a                                                                                                                                                                -      -            
+    13.11%   537281:scratch  scratch              [.] (anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)                                                       -      -            
+     8.76%   537280:scratch  [vdso]               [.] 0x0000000000000c6a                                                                                                                                                                -      -            
+     4.17%   537280:scratch  scratch              [.] void (anonymous namespace)::run_consumer_child<(salias::Mode)0>((anonymous namespace)::Options const&, unsigned int, (anonymous namespace)::SharedRunState&) [clone .lto_priv.0]  -      -            
+     1.92%   537281:scratch  libc.so.6            [.] clock_gettime@@GLIBC_2.17                                                                                                                                                         -      -            
+     1.42%   537281:scratch  scratch              [.] salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Tx::claim(unsigned int, unsigned long, bool) [clone .constprop.0]        -      -            
+     1.25%   537281:scratch  [vdso]               [.] 0x0000000000000cae                                                                                                                                                                -      -            
+     1.09%   537280:scratch  libstdc++.so.6.0.33  [.] std::chrono::_V2::steady_clock::now()                                                                                                                                             -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

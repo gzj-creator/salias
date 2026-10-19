@@ -1,0 +1,1396 @@
+{
+  "schema_version": 1,
+  "aggregation": "Median of independent run quantiles; not pooled",
+  "unsafe_variants": [
+    "frame"
+  ],
+  "groups": {
+    "screen": [
+      {
+        "variant": "baseline",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 3,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 287,
+          "min_ns": 271,
+          "max_ns": 291
+        },
+        "p99": {
+          "median_ns": 451,
+          "min_ns": 435,
+          "max_ns": 475
+        },
+        "p999": {
+          "median_ns": 4159,
+          "min_ns": 3999,
+          "max_ns": 5055
+        },
+        "max": {
+          "median_ns": 60667,
+          "min_ns": 55041,
+          "max_ns": 64858
+        }
+      },
+      {
+        "variant": "baseline",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 3,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 343,
+          "min_ns": 319,
+          "max_ns": 347
+        },
+        "p99": {
+          "median_ns": 3711,
+          "min_ns": 2687,
+          "max_ns": 5183
+        },
+        "p999": {
+          "median_ns": 10239,
+          "min_ns": 9215,
+          "max_ns": 17151
+        },
+        "max": {
+          "median_ns": 83241,
+          "min_ns": 48856,
+          "max_ns": 151307
+        }
+      },
+      {
+        "variant": "eager",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 3,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 275,
+          "min_ns": 195,
+          "max_ns": 283
+        },
+        "p99": {
+          "median_ns": 439,
+          "min_ns": 263,
+          "max_ns": 447
+        },
+        "p999": {
+          "median_ns": 4223,
+          "min_ns": 655,
+          "max_ns": 6399
+        },
+        "max": {
+          "median_ns": 52312,
+          "min_ns": 51664,
+          "max_ns": 555032
+        }
+      },
+      {
+        "variant": "eager",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 3,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 331,
+          "min_ns": 327,
+          "max_ns": 391
+        },
+        "p99": {
+          "median_ns": 4287,
+          "min_ns": 2495,
+          "max_ns": 5503
+        },
+        "p999": {
+          "median_ns": 12799,
+          "min_ns": 10623,
+          "max_ns": 983039
+        },
+        "max": {
+          "median_ns": 96439,
+          "min_ns": 52502,
+          "max_ns": 1766298
+        }
+      },
+      {
+        "variant": "frame",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 3,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 225,
+          "min_ns": 225,
+          "max_ns": 235
+        },
+        "p99": {
+          "median_ns": 343,
+          "min_ns": 327,
+          "max_ns": 663
+        },
+        "p999": {
+          "median_ns": 4287,
+          "min_ns": 3967,
+          "max_ns": 9599
+        },
+        "max": {
+          "median_ns": 57755,
+          "min_ns": 51488,
+          "max_ns": 76672
+        }
+      },
+      {
+        "variant": "frame",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 3,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 279,
+          "min_ns": 279,
+          "max_ns": 291
+        },
+        "p99": {
+          "median_ns": 3903,
+          "min_ns": 1327,
+          "max_ns": 5887
+        },
+        "p999": {
+          "median_ns": 10623,
+          "min_ns": 10239,
+          "max_ns": 15103
+        },
+        "max": {
+          "median_ns": 77605,
+          "min_ns": 61455,
+          "max_ns": 122132
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 3,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 279,
+          "min_ns": 275,
+          "max_ns": 283
+        },
+        "p99": {
+          "median_ns": 439,
+          "min_ns": 435,
+          "max_ns": 527
+        },
+        "p999": {
+          "median_ns": 4223,
+          "min_ns": 4031,
+          "max_ns": 12415
+        },
+        "max": {
+          "median_ns": 61806,
+          "min_ns": 50270,
+          "max_ns": 62611
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 3,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 335,
+          "min_ns": 331,
+          "max_ns": 339
+        },
+        "p99": {
+          "median_ns": 2463,
+          "min_ns": 1391,
+          "max_ns": 5439
+        },
+        "p999": {
+          "median_ns": 12543,
+          "min_ns": 12415,
+          "max_ns": 12927
+        },
+        "max": {
+          "median_ns": 422837,
+          "min_ns": 79009,
+          "max_ns": 897630
+        }
+      }
+    ],
+    "confirm": [
+      {
+        "variant": "aeron",
+        "origin": "attempt",
+        "rate": 100000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 213,
+          "min_ns": 211,
+          "max_ns": 225
+        },
+        "p99": {
+          "median_ns": 1647,
+          "min_ns": 351,
+          "max_ns": 8575
+        },
+        "p999": {
+          "median_ns": 14463,
+          "min_ns": 4415,
+          "max_ns": 15743
+        },
+        "max": {
+          "median_ns": 37578,
+          "min_ns": 11589,
+          "max_ns": 154487
+        }
+      },
+      {
+        "variant": "aeron",
+        "origin": "attempt",
+        "rate": 100000,
+        "payload": 256,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 213,
+          "min_ns": 209,
+          "max_ns": 215
+        },
+        "p99": {
+          "median_ns": 403,
+          "min_ns": 387,
+          "max_ns": 511
+        },
+        "p999": {
+          "median_ns": 6207,
+          "min_ns": 6015,
+          "max_ns": 8831
+        },
+        "max": {
+          "median_ns": 41057,
+          "min_ns": 23083,
+          "max_ns": 731086
+        }
+      },
+      {
+        "variant": "aeron",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 187,
+          "min_ns": 117,
+          "max_ns": 193
+        },
+        "p99": {
+          "median_ns": 263,
+          "min_ns": 197,
+          "max_ns": 2719
+        },
+        "p999": {
+          "median_ns": 10751,
+          "min_ns": 4287,
+          "max_ns": 17407
+        },
+        "max": {
+          "median_ns": 109688,
+          "min_ns": 49430,
+          "max_ns": 1023767
+        }
+      },
+      {
+        "variant": "aeron",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 256,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 189,
+          "min_ns": 187,
+          "max_ns": 193
+        },
+        "p99": {
+          "median_ns": 347,
+          "min_ns": 303,
+          "max_ns": 455
+        },
+        "p999": {
+          "median_ns": 8447,
+          "min_ns": 6399,
+          "max_ns": 11775
+        },
+        "max": {
+          "median_ns": 68527,
+          "min_ns": 55007,
+          "max_ns": 233038
+        }
+      },
+      {
+        "variant": "baseline",
+        "origin": "attempt",
+        "rate": 100000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 299,
+          "min_ns": 287,
+          "max_ns": 315
+        },
+        "p99": {
+          "median_ns": 519,
+          "min_ns": 479,
+          "max_ns": 903
+        },
+        "p999": {
+          "median_ns": 3391,
+          "min_ns": 3231,
+          "max_ns": 1007615
+        },
+        "max": {
+          "median_ns": 41057,
+          "min_ns": 12546,
+          "max_ns": 2908684
+        }
+      },
+      {
+        "variant": "baseline",
+        "origin": "attempt",
+        "rate": 100000,
+        "payload": 256,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 311,
+          "min_ns": 291,
+          "max_ns": 331
+        },
+        "p99": {
+          "median_ns": 559,
+          "min_ns": 527,
+          "max_ns": 1455
+        },
+        "p999": {
+          "median_ns": 4607,
+          "min_ns": 1391,
+          "max_ns": 10751
+        },
+        "max": {
+          "median_ns": 44884,
+          "min_ns": 29317,
+          "max_ns": 56666
+        }
+      },
+      {
+        "variant": "baseline",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 287,
+          "min_ns": 271,
+          "max_ns": 291
+        },
+        "p99": {
+          "median_ns": 475,
+          "min_ns": 447,
+          "max_ns": 5183
+        },
+        "p999": {
+          "median_ns": 7999,
+          "min_ns": 3327,
+          "max_ns": 12159
+        },
+        "max": {
+          "median_ns": 66990,
+          "min_ns": 51735,
+          "max_ns": 126392
+        }
+      },
+      {
+        "variant": "baseline",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 256,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 295,
+          "min_ns": 203,
+          "max_ns": 303
+        },
+        "p99": {
+          "median_ns": 495,
+          "min_ns": 339,
+          "max_ns": 551
+        },
+        "p999": {
+          "median_ns": 4927,
+          "min_ns": 3615,
+          "max_ns": 6847
+        },
+        "max": {
+          "median_ns": 64523,
+          "min_ns": 48143,
+          "max_ns": 175493
+        }
+      },
+      {
+        "variant": "frame",
+        "origin": "attempt",
+        "rate": 100000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 235,
+          "min_ns": 231,
+          "max_ns": 239
+        },
+        "p99": {
+          "median_ns": 375,
+          "min_ns": 359,
+          "max_ns": 411
+        },
+        "p999": {
+          "median_ns": 4031,
+          "min_ns": 1631,
+          "max_ns": 7743
+        },
+        "max": {
+          "median_ns": 14530,
+          "min_ns": 12196,
+          "max_ns": 430377
+        }
+      },
+      {
+        "variant": "frame",
+        "origin": "attempt",
+        "rate": 100000,
+        "payload": 256,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 267,
+          "min_ns": 245,
+          "max_ns": 291
+        },
+        "p99": {
+          "median_ns": 1167,
+          "min_ns": 459,
+          "max_ns": 430079
+        },
+        "p999": {
+          "median_ns": 11391,
+          "min_ns": 2623,
+          "max_ns": 2752511
+        },
+        "max": {
+          "median_ns": 48764,
+          "min_ns": 10621,
+          "max_ns": 3004082
+        }
+      },
+      {
+        "variant": "frame",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 225,
+          "min_ns": 223,
+          "max_ns": 229
+        },
+        "p99": {
+          "median_ns": 339,
+          "min_ns": 315,
+          "max_ns": 399
+        },
+        "p999": {
+          "median_ns": 5119,
+          "min_ns": 3231,
+          "max_ns": 9087
+        },
+        "max": {
+          "median_ns": 71250,
+          "min_ns": 58834,
+          "max_ns": 184873
+        }
+      },
+      {
+        "variant": "frame",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 256,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 239,
+          "min_ns": 235,
+          "max_ns": 267
+        },
+        "p99": {
+          "median_ns": 399,
+          "min_ns": 383,
+          "max_ns": 447
+        },
+        "p999": {
+          "median_ns": 3839,
+          "min_ns": 3583,
+          "max_ns": 6271
+        },
+        "max": {
+          "median_ns": 49391,
+          "min_ns": 43325,
+          "max_ns": 65773
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "attempt",
+        "rate": 100000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 303,
+          "min_ns": 295,
+          "max_ns": 315
+        },
+        "p99": {
+          "median_ns": 551,
+          "min_ns": 507,
+          "max_ns": 1551
+        },
+        "p999": {
+          "median_ns": 2463,
+          "min_ns": 2111,
+          "max_ns": 6079
+        },
+        "max": {
+          "median_ns": 47137,
+          "min_ns": 11546,
+          "max_ns": 923629
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "attempt",
+        "rate": 100000,
+        "payload": 256,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 311,
+          "min_ns": 303,
+          "max_ns": 331
+        },
+        "p99": {
+          "median_ns": 559,
+          "min_ns": 535,
+          "max_ns": 2943
+        },
+        "p999": {
+          "median_ns": 3839,
+          "min_ns": 1487,
+          "max_ns": 14463
+        },
+        "max": {
+          "median_ns": 46994,
+          "min_ns": 39260,
+          "max_ns": 159453
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 267,
+          "min_ns": 181,
+          "max_ns": 279
+        },
+        "p99": {
+          "median_ns": 435,
+          "min_ns": 235,
+          "max_ns": 495
+        },
+        "p999": {
+          "median_ns": 4159,
+          "min_ns": 3551,
+          "max_ns": 11775
+        },
+        "max": {
+          "median_ns": 60251,
+          "min_ns": 47644,
+          "max_ns": 1142757
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 256,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 283,
+          "min_ns": 267,
+          "max_ns": 391
+        },
+        "p99": {
+          "median_ns": 459,
+          "min_ns": 423,
+          "max_ns": 1567
+        },
+        "p999": {
+          "median_ns": 4415,
+          "min_ns": 4031,
+          "max_ns": 13823
+        },
+        "max": {
+          "median_ns": 70874,
+          "min_ns": 47685,
+          "max_ns": 294757
+        }
+      }
+    ],
+    "scheduler-matrix": [
+      {
+        "variant": "aeron",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "fifo-workers",
+        "fifo_priority": 1,
+        "p50": {
+          "median_ns": 187,
+          "min_ns": 185,
+          "max_ns": 191
+        },
+        "p99": {
+          "median_ns": 303,
+          "min_ns": 267,
+          "max_ns": 1599
+        },
+        "p999": {
+          "median_ns": 7935,
+          "min_ns": 2687,
+          "max_ns": 12543
+        },
+        "max": {
+          "median_ns": 58671,
+          "min_ns": 50049,
+          "max_ns": 50161160
+        }
+      },
+      {
+        "variant": "aeron",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 187,
+          "min_ns": 183,
+          "max_ns": 193
+        },
+        "p99": {
+          "median_ns": 295,
+          "min_ns": 267,
+          "max_ns": 427
+        },
+        "p999": {
+          "median_ns": 6719,
+          "min_ns": 3775,
+          "max_ns": 9983
+        },
+        "max": {
+          "median_ns": 140938,
+          "min_ns": 41005,
+          "max_ns": 225300
+        }
+      },
+      {
+        "variant": "aeron",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "fifo-workers",
+        "fifo_priority": 1,
+        "p50": {
+          "median_ns": 259,
+          "min_ns": 253,
+          "max_ns": 263
+        },
+        "p99": {
+          "median_ns": 31719423,
+          "min_ns": 31195135,
+          "max_ns": 32767999
+        },
+        "p999": {
+          "median_ns": 47710207,
+          "min_ns": 47710207,
+          "max_ns": 48758783
+        },
+        "max": {
+          "median_ns": 49169900,
+          "min_ns": 49153487,
+          "max_ns": 50165806
+        }
+      },
+      {
+        "variant": "aeron",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 253,
+          "min_ns": 249,
+          "max_ns": 255
+        },
+        "p99": {
+          "median_ns": 2783,
+          "min_ns": 1647,
+          "max_ns": 7103
+        },
+        "p999": {
+          "median_ns": 16127,
+          "min_ns": 8831,
+          "max_ns": 21759
+        },
+        "max": {
+          "median_ns": 617336,
+          "min_ns": 63721,
+          "max_ns": 1163126
+        }
+      },
+      {
+        "variant": "baseline",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "fifo-workers",
+        "fifo_priority": 1,
+        "p50": {
+          "median_ns": 383,
+          "min_ns": 375,
+          "max_ns": 395
+        },
+        "p99": {
+          "median_ns": 483,
+          "min_ns": 471,
+          "max_ns": 783
+        },
+        "p999": {
+          "median_ns": 4223,
+          "min_ns": 4063,
+          "max_ns": 13823
+        },
+        "max": {
+          "median_ns": 61443,
+          "min_ns": 49579,
+          "max_ns": 67566
+        }
+      },
+      {
+        "variant": "baseline",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 387,
+          "min_ns": 375,
+          "max_ns": 407
+        },
+        "p99": {
+          "median_ns": 479,
+          "min_ns": 471,
+          "max_ns": 495
+        },
+        "p999": {
+          "median_ns": 4063,
+          "min_ns": 3967,
+          "max_ns": 4671
+        },
+        "max": {
+          "median_ns": 57007,
+          "min_ns": 40597,
+          "max_ns": 515896
+        }
+      },
+      {
+        "variant": "baseline",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "fifo-workers",
+        "fifo_priority": 1,
+        "p50": {
+          "median_ns": 435,
+          "min_ns": 431,
+          "max_ns": 447
+        },
+        "p99": {
+          "median_ns": 32505855,
+          "min_ns": 32243711,
+          "max_ns": 33292287
+        },
+        "p999": {
+          "median_ns": 47710207,
+          "min_ns": 47710207,
+          "max_ns": 48758783
+        },
+        "max": {
+          "median_ns": 49187499,
+          "min_ns": 49157348,
+          "max_ns": 50166506
+        }
+      },
+      {
+        "variant": "baseline",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 435,
+          "min_ns": 427,
+          "max_ns": 455
+        },
+        "p99": {
+          "median_ns": 5439,
+          "min_ns": 935,
+          "max_ns": 5951
+        },
+        "p999": {
+          "median_ns": 13695,
+          "min_ns": 9343,
+          "max_ns": 14335
+        },
+        "max": {
+          "median_ns": 98557,
+          "min_ns": 55151,
+          "max_ns": 164743
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "fifo-workers",
+        "fifo_priority": 1,
+        "p50": {
+          "median_ns": 379,
+          "min_ns": 367,
+          "max_ns": 387
+        },
+        "p99": {
+          "median_ns": 467,
+          "min_ns": 439,
+          "max_ns": 479
+        },
+        "p999": {
+          "median_ns": 4223,
+          "min_ns": 3903,
+          "max_ns": 4671
+        },
+        "max": {
+          "median_ns": 58845,
+          "min_ns": 53430,
+          "max_ns": 64257
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 391,
+          "min_ns": 387,
+          "max_ns": 399
+        },
+        "p99": {
+          "median_ns": 467,
+          "min_ns": 463,
+          "max_ns": 495
+        },
+        "p999": {
+          "median_ns": 4095,
+          "min_ns": 3999,
+          "max_ns": 4287
+        },
+        "max": {
+          "median_ns": 49940,
+          "min_ns": 45885,
+          "max_ns": 158057
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "fifo-workers",
+        "fifo_priority": 1,
+        "p50": {
+          "median_ns": 435,
+          "min_ns": 259,
+          "max_ns": 463
+        },
+        "p99": {
+          "median_ns": 32767999,
+          "min_ns": 32505855,
+          "max_ns": 41943039
+        },
+        "p999": {
+          "median_ns": 47710207,
+          "min_ns": 47710207,
+          "max_ns": 49283071
+        },
+        "max": {
+          "median_ns": 49184021,
+          "min_ns": 49165968,
+          "max_ns": 50191460
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 431,
+          "min_ns": 427,
+          "max_ns": 443
+        },
+        "p99": {
+          "median_ns": 1855,
+          "min_ns": 991,
+          "max_ns": 5311
+        },
+        "p999": {
+          "median_ns": 11775,
+          "min_ns": 8127,
+          "max_ns": 13311
+        },
+        "max": {
+          "median_ns": 65903,
+          "min_ns": 50948,
+          "max_ns": 103570
+        }
+      }
+    ],
+    "scheduler-trace": [],
+    "checked-timing": [
+      {
+        "variant": "baseline",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 283,
+          "min_ns": 279,
+          "max_ns": 307
+        },
+        "p99": {
+          "median_ns": 467,
+          "min_ns": 435,
+          "max_ns": 3903
+        },
+        "p999": {
+          "median_ns": 5119,
+          "min_ns": 3871,
+          "max_ns": 15231
+        },
+        "max": {
+          "median_ns": 57168,
+          "min_ns": 39773,
+          "max_ns": 333652
+        }
+      },
+      {
+        "variant": "baseline",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 335,
+          "min_ns": 331,
+          "max_ns": 351
+        },
+        "p99": {
+          "median_ns": 3231,
+          "min_ns": 2399,
+          "max_ns": 3455
+        },
+        "p999": {
+          "median_ns": 9983,
+          "min_ns": 7807,
+          "max_ns": 606207
+        },
+        "max": {
+          "median_ns": 59732,
+          "min_ns": 50400,
+          "max_ns": 2246570
+        }
+      },
+      {
+        "variant": "checked",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 283,
+          "min_ns": 267,
+          "max_ns": 299
+        },
+        "p99": {
+          "median_ns": 427,
+          "min_ns": 403,
+          "max_ns": 4031
+        },
+        "p999": {
+          "median_ns": 4159,
+          "min_ns": 3775,
+          "max_ns": 12927
+        },
+        "max": {
+          "median_ns": 60427,
+          "min_ns": 40850,
+          "max_ns": 90073
+        }
+      },
+      {
+        "variant": "checked",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 335,
+          "min_ns": 319,
+          "max_ns": 339
+        },
+        "p99": {
+          "median_ns": 3935,
+          "min_ns": 2431,
+          "max_ns": 4223
+        },
+        "p999": {
+          "median_ns": 11775,
+          "min_ns": 7167,
+          "max_ns": 117759
+        },
+        "max": {
+          "median_ns": 53565,
+          "min_ns": 47034,
+          "max_ns": 723460
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "attempt",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 279,
+          "min_ns": 267,
+          "max_ns": 283
+        },
+        "p99": {
+          "median_ns": 431,
+          "min_ns": 427,
+          "max_ns": 463
+        },
+        "p999": {
+          "median_ns": 3999,
+          "min_ns": 3871,
+          "max_ns": 4415
+        },
+        "max": {
+          "median_ns": 57353,
+          "min_ns": 48911,
+          "max_ns": 132257
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 5,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 339,
+          "min_ns": 331,
+          "max_ns": 355
+        },
+        "p99": {
+          "median_ns": 3103,
+          "min_ns": 967,
+          "max_ns": 9343
+        },
+        "p999": {
+          "median_ns": 11903,
+          "min_ns": 10111,
+          "max_ns": 42495
+        },
+        "max": {
+          "median_ns": 85275,
+          "min_ns": 64233,
+          "max_ns": 1194382
+        }
+      }
+    ],
+    "planned-confirm": [
+      {
+        "variant": "baseline",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 7,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 327,
+          "min_ns": 323,
+          "max_ns": 339
+        },
+        "p99": {
+          "median_ns": 2687,
+          "min_ns": 1359,
+          "max_ns": 6143
+        },
+        "p999": {
+          "median_ns": 12031,
+          "min_ns": 8319,
+          "max_ns": 13183
+        },
+        "max": {
+          "median_ns": 59489,
+          "min_ns": 52735,
+          "max_ns": 1042494
+        }
+      },
+      {
+        "variant": "baseline",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 256,
+        "rounds": 7,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 339,
+          "min_ns": 327,
+          "max_ns": 343
+        },
+        "p99": {
+          "median_ns": 3551,
+          "min_ns": 1791,
+          "max_ns": 6847
+        },
+        "p999": {
+          "median_ns": 15743,
+          "min_ns": 9343,
+          "max_ns": 19199
+        },
+        "max": {
+          "median_ns": 72583,
+          "min_ns": 58992,
+          "max_ns": 1202066
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 64,
+        "rounds": 7,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 331,
+          "min_ns": 323,
+          "max_ns": 351
+        },
+        "p99": {
+          "median_ns": 2367,
+          "min_ns": 1199,
+          "max_ns": 8191
+        },
+        "p999": {
+          "median_ns": 9983,
+          "min_ns": 7615,
+          "max_ns": 18943
+        },
+        "max": {
+          "median_ns": 73381,
+          "min_ns": 57366,
+          "max_ns": 314628
+        }
+      },
+      {
+        "variant": "stack",
+        "origin": "planned",
+        "rate": 1000000,
+        "payload": 256,
+        "rounds": 7,
+        "scheduler": "normal",
+        "fifo_priority": 0,
+        "p50": {
+          "median_ns": 331,
+          "min_ns": 311,
+          "max_ns": 451
+        },
+        "p99": {
+          "median_ns": 3103,
+          "min_ns": 759,
+          "max_ns": 4159
+        },
+        "p999": {
+          "median_ns": 11775,
+          "min_ns": 6655,
+          "max_ns": 16383
+        },
+        "max": {
+          "median_ns": 88645,
+          "min_ns": 43017,
+          "max_ns": 463890
+        }
+      }
+    ],
+    "profiles": []
+  },
+  "inputs": [
+    {
+      "dataset": "screen",
+      "sha256": "d727ec3435e3d8a36c7a06f9aef3ae938296d2faa25b6290eed3e03d18dc1ef8",
+      "rows": 32
+    },
+    {
+      "dataset": "confirm",
+      "sha256": "4e760f3063433651e97c7cb1c84c05f767b83ed4efd498b6a8712f018f83321c",
+      "rows": 96
+    },
+    {
+      "dataset": "scheduler-matrix",
+      "sha256": "f1199baa21f98c4a3684287aa6be563e54750ca81a2ed97348e5a91158517052",
+      "rows": 72
+    },
+    {
+      "dataset": "scheduler-trace",
+      "sha256": "38dbaf544a0cd015340d666b723c55223c2fc49e9487606e945584db454bf79f",
+      "rows": 6
+    },
+    {
+      "dataset": "checked-timing",
+      "sha256": "91cd15059c3e9456d48f14f69bba69c78e7fe3aa2923eada809bfdbf30320975",
+      "rows": 36
+    },
+    {
+      "dataset": "planned-confirm",
+      "sha256": "9f546b669f9090c88fac54968c311c767d4fffccfeaacfa6104c2b34be6ddfdd",
+      "rows": 32
+    },
+    {
+      "dataset": "profiles",
+      "sha256": "9a1ef17b3f28f691e860abe45faf14227fc3e72c2278ce02567d3131090471ce",
+      "rows": 4
+    }
+  ],
+  "unprofiled_measured_runs": 222,
+  "unprofiled_measured_messages": 372000000,
+  "unprofiled_measured_samples": 23250000,
+  "minimum_available_mib": 1568.0390625
+}

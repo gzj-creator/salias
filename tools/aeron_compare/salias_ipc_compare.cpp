@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "latency_histogram.hpp"
+#include "latency_pacing.hpp"
 #include "salias/salias.hpp"
 
 /// 匿名命名空间：本文件内部使用的工具函数、类型与基准驱动逻辑，
@@ -69,6 +70,8 @@ struct Options {
   int cpu_base = -1;                      ///< CPU 亲和性起始核号，-1 表示不绑定
   std::uint32_t cpu_stride = 1;           ///< 相邻 worker 间的 CPU 核号间隔
   std::uint64_t latency_sample_rate = 0;  ///< 延迟采样周期，0 表示关闭采样
+  std::uint64_t rate = 0;  ///< Per-producer open-loop rate; zero retains saturation mode.
+  std::string latency_origin = "claim";  ///< claim / attempt / planned.
   bool producers_set = false;             ///< 标记 producers 是否由用户显式指定
   bool consumers_set = false;             ///< 标记 consumers 是否由用户显式指定
 };
@@ -83,6 +86,7 @@ struct Options {
  *   全部访问均通过 atomic_ref + acquire/release 内存序保证可见性。
  */
 struct alignas(64) SharedRunState {
+  std::uint64_t start_ns = 0;
   std::uint32_t ready = 0;  ///< 已就绪的 worker 计数，由各子进程 fetch_add 自增
   /// ready 的填充，使其独占一个 cache line，避免与 start 伪共享。
   std::byte ready_pad[64 - sizeof(std::uint32_t)]{};
@@ -160,6 +164,10 @@ Options parse_options(int argc, char** argv) {
       options.cpu_stride = static_cast<std::uint32_t>(std::stoul(require_value("--cpu-stride")));
     } else if (arg == "--latency-sample-rate") {
       options.latency_sample_rate = std::stoull(require_value("--latency-sample-rate"));
+    } else if (arg == "--rate") {
+      options.rate = std::stoull(require_value("--rate"));
+    } else if (arg == "--latency-origin") {
+      options.latency_origin = require_value("--latency-origin");
     } else if (arg == "--help") {
       std::cout << "usage: salias_ipc_compare --scenario fifo|ordered "
                    "[--messages N] [--producers N] [--consumers N] [--payload N] "
@@ -167,7 +175,8 @@ Options parse_options(int argc, char** argv) {
                    "[--publication-window N] "
                    "[--page normal|huge2m|huge1g] "
                    "[--name NAME] [--cpu-base N] [--cpu-stride N] "
-                   "[--latency-sample-rate N]\n";
+                   "[--latency-sample-rate N] [--rate N] "
+                   "[--latency-origin claim|attempt|planned]\n";
       std::exit(0);
     } else {
       std::cerr << "unknown argument: " << arg << '\n';
@@ -211,6 +220,13 @@ Options parse_options(int argc, char** argv) {
   // 未指定 channel 名称时，用 PID+场景名生成唯一标识，避免多实例冲突。
   if (options.name.empty()) {
     options.name = "salias-ipc-" + std::to_string(::getpid()) + "-" + options.scenario;
+  }
+  if ((options.latency_origin != "claim" && options.latency_origin != "attempt" &&
+       options.latency_origin != "planned") ||
+      (options.latency_origin == "planned" && options.rate == 0) ||
+      (options.batch_size != 1 && (options.rate != 0 || options.latency_origin != "claim")) ||
+      options.rate > 1'000'000'000ull) {
+    throw std::invalid_argument("invalid pacing/latency origin; paced runs require batch-size 1");
   }
   return options;
 }
@@ -397,7 +413,10 @@ void ready_and_wait_for_start(SharedRunState& state) noexcept {
 template <salias::Mode M>
 bool claim_until_committed(salias::Publisher<M>& publisher, std::size_t payload_len,
                            std::uint64_t marker, std::uint64_t sequence, const Options& options,
-                           SharedRunState& state) noexcept {
+                           SharedRunState& state, std::uint64_t planned_ns) noexcept {
+  const bool sampled = should_sample(options, sequence);
+  const std::uint64_t origin_ns = !sampled || options.latency_origin == "claim" ? 0 :
+      options.latency_origin == "planned" ? planned_ns : latency::monotonic_now_ns();
   for (;;) {
     if (has_failed(state)) {
       return false;
@@ -407,7 +426,7 @@ bool claim_until_committed(salias::Publisher<M>& publisher, std::size_t payload_
       auto claim = std::move(claim_result).value();
       // 仅在采样序列号上取时间戳，避免每条消息都读 TSC 带来的开销。
       const std::uint64_t send_time_ns =
-          should_sample(options, sequence) ? latency::monotonic_now_ns() : 0;
+          sampled ? (origin_ns != 0 ? origin_ns : latency::monotonic_now_ns()) : 0;
       write_payload(claim.payload(), marker, send_time_ns, options.latency_sample_rate != 0);
       // commit 以 release 语义发布该消息，consumer acquire 后可见。
       claim.commit();
@@ -588,8 +607,14 @@ template <salias::Mode M>
 
     if (options.batch_size == 1) {
       for (std::uint64_t i = 0; i < options.messages; ++i) {
+        const auto planned_ns = options.rate == 0 ? 0 : latency::planned_arrival_ns(
+            state.start_ns, i, options.rate, producer_index, options.producers);
+        if (options.rate != 0) {
+          latency::wait_for_arrival(planned_ns);
+        }
         const std::uint64_t marker = (static_cast<std::uint64_t>(producer_index) << 48) | i;
-        if (!claim_until_committed<M>(publisher, options.payload, marker, i, options, state)) {
+        if (!claim_until_committed<M>(publisher, options.payload, marker, i, options, state,
+                                      planned_ns)) {
           _exit(32);
         }
       }
@@ -738,6 +763,7 @@ Result run_case_typed(const Options& options) {
 
     // 所有子进程就绪，记录起始时刻后发令。
     const auto begin = std::chrono::steady_clock::now();
+    state.start_ns = latency::monotonic_now_ns() + (options.rate == 0 ? 0 : 10'000'000);
     // release：发布 start=1，子进程 acquire 看到后立即开始压测。
     std::atomic_ref<std::uint32_t>(state.start).store(1, std::memory_order_release);
 
@@ -863,6 +889,8 @@ void print_result(const Options& options, const Result& result) {
             << " delivery_msg_per_sec=" << delivery_rate
             << " delivery_mib_per_sec=" << mib_per_second
             << " latency_sample_rate=" << options.latency_sample_rate
+            << " rate_per_producer=" << options.rate
+            << " latency_origin=" << options.latency_origin
             << " latency_samples=" << result.aggregate_latency.samples
             << " latency_p50_ns=" << result.aggregate_latency.p50_ns
             << " latency_p99_ns=" << result.aggregate_latency.p99_ns

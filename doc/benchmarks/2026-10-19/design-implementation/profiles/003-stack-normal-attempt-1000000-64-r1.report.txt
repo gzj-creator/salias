@@ -1,0 +1,25 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 800  of event 'cpu-clock'
+# Event count (approx.): 4020100000
+#
+# Overhead      Pid:Command   Shared Object        Symbol                                                                                                                                                                                                                                                                                                    IPC   [IPC Coverage]
+# ........  ................  ...................  ........................................................................................................................................................................................................................................................................................................  ....................
+#
+    24.00%   587117:baseline  baseline             [.] salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)                                                                                                                                       -      -            
+    17.38%   587118:baseline  [vdso]               [.] 0x0000000000000c6a                                                                                                                                                                                                                                                                                    -      -            
+    12.00%   587118:baseline  baseline             [.] (anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)                                                                                                                                                                           -      -            
+     9.62%   587117:baseline  [vdso]               [.] 0x0000000000000c6a                                                                                                                                                                                                                                                                                    -      -            
+     4.62%   587118:baseline  baseline             [.] salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Tx::claim(unsigned int, unsigned long, bool) [clone .constprop.0]                                                                                                                            -      -            
+     2.75%   587117:baseline  baseline             [.] (anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)                                                                                                                                                                           -      -            
+     1.38%   587118:baseline  libc.so.6            [.] clock_gettime@@GLIBC_2.17                                                                                                                                                                                                                                                                             -      -            
+     1.25%   587118:baseline  [vdso]               [.] 0x0000000000000ca9                                                                                                                                                                                                                                                                                    -      -            
+     1.12%   587117:baseline  libstdc++.so.6.0.33  [.] std::chrono::_V2::steady_clock::now()                                                                                                                                                                                                                                                                 -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

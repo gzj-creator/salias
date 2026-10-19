@@ -1,0 +1,26 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 799  of event 'cpu-clock'
+# Event count (approx.): 4015074875
+#
+# Overhead      Pid:Command   Shared Object        Symbol                                                                                                                                                                          IPC   [IPC Coverage]
+# ........  ................  ...................  ..............................................................................................................................................................................  ....................
+#
+    20.90%   587152:baseline  baseline             [.] salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)             -      -            
+    20.28%   587153:baseline  [vdso]               [.] 0x0000000000000c6a                                                                                                                                                          -      -            
+    12.02%   587153:baseline  baseline             [.] (anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)                                                 -      -            
+     9.64%   587152:baseline  [vdso]               [.] 0x0000000000000c6a                                                                                                                                                          -      -            
+     7.01%   587152:baseline  libc.so.6            [.] __memset_evex_unaligned_erms                                                                                                                                                -      -            
+     3.63%   587153:baseline  baseline             [.] salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Tx::claim(unsigned int, unsigned long, bool) [clone .constprop.0]  -      -            
+     2.50%   587152:baseline  baseline             [.] (anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)                                                 -      -            
+     1.38%   587153:baseline  libc.so.6            [.] clock_gettime@@GLIBC_2.17                                                                                                                                                   -      -            
+     1.13%   587152:baseline  libstdc++.so.6.0.33  [.] std::chrono::_V2::steady_clock::now()                                                                                                                                       -      -            
+     1.00%   587153:baseline  [vdso]               [.] 0x0000000000000c8e                                                                                                                                                          -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

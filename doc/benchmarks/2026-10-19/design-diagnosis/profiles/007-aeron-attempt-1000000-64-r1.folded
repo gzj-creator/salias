@@ -1,0 +1,24 @@
+aeron_ipc_compa;[unknown] 763819000
+aeron_ipc_compa;[unknown];__sched_yield 20100500
+aeron_ipc_compa;[unknown];__sched_yield;entry_SYSCALL_64_after_hwframe;do_syscall_64 5025125
+aeron_ipc_compa;[unknown];__sched_yield;entry_SYSCALL_64_after_hwframe;do_syscall_64;x64_sys_call;__x64_sys_sched_yield;do_sched_yield;schedule;__schedule 10050250
+aeron_ipc_compa;[unknown];aeron_exclusive_publication_try_claim 5025125
+aeron_ipc_compa;[unknown];aeron_subscription_poll 266331625
+aeron_ipc_compa;[unknown];aeron_subscription_poll;aeron_image_poll 708542625
+aeron_ipc_compa;[unknown];aeron_subscription_poll;aeron_image_poll;void aeron::doPoll<(anonymous namespace)::run_consumer_child 95477375
+aeron_ipc_compa;[unknown];aeron_subscription_poll;aeron_image_poll;void aeron::doPoll<(anonymous namespace)::run_consumer_child;aeron_header_values 10050250
+aeron_ipc_compa;[unknown];aeron_subscription_poll;aeron_image_poll;void aeron::doPoll<(anonymous namespace)::run_consumer_child;clock_gettime@@GLIBC_2.17 5025125
+aeron_ipc_compa;[unknown];aeron_subscription_poll;aeron_image_poll;void aeron::doPoll<(anonymous namespace)::run_consumer_child;clock_gettime@@GLIBC_2.17;[[vdso]] 5025125
+aeron_ipc_compa;[unknown];salias::tools::latency::monotonic_now_ns 487437125
+aeron_ipc_compa;[unknown];salias::tools::latency::monotonic_now_ns;clock_gettime@@GLIBC_2.17 105527625
+aeron_ipc_compa;[unknown];salias::tools::latency::monotonic_now_ns;clock_gettime@@GLIBC_2.17;[[vdso]] 1969849000
+aeron_ipc_compa;[unknown];salias::tools::latency::monotonic_now_ns;clock_gettime@@GLIBC_2.17;[[vdso]];asm_sysvec_apic_timer_interrupt;sysvec_apic_timer_interrupt;irqentry_exit;irqentry_exit_to_user_mode;schedule;__schedule;finish_task_switch.isra.0 5025125
+aeron_ipc_compa;[unknown];salias::tools::latency::monotonic_now_ns;clock_gettime@@GLIBC_2.17;__vdso_clock_gettime 15075375
+aeron_ipc_compa;[unknown];salias::tools::latency::monotonic_now_ns;clock_gettime@plt 40201000
+aeron_ipc_compa;[unknown];std::chrono::_V2::steady_clock::now 95477375
+aeron_ipc_compa;[unknown];std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17 40201000
+aeron_ipc_compa;[unknown];std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17;[[vdso]] 1331658125
+aeron_ipc_compa;[unknown];std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17;__vdso_clock_gettime 5025125
+aeron_ipc_compa;[unknown];std::chrono::_V2::steady_clock::now;clock_gettime@plt 30150750
+aeron_ipc_compa;std::chrono::_V2::steady_clock::now 20100500
+aeron_ipc_compa;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17 15075375

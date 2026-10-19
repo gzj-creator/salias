@@ -1,0 +1,27 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 1K of event 'cpu-clock'
+# Event count (approx.): 6020099750
+#
+# Overhead      Pid:Command        Shared Object        Symbol                                                                                                                                                                          IPC   [IPC Coverage]
+# ........  .....................  ...................  ..............................................................................................................................................................................  ....................
+#
+    23.29%   629470:layout-cached  layout-cached        [.] salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)             -      -            
+    18.36%   629471:layout-cached  [vdso]               [.] 0x0000000000000c6a                                                                                                                                                          -      -            
+    12.69%   629471:layout-cached  layout-cached        [.] (anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)                                                 -      -            
+    12.44%   629470:layout-cached  [vdso]               [.] 0x0000000000000c6a                                                                                                                                                          -      -            
+     3.67%   629471:layout-cached  layout-cached        [.] salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Tx::claim(unsigned int, unsigned long, bool) [clone .constprop.0]  -      -            
+     2.00%   629470:layout-cached  layout-cached        [.] (anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)                                                 -      -            
+     1.92%   629471:layout-cached  libc.so.6            [.] clock_gettime@@GLIBC_2.17                                                                                                                                                   -      -            
+     1.50%   629470:layout-cached  [vdso]               [.] 0x0000000000000cae                                                                                                                                                          -      -            
+     1.25%   629471:layout-cached  [vdso]               [.] 0x0000000000000c8e                                                                                                                                                          -      -            
+     1.17%   629471:layout-cached  [vdso]               [.] 0x0000000000000c93                                                                                                                                                          -      -            
+     1.00%   629471:layout-cached  [vdso]               [.] 0x0000000000000cae                                                                                                                                                          -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

@@ -1,0 +1,43 @@
+    b95e:	45 8b 67 74          	mov    0x74(%r15),%r12d
+    b962:	45 85 e4             	test   %r12d,%r12d
+    b965:	74 c0                	je     b927 <(anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)+0x1417>
+    b967:	48 8d 85 b0 89 ff ff 	lea    -0x7650(%rbp),%rax
+    b96e:	31 f6                	xor    %esi,%esi
+    b970:	ba 00 08 00 00       	mov    $0x800,%edx
+    b975:	48 89 c7             	mov    %rax,%rdi
+    b978:	48 89 85 40 85 ff ff 	mov    %rax,-0x7ac0(%rbp)
+    b97f:	e8 5c 7b ff ff       	call   34e0 <memset@plt>
+    b984:	48 85 db             	test   %rbx,%rbx
+
+    e94a:	45 8b 67 74          	mov    0x74(%r15),%r12d
+    e94e:	45 85 e4             	test   %r12d,%r12d
+    e951:	74 c0                	je     e913 <(anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)1>((anonymous namespace)::Options const&)+0x1f63>
+    e953:	48 8d 85 b0 89 ff ff 	lea    -0x7650(%rbp),%rax
+    e95a:	31 f6                	xor    %esi,%esi
+    e95c:	ba 00 08 00 00       	mov    $0x800,%edx
+    e961:	48 89 c7             	mov    %rax,%rdi
+    e964:	48 89 85 40 85 ff ff 	mov    %rax,-0x7ac0(%rbp)
+    e96b:	e8 70 4b ff ff       	call   34e0 <memset@plt>
+    e970:	48 85 db             	test   %rbx,%rbx
+
+   10bba:	45 8b 67 74          	mov    0x74(%r15),%r12d
+   10bbe:	45 85 e4             	test   %r12d,%r12d
+   10bc1:	74 c0                	je     10b83 <(anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)2>((anonymous namespace)::Options const&)+0x1d83>
+   10bc3:	48 8d 85 b0 89 ff ff 	lea    -0x7650(%rbp),%rax
+   10bca:	31 f6                	xor    %esi,%esi
+   10bcc:	ba 00 08 00 00       	mov    $0x800,%edx
+   10bd1:	48 89 c7             	mov    %rax,%rdi
+   10bd4:	48 89 85 40 85 ff ff 	mov    %rax,-0x7ac0(%rbp)
+   10bdb:	e8 00 29 ff ff       	call   34e0 <memset@plt>
+   10be0:	48 85 db             	test   %rbx,%rbx
+
+   12f97:	45 8b 67 74          	mov    0x74(%r15),%r12d
+   12f9b:	45 85 e4             	test   %r12d,%r12d
+   12f9e:	74 c0                	je     12f60 <(anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)3>((anonymous namespace)::Options const&)+0x1ca0>
+   12fa0:	48 8d 85 b0 89 ff ff 	lea    -0x7650(%rbp),%rax
+   12fa7:	31 f6                	xor    %esi,%esi
+   12fa9:	ba 00 08 00 00       	mov    $0x800,%edx
+   12fae:	48 89 c7             	mov    %rax,%rdi
+   12fb1:	48 89 85 40 85 ff ff 	mov    %rax,-0x7ac0(%rbp)
+   12fb8:	e8 23 05 ff ff       	call   34e0 <memset@plt>
+   12fbd:	48 85 db             	test   %rbx,%rbx

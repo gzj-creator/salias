@@ -1,0 +1,2687 @@
+{
+  "schema_version": 1,
+  "inputs": [
+    {
+      "path": "build/benchmarks/aeron-latency-20261018/planned-formal/results.jsonl",
+      "sha256": "eb4106c26e5c0b07320755765a1214fe9b0b1f21e48eb8a5c0dada1facb5f4d6"
+    },
+    {
+      "path": "build/benchmarks/aeron-latency-20261018/attempt-formal/results.jsonl",
+      "sha256": "57e9857ff9bcd7b94407abd2ed7b4313dea7afb0783cc3d1e3bc1339a555e756"
+    }
+  ],
+  "aggregation": "Median and range of independent run quantiles, NOT pooled quantiles",
+  "all_run_count": 216,
+  "measured_run_count": 180,
+  "measured_message_count": 231000000,
+  "measured_sample_count": 14437500,
+  "min_observed_mem_available_mib": 945.83203125,
+  "max_observed_cgroup_peak_mib": 579.4140625,
+  "memory_pressure_events_zero": true,
+  "groups": [
+    {
+      "origin": "attempt",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 100000,
+      "engine": "aeron",
+      "duration_s": 3,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 209,
+        "p99": 319,
+        "p999": 9087
+      },
+      "round_min_ns": {
+        "p50": 207,
+        "p99": 307,
+        "p999": 3775
+      },
+      "round_max_ns": {
+        "p50": 211,
+        "p99": 435,
+        "p999": 12159
+      },
+      "sampled_max_ns": 754770,
+      "sample_count": 93750,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 207,
+            "p99": 319,
+            "p999": 9087
+          },
+          "sampled_max_ns": 215539
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 211,
+            "p99": 315,
+            "p999": 5759
+          },
+          "sampled_max_ns": 401292
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 207,
+            "p99": 375,
+            "p999": 12159
+          },
+          "sampled_max_ns": 754770
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 209,
+            "p99": 435,
+            "p999": 9471
+          },
+          "sampled_max_ns": 210024
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 209,
+            "p99": 307,
+            "p999": 3775
+          },
+          "sampled_max_ns": 304908
+        }
+      ]
+    },
+    {
+      "origin": "attempt",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 100000,
+      "engine": "fifo",
+      "duration_s": 3,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 295,
+        "p99": 507,
+        "p999": 3647
+      },
+      "round_min_ns": {
+        "p50": 283,
+        "p99": 463,
+        "p999": 2399
+      },
+      "round_max_ns": {
+        "p50": 323,
+        "p99": 751,
+        "p999": 8575
+      },
+      "sampled_max_ns": 323829,
+      "sample_count": 93750,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 283,
+            "p99": 463,
+            "p999": 3647
+          },
+          "sampled_max_ns": 72262
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 295,
+            "p99": 507,
+            "p999": 2399
+          },
+          "sampled_max_ns": 37891
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 295,
+            "p99": 499,
+            "p999": 3455
+          },
+          "sampled_max_ns": 96313
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 307,
+            "p99": 599,
+            "p999": 3743
+          },
+          "sampled_max_ns": 323829
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 323,
+            "p99": 751,
+            "p999": 8575
+          },
+          "sampled_max_ns": 246625
+        }
+      ]
+    },
+    {
+      "origin": "attempt",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 100000,
+      "engine": "ordered",
+      "duration_s": 3,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 415,
+        "p99": 567,
+        "p999": 3839
+      },
+      "round_min_ns": {
+        "p50": 399,
+        "p99": 519,
+        "p999": 2623
+      },
+      "round_max_ns": {
+        "p50": 427,
+        "p99": 1983,
+        "p999": 12159
+      },
+      "sampled_max_ns": 279037,
+      "sample_count": 93750,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 415,
+            "p99": 1983,
+            "p999": 12159
+          },
+          "sampled_max_ns": 279037
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 411,
+            "p99": 535,
+            "p999": 3583
+          },
+          "sampled_max_ns": 48517
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 399,
+            "p99": 519,
+            "p999": 2623
+          },
+          "sampled_max_ns": 31779
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 427,
+            "p99": 567,
+            "p999": 3839
+          },
+          "sampled_max_ns": 155482
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 419,
+            "p99": 639,
+            "p999": 3967
+          },
+          "sampled_max_ns": 33103
+        }
+      ]
+    },
+    {
+      "origin": "attempt",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 1000000,
+      "engine": "aeron",
+      "duration_s": 3,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 187,
+        "p99": 267,
+        "p999": 8831
+      },
+      "round_min_ns": {
+        "p50": 187,
+        "p99": 263,
+        "p999": 6911
+      },
+      "round_max_ns": {
+        "p50": 195,
+        "p99": 3135,
+        "p999": 16895
+      },
+      "sampled_max_ns": 311745,
+      "sample_count": 937500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 187,
+            "p99": 263,
+            "p999": 9471
+          },
+          "sampled_max_ns": 241752
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 187,
+            "p99": 267,
+            "p999": 8831
+          },
+          "sampled_max_ns": 148453
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 187,
+            "p99": 271,
+            "p999": 7167
+          },
+          "sampled_max_ns": 213511
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 187,
+            "p99": 267,
+            "p999": 6911
+          },
+          "sampled_max_ns": 311745
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 195,
+            "p99": 3135,
+            "p999": 16895
+          },
+          "sampled_max_ns": 185826
+        }
+      ]
+    },
+    {
+      "origin": "attempt",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 1000000,
+      "engine": "fifo",
+      "duration_s": 3,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 287,
+        "p99": 451,
+        "p999": 5503
+      },
+      "round_min_ns": {
+        "p50": 279,
+        "p99": 423,
+        "p999": 2687
+      },
+      "round_max_ns": {
+        "p50": 295,
+        "p99": 503,
+        "p999": 10623
+      },
+      "sampled_max_ns": 786665,
+      "sample_count": 937500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 287,
+            "p99": 439,
+            "p999": 2687
+          },
+          "sampled_max_ns": 50594
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 279,
+            "p99": 451,
+            "p999": 5503
+          },
+          "sampled_max_ns": 786665
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 279,
+            "p99": 423,
+            "p999": 6015
+          },
+          "sampled_max_ns": 48533
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 295,
+            "p99": 483,
+            "p999": 4351
+          },
+          "sampled_max_ns": 61553
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 287,
+            "p99": 503,
+            "p999": 10623
+          },
+          "sampled_max_ns": 99260
+        }
+      ]
+    },
+    {
+      "origin": "attempt",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 1000000,
+      "engine": "ordered",
+      "duration_s": 3,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 399,
+        "p99": 503,
+        "p999": 4159
+      },
+      "round_min_ns": {
+        "p50": 307,
+        "p99": 471,
+        "p999": 3135
+      },
+      "round_max_ns": {
+        "p50": 423,
+        "p99": 4031,
+        "p999": 11135
+      },
+      "sampled_max_ns": 123237,
+      "sample_count": 937500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 391,
+            "p99": 491,
+            "p999": 4159
+          },
+          "sampled_max_ns": 45124
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 407,
+            "p99": 507,
+            "p999": 4415
+          },
+          "sampled_max_ns": 55339
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 399,
+            "p99": 503,
+            "p999": 3935
+          },
+          "sampled_max_ns": 43543
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 307,
+            "p99": 471,
+            "p999": 3135
+          },
+          "sampled_max_ns": 68881
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 423,
+            "p99": 4031,
+            "p999": 11135
+          },
+          "sampled_max_ns": 123237
+        }
+      ]
+    },
+    {
+      "origin": "attempt",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 100000,
+      "engine": "aeron",
+      "duration_s": 3,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 213,
+        "p99": 339,
+        "p999": 7423
+      },
+      "round_min_ns": {
+        "p50": 209,
+        "p99": 323,
+        "p999": 3967
+      },
+      "round_max_ns": {
+        "p50": 223,
+        "p99": 567,
+        "p999": 16127
+      },
+      "sampled_max_ns": 670245,
+      "sample_count": 93750,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 209,
+            "p99": 339,
+            "p999": 7423
+          },
+          "sampled_max_ns": 41394
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 223,
+            "p99": 567,
+            "p999": 16127
+          },
+          "sampled_max_ns": 142275
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 215,
+            "p99": 403,
+            "p999": 8831
+          },
+          "sampled_max_ns": 167979
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 213,
+            "p99": 339,
+            "p999": 3967
+          },
+          "sampled_max_ns": 670245
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 209,
+            "p99": 323,
+            "p999": 4415
+          },
+          "sampled_max_ns": 42729
+        }
+      ]
+    },
+    {
+      "origin": "attempt",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 100000,
+      "engine": "fifo",
+      "duration_s": 3,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 319,
+        "p99": 583,
+        "p999": 3839
+      },
+      "round_min_ns": {
+        "p50": 291,
+        "p99": 503,
+        "p999": 2751
+      },
+      "round_max_ns": {
+        "p50": 327,
+        "p99": 6463,
+        "p999": 16895
+      },
+      "sampled_max_ns": 57804,
+      "sample_count": 93750,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 327,
+            "p99": 6463,
+            "p999": 16895
+          },
+          "sampled_max_ns": 57804
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 319,
+            "p99": 551,
+            "p999": 2751
+          },
+          "sampled_max_ns": 44790
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 319,
+            "p99": 583,
+            "p999": 3839
+          },
+          "sampled_max_ns": 52774
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 291,
+            "p99": 1359,
+            "p999": 4063
+          },
+          "sampled_max_ns": 33502
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 299,
+            "p99": 503,
+            "p999": 2975
+          },
+          "sampled_max_ns": 32388
+        }
+      ]
+    },
+    {
+      "origin": "attempt",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 100000,
+      "engine": "ordered",
+      "duration_s": 3,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 427,
+        "p99": 591,
+        "p999": 3935
+      },
+      "round_min_ns": {
+        "p50": 415,
+        "p99": 559,
+        "p999": 3327
+      },
+      "round_max_ns": {
+        "p50": 439,
+        "p99": 815,
+        "p999": 10879
+      },
+      "sampled_max_ns": 221474,
+      "sample_count": 93750,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 427,
+            "p99": 679,
+            "p999": 3327
+          },
+          "sampled_max_ns": 50354
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 439,
+            "p99": 815,
+            "p999": 10879
+          },
+          "sampled_max_ns": 47512
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 415,
+            "p99": 591,
+            "p999": 3967
+          },
+          "sampled_max_ns": 221474
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 431,
+            "p99": 583,
+            "p999": 3807
+          },
+          "sampled_max_ns": 54359
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 415,
+            "p99": 559,
+            "p999": 3935
+          },
+          "sampled_max_ns": 25912
+        }
+      ]
+    },
+    {
+      "origin": "attempt",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 1000000,
+      "engine": "aeron",
+      "duration_s": 3,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 189,
+        "p99": 331,
+        "p999": 8063
+      },
+      "round_min_ns": {
+        "p50": 187,
+        "p99": 319,
+        "p999": 6719
+      },
+      "round_max_ns": {
+        "p50": 191,
+        "p99": 599,
+        "p999": 11519
+      },
+      "sampled_max_ns": 1596612,
+      "sample_count": 937500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 189,
+            "p99": 327,
+            "p999": 11519
+          },
+          "sampled_max_ns": 1596612
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 187,
+            "p99": 331,
+            "p999": 7999
+          },
+          "sampled_max_ns": 569801
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 191,
+            "p99": 599,
+            "p999": 10879
+          },
+          "sampled_max_ns": 114225
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 189,
+            "p99": 331,
+            "p999": 6719
+          },
+          "sampled_max_ns": 265093
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 189,
+            "p99": 319,
+            "p999": 8063
+          },
+          "sampled_max_ns": 560500
+        }
+      ]
+    },
+    {
+      "origin": "attempt",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 1000000,
+      "engine": "fifo",
+      "duration_s": 3,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 275,
+        "p99": 443,
+        "p999": 5119
+      },
+      "round_min_ns": {
+        "p50": 199,
+        "p99": 323,
+        "p999": 4031
+      },
+      "round_max_ns": {
+        "p50": 295,
+        "p99": 4415,
+        "p999": 14591
+      },
+      "sampled_max_ns": 1067174,
+      "sample_count": 937500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 271,
+            "p99": 423,
+            "p999": 6719
+          },
+          "sampled_max_ns": 1067174
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 275,
+            "p99": 447,
+            "p999": 4671
+          },
+          "sampled_max_ns": 54910
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 275,
+            "p99": 443,
+            "p999": 4031
+          },
+          "sampled_max_ns": 49123
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 199,
+            "p99": 323,
+            "p999": 5119
+          },
+          "sampled_max_ns": 170312
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 295,
+            "p99": 4415,
+            "p999": 14591
+          },
+          "sampled_max_ns": 48440
+        }
+      ]
+    },
+    {
+      "origin": "attempt",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 1000000,
+      "engine": "ordered",
+      "duration_s": 3,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 411,
+        "p99": 519,
+        "p999": 4415
+      },
+      "round_min_ns": {
+        "p50": 395,
+        "p99": 487,
+        "p999": 3551
+      },
+      "round_max_ns": {
+        "p50": 435,
+        "p99": 551,
+        "p999": 10111
+      },
+      "sampled_max_ns": 1489364,
+      "sample_count": 937500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 435,
+            "p99": 535,
+            "p999": 4415
+          },
+          "sampled_max_ns": 53340
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 395,
+            "p99": 491,
+            "p999": 4351
+          },
+          "sampled_max_ns": 68071
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 403,
+            "p99": 487,
+            "p999": 3551
+          },
+          "sampled_max_ns": 44759
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 411,
+            "p99": 551,
+            "p999": 10111
+          },
+          "sampled_max_ns": 67878
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 415,
+            "p99": 519,
+            "p999": 4607
+          },
+          "sampled_max_ns": 1489364
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 100000,
+      "engine": "aeron",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 283,
+        "p99": 2015,
+        "p999": 13951
+      },
+      "round_min_ns": {
+        "p50": 279,
+        "p99": 1759,
+        "p999": 11519
+      },
+      "round_max_ns": {
+        "p50": 291,
+        "p99": 12927,
+        "p999": 21503
+      },
+      "sampled_max_ns": 79683,
+      "sample_count": 62500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 283,
+            "p99": 1759,
+            "p999": 13439
+          },
+          "sampled_max_ns": 79683
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 291,
+            "p99": 12927,
+            "p999": 21503
+          },
+          "sampled_max_ns": 59438
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 291,
+            "p99": 7295,
+            "p999": 15999
+          },
+          "sampled_max_ns": 58262
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 279,
+            "p99": 2015,
+            "p999": 13951
+          },
+          "sampled_max_ns": 50304
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 279,
+            "p99": 1967,
+            "p999": 11519
+          },
+          "sampled_max_ns": 42522
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 100000,
+      "engine": "fifo",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 359,
+        "p99": 639,
+        "p999": 8191
+      },
+      "round_min_ns": {
+        "p50": 351,
+        "p99": 599,
+        "p999": 4799
+      },
+      "round_max_ns": {
+        "p50": 371,
+        "p99": 6335,
+        "p999": 16383
+      },
+      "sampled_max_ns": 631378,
+      "sample_count": 62500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 351,
+            "p99": 599,
+            "p999": 4799
+          },
+          "sampled_max_ns": 28436
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 359,
+            "p99": 623,
+            "p999": 4799
+          },
+          "sampled_max_ns": 28430
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 355,
+            "p99": 639,
+            "p999": 16383
+          },
+          "sampled_max_ns": 631378
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 367,
+            "p99": 6335,
+            "p999": 14079
+          },
+          "sampled_max_ns": 109030
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 371,
+            "p99": 695,
+            "p999": 8191
+          },
+          "sampled_max_ns": 80334
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 100000,
+      "engine": "ordered",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 483,
+        "p99": 703,
+        "p999": 6207
+      },
+      "round_min_ns": {
+        "p50": 459,
+        "p99": 639,
+        "p999": 4159
+      },
+      "round_max_ns": {
+        "p50": 487,
+        "p99": 735,
+        "p999": 35327
+      },
+      "sampled_max_ns": 1542815,
+      "sample_count": 62500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 483,
+            "p99": 703,
+            "p999": 5055
+          },
+          "sampled_max_ns": 59897
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 487,
+            "p99": 735,
+            "p999": 6207
+          },
+          "sampled_max_ns": 40838
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 459,
+            "p99": 639,
+            "p999": 4159
+          },
+          "sampled_max_ns": 78837
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 463,
+            "p99": 663,
+            "p999": 8063
+          },
+          "sampled_max_ns": 84390
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 483,
+            "p99": 735,
+            "p999": 35327
+          },
+          "sampled_max_ns": 1542815
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 1000000,
+      "engine": "aeron",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 245,
+        "p99": 4607,
+        "p999": 13183
+      },
+      "round_min_ns": {
+        "p50": 241,
+        "p99": 1615,
+        "p999": 12415
+      },
+      "round_max_ns": {
+        "p50": 263,
+        "p99": 6911,
+        "p999": 19199
+      },
+      "sampled_max_ns": 863387,
+      "sample_count": 625000,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 245,
+            "p99": 6207,
+            "p999": 13183
+          },
+          "sampled_max_ns": 48966
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 245,
+            "p99": 3039,
+            "p999": 12415
+          },
+          "sampled_max_ns": 140221
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 241,
+            "p99": 1615,
+            "p999": 12671
+          },
+          "sampled_max_ns": 285112
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 263,
+            "p99": 4607,
+            "p999": 19199
+          },
+          "sampled_max_ns": 638518
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 243,
+            "p99": 6911,
+            "p999": 17919
+          },
+          "sampled_max_ns": 863387
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 1000000,
+      "engine": "fifo",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 327,
+        "p99": 3903,
+        "p999": 11775
+      },
+      "round_min_ns": {
+        "p50": 327,
+        "p99": 1471,
+        "p999": 8959
+      },
+      "round_max_ns": {
+        "p50": 339,
+        "p99": 622591,
+        "p999": 3080191
+      },
+      "sampled_max_ns": 5006151,
+      "sample_count": 625000,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 327,
+            "p99": 3903,
+            "p999": 11647
+          },
+          "sampled_max_ns": 83020
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 339,
+            "p99": 1471,
+            "p999": 8959
+          },
+          "sampled_max_ns": 77718
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 331,
+            "p99": 2591,
+            "p999": 11775
+          },
+          "sampled_max_ns": 59039
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 327,
+            "p99": 4159,
+            "p999": 14463
+          },
+          "sampled_max_ns": 81521
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 327,
+            "p99": 622591,
+            "p999": 3080191
+          },
+          "sampled_max_ns": 5006151
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 1000000,
+      "engine": "ordered",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 459,
+        "p99": 3391,
+        "p999": 12287
+      },
+      "round_min_ns": {
+        "p50": 447,
+        "p99": 1103,
+        "p999": 9471
+      },
+      "round_max_ns": {
+        "p50": 467,
+        "p99": 6079,
+        "p999": 15487
+      },
+      "sampled_max_ns": 113823,
+      "sample_count": 625000,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 467,
+            "p99": 6079,
+            "p999": 15487
+          },
+          "sampled_max_ns": 92267
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 459,
+            "p99": 4735,
+            "p999": 12927
+          },
+          "sampled_max_ns": 56085
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 463,
+            "p99": 1103,
+            "p999": 10239
+          },
+          "sampled_max_ns": 64776
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 447,
+            "p99": 3391,
+            "p999": 9471
+          },
+          "sampled_max_ns": 67501
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 451,
+            "p99": 2207,
+            "p999": 12287
+          },
+          "sampled_max_ns": 113823
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 100000,
+      "engine": "aeron",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 279,
+        "p99": 951,
+        "p999": 13951
+      },
+      "round_min_ns": {
+        "p50": 279,
+        "p99": 631,
+        "p999": 9727
+      },
+      "round_max_ns": {
+        "p50": 303,
+        "p99": 1887,
+        "p999": 22527
+      },
+      "sampled_max_ns": 823259,
+      "sample_count": 62500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 303,
+            "p99": 1695,
+            "p999": 22527
+          },
+          "sampled_max_ns": 823259
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 279,
+            "p99": 631,
+            "p999": 13951
+          },
+          "sampled_max_ns": 56764
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 279,
+            "p99": 1887,
+            "p999": 14591
+          },
+          "sampled_max_ns": 207154
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 279,
+            "p99": 631,
+            "p999": 13695
+          },
+          "sampled_max_ns": 64038
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 291,
+            "p99": 951,
+            "p999": 9727
+          },
+          "sampled_max_ns": 118790
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 100000,
+      "engine": "fifo",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 367,
+        "p99": 1199,
+        "p999": 9215
+      },
+      "round_min_ns": {
+        "p50": 339,
+        "p99": 583,
+        "p999": 6015
+      },
+      "round_max_ns": {
+        "p50": 391,
+        "p99": 9471,
+        "p999": 22783
+      },
+      "sampled_max_ns": 1062472,
+      "sample_count": 62500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 347,
+            "p99": 583,
+            "p999": 6015
+          },
+          "sampled_max_ns": 51690
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 367,
+            "p99": 9471,
+            "p999": 17151
+          },
+          "sampled_max_ns": 38078
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 391,
+            "p99": 1199,
+            "p999": 22783
+          },
+          "sampled_max_ns": 1062472
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 339,
+            "p99": 2367,
+            "p999": 9215
+          },
+          "sampled_max_ns": 49333
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 387,
+            "p99": 791,
+            "p999": 9215
+          },
+          "sampled_max_ns": 41485
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 100000,
+      "engine": "ordered",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 459,
+        "p99": 663,
+        "p999": 4287
+      },
+      "round_min_ns": {
+        "p50": 287,
+        "p99": 491,
+        "p999": 759
+      },
+      "round_max_ns": {
+        "p50": 499,
+        "p99": 7039,
+        "p999": 13183
+      },
+      "sampled_max_ns": 57124,
+      "sample_count": 62500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 499,
+            "p99": 4927,
+            "p999": 12159
+          },
+          "sampled_max_ns": 39200
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 459,
+            "p99": 663,
+            "p999": 3551
+          },
+          "sampled_max_ns": 31451
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 455,
+            "p99": 663,
+            "p999": 4287
+          },
+          "sampled_max_ns": 31386
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 287,
+            "p99": 491,
+            "p999": 759
+          },
+          "sampled_max_ns": 57124
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 467,
+            "p99": 7039,
+            "p999": 13183
+          },
+          "sampled_max_ns": 37224
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 1000000,
+      "engine": "aeron",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 247,
+        "p99": 5887,
+        "p999": 33279
+      },
+      "round_min_ns": {
+        "p50": 247,
+        "p99": 3455,
+        "p999": 14335
+      },
+      "round_max_ns": {
+        "p50": 251,
+        "p99": 8447,
+        "p999": 57855
+      },
+      "sampled_max_ns": 1003552,
+      "sample_count": 625000,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 251,
+            "p99": 8447,
+            "p999": 34303
+          },
+          "sampled_max_ns": 273762
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 251,
+            "p99": 7295,
+            "p999": 29183
+          },
+          "sampled_max_ns": 893125
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 247,
+            "p99": 3455,
+            "p999": 33279
+          },
+          "sampled_max_ns": 1003552
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 247,
+            "p99": 3871,
+            "p999": 14335
+          },
+          "sampled_max_ns": 250628
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 247,
+            "p99": 5887,
+            "p999": 57855
+          },
+          "sampled_max_ns": 769286
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 1000000,
+      "engine": "fifo",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 339,
+        "p99": 4287,
+        "p999": 13951
+      },
+      "round_min_ns": {
+        "p50": 259,
+        "p99": 743,
+        "p999": 7359
+      },
+      "round_max_ns": {
+        "p50": 351,
+        "p99": 5503,
+        "p999": 42495
+      },
+      "sampled_max_ns": 1774386,
+      "sample_count": 625000,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 343,
+            "p99": 2751,
+            "p999": 42495
+          },
+          "sampled_max_ns": 1774386
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 339,
+            "p99": 4735,
+            "p999": 14335
+          },
+          "sampled_max_ns": 67799
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 259,
+            "p99": 743,
+            "p999": 7359
+          },
+          "sampled_max_ns": 57950
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 351,
+            "p99": 5503,
+            "p999": 13951
+          },
+          "sampled_max_ns": 57003
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 331,
+            "p99": 4287,
+            "p999": 13823
+          },
+          "sampled_max_ns": 67527
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 1,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 1000000,
+      "engine": "ordered",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 455,
+        "p99": 3007,
+        "p999": 11903
+      },
+      "round_min_ns": {
+        "p50": 447,
+        "p99": 1791,
+        "p999": 10495
+      },
+      "round_max_ns": {
+        "p50": 475,
+        "p99": 4671,
+        "p999": 14975
+      },
+      "sampled_max_ns": 216445,
+      "sample_count": 625000,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 455,
+            "p99": 4671,
+            "p999": 14975
+          },
+          "sampled_max_ns": 73014
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 455,
+            "p99": 2815,
+            "p999": 12287
+          },
+          "sampled_max_ns": 78633
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 447,
+            "p99": 1791,
+            "p999": 10495
+          },
+          "sampled_max_ns": 70841
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 475,
+            "p99": 3007,
+            "p999": 11903
+          },
+          "sampled_max_ns": 216445
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 447,
+            "p99": 4351,
+            "p999": 11519
+          },
+          "sampled_max_ns": 63054
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 2,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 100000,
+      "engine": "aeron",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 327,
+        "p99": 58720255,
+        "p999": 76546047
+      },
+      "round_min_ns": {
+        "p50": 295,
+        "p99": 14335,
+        "p999": 5439487
+      },
+      "round_max_ns": {
+        "p50": 331,
+        "p99": 390070271,
+        "p999": 411041791
+      },
+      "sampled_max_ns": 409668369,
+      "sample_count": 62500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 327,
+            "p99": 339738623,
+            "p999": 360710143
+          },
+          "sampled_max_ns": 359029327
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 331,
+            "p99": 390070271,
+            "p999": 411041791
+          },
+          "sampled_max_ns": 409668369
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 295,
+            "p99": 14335,
+            "p999": 5439487
+          },
+          "sampled_max_ns": 7337707
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 315,
+            "p99": 58720255,
+            "p999": 76546047
+          },
+          "sampled_max_ns": 78398035
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 327,
+            "p99": 51380223,
+            "p999": 69206015
+          },
+          "sampled_max_ns": 70689483
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 2,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 100000,
+      "engine": "fifo",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 363,
+        "p99": 8831,
+        "p999": 141311
+      },
+      "round_min_ns": {
+        "p50": 355,
+        "p99": 2751,
+        "p999": 56831
+      },
+      "round_max_ns": {
+        "p50": 375,
+        "p99": 16383,
+        "p999": 1474559
+      },
+      "sampled_max_ns": 3356003,
+      "sample_count": 62500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 363,
+            "p99": 9471,
+            "p999": 1474559
+          },
+          "sampled_max_ns": 2696772
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 367,
+            "p99": 2751,
+            "p999": 141311
+          },
+          "sampled_max_ns": 1013889
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 375,
+            "p99": 16383,
+            "p999": 491519
+          },
+          "sampled_max_ns": 3356003
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 355,
+            "p99": 8831,
+            "p999": 88063
+          },
+          "sampled_max_ns": 633099
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 363,
+            "p99": 8575,
+            "p999": 56831
+          },
+          "sampled_max_ns": 470721
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 2,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 100000,
+      "engine": "ordered",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 479,
+        "p99": 3487,
+        "p999": 696319
+      },
+      "round_min_ns": {
+        "p50": 471,
+        "p99": 823,
+        "p999": 49151
+      },
+      "round_max_ns": {
+        "p50": 507,
+        "p99": 12159,
+        "p999": 925695
+      },
+      "sampled_max_ns": 2534291,
+      "sample_count": 62500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 507,
+            "p99": 3487,
+            "p999": 147455
+          },
+          "sampled_max_ns": 603194
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 471,
+            "p99": 6463,
+            "p999": 745471
+          },
+          "sampled_max_ns": 2336840
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 479,
+            "p99": 12159,
+            "p999": 925695
+          },
+          "sampled_max_ns": 2534291
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 471,
+            "p99": 935,
+            "p999": 696319
+          },
+          "sampled_max_ns": 1466608
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 491,
+            "p99": 823,
+            "p999": 49151
+          },
+          "sampled_max_ns": 191886
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 2,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 1000000,
+      "engine": "aeron",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 295,
+        "p99": 427819007,
+        "p999": 444596223
+      },
+      "round_min_ns": {
+        "p50": 283,
+        "p99": 272629759,
+        "p999": 289406975
+      },
+      "round_max_ns": {
+        "p50": 5375,
+        "p99": 545259519,
+        "p999": 562036735
+      },
+      "sampled_max_ns": 563259819,
+      "sample_count": 625000,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 283,
+            "p99": 545259519,
+            "p999": 562036735
+          },
+          "sampled_max_ns": 563259819
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 291,
+            "p99": 293601279,
+            "p999": 310378495
+          },
+          "sampled_max_ns": 309049016
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 343,
+            "p99": 465567743,
+            "p999": 482344959
+          },
+          "sampled_max_ns": 480782893
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 295,
+            "p99": 272629759,
+            "p999": 289406975
+          },
+          "sampled_max_ns": 290544288
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 5375,
+            "p99": 427819007,
+            "p999": 444596223
+          },
+          "sampled_max_ns": 444998934
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 2,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 1000000,
+      "engine": "fifo",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 343,
+        "p99": 4991,
+        "p999": 843775
+      },
+      "round_min_ns": {
+        "p50": 335,
+        "p99": 2303,
+        "p999": 145407
+      },
+      "round_max_ns": {
+        "p50": 347,
+        "p99": 35327,
+        "p999": 6946815
+      },
+      "sampled_max_ns": 8877822,
+      "sample_count": 625000,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 347,
+            "p99": 6911,
+            "p999": 843775
+          },
+          "sampled_max_ns": 2574112
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 335,
+            "p99": 3263,
+            "p999": 1048575
+          },
+          "sampled_max_ns": 2011556
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 343,
+            "p99": 35327,
+            "p999": 6946815
+          },
+          "sampled_max_ns": 8877822
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 347,
+            "p99": 4991,
+            "p999": 145407
+          },
+          "sampled_max_ns": 920326
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 339,
+            "p99": 2303,
+            "p999": 511999
+          },
+          "sampled_max_ns": 1885622
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 2,
+      "consumers": 1,
+      "payload": 64,
+      "total_rate": 1000000,
+      "engine": "ordered",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 455,
+        "p99": 5823,
+        "p999": 487423
+      },
+      "round_min_ns": {
+        "p50": 447,
+        "p99": 3071,
+        "p999": 53759
+      },
+      "round_max_ns": {
+        "p50": 467,
+        "p99": 6655,
+        "p999": 835583
+      },
+      "sampled_max_ns": 2192674,
+      "sample_count": 625000,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 455,
+            "p99": 5055,
+            "p999": 92159
+          },
+          "sampled_max_ns": 414060
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 455,
+            "p99": 6655,
+            "p999": 487423
+          },
+          "sampled_max_ns": 1553992
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 467,
+            "p99": 3071,
+            "p999": 53759
+          },
+          "sampled_max_ns": 201991
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 459,
+            "p99": 6399,
+            "p999": 548863
+          },
+          "sampled_max_ns": 1886714
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 447,
+            "p99": 5823,
+            "p999": 835583
+          },
+          "sampled_max_ns": 2192674
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 2,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 100000,
+      "engine": "aeron",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 371,
+        "p99": 511705087,
+        "p999": 528482303
+      },
+      "round_min_ns": {
+        "p50": 287,
+        "p99": 9961471,
+        "p999": 28049407
+      },
+      "round_max_ns": {
+        "p50": 415,
+        "p99": 721420287,
+        "p999": 738197503
+      },
+      "sampled_max_ns": 738890244,
+      "sample_count": 62500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 287,
+            "p99": 9961471,
+            "p999": 28049407
+          },
+          "sampled_max_ns": 29846201
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 415,
+            "p99": 511705087,
+            "p999": 528482303
+          },
+          "sampled_max_ns": 528008063
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 331,
+            "p99": 253755391,
+            "p999": 272629759
+          },
+          "sampled_max_ns": 273251654
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 371,
+            "p99": 562036735,
+            "p999": 578813951
+          },
+          "sampled_max_ns": 578843863
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 395,
+            "p99": 721420287,
+            "p999": 738197503
+          },
+          "sampled_max_ns": 738890244
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 2,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 100000,
+      "engine": "fifo",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 439,
+        "p99": 2143,
+        "p999": 958463
+      },
+      "round_min_ns": {
+        "p50": 427,
+        "p99": 1135,
+        "p999": 581631
+      },
+      "round_max_ns": {
+        "p50": 447,
+        "p99": 7615,
+        "p999": 1507327
+      },
+      "sampled_max_ns": 2857850,
+      "sample_count": 62500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 427,
+            "p99": 1135,
+            "p999": 958463
+          },
+          "sampled_max_ns": 2857850
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 439,
+            "p99": 1903,
+            "p999": 942079
+          },
+          "sampled_max_ns": 1510019
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 439,
+            "p99": 7615,
+            "p999": 1097727
+          },
+          "sampled_max_ns": 2379273
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 427,
+            "p99": 5695,
+            "p999": 1507327
+          },
+          "sampled_max_ns": 2622448
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 447,
+            "p99": 2143,
+            "p999": 581631
+          },
+          "sampled_max_ns": 2803866
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 2,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 100000,
+      "engine": "ordered",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 495,
+        "p99": 1231,
+        "p999": 190463
+      },
+      "round_min_ns": {
+        "p50": 439,
+        "p99": 919,
+        "p999": 71679
+      },
+      "round_max_ns": {
+        "p50": 507,
+        "p99": 7615,
+        "p999": 1212415
+      },
+      "sampled_max_ns": 2486017,
+      "sample_count": 62500,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 495,
+            "p99": 1103,
+            "p999": 125951
+          },
+          "sampled_max_ns": 246470
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 495,
+            "p99": 7615,
+            "p999": 1212415
+          },
+          "sampled_max_ns": 2486017
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 439,
+            "p99": 919,
+            "p999": 190463
+          },
+          "sampled_max_ns": 1015086
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 479,
+            "p99": 1231,
+            "p999": 589823
+          },
+          "sampled_max_ns": 1535540
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 507,
+            "p99": 7103,
+            "p999": 71679
+          },
+          "sampled_max_ns": 265468
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 2,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 1000000,
+      "engine": "aeron",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 36175871,
+        "p99": 490733567,
+        "p999": 511705087
+      },
+      "round_min_ns": {
+        "p50": 36863,
+        "p99": 322961407,
+        "p999": 339738623
+      },
+      "round_max_ns": {
+        "p50": 140509183,
+        "p99": 905969663,
+        "p999": 931135487
+      },
+      "sampled_max_ns": 928563727,
+      "sample_count": 625000,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 36863,
+            "p99": 322961407,
+            "p999": 339738623
+          },
+          "sampled_max_ns": 341332964
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 55574527,
+            "p99": 490733567,
+            "p999": 511705087
+          },
+          "sampled_max_ns": 513893851
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 36175871,
+            "p99": 620756991,
+            "p999": 654311423
+          },
+          "sampled_max_ns": 649967059
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 140509183,
+            "p99": 905969663,
+            "p999": 931135487
+          },
+          "sampled_max_ns": 928563727
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 35127295,
+            "p99": 448790527,
+            "p999": 469762047
+          },
+          "sampled_max_ns": 468774674
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 2,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 1000000,
+      "engine": "fifo",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 355,
+        "p99": 3519,
+        "p999": 1114111
+      },
+      "round_min_ns": {
+        "p50": 331,
+        "p99": 1823,
+        "p999": 315391
+      },
+      "round_max_ns": {
+        "p50": 359,
+        "p99": 6271,
+        "p999": 1327103
+      },
+      "sampled_max_ns": 2356507,
+      "sample_count": 625000,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 355,
+            "p99": 3519,
+            "p999": 1327103
+          },
+          "sampled_max_ns": 2191368
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 359,
+            "p99": 6271,
+            "p999": 1114111
+          },
+          "sampled_max_ns": 2356507
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 355,
+            "p99": 1823,
+            "p999": 315391
+          },
+          "sampled_max_ns": 1875546
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 331,
+            "p99": 5503,
+            "p999": 1130495
+          },
+          "sampled_max_ns": 2226051
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 359,
+            "p99": 2879,
+            "p999": 352255
+          },
+          "sampled_max_ns": 1433589
+        }
+      ]
+    },
+    {
+      "origin": "planned",
+      "producers": 2,
+      "consumers": 1,
+      "payload": 256,
+      "total_rate": 1000000,
+      "engine": "ordered",
+      "duration_s": 2,
+      "round_count": 5,
+      "round_median_ns": {
+        "p50": 407,
+        "p99": 5183,
+        "p999": 499711
+      },
+      "round_min_ns": {
+        "p50": 387,
+        "p99": 4223,
+        "p999": 155647
+      },
+      "round_max_ns": {
+        "p50": 443,
+        "p99": 9855,
+        "p999": 1687551
+      },
+      "sampled_max_ns": 5378548,
+      "sample_count": 625000,
+      "rounds": [
+        {
+          "round": 1,
+          "quantiles_ns": {
+            "p50": 387,
+            "p99": 7999,
+            "p999": 1687551
+          },
+          "sampled_max_ns": 5378548
+        },
+        {
+          "round": 2,
+          "quantiles_ns": {
+            "p50": 435,
+            "p99": 5055,
+            "p999": 499711
+          },
+          "sampled_max_ns": 1553692
+        },
+        {
+          "round": 3,
+          "quantiles_ns": {
+            "p50": 443,
+            "p99": 4223,
+            "p999": 155647
+          },
+          "sampled_max_ns": 853932
+        },
+        {
+          "round": 4,
+          "quantiles_ns": {
+            "p50": 407,
+            "p99": 9855,
+            "p999": 901119
+          },
+          "sampled_max_ns": 2512779
+        },
+        {
+          "round": 5,
+          "quantiles_ns": {
+            "p50": 387,
+            "p99": 5183,
+            "p999": 163839
+          },
+          "sampled_max_ns": 299065
+        }
+      ]
+    }
+  ]
+}

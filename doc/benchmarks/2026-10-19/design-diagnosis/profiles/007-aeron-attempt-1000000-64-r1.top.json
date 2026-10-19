@@ -1,0 +1,143 @@
+[
+  {
+    "pid": "537320",
+    "role": "producer",
+    "samples": 602,
+    "top": [
+      {
+        "symbol": "[unknown]",
+        "samples": 392,
+        "percent": 65.11627906976744
+      },
+      {
+        "symbol": "salias::tools::latency::monotonic_now_ns()",
+        "samples": 97,
+        "percent": 16.11295681063123
+      },
+      {
+        "symbol": "(anonymous namespace)::run_producer_child((anonymous namespace)::Options const&, unsigned int, (anonymous namespace)::SharedRunState&)",
+        "samples": 76,
+        "percent": 12.624584717607974
+      },
+      {
+        "symbol": "clock_gettime@@GLIBC_2.17",
+        "samples": 21,
+        "percent": 3.488372093023256
+      },
+      {
+        "symbol": "clock_gettime@plt",
+        "samples": 8,
+        "percent": 1.3289036544850499
+      },
+      {
+        "symbol": "__vdso_clock_gettime",
+        "samples": 3,
+        "percent": 0.4983388704318937
+      },
+      {
+        "symbol": "__sched_yield",
+        "samples": 1,
+        "percent": 0.16611295681063123
+      },
+      {
+        "symbol": "do_syscall_64",
+        "samples": 1,
+        "percent": 0.16611295681063123
+      },
+      {
+        "symbol": "__schedule",
+        "samples": 1,
+        "percent": 0.16611295681063123
+      },
+      {
+        "symbol": "finish_task_switch.isra.0",
+        "samples": 1,
+        "percent": 0.16611295681063123
+      },
+      {
+        "symbol": "aeron_exclusive_publication_try_claim",
+        "samples": 1,
+        "percent": 0.16611295681063123
+      }
+    ]
+  },
+  {
+    "pid": "537319",
+    "role": "consumer",
+    "samples": 601,
+    "top": [
+      {
+        "symbol": "[unknown]",
+        "samples": 266,
+        "percent": 44.25956738768719
+      },
+      {
+        "symbol": "aeron_image_poll",
+        "samples": 141,
+        "percent": 23.46089850249584
+      },
+      {
+        "symbol": "(anonymous namespace)::run_case((anonymous namespace)::Options const&)",
+        "samples": 76,
+        "percent": 12.645590682196339
+      },
+      {
+        "symbol": "aeron_subscription_poll",
+        "samples": 53,
+        "percent": 8.81863560732113
+      },
+      {
+        "symbol": "std::chrono::_V2::steady_clock::now()",
+        "samples": 20,
+        "percent": 3.327787021630616
+      },
+      {
+        "symbol": "void aeron::doPoll<(anonymous namespace)::run_consumer_child((anonymous namespace)::Options const&, unsigned int, (anonymous namespace)::SharedRunState&)::{lambda(aeron::concurrent::AtomicBuffer&, int, int, aeron::concurrent::logbuffer::Header&)#1}>(void*, unsigned char const*, unsigned long, aeron_header_stct*)",
+        "samples": 19,
+        "percent": 3.1613976705490847
+      },
+      {
+        "symbol": "clock_gettime@@GLIBC_2.17",
+        "samples": 12,
+        "percent": 1.9966722129783694
+      },
+      {
+        "symbol": "clock_gettime@plt",
+        "samples": 6,
+        "percent": 0.9983361064891847
+      },
+      {
+        "symbol": "std::chrono::_V2::steady_clock::now()@plt",
+        "samples": 3,
+        "percent": 0.49916805324459235
+      },
+      {
+        "symbol": "aeron_header_values",
+        "samples": 2,
+        "percent": 0.33277870216306155
+      },
+      {
+        "symbol": "__schedule",
+        "samples": 1,
+        "percent": 0.16638935108153077
+      },
+      {
+        "symbol": "__sched_yield",
+        "samples": 1,
+        "percent": 0.16638935108153077
+      }
+    ]
+  },
+  {
+    "pid": "537316",
+    "role": "unclassified",
+    "samples": 2,
+    "top": [
+      {
+        "symbol": "__sched_yield",
+        "samples": 2,
+        "percent": 100.0
+      }
+    ]
+  }
+]

@@ -31,6 +31,7 @@
 #include "concurrent/BusySpinIdleStrategy.h"
 #include "concurrent/logbuffer/BufferClaim.h"
 #include "latency_histogram.hpp"
+#include "latency_pacing.hpp"
 
 namespace {
 /// 匿名命名空间，集中放置本 benchmark 程序的内部类型与工具函数，限制文件内可见。
@@ -53,6 +54,8 @@ struct Options {
   int cpu_base = -1;  ///< CPU 亲和性起始核号，<0 表示不绑定。
   std::uint32_t cpu_stride = 1;  ///< 相邻 worker 之间的 CPU 核号步长。
   std::uint64_t latency_sample_rate = 0;  ///< 延迟采样间隔，0 表示不采样。
+  std::uint64_t rate = 0;
+  std::string latency_origin = "claim";
   bool producers_set = false;  ///< 标记 producers 是否由用户显式指定（影响场景默认值）。
   bool consumers_set = false;  ///< 标记 consumers 是否由用户显式指定（影响场景默认值）。
 };
@@ -65,6 +68,7 @@ struct Options {
  * 多 consumer 并发累加时产生伪共享（false sharing）。
  */
 struct SharedRunState {
+  std::uint64_t start_ns = 0;
   std::atomic<std::uint32_t> ready{0};  ///< 已就绪的 worker 计数，加到总数后父进程发令。
   std::atomic<std::uint32_t> start{0};  ///< 发令标志，置 1 后所有 worker 同时开始收发。
   std::atomic<std::uint32_t> failed{0};  ///< 全局失败标志，任一 worker 异常即置 1。
@@ -121,11 +125,16 @@ Options parse_options(int argc, char** argv) {
       options.cpu_stride = static_cast<std::uint32_t>(std::stoul(require_value("--cpu-stride")));
     } else if (arg == "--latency-sample-rate") {
       options.latency_sample_rate = std::stoull(require_value("--latency-sample-rate"));
+    } else if (arg == "--rate") {
+      options.rate = std::stoull(require_value("--rate"));
+    } else if (arg == "--latency-origin") {
+      options.latency_origin = require_value("--latency-origin");
     } else if (arg == "--help") {
       std::cout << "usage: aeron_ipc_compare --dir DIR --scenario spsc|mpsc|spmc|mpmc "
                    "[--messages N] [--producers N] [--consumers N] [--payload N] "
                    "[--fragment-limit N] [--term-length N] [--cpu-base N] [--cpu-stride N] "
-                   "[--latency-sample-rate N]\n";
+                   "[--latency-sample-rate N] [--rate N] "
+                   "[--latency-origin claim|attempt|planned]\n";
       std::exit(0);
     } else {
       std::cerr << "unknown argument: " << arg << '\n';
@@ -136,6 +145,12 @@ Options parse_options(int argc, char** argv) {
   if (options.dir.empty()) {
     std::cerr << "--dir is required\n";
     std::exit(2);
+  }
+  if ((options.latency_origin != "claim" && options.latency_origin != "attempt" &&
+       options.latency_origin != "planned") ||
+      (options.latency_origin == "planned" && options.rate == 0) ||
+      options.rate > 1'000'000'000ull) {
+    throw std::invalid_argument("invalid pacing rate/latency origin");
   }
   return options;
 }
@@ -488,6 +503,15 @@ Result::LatencySummary summarize_latency(const std::uint64_t* buckets, std::uint
     aeron::concurrent::BusySpinIdleStrategy idle;
     aeron::concurrent::logbuffer::BufferClaim claim;
     for (std::uint64_t i = 0; i < options.messages; ++i) {
+      const auto planned_ns = options.rate == 0 ? 0 : latency::planned_arrival_ns(
+          state.start_ns, i, options.rate, producer_index, options.producers);
+      if (options.rate != 0) {
+        latency::wait_for_arrival(planned_ns);
+      }
+      const bool sampled =
+          options.latency_sample_rate != 0 && i % options.latency_sample_rate == 0;
+      const std::uint64_t origin_ns = !sampled || options.latency_origin == "claim" ? 0 :
+          options.latency_origin == "planned" ? planned_ns : latency::monotonic_now_ns();
       idle.reset();
       for (;;) {
         if (has_failed(state)) {
@@ -499,11 +523,10 @@ Result::LatencySummary summarize_latency(const std::uint64_t* buckets, std::uint
           // marker 高 16 位编码 producer_index，低 48 位编码序号 i，便于多 producer 去重。
           const std::int64_t marker =
               static_cast<std::int64_t>((static_cast<std::uint64_t>(producer_index) << 48) | i);
-          const bool sampled =
-              options.latency_sample_rate != 0 && i % options.latency_sample_rate == 0;
           if (options.latency_sample_rate != 0) {
             // 仅采样帧写入真实发送时间；非采样帧写 0，consumer 据此跳过。
-            const std::uint64_t send_time_ns = sampled ? latency::monotonic_now_ns() : 0;
+            const std::uint64_t send_time_ns =
+                sampled ? (origin_ns != 0 ? origin_ns : latency::monotonic_now_ns()) : 0;
             claim.buffer().putInt64(claim.offset(), static_cast<std::int64_t>(send_time_ns));
             claim.buffer().putInt64(claim.offset() + 8, marker);
           } else {
@@ -593,6 +616,7 @@ Result run_case(const Options& options) {
 
     // 发令：记录起始时间后置 start，所有 worker 的 acquire 读会同时观察到。
     const auto begin = std::chrono::steady_clock::now();
+    state.start_ns = latency::monotonic_now_ns() + (options.rate == 0 ? 0 : 10'000'000);
     state.start.store(1, std::memory_order_release);
 
     // 收尸所有子进程；非零退出码视为失败。
@@ -693,6 +717,8 @@ void print_result(const Options& options, const std::string& scenario, const Res
             << " delivery_mib_per_sec=" << mib_per_second
             << " latency_sample_rate=" << options.latency_sample_rate
             << " latency_samples=" << result.aggregate_latency.samples
+            << " rate_per_producer=" << options.rate
+            << " latency_origin=" << options.latency_origin
             << " latency_p50_ns=" << result.aggregate_latency.p50_ns
             << " latency_p99_ns=" << result.aggregate_latency.p99_ns
             << " latency_p999_ns=" << result.aggregate_latency.p999_ns

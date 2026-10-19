@@ -1,0 +1,12 @@
+baseline 582914500
+baseline;__memset_evex_unaligned_erms 281407000
+baseline;clock_gettime@@GLIBC_2.17 55276375
+baseline;clock_gettime@@GLIBC_2.17;[[vdso]] 1316582750
+baseline;clock_gettime@@GLIBC_2.17;__vdso_clock_gettime 15075375
+baseline;memset@plt 5025125
+baseline;salias::channel::SharedHybridMpscChannel< 999999875
+baseline;std::chrono::_V2::steady_clock::now 50251250
+baseline;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17 25125625
+baseline;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17;[[vdso]] 668341625
+baseline;std::chrono::_V2::steady_clock::now;clock_gettime@@GLIBC_2.17;__vdso_clock_gettime 5025125
+baseline;std::chrono::_V2::steady_clock::now;clock_gettime@plt 10050250

@@ -1,0 +1,98 @@
+[
+  {
+    "pid": "629518",
+    "role": "producer",
+    "samples": 599,
+    "top": [
+      {
+        "symbol": "[unknown]",
+        "samples": 368,
+        "percent": 61.43572621035059
+      },
+      {
+        "symbol": "(anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)",
+        "samples": 151,
+        "percent": 25.208681135225376
+      },
+      {
+        "symbol": "salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Tx::claim(unsigned int, unsigned long, bool) [clone .constprop.0]",
+        "samples": 50,
+        "percent": 8.347245409015025
+      },
+      {
+        "symbol": "clock_gettime@@GLIBC_2.17",
+        "samples": 25,
+        "percent": 4.173622704507513
+      },
+      {
+        "symbol": "__vdso_clock_gettime",
+        "samples": 5,
+        "percent": 0.8347245409015025
+      }
+    ]
+  },
+  {
+    "pid": "629517",
+    "role": "consumer",
+    "samples": 599,
+    "top": [
+      {
+        "symbol": "salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)",
+        "samples": 300,
+        "percent": 50.08347245409015
+      },
+      {
+        "symbol": "[unknown]",
+        "samples": 225,
+        "percent": 37.56260434056761
+      },
+      {
+        "symbol": "(anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)",
+        "samples": 41,
+        "percent": 6.844741235392321
+      },
+      {
+        "symbol": "std::chrono::_V2::steady_clock::now()",
+        "samples": 12,
+        "percent": 2.003338898163606
+      },
+      {
+        "symbol": "salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::flush_progress()",
+        "samples": 9,
+        "percent": 1.5025041736227045
+      },
+      {
+        "symbol": "__vdso_clock_gettime",
+        "samples": 5,
+        "percent": 0.8347245409015025
+      },
+      {
+        "symbol": "clock_gettime@@GLIBC_2.17",
+        "samples": 3,
+        "percent": 0.5008347245409015
+      },
+      {
+        "symbol": "std::chrono::_V2::steady_clock::now()@plt",
+        "samples": 3,
+        "percent": 0.5008347245409015
+      },
+      {
+        "symbol": "clock_gettime@plt",
+        "samples": 1,
+        "percent": 0.1669449081803005
+      }
+    ]
+  },
+  {
+    "pid": "629515",
+    "role": "unclassified",
+    "samples": 1,
+    "top": [
+      {
+        "symbol": "__raw_callee_save___pv_queued_spin_unlock",
+        "samples": 1,
+        "percent": 100.0
+      }
+    ]
+  }
+]

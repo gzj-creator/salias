@@ -1,0 +1,2 @@
+[ perf record: Woken up 3 times to write data ]
+[ perf record: Captured and wrote 4.987 MB build/benchmarks/design-diagnosis-20261019/profiles-final/008-baseline-attempt-1000000-64-r1.perf.data (1197 samples) ]

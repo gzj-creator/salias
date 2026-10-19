@@ -1,0 +1,91 @@
+[
+  {
+    "pid": "629429",
+    "role": "consumer",
+    "samples": 599,
+    "top": [
+      {
+        "symbol": "salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)",
+        "samples": 316,
+        "percent": 52.75459098497496
+      },
+      {
+        "symbol": "[unknown]",
+        "samples": 223,
+        "percent": 37.228714524207014
+      },
+      {
+        "symbol": "(anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)",
+        "samples": 30,
+        "percent": 5.008347245409015
+      },
+      {
+        "symbol": "std::chrono::_V2::steady_clock::now()",
+        "samples": 8,
+        "percent": 1.335559265442404
+      },
+      {
+        "symbol": "salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::flush_progress()",
+        "samples": 7,
+        "percent": 1.1686143572621035
+      },
+      {
+        "symbol": "clock_gettime@@GLIBC_2.17",
+        "samples": 7,
+        "percent": 1.1686143572621035
+      },
+      {
+        "symbol": "clock_gettime@plt",
+        "samples": 3,
+        "percent": 0.5008347245409015
+      },
+      {
+        "symbol": "__vdso_clock_gettime",
+        "samples": 3,
+        "percent": 0.5008347245409015
+      },
+      {
+        "symbol": "std::chrono::_V2::steady_clock::now()@plt",
+        "samples": 2,
+        "percent": 0.333889816360601
+      }
+    ]
+  },
+  {
+    "pid": "629430",
+    "role": "producer",
+    "samples": 599,
+    "top": [
+      {
+        "symbol": "[unknown]",
+        "samples": 371,
+        "percent": 61.93656093489149
+      },
+      {
+        "symbol": "(anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)",
+        "samples": 143,
+        "percent": 23.87312186978297
+      },
+      {
+        "symbol": "salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Tx::claim(unsigned int, unsigned long, bool) [clone .constprop.0]",
+        "samples": 59,
+        "percent": 9.84974958263773
+      },
+      {
+        "symbol": "clock_gettime@@GLIBC_2.17",
+        "samples": 20,
+        "percent": 3.33889816360601
+      },
+      {
+        "symbol": "__vdso_clock_gettime",
+        "samples": 5,
+        "percent": 0.8347245409015025
+      },
+      {
+        "symbol": "std::_Sp_counted_base<(__gnu_cxx::_Lock_policy)2>::_M_release()",
+        "samples": 1,
+        "percent": 0.1669449081803005
+      }
+    ]
+  }
+]

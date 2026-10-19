@@ -1,0 +1,24 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 1K of event 'cpu-clock'
+# Event count (approx.): 6020099750
+#
+# Overhead      Pid:Command      Shared Object        Symbol                                                                                                                                                                          IPC   [IPC Coverage]
+# ........  ...................  ...................  ..............................................................................................................................................................................  ....................
+#
+    26.38%   629429:cursor-pack  cursor-pack          [.] salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Rx::try_recv_run(salias::flow::Message*, unsigned int)             -      -            
+    17.61%   629430:cursor-pack  [vdso]               [.] 0x0000000000000c6a                                                                                                                                                          -      -            
+    11.94%   629430:cursor-pack  cursor-pack          [.] (anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)                                                 -      -            
+    10.43%   629429:cursor-pack  [vdso]               [.] 0x0000000000000c6a                                                                                                                                                          -      -            
+     4.92%   629430:cursor-pack  cursor-pack          [.] salias::channel::SharedHybridMpscChannel<(salias::channel::Order)0, salias::wait::AdaptiveFutex, false>::Tx::claim(unsigned int, unsigned long, bool) [clone .constprop.0]  -      -            
+     2.50%   629429:cursor-pack  cursor-pack          [.] (anonymous namespace)::Result (anonymous namespace)::run_case_typed<(salias::Mode)0>((anonymous namespace)::Options const&)                                                 -      -            
+     1.67%   629430:cursor-pack  libc.so.6            [.] clock_gettime@@GLIBC_2.17                                                                                                                                                   -      -            
+     1.50%   629430:cursor-pack  [vdso]               [.] 0x0000000000000cae                                                                                                                                                          -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

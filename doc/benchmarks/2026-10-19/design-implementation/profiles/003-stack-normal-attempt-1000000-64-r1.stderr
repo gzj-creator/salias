@@ -1,0 +1,2 @@
+[ perf record: Woken up 1 times to write data ]
+[ perf record: Captured and wrote 3.338 MB build/benchmarks/design-implementation-20261019/profiles/003-stack-normal-attempt-1000000-64-r1.perf.data (800 samples) ]
