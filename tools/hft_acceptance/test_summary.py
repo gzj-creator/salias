@@ -64,6 +64,7 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_worker_failure_cannot_pass_latency(self):
         self.result["worker_failure"] = True
+        self.result["integrity_pass"] = False
         self.assertFalse(self.assess()["p99_acceptance_pass"])
 
     def test_incomplete_input_cannot_pass_latency(self):
@@ -77,6 +78,25 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_corrupt_histogram_is_rejected(self):
         self.result["aggregate_from_first_attempt"]["samples"] += 1
+        with self.assertRaises(AssertionError):
+            self.assess()
+
+    def test_long_matrix_cannot_accept_diagnostics_stall_or_changed_rate(self):
+        for field, value in (("diagnostics", True), ("stall_subscriber_ms", 200),
+                             ("steady_total_rate", 500000), ("burst_ms_per_second", 50)):
+            start = dict(self.rows[0], **{field: value})
+            with self.subTest(field=field), self.assertRaises(AssertionError):
+                summarize.check_formal_start(start)
+
+    def test_missing_publisher_sequence_is_rejected(self):
+        self.result["subscribers"][0]["sequence"].pop()
+        with self.assertRaises(AssertionError):
+            self.assess()
+
+    def test_false_completion_claim_is_rejected(self):
+        self.result["unsent_at_cutoff"] = 1
+        self.result["planned_published"] += 1
+        self.rows[0]["planned_published"] += 1
         with self.assertRaises(AssertionError):
             self.assess()
 

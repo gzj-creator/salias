@@ -76,16 +76,35 @@ def load_phase(path):
     results = [row for row in rows if row["type"] == "result"]
     assert len(starts) == len(results) == 1, path
     start, result = starts[0], results[0]
+    assert len(result["publishers"]) == 2
+    assert len(result["subscribers"]) == start["subscribers"]
+    assert [p["publisher"] for p in result["publishers"]] == [0, 1]
+    assert [s["subscriber"] for s in result["subscribers"]] == list(range(start["subscribers"]))
     assert result["measurement_seconds"] == start["duration_s"]
+    assert result["planned_published"] == start["planned_published"]
     assert result["wall_seconds_including_drain_and_reap"] >= start["duration_s"]
     assert result["published"] == sum(p["sent"] for p in result["publishers"])
     assert result["planned_published"] - result["published"] == result["unsent_at_cutoff"]
     assert result["delivered"] == sum(s["received"] for s in result["subscribers"])
+    assert 0 <= result["published"] <= result["planned_published"]
+    if result["offered_load_completed"]:
+        assert result["unsent_at_cutoff"] == 0
+        assert result["delivered"] == result["published"] * start["subscribers"]
     total_publisher_samples = sum(p["first_attempt_to_commit"]["samples"] for p in result["publishers"])
     for publisher in result["publishers"]:
         check_histogram(publisher["first_attempt_to_commit"])
         check_histogram(publisher["planned_to_first_attempt"])
+        assert publisher["planned_to_first_attempt"]["samples"] == publisher["first_attempt_to_commit"]["samples"]
+        for key in ("successful_claim", "failed_claim", "commit_call"):
+            if key in publisher:
+                check_histogram(publisher[key])
+                if not start.get("diagnostics", False):
+                    assert publisher[key]["samples"] == 0, "formal run contains diagnostic samples"
+        if start.get("diagnostics", False):
+            assert publisher["successful_claim"]["samples"] == publisher["commit_call"]["samples"] == publisher["first_attempt_to_commit"]["samples"]
     for sub in result["subscribers"]:
+        assert len(sub["sequence"]) == 2
+        assert [q["publisher"] for q in sub["sequence"]] == [0, 1]
         check_histogram(sub["from_first_attempt"])
         check_histogram(sub["from_planned_arrival"])
         if sub["integrity_pass"]:
@@ -95,6 +114,9 @@ def load_phase(path):
             for sequence, publisher in zip(sub["sequence"], result["publishers"]):
                 assert sequence["unique"] == publisher["sent"]
                 assert not any(sequence[key] for key in ["missing_published", "duplicates", "out_of_order", "gap_events", "corrupt", "invalid"])
+    if result["integrity_pass"]:
+        assert not result["worker_failure"]
+        assert all(sub["integrity_pass"] for sub in result["subscribers"])
     for key, subkey in [("aggregate_from_first_attempt", "from_first_attempt"), ("aggregate_from_planned_arrival", "from_planned_arrival")]:
         assert merge([sub[subkey] for sub in result["subscribers"]]) == result[key]
     progress = [row for row in rows if row["type"] == "progress"]
@@ -137,6 +159,14 @@ def load_phase(path):
     }
 
 
+def check_formal_start(start):
+    """Formal matrices must keep offered traffic and omit intrusive/fault diagnostics."""
+    assert not start.get("diagnostics", False), "diagnostic run is not acceptance data"
+    assert start.get("stall_subscriber_ms", 0) == 0, "fault-injection run is not acceptance data"
+    assert (start["steady_total_rate"], start["peak_total_rate"]) == (1000000, 4000000), "offered rate changed"
+    assert start["burst_ms_per_second"] == (100 if start["pattern"] == "burst" else 0)
+
+
 def cells(h):
     values = [h[key] / 1000 for key in ["p50_ns", "p99_ns", "p999_ns", "max_sampled_ns"]]
     return " | ".join(f"{value:.3f}" for value in values)
@@ -157,6 +187,7 @@ def main():
     assert all(p["start"]["duration_s"] == args.expected_seconds for p in phases)
     for phase in phases:
         start = phase["start"]
+        check_formal_start(start)
         assert phase["phase"] == f"2p{start['subscribers']}s-{start['payload_bytes']}b-{start['pattern']}"
         assert (start["capacity_per_publisher_bytes"], start["publication_window_bytes"], start["batch"], start["poll_limit"], start["sample_hash_mask"]) == (4194304, 131072, 1, 64, 63)
         if start["pattern"] == "steady":

@@ -23,6 +23,8 @@ def aggregate(paths):
     assert all((start["capacity_per_publisher_bytes"], start["publication_window_bytes"],
                 start["batch"], start["poll_limit"], start["sample_hash_mask"]) ==
                (4194304, 131072, 1, 64, 63) for start in starts), "measurement settings changed"
+    for start in starts:
+        summarize.check_formal_start(start)
     for phase in phases:
         start, result = phase["start"], phase["result"]
         burst_ms = start["burst_ms_per_second"]
@@ -37,7 +39,15 @@ def aggregate(paths):
                      "from_planned_arrival": summarize.merge([r["from_planned_arrival"] for r in rows]),
                      "from_first_attempt": summarize.merge([r["from_first_attempt"] for r in rows])})
     valid = all(phase["acceptance"]["valid_and_complete"] for phase in phases)
+    publishers = []
+    for publisher in range(2):
+        rows = [phase["result"]["publishers"][publisher] for phase in phases]
+        assert all(row["publisher"] == publisher for row in rows)
+        publishers.append({"publisher": publisher, **{
+            key: summarize.merge([r[key] for r in rows])
+            for key in ("first_attempt_to_commit", "planned_to_first_attempt")}})
     return {
+        "configuration": {key: starts[0][key] for key in keys},
         "runs": [{"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
                   "acceptance": phase["acceptance"]} for path, phase in zip(paths, phases)],
         "measurement_seconds": sum(p["result"]["measurement_seconds"] for p in phases),
@@ -48,6 +58,9 @@ def aggregate(paths):
         "backpressure_retries": sum(p["backpressure_retries"] for phase in phases
                                     for p in phase["result"]["publishers"]),
         "subscribers": subs,
+        "publishers": publishers,
+        "run_count": len(phases),
+        "seconds_per_run": starts[0]["duration_s"],
         "worst_planned_p99_ns": max(s["from_planned_arrival"]["p99_ns"] for s in subs),
         "worst_planned_p999_ns": max(s["from_planned_arrival"]["p999_ns"] for s in subs),
         "worst_attempt_p999_ns": max(s["from_first_attempt"]["p999_ns"] for s in subs),
@@ -55,10 +68,85 @@ def aggregate(paths):
     }
 
 
+def relative_gate(name, baseline, candidate):
+    """Integer comparisons include the exact 20% improvement and 5% regression boundaries."""
+    targeted = name in ("2p2s-64b-burst", "2p2s-256b-burst")
+    a, b = baseline["worst_planned_p999_ns"], candidate["worst_planned_p999_ns"]
+    valid = baseline["valid_and_complete"] and candidate["valid_and_complete"] and a > 0
+    passed = b * 100 <= a * (80 if targeted else 105)
+    return {"targeted": targeted, "change_percent": (b / a - 1) * 100 if a else None,
+            "valid_and_complete": valid, "pass": bool(valid and passed)}
+
+
+def assess_groups(groups):
+    """Every independent group must pass; pooled quantiles cannot rescue a failed group."""
+    expected = {f"2p{s}s-{p}b-{pattern}" for s in (1, 2) for p in (64, 256)
+                for pattern in ("steady", "burst")}
+    assert len(groups) == 3, "exactly three independent ABBA groups required"
+    assessments = []
+    for group in groups:
+        assert set(group["phases"]) == expected, "missing or unexpected configuration"
+        assert group["order"] == ["baseline", "candidate", "candidate", "baseline"]
+        assert all(v["measurement_seconds"] == 60 for phase in group["phases"].values()
+                   for v in phase.values()), "formal ABBA requires two 30-second runs per version"
+        assert all(v["run_count"] == 2 and v["seconds_per_run"] == 30
+                   for phase in group["phases"].values() for v in phase.values()), "formal run count or duration mismatch"
+        assessments.append({name: relative_gate(name, versions["baseline"], versions["candidate"])
+                            for name, versions in group["phases"].items()})
+    return {"groups": assessments, "relative_acceptance_pass": all(
+        result["pass"] for group in assessments for result in group.values()),
+        "candidate_50us_pass": all(v["candidate"]["planned_p999_budget_pass"]
+                                   for group in groups for v in group["phases"].values())}
+
+
+def audit_saved_group(group, directory=None):
+    """Recompute each version from its raw files; a stale summary cannot authorize a pass."""
+    all_paths = []
+    for name, versions in group["phases"].items():
+        assert set(versions) == {"baseline", "candidate"}, "unexpected A/B version"
+        for version, result in versions.items():
+            paths = [Path(run["path"]) for run in result["runs"]]
+            all_paths.extend(paths)
+            if directory is not None:
+                assert all(p.parents[2].resolve() == directory.resolve() for p in paths), "raw run belongs to another group"
+            assert len(set(paths)) == len(paths), "duplicated raw run"
+            assert all(p.stem == name and p.parent.name == version for p in paths), "wrong raw run identity"
+            rounds = [p.parents[1].name for p in paths]
+            assert rounds == (["round-0", "round-3"] if version == "baseline" else ["round-1", "round-2"]), "wrong ABBA run order"
+            assert aggregate(paths) == result, "saved summary differs from raw audit"
+        assert versions["baseline"]["configuration"] == versions["candidate"]["configuration"], "A/B configuration mismatch"
+    if directory is not None:
+        assert set(directory.glob("round-*/*/2p*.jsonl")) == set(all_paths), "unexpected raw files"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
+    parser.add_argument("--suite", action="store_true", help="audit three group-N/ab-summary.json files")
     args = parser.parse_args()
+    if args.suite:
+        paths = [args.directory / f"group-{i}" / "ab-summary.json" for i in range(1, 4)]
+        groups = [json.loads(path.read_text()) for path in paths]
+        for group, path in zip(groups, paths):
+            audit_saved_group(group, path.parent)
+        result = assess_groups(groups)
+        result["inputs"] = [{"path": str(p), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
+                            for p in paths]
+        (args.directory / "relative-acceptance.json").write_text(json.dumps(result, indent=2) + "\n")
+        lines = ["# Relative Publisher Tail Acceptance", "",
+                 f"Relative gate: **{'PASS' if result['relative_acceptance_pass'] else 'FAIL'}**.",
+                 f"Candidate 50us gate: **{'PASS' if result['candidate_50us_pass'] else 'FAIL'}**.", "",
+                 "Every group must pass independently: both 2P2S bursts improve >=20%; other configurations regress <=5%.",
+                 "All baseline/candidate input and delivery checks must pass. Negative change means improvement.", "",
+                 "| Configuration | Group 1 change | Group 2 change | Group 3 change | All groups pass |",
+                 "|---|---:|---:|---:|---|"]
+        for name in sorted(result["groups"][0]):
+            values = [group[name] for group in result["groups"]]
+            changes = [f"{v['change_percent']:+.1f}%" if v['change_percent'] is not None else "N/A" for v in values]
+            lines.append(f"| {name} | {' | '.join(changes)} | {all(v['pass'] for v in values)} |")
+        (args.directory / "relative-acceptance.md").write_text("\n".join(lines) + "\n")
+        print(json.dumps(result))
+        return
     expected = {f"2p{s}s-{payload}b-{pattern}" for s in (1, 2)
                 for payload in (64, 256) for pattern in ("steady", "burst")}
     phases = {}
@@ -70,6 +158,9 @@ def main():
             versions[version] = aggregate(paths)
             all_paths.extend(paths)
         assert versions["baseline"]["measurement_seconds"] == versions["candidate"]["measurement_seconds"]
+        assert versions["baseline"]["configuration"] == versions["candidate"]["configuration"], "A/B configuration mismatch"
+        config = versions["baseline"]["configuration"]
+        assert name == f"2p{config['subscribers']}s-{config['payload_bytes']}b-{config['pattern']}", "filename/configuration mismatch"
         # Preserve failed/incomplete runs in the comparison instead of hiding them
         # behind a summary exception. Completion is an explicit acceptance gate.
         phases[name] = versions
@@ -98,6 +189,22 @@ def main():
                 a = run["acceptance"]
                 lines.append(f"| {name} | {version} | {Path(run['path']).parents[1].name} | "
                              f"{a['worst_planned_p99_ns']/1000:.3f} | {a['worst_planned_p999_ns']/1000:.3f} | {a['valid_and_complete']} |")
+    lines += ["", "## Publisher Components", "",
+              "Each row retains one publisher; quantiles are merged from that publisher's raw buckets only.", "",
+              "| Configuration | Version | Publisher | Attempt to commit p50 / p99 / p99.9 us | Planned to attempt p50 / p99 / p99.9 us |",
+              "|---|---|---|---|---|"]
+    for name, versions in phases.items():
+        for version, result in versions.items():
+            for publisher in result["publishers"]:
+                values = [" / ".join(f"{publisher[key][q]/1000:.3f}" for q in ("p50_ns", "p99_ns", "p999_ns"))
+                          for key in ("first_attempt_to_commit", "planned_to_first_attempt")]
+                lines.append(f"| {name} | {version} | {publisher['publisher']} | {' | '.join(values)} |")
+    lines += ["", "## Backpressure", "",
+              "| Configuration | Version | Failed claim retries | Published | Delivered |",
+              "|---|---|---:|---:|---:|"]
+    for name, versions in phases.items():
+        for version, result in versions.items():
+            lines.append(f"| {name} | {version} | {result['backpressure_retries']} | {result['published']} | {result['delivered']} |")
     lines += ["", "Negative change means lower p99.9. No causal claim about guest scheduling or host contention is made.",
               "Do not subtract independent quantiles to attribute component time. No cross-configuration percentiles are reported.", ""]
     (args.directory / "ab-summary.json").write_text(json.dumps(document, indent=2) + "\n")

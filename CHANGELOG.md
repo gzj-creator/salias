@@ -23,6 +23,7 @@ are released.
 
 ### Added
 
+- Publisher 尾延迟工具增加独立诊断开关、逐 worker 资源快照、冻结二进制构建和三组串行 ABBA 入口；正式汇总拒绝诊断、故障注入、配置不匹配及被篡改的原始文件，逐 publisher 合并桶并分别执行 20% 收益 / 5% 退化门禁。
 - 新增合成行情 IPC 验收工具：按原计划到达时钟评估 2P1S/2P2S、64/256 B 稳态与突发负载，逐消息核验序号和 payload，记录背压、输入完成性及每个订阅者时延；提供交错 A/B、环境采集和原始桶汇总脚本。
 - 新增 `Channel<Mode, Schema>` 固定布局通道：以应用声明的非零 schema ID、显式版本和 `message_type` 绑定类型；连接时拒绝 raw/typed 混连及 schema 不匹配，typed publisher 提供定长 claim、typed subscriber 只返回本地复制值。
 - 新增 `Publisher::send<T>()` / `send_for<T>()` 与 `Subscriber::try_recv_copy<T>()` / `recv_copy<T>()`，为固定布局的平凡可复制类型提供无需逐消息堆分配的类型化发送和本地复制接收；不兼容长度返回 `PayloadSizeMismatch` 并释放消息。
@@ -74,6 +75,7 @@ are released.
 
 ### Docs
 
+- 补齐 2026-10-18 三组 ABBA、96 个正式阶段的相对收益失败报告；被否决的产品补丁不发布，48 分钟测量不等于通过性能验收，原始大文件和临时日志仅保留于本地 build 目录。
 - 汇总 Publisher 时延、基线/候选长测、交错 A/B、安全审查及使用边界；保留最终表、精简标量结果与来源哈希，将本日压测目录从 283 个文件、27.4 MB 精简至 4 个文件、约 0.29 MB。删除原始桶及临时日志后不能重新计算历史百分位，文档明确该限制。
 - 说明显式 wire schema、连接时检查、固定帧步进、`SchemaMismatch` 与 v13 不兼容边界，并区分 raw 泛型复制 API 和 schema-bound API。
 - 补充 per-message TTL API、同主机单调时钟域、接收时惰性过期、借用期约束和 v12 协议兼容说明，并增加 TTL drain 压测入口。

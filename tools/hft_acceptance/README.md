@@ -8,6 +8,9 @@ See `doc/hft-market-data-acceptance-2026-10-18.md` for status, methodology, resu
 limitations, exact commands, and the provisional 50 us percentile criteria.
 
 Latest consolidated results: `doc/performance-summary-2026-10-18.md`.
+The later three-group relative-gain experiment is documented in
+`doc/publisher-tail-relative-acceptance-2026-10-18.md`; its product candidate was
+rejected and removed. Its new raw data remains under `build/benchmarks/`.
 Historical temporary raw results were removed after verification; compact scalar
 results and final Markdown tables remain in `doc/benchmarks/2026-10-18/`.
 They do not contain histogram buckets and cannot regenerate historical quantiles.
@@ -111,3 +114,54 @@ Only synthetic IPC integrity is covered. Per-publisher FIFO order is not global
 exchange order. Business acceptance still needs real recorded feeds, exchange
 sequence domains, gap recovery, duplicates, snapshots and order-book invariants.
 Neither p99.99 nor the all-message maximum latency is measured.
+
+## Publisher Tail Optimization A/B
+
+`--diagnostics` enables additional sampled clocks around successful/failed
+`try_claim` calls and `commit`. It is off by default; diagnostic runs are rejected
+by formal matrix and A/B summaries. Retry samples are conditioned on the sampled
+message, not independent draws from all failed calls; zero failed-call samples
+do not mean zero backpressure. Never subtract independent percentiles to attribute
+component latency. `--stall-subscriber-ms` is also excluded from formal acceptance.
+
+Each worker records resource deltas with `getrusage` immediately after the start
+barrier and before exit: user/system CPU time, voluntary/involuntary context
+switches, and minor/major faults. These snapshots include the synchronized 100ms
+start lead and subscriber drain, not just the nominal measurement interval.
+They are diagnostic observations, not proof of a particular scheduling cause.
+
+Build the same harness against separately frozen baseline/candidate headers and
+libraries. Both must use matching Release compiler/flags. Do not compare historical
+reports against a new candidate as if they were an interleaved control.
+
+```bash
+bash tools/hft_acceptance/build_tail_variant.sh BASELINE_SOURCE OUTPUT_BUILD_BASELINE
+bash tools/hft_acceptance/build_tail_variant.sh CANDIDATE_SOURCE OUTPUT_BUILD_CANDIDATE
+# Warm all configurations, then three independent ABBA groups; 48 minutes of
+# formal measurement, plus startup/drain/warm-up. Never compile concurrently.
+bash tools/hft_acceptance/run_tail_suite.sh OUTPUT BASELINE_BINARY CANDIDATE_BINARY
+python3 tools/hft_acceptance/summarize_tail_ab.py OUTPUT --suite
+# Run this independent 30-minute candidate matrix only if relative gates pass.
+bash tools/hft_acceptance/run_matrix.sh OUTPUT_LONG 225 CANDIDATE_BINARY
+python3 tools/hft_acceptance/summarize.py OUTPUT_LONG
+python3 -m unittest discover -s tools/hft_acceptance -p 'test_*.py'
+```
+
+Every ABBA phase lasts 30 seconds; each version has two runs/configuration/group.
+Each subscriber's raw buckets and each publisher's metrics are merged separately.
+For **each of all three groups**, worst-subscriber planned-arrival p99.9 must
+improve by at least 20% in both 2P2S burst payload configurations; the other six
+configurations must not regress by more than 5%. All original input must complete,
+and all workers/deliveries must pass integrity. Preserve failed/incomplete runs.
+The independent long matrix must also pass integrity and input completion.
+Relative improvement and the provisional 50us budget are separate verdicts.
+Script exit zero means orchestration completed, not performance acceptance.
+
+Outputs include raw JSONL/histograms, commands, binary/source hashes, per-group
+`ab-summary.json`/Markdown, `/proc/stat` snapshots and `relative-acceptance.json`.
+The suite auditor re-reads raw files and checks saved summaries, file hashes,
+ABBA order and group ownership before producing `relative-acceptance.md`.
+Keep these artifacts under `build/benchmarks/`; do not remove them after reporting.
+Run serially on unchanged binaries with no overlapping diagnostic or build load.
+If relative gates fail, skip the conditional long matrix and do not retain an
+unaccepted product patch as a claimed optimization.

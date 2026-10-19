@@ -96,7 +96,24 @@ struct Options {
   std::uint64_t rate = 1'000'000, peak_rate = 4'000'000;
   unsigned burst_ms = 100;
   bool burst = false;
+  bool diagnostics = false;
   unsigned stall_subscriber_ms = 0;
+};
+
+// Worker-local snapshots: no monitoring reads or extra clocks on the formal hot path.
+struct Resources {
+  rusage start{}, finish{};
+  void begin() { getrusage(RUSAGE_SELF, &start); }
+  void end() { getrusage(RUSAGE_SELF, &finish); }
+  void print() const {
+    const auto micros = [](timeval t) { return std::int64_t{t.tv_sec} * 1'000'000 + t.tv_usec; };
+    std::cout << "{\"user_us\":" << micros(finish.ru_utime) - micros(start.ru_utime)
+              << ",\"system_us\":" << micros(finish.ru_stime) - micros(start.ru_stime)
+              << ",\"voluntary_context_switches\":" << finish.ru_nvcsw - start.ru_nvcsw
+              << ",\"involuntary_context_switches\":" << finish.ru_nivcsw - start.ru_nivcsw
+              << ",\"minor_faults\":" << finish.ru_minflt - start.ru_minflt
+              << ",\"major_faults\":" << finish.ru_majflt - start.ru_majflt << '}';
+  }
 };
 // The schedule never shifts when the writer falls behind. Unsent arrivals remain
 // explicit at cutoff; only already-published frames are drained afterwards.
@@ -140,6 +157,8 @@ struct alignas(64) PublisherStats {
   std::uint64_t retries = 0, bp_messages = 0, bp_ns = 0, bp_max_ns = 0;
   std::uint64_t backlog_highwater_observed = 0, ended_ns = 0;
   Histogram claim_commit, schedule_lag;
+  Histogram successful_claim, failed_claim, commit_call;
+  Resources resources;
 };
 struct SequenceStats {
   std::uint64_t received = 0, unique = 0, duplicate = 0, out_of_order = 0;
@@ -166,6 +185,7 @@ struct alignas(64) SubscriberStats {
   std::uint64_t invalid_publisher = 0, clock_reversals = 0, ended_ns = 0;
   std::uint64_t unreceived_at_measurement_cutoff = 0;
   Histogram from_attempt, from_schedule;
+  Resources resources;
 };
 struct Shared {
   std::atomic<unsigned> ready{0};
@@ -199,6 +219,7 @@ void produce(const Options& o, const std::string& name, unsigned id, Shared& s) 
   auto publisher = channel.publisher();
   auto& stats = s.publishers[id];
   ready(s);
+  stats.resources.begin();
   const auto end = s.start_ns + plan.duration_ns;
   std::uint64_t seq = 0;
   while (seq < plan.total() && !s.stop.load(std::memory_order_relaxed)) {
@@ -214,8 +235,12 @@ void produce(const Options& o, const std::string& name, unsigned id, Shared& s) 
     std::uint64_t bp_start = 0;
     bool committed = false;
     while (!s.stop.load(std::memory_order_relaxed)) {
+      const bool diagnostic = o.diagnostics && sample;
+      const auto call_start = diagnostic ? now_ns() : 0;
       auto result = publisher.try_claim(o.payload);
+      const auto call_end = diagnostic ? now_ns() : 0;
       if (result) {
+        if (diagnostic) stats.successful_claim.record(call_end - call_start);
         auto claim = std::move(result).value();
         const Header h{magic, seq, due, sample ? attempt : 0, id, o.payload, 0};
         auto header = h;
@@ -226,7 +251,9 @@ void produce(const Options& o, const std::string& name, unsigned id, Shared& s) 
           const auto value = magic ^ seq ^ (std::uint64_t{id} << 61) ^ word;
           std::memcpy(payload.data() + word * 8, &value, sizeof(value));
         }
+        const auto commit_start = diagnostic ? now_ns() : 0;
         claim.commit();
+        if (diagnostic) stats.commit_call.record(now_ns() - commit_start);
         if (sample || bp_start) now = now_ns();
         if (sample) {
           stats.claim_commit.record(now - attempt);
@@ -237,6 +264,7 @@ void produce(const Options& o, const std::string& name, unsigned id, Shared& s) 
       }
       if (result.error() != salias::Error::BackPressured)
         throw std::runtime_error("non-backpressure publisher error");
+      if (diagnostic) stats.failed_claim.record(call_end - call_start);
       ++stats.retries;
       now = now_ns();
       if (!bp_start) { bp_start = now; ++stats.bp_messages; }
@@ -263,6 +291,7 @@ void produce(const Options& o, const std::string& name, unsigned id, Shared& s) 
   }
   stats.sent.store(seq, std::memory_order_release);
   stats.ended_ns = now_ns();
+  stats.resources.end();
   stats.done.store(true, std::memory_order_release);
 }
 
@@ -278,6 +307,7 @@ void consume(const Options& o, const std::string& name, unsigned id, Shared& s) 
   auto subscriber = channel.subscriber();  // Reliable FIFO only.
   auto& stats = s.subscribers[id];
   ready(s);
+  stats.resources.begin();
   const auto end = s.start_ns + plan.duration_ns;
   const auto drain_end = end + 5 * second;
   std::uint64_t count = 0;
@@ -333,6 +363,7 @@ void consume(const Options& o, const std::string& name, unsigned id, Shared& s) 
   }
   stats.received.store(count, std::memory_order_release);
   stats.ended_ns = now_ns();
+  stats.resources.end();
 }
 
 void self_test() {
@@ -485,7 +516,8 @@ bool run(const Options& o) {
       if (i) std::cout << ',';
       std::cout << i + o.cpu_base;
     }
-    std::cout << "]}\n" << std::flush;
+    std::cout << "],\"diagnostics\":" << (o.diagnostics ? "true" : "false")
+              << ",\"stall_subscriber_ms\":" << o.stall_subscriber_ms << "}\n" << std::flush;
     auto next_log = s.start_ns + second;
     std::size_t alive = children.size();
     statuses.resize(children.size(), -1);
@@ -545,6 +577,14 @@ bool run(const Options& o) {
       p.claim_commit.print();
       std::cout << ",\"planned_to_first_attempt\":";
       p.schedule_lag.print();
+      std::cout << ",\"successful_claim\":";
+      p.successful_claim.print();
+      std::cout << ",\"failed_claim\":";
+      p.failed_claim.print();
+      std::cout << ",\"commit_call\":";
+      p.commit_call.print();
+      std::cout << ",\"resources\":";
+      p.resources.print();
       std::cout << '}';
     }
     std::cout << "],\"subscribers\":[";
@@ -582,6 +622,8 @@ bool run(const Options& o) {
       sub.from_attempt.print();
       std::cout << ",\"from_planned_arrival\":";
       sub.from_schedule.print();
+      std::cout << ",\"resources\":";
+      sub.resources.print();
       std::cout << '}';
       aggregate_attempt.merge(sub.from_attempt);
       aggregate_schedule.merge(sub.from_schedule);
@@ -618,6 +660,7 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
       const std::string key = argv[i];
       if (key == "--self-test") { self_test(); return 0; }
+      if (key == "--diagnostics") { o.diagnostics = true; continue; }
       if (i + 1 == argc) throw std::runtime_error("missing argument value");
       const std::string value = argv[++i];
       if (key == "--subscribers") o.subscribers = std::stoul(value);

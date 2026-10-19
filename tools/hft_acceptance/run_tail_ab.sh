@@ -16,7 +16,7 @@ if [[ -e "$out/run-state.txt" ]]; then
   exit 2
 fi
 mkdir -p "$out"
-sha256sum "$baseline" "$candidate" tools/hft_acceptance/acceptance.cpp > "$out/input-sha256.txt"
+sha256sum "$baseline" "$candidate" tools/hft_acceptance/{acceptance.cpp,run_tail_ab.sh} > "$out/input-sha256.txt"
 printf 'start=%s\nseconds_per_phase=%s\norder=baseline,candidate,candidate,baseline\n' \
   "$(date --iso-8601=seconds)" "$seconds" > "$out/run-state.txt"
 versions=(baseline candidate candidate baseline)
@@ -47,6 +47,6 @@ for subscribers in 1 2; do
     done
   done
 done
-sha256sum --check "$out/input-sha256.txt" > "$out/input-sha256-verification.txt"
+sha256sum --check "$out/input-sha256.txt" > "$out/input-sha256-verification.txt" || status=1
 printf 'end=%s\nexit=%s\n' "$(date --iso-8601=seconds)" "$status" >> "$out/run-state.txt"
 exit "$status"
