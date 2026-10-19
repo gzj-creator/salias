@@ -1976,7 +1976,8 @@ std::size_t Subscriber<M, RawPayloadSchema>::poll(std::uint32_t max_messages, Po
     return 0;
   }
   constexpr std::uint32_t kChunk = 32;  // 每块栈上缓冲 32 条，避免大栈帧。
-  Message buffer[kChunk];
+  detail::PollMessageBuffer<kChunk> storage;
+  Message* buffer = storage.data();
   std::size_t consumed = 0;
   while (consumed < max_messages) {
     const std::uint32_t remaining =

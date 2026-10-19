@@ -723,6 +723,98 @@ TEST(ChannelApiTest, FifoPollKeepsPayloadUntilCallbacksAndSlowFanoutFinish) {
   check_batch_retention<salias::Mode::FifoMpmc>();
 }
 
+/// @brief 空批次不读未写描述符；递归调用不覆盖外层尚未处理的描述符。
+template <salias::Mode M>
+void check_poll_local_storage() {
+  auto config = config_for(M, "poll-local-storage");
+  config.num_producers = 2;
+  auto created = salias::Channel<M>::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto first = channel.publisher();
+  auto second = channel.publisher();
+  auto subscriber = channel.subscriber();
+  const auto noop = [](const salias::Message&) noexcept {};
+  EXPECT_EQ(subscriber.poll(32, noop), 0u);
+  for (std::uint32_t i = 0; i < 4; ++i) {
+    ASSERT_TRUE(first.offer(encode(Payload{.producer = 0, .sequence = i})));
+    ASSERT_TRUE(second.offer(encode(Payload{.producer = 1, .sequence = i})));
+  }
+  std::array<bool, 8> seen{};
+  unsigned nested = 0;
+  const auto validate = [&](const salias::Message& message) noexcept {
+    const auto value = decode(message.payload);
+    EXPECT_LT(value.producer, 2u);
+    EXPECT_LT(value.sequence, 4u);
+    if (value.producer < 2 && value.sequence < 4) {
+      const auto index = value.producer * 4 + value.sequence;
+      EXPECT_FALSE(seen[index]);
+      seen[index] = true;
+    }
+    EXPECT_EQ(message.producer_id, value.producer);
+    EXPECT_EQ(message.expires_at_monotonic_ns, 0u);
+    EXPECT_GT(message.next_position, message.position);
+  };
+  subscriber.poll(8, [&](const salias::Message& message) noexcept {
+    const auto saved = message;
+    validate(message);
+    if (nested == 0) {
+      nested = 1;
+      subscriber.poll(8, validate);
+      // 不在递归 flush 后继续解引用 payload，只校验外层描述符未被复用。
+      EXPECT_EQ(message.payload.data(), saved.payload.data());
+      EXPECT_EQ(message.sequence, saved.sequence);
+      EXPECT_EQ(message.producer_id, saved.producer_id);
+      EXPECT_EQ(message.position, saved.position);
+    }
+  });
+  EXPECT_TRUE(std::all_of(seen.begin(), seen.end(), [](bool value) { return value; }));
+  EXPECT_EQ(subscriber.poll(32, noop), 0u);
+  EXPECT_EQ(subscriber.poll(32, [](const salias::Message&, void*) noexcept {}, nullptr), 0u);
+}
+
+TEST(ChannelApiTest, PollDescriptorsAreCallLocalAcrossModes) {
+  check_poll_local_storage<salias::Mode::FifoMpsc>();
+  check_poll_local_storage<salias::Mode::OrderedMpsc>();
+  check_poll_local_storage<salias::Mode::LatestMpmc>();
+}
+
+TEST(ChannelApiTest, PublicMessageDefaultInitializationRemainsUnchanged) {
+  salias::Message message;
+  EXPECT_TRUE(message.payload.empty());
+  EXPECT_EQ(message.position, 0u);
+  EXPECT_EQ(message.next_position, 0u);
+  EXPECT_EQ(message.meta, 0u);
+  EXPECT_EQ(message.sequence, 0u);
+  EXPECT_EQ(message.producer_id, 0u);
+  EXPECT_EQ(message.expires_at_monotonic_ns, 0u);
+}
+
+/// @brief 回绕后的旧 payload 即使伪装成匹配序列号的帧头，也不能被当作新消息。
+TEST(ChannelApiTest, StalePayloadCannotImpersonateFutureHeaderAfterVariableWrap) {
+  auto created = salias::FifoMpscChannel::create(
+      config_for(salias::Mode::FifoMpsc, "stale-frame-header"));
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto subscriber = channel.subscriber();
+  std::array<std::byte, 4088> payload{};
+  // 环偏移 16 将成为回绕后第二条短消息的“下一帧”；此前这里只是任意业务字节。
+  const std::uint64_t forged = 8ull | (static_cast<std::uint64_t>((2u << 8u) | 0xBu) << 32u);
+  std::memcpy(payload.data() + 8, &forged, sizeof(forged));
+  ASSERT_TRUE(publisher.offer(payload));
+  auto large = subscriber.try_recv();
+  ASSERT_TRUE(large);
+  subscriber.release(*large);
+  ASSERT_TRUE(publisher.offer(encode(Payload{.sequence = 1})));
+  auto small = subscriber.try_recv();
+  ASSERT_TRUE(small);
+  EXPECT_EQ(small->sequence, 1u);
+  subscriber.release(*small);
+  EXPECT_FALSE(subscriber.try_recv());
+  EXPECT_EQ(subscriber.poll(32, [](const salias::Message&) noexcept {}), 0u);
+}
+
 template <salias::Mode M>
 void check_concurrent_batches() {
   constexpr std::uint32_t kProducers = 3;

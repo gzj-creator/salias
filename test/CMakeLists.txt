@@ -55,6 +55,13 @@ salias_enable_sanitizers(salias_commit_visibility_contract_test)
 salias_register_test(salias_commit_visibility_contract_test
   "$<TARGET_FILE:salias_commit_visibility_contract_test>")
 
+add_executable(salias_poll_storage_contract_test api/poll_storage_contract_test.cpp)
+target_link_libraries(salias_poll_storage_contract_test PRIVATE salias)
+salias_enable_warnings(salias_poll_storage_contract_test)
+salias_enable_sanitizers(salias_poll_storage_contract_test)
+salias_register_test(salias_poll_storage_contract_test
+  "$<TARGET_FILE:salias_poll_storage_contract_test>")
+
 find_package(GTest CONFIG QUIET)
 if(NOT GTest_FOUND)
   message(WARNING

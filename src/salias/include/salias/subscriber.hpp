@@ -23,6 +23,7 @@
 
 #include "core/wait/futex_wait.hpp"
 #include "salias/config.hpp"
+#include "salias/detail/poll_buffer.hpp"
 #include "salias/error.hpp"
 #include "salias/message.hpp"
 
@@ -177,7 +178,8 @@ class Subscriber<M, RawPayloadSchema> {
     }
     // 按批处理，每批最多 kChunk 条；用栈上缓冲区暂存，统一 fetch 后逐条回调再 flush。
     constexpr std::uint32_t kChunk = 32;
-    Message buffer[kChunk];
+    detail::PollMessageBuffer<kChunk> storage;
+    Message* buffer = storage.data();
     std::size_t consumed = 0;
     while (consumed < max_messages) {
       // 计算本批应取条数：剩余需求与 kChunk 取较小值。

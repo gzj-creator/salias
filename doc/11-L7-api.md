@@ -200,6 +200,12 @@ Linux 使用进程共享 robust mutex，持锁线程或进程终止后校验已�
 `Subscriber::poll` 在回调返回后自动 release。回调必须 `noexcept`，消息 payload 不能在 release
 后继续持有。
 
+两种 `poll` 重载均使用调用独占的栈上描述符存储；空轮询不再先清零 32 个 `Message`。
+只有 `fetch_batch` 已完整写入的前 `got` 个描述符可读，未填充槽不得访问。此实现不在
+endpoint 中缓存描述符，不引入热路径 heap 分配，也不改变公开 `Message` 的默认零值、
+32 条批处理边界或批末 flush 时机。递归调用有独立描述符，但不额外承诺递归 flush 后
+外层 payload 仍有效；借用规则仍以上述回调/release 契约为准。
+
 进程内有界队列可使用 `salias::Ringbuffer<T, Capacity, HighWatermarkPercent>`。默认
 `HighWatermarkPercent = 90`，即最多保留 `floor(Capacity * 0.9)` 项（最少一项）；入队超出
 高水位时淘汰最旧项、保留最新项。`push()` 返回本次是否发生淘汰，`dropped_count()` 提供
