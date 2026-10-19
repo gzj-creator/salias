@@ -120,10 +120,49 @@ class ComparatorSmokeTest(unittest.TestCase):
                 if mode == "off":
                     self.assertNotIn("diagnostic_", result.stdout)
                     continue
-                self.assertIn("diagnostic_claim_success=1000\n", result.stdout)
+                metrics = dict(line.split("=", 1) for line in result.stdout.splitlines()
+                               if line.startswith("diagnostic_"))
+                expected_keys = {"diagnostic_mode", "diagnostic_claim_success",
+                                 "diagnostic_claim_backpressure", "diagnostic_claim_yield_cycles",
+                                 "diagnostic_claim_total_ns"}
+                self.assertEqual(metrics["diagnostic_mode"], mode)
+                self.assertEqual(int(metrics["diagnostic_claim_success"]), 1000)
+                self.assertEqual(int(metrics["diagnostic_claim_yield_cycles"]),
+                                 int(metrics["diagnostic_claim_backpressure"]))
+                total_ns = int(metrics["diagnostic_claim_total_ns"])
+                if mode == "timed":
+                    expected_keys.add("diagnostic_claim_avg_ns")
+                    self.assertGreater(total_ns, 0)
+                    self.assertAlmostEqual(float(metrics["diagnostic_claim_avg_ns"]),
+                                           total_ns / 1000, delta=total_ns / 1000 * 1e-5)
+                else:
+                    self.assertEqual(total_ns, 0)
                 for i in range(2):
-                    self.assertIn(f"diagnostic_consumer{i}_poll_total_messages=1000\n", result.stdout)
-                self.assertEqual("diagnostic_claim_avg_ns=" in result.stdout, mode == "timed")
+                    prefix = f"diagnostic_consumer{i}_"
+                    expected_keys.update(prefix + key for key in
+                                         ("poll_empty", "poll_success", "poll_total_messages",
+                                          "avg_batch"))
+                    self.assertGreaterEqual(int(metrics[prefix + "poll_empty"]), 0)
+                    polls = int(metrics[prefix + "poll_success"])
+                    self.assertGreater(polls, 0)
+                    self.assertLessEqual(polls, 1000)
+                    self.assertGreaterEqual(polls * 64, 1000)
+                    self.assertEqual(int(metrics[prefix + "poll_total_messages"]), 1000)
+                    self.assertAlmostEqual(float(metrics[prefix + "avg_batch"]),
+                                           1000 / polls, delta=1e-4)
+                self.assertEqual(set(metrics), expected_keys)
+
+    def test_empty_run_diagnostics_are_zero(self):
+        for mode in ("counters", "timed"):
+            with self.subTest(mode=mode):
+                result = self.run_client("--scenario", "fifo", "--messages", "0",
+                                         "--producers", "1", "--consumers", "2",
+                                         "--payload", "64", "--diagnostic", mode)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(" published=0 delivered=0 ", result.stdout)
+                for line in result.stdout.splitlines():
+                    if line.startswith("diagnostic_") and not line.startswith("diagnostic_mode="):
+                        self.assertEqual(float(line.split("=", 1)[1]), 0.0, line)
 
     def test_unsupported_diagnostic_topologies_fail_closed(self):
         for args in (("--diagnostic", "invalid"),

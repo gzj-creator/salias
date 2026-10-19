@@ -2,12 +2,12 @@
 """Run isolated 1P2S throughput diagnostics and paired instrumentation controls."""
 
 import argparse
-import hashlib
 import importlib.util
 import json
 import os
 from pathlib import Path
 import platform
+import shutil
 import signal
 import subprocess
 import time
@@ -99,6 +99,9 @@ def main():
         parser.error("Duplicate diagnostic modes")
     args.salias_client = args.salias_client.resolve()
     args.control_client = (args.control_client or args.salias_client).resolve()
+    for client in {args.salias_client, args.control_client}:
+        if not client.is_file() or not os.access(client, os.X_OK):
+            parser.error(f"Benchmark client is not executable: {client}")
     harness.verify_limits()
     args.output.mkdir(parents=True, exist_ok=False)
     os.sched_setaffinity(0, {0})
@@ -110,8 +113,22 @@ def main():
                     cpu_roles="coordinator CPU0; consumer0 CPU1; consumer1 CPU2; publisher CPU3",
                     capacity_bytes=1048576, batch_size=1, poll_limit=64,
                     messages=args.messages, rounds=args.rounds, modes=args.modes,
+                    payloads=[64, 256], producers=1, consumers=2,
+                    latency_sample_rate=0, rate_per_producer=0,
+                    salias_client=str(args.salias_client), control_client=str(args.control_client),
                     claim_timing="timed: two steady_clock reads per try_claim; successful calls only; not Guard-exclusive",
                     limits=harness.resource_counters())
+    # Freeze the executed harness and binaries; later rebuilds must not change the evidence.
+    snapshots = {
+        "executed-runner.py": Path(__file__),
+        "imported-baseline-runner.py": Path(harness.__file__),
+        "salias_ipc_compare.instrumented.cpp": ROOT / "tools/aeron_compare/salias_ipc_compare.cpp",
+        "salias_ipc_compare.instrumented": args.salias_client,
+        "salias_ipc_compare.control": args.control_client,
+    }
+    for name, source in snapshots.items():
+        shutil.copy2(source, args.output / name)
+    metadata["snapshots"] = {name: harness.digest(args.output / name) for name in snapshots}
     (args.output / "environment.json").write_text(json.dumps(metadata, indent=2) + "\n")
     number = 0
     for round_number in range(args.rounds + 1):

@@ -97,7 +97,12 @@ struct alignas(64) DiagnosticCounters {
   PublisherDiagnostic publisher{};
   std::array<ConsumerDiagnostic, kMaxWorkers> consumers{};
 };
+// 固定每个 worker 的缓存行边界，防止后续新增字段引入跨进程伪共享。
+static_assert(alignof(PublisherDiagnostic) == 64);
+static_assert(sizeof(PublisherDiagnostic) == 64);
+static_assert(alignof(ConsumerDiagnostic) == 64);
 static_assert(sizeof(ConsumerDiagnostic) == 64);
+static_assert(alignof(DiagnosticCounters) == 64);
 
 /**
  * @brief 跨进程共享的运行态与统计区，经匿名 mmap 映射在父子进程间共享。
@@ -106,7 +111,8 @@ static_assert(sizeof(ConsumerDiagnostic) == 64);
  *   对齐并填充（padding），确保不同字段落在不同 cache line 上，避免
  *   producer 与 consumer 之间的伪共享（false sharing）。
  *   线程/进程模型：父进程创建映射，fork 后各子进程继承同一物理页；
- *   全部访问均通过 atomic_ref + acquire/release 内存序保证可见性。
+ *   同步字段通过 atomic_ref + acquire/release 内存序保证可见性；诊断字段由
+ *   各 worker 独占写入，父进程在 waitpid 回收全部子进程后读取。
  */
 struct alignas(64) SharedRunState {
   std::uint64_t start_ns = 0;
@@ -128,11 +134,16 @@ struct alignas(64) SharedRunState {
   /// 每个 consumer 的延迟直方图桶数组，用于分位数计算与跨 consumer 合并。
   alignas(64)
       std::array<std::array<std::uint64_t, latency::kBucketCount>, kMaxWorkers> latency_buckets{};
+  /// 诊断计数随 sizeof(SharedRunState) 一并映射到匿名共享内存。
   DiagnosticCounters diagnostic{};
 };
 
 /// 编译期断言：共享态以 64 字节对齐，保证首字段 cache line 对齐前提。
 static_assert(alignof(SharedRunState) == 64);
+// mmap/munmap 均使用 sizeof(SharedRunState)，诊断区必须完整包含且保持对齐。
+static_assert(offsetof(SharedRunState, diagnostic) % alignof(DiagnosticCounters) == 0);
+static_assert(offsetof(SharedRunState, diagnostic) + sizeof(DiagnosticCounters) <=
+              sizeof(SharedRunState));
 
 // 解析 salias IPC 对比工具的命令行参数。
 /**

@@ -2,6 +2,25 @@
 
 本文档包含 Phase 1 诊断计划的完整实施提示词，用于启动新 session。
 
+## 当前接续进度（2026-10-19）
+
+按用户要求逐个 session 验收，不重跑已完成的 Session 1/2。
+本轮验收以表内状态及 `session-state.json` 为准，不以历史报告、归档或提交推定完成。
+
+| Session | 本轮状态 | 接续依据 |
+|---|---|---|
+| 1 | 已完成，沿用 | `build/benchmarks/baseline-extended-20261019-183822/` |
+| 2 | 已完成，沿用；三模式冒烟通过 | `build/release/bench/salias_ipc_compare` |
+| 3 | 已完成，诊断运行与解析已验收 | [本轮诊断结果](session3-diagnostic-results.md) |
+| 4 | 已完成，源码与基线证据已核验 | [本轮帧步长分析](session4-frame-layout-results.md) |
+| 5 | 已完成，本轮证据与决策已汇总 | [Phase 1 诊断报告](phase1-diagnosis-report.md) |
+| 6 | 已完成，产物归档与本地 scoped commit | [产物清单](phase1-artifacts.md)；提交身份以该文件 Git log 为准 |
+
+本轮诊断目录：`build/benchmarks/diagnostic-20261019-195710/`。
+Session 4 的结构化分析存于该目录 `frame-layout.json`，使用 Session 1 五轮正式长测时长。
+结构化状态见 `session-state.json`；当前未修改产品 `src/`，未实施 Phase 2。
+本轮 Session 1–6 已收尾；只完成一个本地普通提交，不打 tag、不推送，未纳入无关归档改动。
+
 ---
 
 ## Session 1: 延长轮次基线复现

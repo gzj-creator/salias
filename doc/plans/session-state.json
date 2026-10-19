@@ -1,10 +1,139 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "updated_at": "2026-10-19",
   "timezone": "Asia/Singapore",
   "baseline_version": "v3.0.0",
   "baseline_commit": "c5e6aa7df4397df6f47a4e00cf5f72ed5ae778bd",
+  "active_sequence": {
+    "instruction": "Complete sessions sequentially from Session 3; accept completed Session 1/2 without rerunning",
+    "current_session": 6,
+    "current_session_status": "complete",
+    "next_session": null,
+    "sessions": {
+      "1": "completed by previous session; baseline retained",
+      "2": "completed by previous session; executable and IPC smoke verified",
+      "3": "complete: 36-run same-binary diagnostic matrix and strict parsing",
+      "4": "complete: source-derived frame layout and retained baseline stdout evidence verified",
+      "5": "complete: current baseline, diagnostic and frame-layout evidence integrated into Phase 1 report",
+      "6": "complete: current artifact manifest, evidence integrity checks and one scoped local commit"
+    },
+    "historical_results_note": "The previous_execution fields preserve the archived run; active_sequence is authoritative for the current sequential handoff",
+    "report": "doc/plans/phase1-diagnosis-report.md",
+    "session3_report": "doc/plans/session3-diagnostic-results.md",
+    "session4_report": "doc/plans/session4-frame-layout-results.md",
+    "diagnostic": "build/benchmarks/diagnostic-20261019-195710",
+    "diagnostic_summary_sha256": "bd75dbff722dda02efa71301c5f0a1e4030cb16c849aa239119f18221756c8e9",
+    "execution_commit": "55e301a4995e8014947a6bddf1006c92a29026e8",
+    "measured_runs": 30,
+    "warmup_runs": 6,
+    "rounds_per_payload_per_mode": 5,
+    "messages_per_run": 10000000,
+    "modes": ["off", "counters", "timed"],
+    "same_binary_controls": true,
+    "all_runs_successful_without_timeout_or_oom": true,
+    "payload_summary": [
+      {
+        "payload": 64,
+        "counter_mode": "counters",
+        "backpressure_rate": 0.000003299989110035937,
+        "consumer_empty_rate": 0.2042013007160175,
+        "claim_avg_ns_timed": 186.3749872,
+        "avg_batch": 3.2891225920127933
+      },
+      {
+        "payload": 256,
+        "counter_mode": "counters",
+        "backpressure_rate": 0.00001289983359214666,
+        "consumer_empty_rate": 0.25050546552896574,
+        "claim_avg_ns_timed": 185.2867526,
+        "avg_batch": 2.7235414754513587
+      }
+    ],
+    "thresholds_exceeded": {"H1": false, "H2_consumer_empty": false, "H3": false},
+    "instrumentation_overhead_below_5_percent": false,
+    "root_cause_confirmed": false,
+    "phase2_decision": "Session 5 recommends Phase 2B as a conditional isolated experiment after low-perturbation and topology checks; no root cause confirmed and no product optimization approved; Phase 2A needs backpressure evidence and Phase 2C needs alignment experiments",
+    "phase1_report": {
+      "path": "doc/plans/phase1-diagnosis-report.md",
+      "baseline": "build/benchmarks/baseline-extended-20261019-183822/summary.json",
+      "baseline_summary_sha256": "e2ff362662982e6090931562fa1519648653f5dddf8fd6753dc5d09ea366d238",
+      "baseline_results_sha256": "3fa34682bfb2c7b4ab88b141a39badb578842dde191efeaa6a9e7b314cff3a0e",
+      "baseline_stdout_records_verified": 72,
+      "diagnostic_stdout_records_verified": 36,
+      "baseline_throughput": [
+        {
+          "payload": 64,
+          "salias_median_mmsg_s": 6.48923,
+          "salias_sample_stddev_mmsg_s": 0.9584367852758989,
+          "salias_cv": 0.1377820960412311,
+          "aeron_median_mmsg_s": 49.5253,
+          "aeron_sample_stddev_mmsg_s": 1.439091163547327,
+          "aeron_cv": 0.029079081271334628,
+          "aeron_to_salias_median_ratio": 7.631922431474921
+        },
+        {
+          "payload": 256,
+          "salias_median_mmsg_s": 15.4649,
+          "salias_sample_stddev_mmsg_s": 0.8371776436336555,
+          "salias_cv": 0.05460549824175355,
+          "aeron_median_mmsg_s": 17.808,
+          "aeron_sample_stddev_mmsg_s": 0.21685024325557034,
+          "aeron_cv": 0.012126502642023938,
+          "aeron_to_salias_median_ratio": 1.1515108406779222
+        }
+      ],
+      "baseline_all_throughput_cv_below_5_percent": false,
+      "baseline_64b_gap_in_6_to_7_range": false,
+      "baseline_all_throughput_rounds_longer_than_8_seconds": false,
+      "timed_paired_throughput_change_fraction": {"64": -0.19527850386093148, "256": -0.24951826978689995},
+      "hypothesis_naming": "Original-plan H2 is frame nonalignment; Session 3 prompt H2 is consumer lag; neither is confirmed",
+      "recommended_candidate": "Phase 2B: conditional isolated single-publisher fast-path experiment, not product implementation",
+      "root_cause_confirmed": false,
+      "session6_artifact_manifest_pending": false
+    },
+    "frame_analysis": {
+      "report": "doc/plans/session4-frame-layout-results.md",
+      "output": "build/benchmarks/diagnostic-20261019-195710/frame-layout.json",
+      "stdout": "build/benchmarks/diagnostic-20261019-195710/frame-layout.stdout",
+      "output_sha256": "63a8504a07803dfbbf32df14bd4dbe1b6901e1c94b6852afd110582996930f1c",
+      "baseline": "build/benchmarks/baseline-extended-20261019-183822/summary.json",
+      "baseline_rounds_per_payload": 5,
+      "messages_per_round": 100000000,
+      "source_matches_baseline_commit": true,
+      "header_bytes": 8,
+      "alignment_bytes": 8,
+      "frame_stride_bytes": {"64": 72, "256": 264},
+      "ring_wraps_nominal": {"64": 6866.455078125, "256": 25177.001953125},
+      "wrap_ratio_64_to_256": 0.2727272727272727,
+      "wraps_64b_more_than_twice_256b": false,
+      "header_can_straddle_cacheline": false,
+      "ring_padding_bytes": 0,
+      "H2_frame_alignment_root_cause_confirmed": false,
+      "phase2c_supported_by_layout_alone": false
+    },
+    "validation": {"python_tests_including_ipc_smoke": 52, "new_summary_tests": 7, "new_frame_layout_tests": 12, "frame_ring_platform_ctest_targets_passed": 3, "src_unchanged_by_this_sequence": true},
+    "artifact_manifest": "doc/plans/phase1-artifacts.md",
+    "delivery_commit_lookup": "git log -1 --format=%H -- doc/plans/phase1-artifacts.md",
+    "session6_validation": {
+      "python_tests_including_ipc_smoke": 52,
+      "frame_ring_platform_ctest_targets_passed": 3,
+      "baseline_stdout_hashes_and_results_verified": 72,
+      "diagnostic_stdout_hashes_and_results_verified": 36,
+      "diagnostic_local_files_checksummed": 86,
+      "frozen_summaries_reproduce_exactly": true,
+      "unrelated_changes_excluded": true
+    },
+    "committed_in_this_sequence": true
+  },
   "completed_steps": [
+    "Session 1: completed previously; extended baseline retained",
+    "Session 2: completed previously; opt-in comparator counters and IPC smoke verified",
+    "Session 3: 36-run same-binary diagnostic matrix, strict parsing and result handoff",
+    "Session 4: source-derived frame layout, double mapping and five-round baseline evidence validated",
+    "Session 5: current Phase 1 report and conditional Phase 2B decision completed with source-verified evidence",
+    "Session 6: current artifact manifest, SHA-256 evidence archive, validation and scoped local commit completed"
+  ],
+  "previous_execution_completed_steps": [
     "Session 1: 72-run extended baseline",
     "Session 2: opt-in comparator counters and build/smoke checks",
     "Session 3: three 36-run diagnostic matrices and strict parsing",
@@ -14,7 +143,11 @@
   ],
   "data_paths": {
     "baseline": "build/benchmarks/baseline-extended-20261019-183822",
-    "diagnostic": "build/benchmarks/diagnostic-20261019-185329",
+    "diagnostic": "build/benchmarks/diagnostic-20261019-195710",
+    "previous_diagnostic": "build/benchmarks/diagnostic-20261019-185329",
+    "session3_report": "doc/plans/session3-diagnostic-results.md",
+    "frame_layout": "build/benchmarks/diagnostic-20261019-195710/frame-layout.json",
+    "session4_report": "doc/plans/session4-frame-layout-results.md",
     "exploratory_diagnostics": [
       "build/benchmarks/diagnostic-20261019-184518",
       "build/benchmarks/diagnostic-20261019-184933"
@@ -22,7 +155,7 @@
     "report": "doc/plans/phase1-diagnosis-report.md",
     "artifacts": "doc/plans/phase1-artifacts.md"
   },
-  "acceptance": {
+  "previous_execution_acceptance": {
     "all_runs_successful_without_timeout_or_oom": true,
     "baseline_expected_72_records": true,
     "diagnostic_five_measured_rounds_per_payload_per_mode": true,
@@ -32,7 +165,7 @@
     "instrumentation_overhead_below_5_percent": false,
     "root_cause_confirmed": false
   },
-  "key_results": {
+  "previous_execution_key_results": {
     "64b_salias_median_mmsg_s": 6.48923,
     "64b_salias_sample_stddev_mmsg_s": 0.9584367852758989,
     "64b_aeron_median_mmsg_s": 49.5253,
@@ -45,16 +178,14 @@
       "H3_redundant_guard": "not isolated or confirmed"
     }
   },
-  "validation": {
+  "previous_execution_validation": {
     "python_tests_including_ipc_smoke": 32,
     "targeted_ctest_passed": 5,
     "release_build_without_warnings": true,
     "src_unchanged": true
   },
   "next_steps": [
-    "Reduce observer effect and use same-binary off/counters/timed controls",
-    "Uninstrumented topology and neighboring-payload sweep",
-    "Conditional Phase 2B isolated Guard experiment; no product optimization authorized by these results"
+    "Before any Phase 2B causal claim: reduce timing observer effects and compare uninstrumented topology/payload sweeps"
   ],
   "git_policy": {
     "local_phase1_only": true,

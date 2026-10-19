@@ -79,8 +79,65 @@ def analyze_record(record, directory):
                               empty_rate=ratio(empty, empty + polls, "polls"),
                               avg_batch=ratio(messages, polls, "successful polls")))
     row["consumers"] = consumers
+    empty = sum(consumer["poll_empty"] for consumer in consumers)
+    polls = sum(consumer["poll_success"] for consumer in consumers)
+    messages = sum(consumer["messages"] for consumer in consumers)
+    row["consumer_empty_rate"] = ratio(empty, empty + polls, "all consumer polls")
+    row["avg_batch"] = ratio(messages, polls, "all successful consumer polls")
     row["metrics"] = metrics
     return row
+
+
+def assess_hypotheses(groups):
+    """Separate the requested threshold checks from unsupported causal claims."""
+    summaries = []
+    for payload in (64, 256):
+        available = {group["mode"]: group for group in groups if group["payload"] == payload}
+        counters = available.get("counters", available.get("timed"))
+        timed = available.get("timed")
+        summaries.append(dict(
+            payload=payload,
+            counter_mode=counters["mode"] if counters else None,
+            rounds=counters["rounds"] if counters else 0,
+            backpressure_rate=counters["backpressure_rate"]["median"] if counters else None,
+            consumer_empty_rate=counters["consumer_empty_rate"]["median"] if counters else None,
+            avg_batch=counters["avg_batch"]["median"] if counters else None,
+            claim_avg_ns=timed["claim_avg_ns"]["median"] if timed else None,
+            claim_timing_mode="timed" if timed else None,
+            aggregation="median of measured rounds; consumer ratios pool both consumers per round",
+        ))
+    small = summaries[0]
+    hypotheses = {}
+    for name, metric, threshold, meaning in (
+            ("H1", "backpressure_rate", 0.1, "frequent backpressure"),
+            ("H2", "consumer_empty_rate", 0.5, "high empty-poll fraction, not proof of consumer lag"),
+            ("H3", "claim_avg_ns", 200, "slow successful try_claim, not Guard-exclusive timing")):
+        value = small[metric]
+        hypotheses[name] = dict(
+            metric=metric, payload=64, value=value, threshold=threshold, comparison=">",
+            threshold_exceeded=value > threshold if value is not None else None,
+            meaning=meaning,
+        )
+    candidates = []
+    if hypotheses["H1"]["threshold_exceeded"]:
+        candidates.append("Phase 2A: validate batched/delayed progress writeback without instrumentation")
+    if hypotheses["H3"]["threshold_exceeded"]:
+        candidates.append("Phase 2B: isolate the single-publisher fast path and Guard cost")
+    if hypotheses["H2"]["threshold_exceeded"]:
+        candidates.append("Inspect poll batching and subscriber scans; empty polls can indicate publisher starvation")
+    if not candidates:
+        candidates.append("Expand 1P1S/1P3S and neighboring-payload scans before selecting Phase 2")
+    perturbation = [dict(payload=g["payload"], mode=g["mode"],
+                         paired_throughput_change_fraction=g["paired_throughput_change_fraction"]["median"])
+                    for g in groups if g["mode"] != "off"
+                    and g["paired_throughput_change_fraction"] is not None]
+    return dict(payload_summary=summaries, hypotheses=hypotheses,
+                phase2_candidates=candidates, instrumentation_controls=perturbation,
+                instrumentation_exceeds_5_percent=any(
+                    abs(g["paired_throughput_change_fraction"]) > 0.05 for g in perturbation)
+                    if perturbation else None,
+                hypothesis_naming="H2 follows the session prompt (consumer empty rate); the plan uses H2 for frame alignment",
+                causal_confirmation="Threshold crossings alone do not establish consumer lag or Guard overhead")
 
 
 def summarize(directory):
@@ -105,6 +162,8 @@ def summarize(directory):
                          duration_s=statistics([r["duration_s"] for r in cell]))
             if mode != "off":
                 group["backpressure_rate"] = statistics([r["backpressure_rate"] for r in cell])
+                group["consumer_empty_rate"] = statistics([r["consumer_empty_rate"] for r in cell])
+                group["avg_batch"] = statistics([r["avg_batch"] for r in cell])
                 group["claim_avg_ns"] = (statistics([r["claim_avg_ns"] for r in cell])
                                           if mode == "timed" else None)
                 group["consumers"] = [dict(consumer=i, **{
@@ -117,9 +176,10 @@ def summarize(directory):
                     r["publish_mmsg_s"] / controls[r["round"]] - 1 for r in cell])
                     if controls else None)
             groups.append(group)
-    return dict(schema_version=1, input_directory=str(directory.resolve()), environment=environment,
+    return dict(schema_version=2, input_directory=str(directory.resolve()), environment=environment,
                 measured_runs=sum(r["phase"] == "measured" for r in rows),
                 warmup_runs=sum(r["phase"] == "warmup" for r in rows), groups=groups, runs=rows,
+                **assess_hypotheses(groups),
                 interpretation=[
                     "Empty poll rate above 50% does NOT prove consumers cannot keep up; it can indicate starvation.",
                     "Timed claim covers the entire successful try_claim, not ClaimReservationGuard alone.",
