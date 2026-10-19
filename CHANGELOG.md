@@ -16,13 +16,27 @@ are released.
 
 ## [Unreleased]
 
+## [v3.0.0] - 2026-10-19
+
 ### Changed
 
+- 本次为不兼容主版本：下游须更新重命名的 API 并重编译；具名共享通道最终协议为 v14，LatestByKey 内部布局为 v2，旧通道须清理重建且所有参与进程同步升级。下列 v8..v13 为开发阶段的历史迁移记录，不是本次兼容版本。
 - `Subscriber::poll` 的两种重载改用调用独占的栈上描述符存储，移除空轮询时对 32 个 `Message` 的无用清零；保留公开默认值、批处理边界、借用与 flush 时机，不引入端点共享缓冲或堆分配。
 - 补充空批次、递归轮询、默认初始化和变长帧回绕的回归测试，以及覆盖五种模式和两种 poll 重载的独立 ASan/UBSan 契约测试；文档明确未填充描述符不可读取。
+- Reliable FIFO 发布慢路径先检查字节/消息窗口游标，仅对真正阻塞的消费者进行进程存活探测；保留注册代际复核、死亡回收、最慢消费者背压和批量安全前缀，不改变共享布局或 Latest 路径。该实现作为性能仍待改进的候选记录，不宣称全部配置尾延迟改善。
+- 历史独立进程性能汇总增加 64 B payload 的发布/交付 MiB/s，区分消息吞吐、广播交付及逻辑有效载荷带宽。验收矩阵默认将临时原始输出放到 Git 忽略的 `build/benchmarks/`。
+- 具名共享控制块协议升级至 v13，固定 schema payload 长度用于接收帧定位；raw 通道仍逐消息解析长度，schema-bound 路径不再做逐条 payload 大小相等比较。旧协议须重建，所有进程须同步升级。
+- 帧头增加可选 8 字节 TTL 扩展元数据，TTL 开销计入容量、水位和批次步进；共享通道协议升至 v12，旧通道须重建并同步升级两端。
+- 共享控制段协议升级至 v11，新增消息数窗口的 producer reservation、retention 和 consumer 进度字段；旧布局通道需重建并同时升级发布端与订阅端。
+- 共享控制段协议升级为 v8，以支持独立淘汰意图字、LatestMpmc 丢旧/主动跳过计数；旧布局返回 `VersionMismatch`，需重建通道并同时升级发布端与订阅端。
+- 公共多消费者模式统一命名为 `FifoMpmc`、`OrderedMpmc` 和 `LatestMpmc`，按 key 合并最新值的 channel、端点、消息及内部 storage 统一命名为 `LatestByKey*` / `latest_by_key_*`；`Mode` 数值保持 0..4，既有共享内存布局不变，下游源码需更新旧 API 标识符。
+- `LatestByKeyChannel` 增加应用管理的 `SchemaVersion` 模板参数以显式拒绝不兼容的数据模式；阻塞 `recv()` 返回带错误的 `Result`，仅重试临时背压，并明确 fork 前静置线程的约束。
+- `PrioritySubscriber::recv()` 增加等待策略参数，其成员函数指针类型随之变化；默认调用保持可用，显式保存旧签名的下游代码需要迁移。
 
 ### Added
 
+- 增加 Yield / Spin / Adaptive 等待策略，优先级订阅者可选择自旋或自适应等待；Linux 使用共享 epoch、一次性通知票据与 futex/futex_waitv，普通阻塞接收也具备跨进程通知。
+- LatestByKey 增加崩溃恢复：Linux 使用进程共享 robust mutex，macOS 使用进程退出可释放的 flock 与本地互斥锁；双缓冲提交、事件发布保护和 owner-death 校验避免半写值可见或永久死锁，内部布局升级至 v2。
 - Salias/Aeron 对比工具增加开环 planned/attempt 计时、受限资源串行运行器和逐轮汇总；补充真实 perf/火焰图、阶段探针、调度关联及隔离构建的布局/轮询设计原型，不将不安全实验接入产品。
 - Publisher 尾延迟工具增加独立诊断开关、逐 worker 资源快照、冻结二进制构建和三组串行 ABBA 入口；正式汇总拒绝诊断、故障注入、配置不匹配及被篡改的原始文件，逐 publisher 合并桶并分别执行 20% 收益 / 5% 退化门禁。
 - 新增合成行情 IPC 验收工具：按原计划到达时钟评估 2P1S/2P2S、64/256 B 稳态与突发负载，逐消息核验序号和 payload，记录背压、输入完成性及每个订阅者时延；提供交错 A/B、环境采集和原始桶汇总脚本。
@@ -48,19 +62,9 @@ are released.
 - 淘汰前校验帧的已提交标志与长度边界，慢消费者跳读时同步本地和共享进度；修正 claim 注释，明确未提交空洞的可见性与不支持放弃 claim 的真实契约。
 - 修复静态 LatestMpmc 包装器复制配置时泄漏 `bad_alloc`，以及共享引擎/订阅端初始化错误的 `noexcept` 导致分配失败直接终止进程的问题；将创建阶段的 reserve 纳入回滚范围，通过移动清理名称避免 OOM 路径遗留共享内存。
 
-### Changed
-
-- Reliable FIFO 发布慢路径先检查字节/消息窗口游标，仅对真正阻塞的消费者进行进程存活探测；保留注册代际复核、死亡回收、最慢消费者背压和批量安全前缀，不改变共享布局或 Latest 路径。该实现作为性能仍待改进的候选记录，不宣称全部配置尾延迟改善。
-- 历史独立进程性能汇总增加 64 B payload 的发布/交付 MiB/s，区分消息吞吐、广播交付及逻辑有效载荷带宽。验收矩阵默认将临时原始输出放到 Git 忽略的 `build/benchmarks/`。
-- 具名共享控制块协议升级至 v13，固定 schema payload 长度用于接收帧定位；raw 通道仍逐消息解析长度，schema-bound 路径不再做逐条 payload 大小相等比较。旧协议须重建，所有进程须同步升级。
-- 帧头增加可选 8 字节 TTL 扩展元数据，TTL 开销计入容量、水位和批次步进；共享通道协议升至 v12，旧通道须重建并同步升级两端。
-- 共享控制段协议升级至 v11，新增消息数窗口的 producer reservation、retention 和 consumer 进度字段；旧布局通道需重建并同时升级发布端与订阅端。
-- 共享控制段协议升级为 v8，以支持独立淘汰意图字、LatestMpmc 丢旧/主动跳过计数；旧布局返回 `VersionMismatch`，需重建通道并同时升级发布端与订阅端。
-- 公共多消费者模式统一命名为 `FifoMpmc`、`OrderedMpmc` 和 `LatestMpmc`，按 key 合并最新值的 channel、端点、消息及内部 storage 统一命名为 `LatestByKey*` / `latest_by_key_*`；`Mode` 数值保持 0..4，既有共享内存布局不变，下游源码需更新旧 API 标识符。
-- `LatestByKeyChannel` 增加应用管理的 `SchemaVersion` 模板参数以显式拒绝不兼容的数据模式；阻塞 `recv()` 返回带错误的 `Result`，仅重试临时背压，并明确 fork 前静置线程的约束。
-
 ### Tests
 
+- 2026-10-19 发布前 Linux Release 串行构建与 CTest 21/21、HFT Python 36/36、Aeron Python 23/23、独立 HFT self-test、比较器构建、Shell 语法和版本/安装消费者检查通过；下列 sanitizer、mcpp 及历史基准记录保留其原验证范围，本次未重跑长时性能验收、macOS、mcpp 或全部 sanitizer。
 - 新增 Reliable 探测 fixture 共 80 实例（78 通过、2 项单帧参数下的批量测试预期跳过），覆盖健康游标免探测、阻塞者探测、PID/注册复用、死亡回收、双窗口和借用期保护；全量 Release 20/20、定向 ASan/UBSan 与 TSan 各 3/3 通过。验收汇总回归共 12 项，改用独立合成输入，不依赖已清理的压测文件。
 - 记录 2026-10-18 候选总计 30 分钟、计划 20.7 亿条的八配置验收：已发布消息完整交付，但截止时有 1 条计划输入未发送，50 µs p99.9 为 0/8 配置通过；交错 A/B 收益不一致，64 B 双订阅突发 p99.9 增加约 96.4%，不作为上线性能通过结论。
 - 增加 schema create/connect 匹配与 ID/版本/raw 混连拒绝、五种模式固定长度解析、schema-sized claim、fanout 独立复制和 fork 跨进程 roundtrip；mcpp module/header 测试覆盖 typed connect。新增 raw-size-check 与 schema-bound fixed-parser 的单消费者/双消费者 benchmark；本机一次 0.1 秒冒烟中 raw/schema 分别为 124/126 ns (64B)、127/137 ns (256B)、202/209 ns (1KiB)，fanout 为 183/203 ns，未显示整体加速；Google Benchmark 库为 DEBUG 构建，结果不作为性能结论。
@@ -76,6 +80,7 @@ are released.
 
 ### Docs
 
+- CMake、vcpkg、mcpp 与 README 版本统一为 3.0.0；`docs/release_note.md` 收束自 v2.1.0 以来的累计变更、兼容性迁移和性能证据边界，注解 tag 与该版本节逐项对齐。
 - 补齐 2026-10-19 Salias/Aeron 延迟对比、设计诊断、实现与后续候选报告；仅收录逐轮数据、8 组直接引用的真实 profile 及精简核验记录，明确约 100 ns 差距尚未完整归因、六个候选未晋升，不构成长时尾延迟 SLA 验收。
 - 补齐 2026-10-18 三组 ABBA、96 个正式阶段的相对收益失败报告；被否决的产品补丁不发布，48 分钟测量不等于通过性能验收，原始大文件和临时日志仅保留于本地 build 目录。
 - 汇总 Publisher 时延、基线/候选长测、交错 A/B、安全审查及使用边界；保留最终表、精简标量结果与来源哈希，将本日压测目录从 283 个文件、27.4 MB 精简至 4 个文件、约 0.29 MB。删除原始桶及临时日志后不能重新计算历史百分位，文档明确该限制。

@@ -55,3 +55,20 @@
   - **验证**：Linux x86_64 上 release CTest 69 项全部通过；批量长度 ASan/UBSan、四种模式 mcpp 模块/头文件混合消费、两个外部消费者的 offline/locked 构建、CMake 安装消费及 gts-quote 回归通过。
   - **兼容性**：CMake、vcpkg 与 mcpp 版本统一为 `2.1.0`；`BatchClaim` 新增原始长度字段，相关源码及 BMI 需重新编译；共享帧头和控制段布局保持不变。
   - **文档与范围**：使用 `/opt/mcpp-deps/salias` 本地共享路径消费，说明模块/头文件 ABI 和缓存边界；macOS mcpp 尚未实测，此 tag 不代表包索引发布。
+
+## v3.0.0 - 2026-10-19
+
+- **版本级别**：主版本（major），收束 v2.1.0 以来的公共 API 与共享协议不兼容变更。
+- **Git 提交消息**：chore: 发布 v3.0.0 并汇总通道能力与延迟诊断
+- **git tag**：v3.0.0
+- **自上次 tag（v2.1.0）以来的变更摘要**：
+  - **兼容性**：多消费者模式及类型统一使用 `FifoMpmc`、`OrderedMpmc`、`LatestMpmc` 和 `LatestByKey*`；下游须迁移旧标识符并重编译库、头文件及 mcpp BMI。`PrioritySubscriber::recv()` 新增等待策略参数，保存旧成员函数指针签名的代码须迁移。具名共享通道最终协议为 v14，LatestByKey 内部布局为 v2；旧通道须清理重建，同一通道各进程同步升级，不能混用新旧协议。
+  - **通道能力**：新增进程内定容量 Ringbuffer、LatestMpmc 保留水位与可靠/丢旧独立订阅策略、checked 接收、显式跳到最新值及缺口计数；字节和消息数发布窗口协同约束背压，借用中的 payload 继续受保护。
+  - **生命周期与 TTL**：可复用订阅注册槽、代际隔离、存活消费者计数、死亡进程回收和 `try_subscriber()`；支持基于同主机单调时钟的逐消息 TTL、过期跳过及安全释放前缀。
+  - **类型与优先级**：增加平凡可复制类型的 send/copy-receive、显式 schema ID/版本的固定布局通道、拒绝 raw/typed 混连；提供独立背压的优先级端点、加权轮询及 Yield/Spin/Adaptive 等待，Linux 使用一次性通知票据与 futex。
+  - **按 key 合并**：LatestByKey 以静态容量提供独立复制快照和版本检查；Linux 使用共享 robust mutex，macOS 使用进程退出可释放的文件锁，结合双缓冲提交与恢复校验避免更新进程异常退出后永久锁死或暴露半写值。
+  - **正确性与性能实现**：修复 latest 保留水位、失败淘汰、长度和分配失败边界；Reliable 发布减少不必要的存活探测。`Subscriber::poll` 使用调用独占的未初始化描述符存储，避免空轮询 2 KiB 清零，同时保留默认值、重入、TTL、批量与借用契约，不弱化原子同步。
+  - **诊断与取舍**：保留开环 planned/attempt 时延对比、真实 perf/火焰图、阶段与调度关联、设计原型及三组 ABBA 审计工具。Publisher 新候选未通过相对门禁，六个后续轮询候选未晋升；不安全帧头原型、默认 FIFO 调度及临时快速路径草稿均不作为产品优化发布。
+  - **验证**：发布前 Linux Release 串行构建及 CTest 21/21 通过，包含安装消费者和 API/独立 poll 存储契约；HFT Python 36/36、Aeron Python 23/23 通过，HFT 独立 harness self-test、两端比较器构建、Shell 语法与版本元数据校验通过。历史报告中的 sanitizer 和候选验证有独立范围，不等同于本次全部重跑。
+  - **证据与边界**：仅提交精简逐轮数据、必要真实火焰图、哈希与核验记录；生成源码副本、构建产物、perf.data、批量日志和误导性临时实验保留本地。共享 VM 无有效硬件 PMU；约 100 ns 典型延迟差仍未完整归因，不宣称已解决尾延迟或通过长时 SLA，本次不重跑 48 分钟 ABBA/30 分钟长测，也不声明新增 macOS 或 mcpp 实测。
+  - **版本治理**：CMake、vcpkg、mcpp 与 README 统一为 3.0.0；注解 tag 直接复用本版本节，不代表包索引发布。

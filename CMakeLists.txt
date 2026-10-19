@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(salias VERSION 2.1.0 LANGUAGES CXX)
+project(salias VERSION 3.0.0 LANGUAGES CXX)
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT APPLE)
   message(FATAL_ERROR "salias currently supports Linux and macOS.")
