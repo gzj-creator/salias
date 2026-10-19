@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-10-19",
+  "timezone": "Asia/Singapore",
+  "baseline_version": "v3.0.0",
+  "baseline_commit": "c5e6aa7df4397df6f47a4e00cf5f72ed5ae778bd",
+  "completed_steps": [
+    "Session 1: 72-run extended baseline",
+    "Session 2: opt-in comparator counters and build/smoke checks",
+    "Session 3: three 36-run diagnostic matrices and strict parsing",
+    "Session 4: source-derived frame stride and MagicRing analysis",
+    "Session 5: evidence-backed report",
+    "Session 6: artifact manifest and scoped local commit"
+  ],
+  "data_paths": {
+    "baseline": "build/benchmarks/baseline-extended-20261019-183822",
+    "diagnostic": "build/benchmarks/diagnostic-20261019-185329",
+    "exploratory_diagnostics": [
+      "build/benchmarks/diagnostic-20261019-184518",
+      "build/benchmarks/diagnostic-20261019-184933"
+    ],
+    "report": "doc/plans/phase1-diagnosis-report.md",
+    "artifacts": "doc/plans/phase1-artifacts.md"
+  },
+  "acceptance": {
+    "all_runs_successful_without_timeout_or_oom": true,
+    "baseline_expected_72_records": true,
+    "diagnostic_five_measured_rounds_per_payload_per_mode": true,
+    "all_throughput_cv_below_5_percent": false,
+    "64b_gap_in_6_to_7_range": false,
+    "all_throughput_rounds_longer_than_8_seconds": false,
+    "instrumentation_overhead_below_5_percent": false,
+    "root_cause_confirmed": false
+  },
+  "key_results": {
+    "64b_salias_median_mmsg_s": 6.48923,
+    "64b_salias_sample_stddev_mmsg_s": 0.9584367852758989,
+    "64b_aeron_median_mmsg_s": 49.5253,
+    "64b_aeron_to_salias_ratio": 7.631922431474921,
+    "64b_frame_stride_bytes": 72,
+    "256b_frame_stride_bytes": 264,
+    "hypotheses": {
+      "H1_backpressure": "not supported in perturbed runs; original baseline not excluded",
+      "H2_frame_nonalignment": "both strides 8 mod 64; not a confirmed payload-specific cause",
+      "H3_redundant_guard": "not isolated or confirmed"
+    }
+  },
+  "validation": {
+    "python_tests_including_ipc_smoke": 32,
+    "targeted_ctest_passed": 5,
+    "release_build_without_warnings": true,
+    "src_unchanged": true
+  },
+  "next_steps": [
+    "Reduce observer effect and use same-binary off/counters/timed controls",
+    "Uninstrumented topology and neighboring-payload sweep",
+    "Conditional Phase 2B isolated Guard experiment; no product optimization authorized by these results"
+  ],
+  "git_policy": {
+    "local_phase1_only": true,
+    "preserve_preexisting_worktree_changes": true,
+    "create_tag": false,
+    "push": false
+  }
+}
