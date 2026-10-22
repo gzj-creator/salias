@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-19T16:58:21+0800",
+  "commit": "c5e6aa7df4397df6f47a4e00cf5f72ed5ae778bd",
+  "tag": "v3.0.0",
+  "binary": "/data/disk1/projects/salias/build/release/bench/salias_ipc_compare",
+  "binary_sha256": "3f8fc6957ce56483d7051dd6625f44fd8f755d57a66d04e1e5efa48e65b9c7da",
+  "kernel": "6.8.0-101-generic",
+  "cpu_affinity": [
+    1,
+    2,
+    3
+  ],
+  "cpu_roles": "publisher CPU3; subscriber0 CPU1; subscriber1 CPU2 when present; CPU0 unused",
+  "limits": {
+    "memory.current": "8679424",
+    "memory.peak": "9232384",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+    "cpu.stat": "usage_usec 54083\nuser_usec 42283\nsystem_usec 11800\ncore_sched.force_idle_usec 0"
+  },
+  "semantics": "Reliable FIFO broadcast: every subscriber receives every published message",
+  "latency": "2 seconds paced at 1M messages/s; 1/16 sampling; 1 warmup + 5 measured rounds",
+  "throughput": "10M messages, unpaced, no latency sampling; 1 warmup + 5 measured rounds",
+  "payload_limit": "logical size 64/256B; latency writes timestamp+marker (16B), throughput marker (8B); not full payload verification"
+}

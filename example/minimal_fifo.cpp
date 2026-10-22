@@ -46,7 +46,7 @@ int main() {
   std::memcpy(&second_received, second_message->payload.data(), sizeof(second_received));
   subscriber.release(*second_message);
 
-  first->commit();
+  first_publisher.commit(std::move(*first));
   auto first_message = subscriber.try_recv();
   if (!first_message) {
     return 5;

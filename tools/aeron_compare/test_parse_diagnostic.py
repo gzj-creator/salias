@@ -25,7 +25,8 @@ class DiagnosticSummaryTest(unittest.TestCase):
                            diagnostic_claim_yield_cycles=100,
                            diagnostic_claim_total_ns=200000 if mode == "timed" else 0)
             if mode == "timed":
-                metrics["diagnostic_claim_avg_ns"] = 200
+                metrics.update(diagnostic_claim_timed_samples=1000,
+                               diagnostic_claim_avg_ns=200)
             for consumer, empty, polls in ((0, 10, 100), (1, 90, 50)):
                 prefix = f"diagnostic_consumer{consumer}_"
                 metrics.update({prefix + "poll_empty": empty, prefix + "poll_success": polls,
@@ -60,7 +61,7 @@ class DiagnosticSummaryTest(unittest.TestCase):
         result = self.summary()
         self.assertEqual(result["measured_runs"], 30)
         self.assertEqual(result["warmup_runs"], 6)
-        self.assertEqual(result["schema_version"], 2)
+        self.assertEqual(result["schema_version"], 3)
         for payload in result["payload_summary"]:
             self.assertEqual(payload["rounds"], 5)
             self.assertEqual(payload["counter_mode"], "counters")
@@ -69,7 +70,11 @@ class DiagnosticSummaryTest(unittest.TestCase):
             self.assertAlmostEqual(payload["consumer_empty_rate"], 0.4)
             self.assertAlmostEqual(payload["avg_batch"], 2000 / 150)
             self.assertEqual(payload["claim_avg_ns"], 200)
+            self.assertEqual(payload["claim_timed_samples"], 1000)
         self.assertFalse(result["instrumentation_exceeds_5_percent"])
+        for group in result["groups"]:
+            if group["mode"] != "off":
+                self.assertIsNone(group["paired_throughput_change_fraction"]["cv"])
         self.assertTrue(all(group["publish_mmsg_s"]["median"] == 10 for group in result["groups"]))
 
     def test_thresholds_are_strictly_greater(self):
@@ -101,6 +106,28 @@ class DiagnosticSummaryTest(unittest.TestCase):
         self.assertTrue(all(p["claim_avg_ns"] is None for p in result["payload_summary"]))
         self.assertIsNone(result["hypotheses"]["H3"]["threshold_exceeded"])
         self.assertIsNone(result["instrumentation_exceeds_5_percent"])
+
+    def test_timed_average_uses_sampled_claims_as_denominator(self):
+        record = self.record(mode="timed")
+        path = self.directory / record["stdout"]
+        path.write_text(path.read_text().replace("diagnostic_claim_timed_samples=1000",
+                                                 "diagnostic_claim_timed_samples=2"))
+        record["stdout_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+        self.assertEqual(analyze_record(record, self.directory)["claim_avg_ns"], 100000)
+
+    def test_statistics_include_quartiles_and_coefficient_of_variation(self):
+        result = self.summary()
+        self.assertTrue(result["measurement_controls"]["64"]["counters_measure_consistency"]["cv_below_5_percent"])
+        self.assertTrue(result["measurement_controls"]["64"]["counters_change_below_5_percent"])
+        self.assertTrue(result["measurement_controls"]["64"]["timed_change_below_5_percent"])
+        for group in result["groups"]:
+            throughput = group["publish_mmsg_s"]
+            self.assertLessEqual(throughput["min"], throughput["q1"])
+            self.assertLessEqual(throughput["q1"], throughput["median"])
+            self.assertLessEqual(throughput["median"], throughput["q3"])
+            self.assertLessEqual(throughput["q3"], throughput["max"])
+            self.assertAlmostEqual(throughput["iqr"], throughput["q3"] - throughput["q1"])
+            self.assertEqual(throughput["cv"], 0)
 
     def test_timed_only_can_supply_counter_metrics(self):
         result = self.summary(modes=("timed",))

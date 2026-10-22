@@ -3,7 +3,8 @@
 **执行日期**：2026-10-19（Asia/Singapore）；**执行人**：Codex。
 
 **基线版本**：v3.0.0 / `c5e6aa7df4397df6f47a4e00cf5f72ed5ae778bd`。
-**本轮状态**：Session 1–6 完成，证据归档并作本地 scoped commit；稳定性及计时扰动门禁未通过，根因未确认。
+**本轮状态**：Phase 1（Session 1–6）完成；Phase 1.5 降扰动复测完成。64 B counters
+计数扰动门禁通过、64 B CV 仅通过放宽后的 8% 门禁，未通过 5% 门禁；根因仍未确认。
 
 ## 一、执行摘要
 
@@ -25,12 +26,45 @@
 **验收**：差距复现，但 CV<5%、64 B 比例 1:6–1:7、所有吞吐轮次 >8 s 均未通过；
 仅 Salias 64 B 各轮 >8 s。72 份 stdout 哈希/RESULT 校验一致，无 timeout/OOM/内存 high/max 事件；基线二进制为插桩前冻结版本。
 
+## 二点五、Phase 1.5 低扰动复测
+
+数据：`build/benchmarks/diagnostic-stable-20261019-205458/diagnostic_summary.json`。
+timed 从每条成功 claim 计时改为每 1000 条成功消息采样一次；runner 默认改为 1 轮预热、
+10 轮正式，共 66 次（60 正式、6 预热）。每次 10M、1P2S、1 MiB ring，无采样或失败。
+汇总给出 min/Q1/median/Q3/max、IQR 和样本 CV；配对变化取同轮 counters 或 timed
+相对 off 的比率中位数。样本路径与冻结源码一致；正式运行后仅为诊断结构补了保持
+64 字节布局的 padding，未重跑样本。
+
+| Payload / 模式 | 中位数（Mmsg/s） | Q1–Q3 | IQR / 中位数 | 样本 CV |
+|---|---:|---:|---:|---:|
+| 64 B / off | 5.187 | 5.097–5.758 | 12.75% | 10.18% |
+| 64 B / counters | 5.383 | 5.135–5.516 | 7.09% | 7.05% |
+| 64 B / timed | 5.124 | 5.019–5.287 | 5.24% | 7.17% |
+| 256 B / off | 5.372 | 4.975–6.393 | 26.40% | 14.21% |
+| 256 B / counters | 5.414 | 4.924–6.284 | 25.11% | 16.64% |
+| 256 B / timed | 5.316 | 4.973–5.396 | 7.96% | 10.79% |
+
+| Payload / 模式 | 配对变化中位数 | 配对变化 min–max | 计数变化 <5% | 吞吐 CV<8% | 吞吐 CV<5% |
+|---|---:|---:|---|---|---|
+| 64 B / counters | +2.00% | −12.37%–+16.11% | 通过 | 通过 | 未通过 |
+| 64 B / timed | −5.01% | −15.04%–+19.26% | 未通过（边缘） | 通过 | 未通过 |
+| 256 B / counters | −4.28% | −23.81%–+61.86% | 通过 | 未通过 | 未通过 |
+| 256 B / timed | −9.76% | −27.53%–+44.11% | 未通过 | 未通过 | 未通过 |
+
+**结论**：降低 timed 采样频率后，64 B timed 在 10 轮内仍有 −5.01% 的中位配对变化，
+只能说明计时开销已大幅缩小，未证明完全无扰动；256 B off 基线本身 CV=14.21%，对插桩
+归因没有足够分辨率。64 B counters 的 CV=7.05% 通过放宽后的 <8%，但仍未通过原 <5% 门禁。
+H3 的降频采样中位数升至 208.807 ns（10,000 次采样），该值覆盖完整成功 `try_claim`，
+不能单独归因于 `ClaimReservationGuard`。因此本轮只修复测量方法，不确认 256 B 的计时
+扰动，也不把结果的假设阈值变化升级为产品优化依据。
+
 ## 三、插桩诊断
 
-本轮数据：`build/benchmarks/diagnostic-20261019-195710/diagnostic_summary.json`。
+Phase 1 初测数据：`build/benchmarks/diagnostic-20261019-195710/diagnostic_summary.json`。
 仅 Salias、1P2S、10M；三模式 **off/counters/timed 使用同一二进制**，各组一轮预热、五轮正式，
 共 36 次（30 正式、6 预热），每次交付 20M，无采样或失败。执行提交 `55e301a` 含 Session 2 工作区改动；哈希见 `environment.json`。
-表内为五轮中位数；总体消费者比率每轮先合并整数计数；claim 从总纳秒/成功次数重算，**不同模式不混作因果观测**。
+表内为五轮中位数；总体消费者比率每轮先合并整数计数；Phase 1 初测的 claim 从总纳秒/成功次数重算，
+Phase 1.5 改用每 1000 条采样、以采样次数为分母；**不同模式不混作因果观测**。
 
 | Payload / 模式 | 背压率 | 总体空 poll 率 | 总体 avg_batch（条/成功 poll） | claim_avg_ns |
 |---|---:|---:|---:|---:|
@@ -77,9 +111,12 @@
 ## 五、下一步决策与边界
 
 **首选：Phase 2B 单发布者快速路径的有条件隔离验证。**目前无明显背压/消费落后信号，
-可探索减少单写者重复同步；这是实验优先级，不是 Guard 根因确认或收益承诺。
+可探索减少单写者重复同步；这是实验优先级，不是 Guard 根因确认或收益承诺。Phase 1.5
+的 64/256 B CV 未达到原 5% 门禁，因此先完成 P1 的未插桩拓扑与 payload 扫描，再决定
+是否满足 Phase 2B 的前置条件。
 
-1. 同二进制对照已完成；先降低计时频率、复核稳定性，明确 Guard 测量边界。
+1. 同二进制对照已完成；Phase 1.5 已降低计时频率但 64/256 B 均未过原 5% CV 门禁，
+   timed 仍需在干净环境复核后，才能讨论 Guard 测量边界。
 2. 做未插桩 1P1S/1P2S/1P3S、相邻 payload 对照；仍指向发布侧时再验证 2B。
 3. 风险是破坏注册代际互斥、最慢订阅者背压、payload 借用期或批量提交前缀；契约不变、去插桩且收益稳定才考虑产品化。
 
@@ -92,6 +129,10 @@ Nice=5、MemoryHigh/Max=640/704M、swap=0。Aeron 三 term 且额外一个 drive
 基线吞吐 100M、诊断 10M；独立延迟测试为 2M、1M/s、采样 1/16，此处不用于归因。
 
 52 项 Python 回归/IPC 冒烟、3 个 frame/ring/platform CTest 目标通过；消息数量校验不等于完整 payload 正确性证明。
+Phase 1.5 的解析回归 19 项及真实 IPC 冒烟 10 项通过；10 轮原始 stdout 哈希与交付数
+均由解析器逐条校验，`diagnostic_summary.json` SHA-256 为
+`0bddda8fa78fb5e57c0420caf7b670c9bca4051a9cf9192c54b32f9268f3dfb1`。
 哈希与细节见 [Session 3](session3-diagnostic-results.md)、[Session 4](session4-frame-layout-results.md)。
 未修改 `src/`；Session 6 已更新[产物清单](phase1-artifacts.md)并完成本地 scoped commit，未 tag/push。
-**下一步是低扰动计时及未插桩拓扑/payload 复核**，不将有条件 Phase 2B 候选当作根因确认；状态见 `session-state.json`。
+**下一步是未插桩拓扑/payload 复核**；低扰动 timed 采样已完成，但不满足原 5% CV 门禁，
+不将有条件 Phase 2B 候选当作根因确认；状态见 `session-state.json`。

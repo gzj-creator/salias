@@ -48,7 +48,7 @@ void roundtrip() {
     auto claim = publisher.try_claim(payload.size());
     require(claim.has_value());
     std::ranges::copy(payload, claim->payload().begin());
-    claim->commit();
+    publisher.commit(std::move(*claim));
     const std::array<std::span<const std::byte>, 2> batch{payload, payload};
     const auto offered = publisher.offer_batch(batch);
     require(offered && *offered == batch.size());
@@ -72,7 +72,7 @@ void roundtrip() {
     auto ttl_claim = publisher.try_claim_for(payload.size(), std::chrono::seconds{1});
     require(ttl_claim.has_value());
     std::ranges::copy(payload, ttl_claim->payload().begin());
-    ttl_claim->commit();
+    publisher.commit(std::move(*ttl_claim));
     auto ttl_message = subscriber.try_recv();
     require(ttl_message && ttl_message->expires_at_monotonic_ns > 0);
     subscriber.release(*ttl_message);

@@ -140,6 +140,7 @@ salias_register_test(salias_channel_tests "$<TARGET_FILE:salias_channel_tests>")
 
 add_executable(salias_api_tests
   api/channel_api_test.cpp
+  api/claim_api_v4_test.cpp
   api/latest_subscription_test.cpp
 )
 target_link_libraries(salias_api_tests PRIVATE salias GTest::gtest_main)
@@ -148,6 +149,21 @@ salias_enable_warnings(salias_api_tests)
 salias_enable_sanitizers(salias_api_tests)
 
 salias_register_test(salias_api_tests "$<TARGET_FILE:salias_api_tests>")
+
+# P3-1 非对称屏障用例：需要 core 头以便直接检查进程级注册状态与 heavy fence 故障注入。
+# 故障注入开关（SALIAS_TEST_HOOKS）只放开测试专用的 setter，被检查的原子变量本身
+# 在所有构建中都存在，因此库里的 channel.cpp 与测试 TU 共享同一份状态。
+add_executable(salias_asymmetric_fence_tests
+  api/asymmetric_fence_test.cpp
+)
+target_include_directories(salias_asymmetric_fence_tests PRIVATE "${PROJECT_SOURCE_DIR}/src")
+target_compile_definitions(salias_asymmetric_fence_tests PRIVATE SALIAS_TEST_HOOKS=1)
+target_link_libraries(salias_asymmetric_fence_tests PRIVATE salias GTest::gtest_main)
+
+salias_enable_warnings(salias_asymmetric_fence_tests)
+salias_enable_sanitizers(salias_asymmetric_fence_tests)
+
+salias_register_test(salias_asymmetric_fence_tests "$<TARGET_FILE:salias_asymmetric_fence_tests>")
 
 add_library(salias_test_keyed STATIC "${PROJECT_SOURCE_DIR}/src/salias/src/latest_by_key.cpp")
 target_compile_features(salias_test_keyed PUBLIC cxx_std_23)

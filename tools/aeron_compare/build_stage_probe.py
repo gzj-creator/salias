@@ -53,12 +53,12 @@ void emit_stages(const SharedRunState& state, std::uint32_t consumers) {
 """
     else:
         text = replace_once(text, "    if (claim_result) {", "    if (claim_result) {\n      const auto claim_end_ns = sampled ? latency::monotonic_now_ns() : 0;")
-        text = replace_once(text, "      claim.commit();", """      if (sampled) {
+        text = replace_once(text, "        publisher.commit(std::move(claim));", """        if (sampled) {
         std::memcpy(claim.payload().data() + 16, &claim_end_ns, sizeof(claim_end_ns));
         const auto precommit_ns = latency::monotonic_now_ns();
         std::memcpy(claim.payload().data() + 24, &precommit_ns, sizeof(precommit_ns));
       }
-      claim.commit();""")
+        publisher.commit(std::move(claim));""")
         load = """      std::uint64_t claim_end_ns, precommit_ns;
       std::memcpy(&claim_end_ns, message.payload.data() + 16, sizeof(claim_end_ns));
       std::memcpy(&precommit_ns, message.payload.data() + 24, sizeof(precommit_ns));

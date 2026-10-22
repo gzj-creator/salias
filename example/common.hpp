@@ -273,7 +273,7 @@ salias::Result<bool> publish_text(salias::Publisher<M>& publisher, std::string_v
       auto claim = std::move(claimed).value();
       std::memcpy(claim.payload().data(), text.data(), text.size());
       // commit 之前的 acquire/release 语义确保消费者读到完整帧
-      claim.commit();
+      publisher.commit(std::move(claim));
       return true;
     }
     if (claimed.error() != salias::Error::BackPressured) {

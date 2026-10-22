@@ -252,7 +252,7 @@ void produce(const Options& o, const std::string& name, unsigned id, Shared& s) 
           std::memcpy(payload.data() + word * 8, &value, sizeof(value));
         }
         const auto commit_start = diagnostic ? now_ns() : 0;
-        claim.commit();
+        publisher.commit(std::move(claim));
         if (diagnostic) stats.commit_call.record(now_ns() - commit_start);
         if (sample || bp_start) now = now_ns();
         if (sample) {

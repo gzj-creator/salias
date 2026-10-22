@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-19T17:08:04+0800",
+  "commit": "c5e6aa7df4397df6f47a4e00cf5f72ed5ae778bd",
+  "tag": "v3.0.0",
+  "kernel": "6.8.0-101-generic",
+  "aeron_version": "1.52.0",
+  "files": {
+    "/data/disk1/projects/salias/build/release/bench/salias_ipc_compare": "3f8fc6957ce56483d7051dd6625f44fd8f755d57a66d04e1e5efa48e65b9c7da",
+    "/data/disk1/projects/salias/build/release-check-v3.0.0-20261019/aeron_ipc_compare": "d66f7c51a41bc5639ca713283c846c5166bd5dafbe53ccf1d5bd0a2f9814e3d5",
+    "/data/disk1/projects/salias/build/benchmarks/aeron-latency-20261018/deps/aeron-build/binaries/aeronmd": "9bd356315b87e6f7b87ce7dca454ee79637c635bda04d85d01384e543d955d72",
+    "/data/disk1/projects/salias/build/benchmarks/aeron-latency-20261018/deps/aeron-build/lib/libaeron_driver.so": "4c88bc51d302b196c2e9f091f7ff2b8041c45562039555895b7230984fc9b5fb",
+    "/data/disk1/projects/salias/build/benchmarks/aeron-latency-20261018/deps/aeron-build/lib/libaeron.so": "d1676a0712a24cc5397208918c39dbf8df02d42ee8b0a48f40821b2ff6ff026f",
+    "/data/disk1/projects/salias/build/spmc-check-20261019/compare_aeron.py": "1134e1b3e236d6a2d98d54c7478c809a6600fc6c1f721bbc73d87f7c211e6bae"
+  },
+  "cpu_roles": "subscriber0 CPU1; subscriber1 CPU2; publisher CPU3; coordinator CPU0; Aeron driver CPU0",
+  "cpu_budget": "4-vCPU host; 3 fixed application-worker CPUs for both; Aeron has an additional driver on CPU0, not CPU-exclusive or equal total CPU cost",
+  "difference_from_prior": "Earlier Salias-only run excluded CPU0 and ran its coordinator on CPUs1-3; do not splice the runs",
+  "semantics": "1P2S Reliable broadcast: every subscriber receives every message; Salias FifoMpmc versus Aeron IPC exclusive publication",
+  "capacity": "Salias 1MiB ring versus Aeron 1MiB term (triple-term log); not equal total mapped memory",
+  "latency": "1M/s planned input; 2M messages/case; sample 1/16; attempt and planned measured independently",
+  "throughput": "10M messages/case, no pacing, no latency samples, batch1",
+  "aggregation": "Median across five rounds of each round's worst-subscriber percentile; never pooled quantiles",
+  "payload_limit": "Logical 64/256B; latency writes 16B timestamp+marker, throughput 8B marker; count/sample checks, no full content/sequence validation",
+  "limits": {
+    "memory.current": "9252864",
+    "memory.peak": "9629696",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+    "cpu.stat": "usage_usec 61724\nuser_usec 49967\nsystem_usec 11757\ncore_sched.force_idle_usec 0"
+  }
+}

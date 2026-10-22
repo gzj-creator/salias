@@ -240,13 +240,13 @@ TEST_F(LatestSubscriptionTest, SeekDoesNotCrossAnUncommittedPublicationHole) {
   std::memcpy(first->payload().data(), &value, sizeof(value));
   std::memcpy(second->payload().data(), &value, sizeof(value));
   std::memcpy(third->payload().data(), &value, sizeof(value));
-  second->commit();
-  third->commit();
+  publisher.commit(std::move(*second));
+  publisher.commit(std::move(*third));
   auto gap = subscriber.skip_to_latest();
   ASSERT_TRUE(gap);
   EXPECT_EQ(*gap, 0u);
   EXPECT_FALSE(subscriber.try_recv());
-  first->commit();
+  publisher.commit(std::move(*first));
   auto skipped = subscriber.skip_to_latest();
   ASSERT_TRUE(skipped);
   EXPECT_EQ(*skipped, 2u);

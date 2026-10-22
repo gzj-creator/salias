@@ -36,6 +36,22 @@
 #include "latency_pacing.hpp"
 #include "salias/salias.hpp"
 
+// ============================================================================
+// Instrumentation Level Control (Phase 1 - S.2.2)
+// ============================================================================
+#ifndef INSTRUMENTATION_LEVEL
+#define INSTRUMENTATION_LEVEL 0
+#endif
+
+namespace instrumentation {
+constexpr int kLevel = INSTRUMENTATION_LEVEL;
+constexpr bool kEnabled = (kLevel > 0);
+constexpr bool kCountSuccess = (kLevel >= 1);
+constexpr bool kCountBackpressure = (kLevel >= 2);
+constexpr bool kCountPollDetail = (kLevel >= 3);
+constexpr bool kEnableTiming = (kLevel >= 4);
+}  // namespace instrumentation
+
 /// 匿名命名空间：本文件内部使用的工具函数、类型与基准驱动逻辑，
 /// 仅在本编译单元可见，避免符号外泄。
 namespace {
@@ -73,36 +89,42 @@ struct Options {
   std::uint64_t rate = 0;  ///< Per-producer open-loop rate; zero retains saturation mode.
   std::string latency_origin = "claim";  ///< claim / attempt / planned.
   std::string diagnostic = "off";  ///< off / counters / timed；仅供单发布者吞吐诊断。
+  std::string publish_path = "claim";  ///< claim / offer；实验回退路径，默认 claim。
   bool producers_set = false;             ///< 标记 producers 是否由用户显式指定
   bool consumers_set = false;             ///< 标记 consumers 是否由用户显式指定
 };
 
-/// 单发布者独占计数；父进程仅在 waitpid 完成后读取，不需要热路径原子操作。
-struct alignas(64) PublisherDiagnostic {
-  std::uint64_t claim_success = 0;
-  std::uint64_t claim_backpressure = 0;
-  std::uint64_t claim_yield_cycles = 0;
-  std::uint64_t claim_total_ns = 0;  ///< 仅累计成功 try_claim 的耗时，不含 commit。
-};
-
-/// 每个消费者独占一个缓存行，避免相邻数组元素造成伪共享。
-struct alignas(64) ConsumerDiagnostic {
-  std::uint64_t poll_empty = 0;
-  std::uint64_t poll_success = 0;
-  std::uint64_t poll_total_messages = 0;
-};
+/// timed 模式每 1000 个成功消息采样一次，把 steady_clock 读取开销摊薄到可忽略。
+constexpr std::uint64_t kDiagnosticTimingStride = 1000;
 
 /// 诊断共享区随 SharedRunState 一起 mmap；不修改产品通道布局。
 struct alignas(64) DiagnosticCounters {
-  PublisherDiagnostic publisher{};
-  std::array<ConsumerDiagnostic, kMaxWorkers> consumers{};
+#if INSTRUMENTATION_LEVEL >= 1
+  // L1: success counters only.
+  alignas(64) std::uint64_t claim_success = 0;
+  alignas(64) std::array<std::uint64_t, kMaxWorkers> poll_success{};
+  alignas(64) std::array<std::uint64_t, kMaxWorkers> poll_total_messages{};
+#endif
+
+#if INSTRUMENTATION_LEVEL >= 2
+  // L2: backpressure counters.
+  alignas(64) std::uint64_t claim_backpressure = 0;
+  alignas(64) std::uint64_t claim_yield_cycles = 0;
+#endif
+
+#if INSTRUMENTATION_LEVEL >= 3
+  // L3: empty-poll detail.
+  alignas(64) std::array<std::uint64_t, kMaxWorkers> poll_empty{};
+#endif
+
+#if INSTRUMENTATION_LEVEL >= 4
+  // L4: sampled claim timing.
+  alignas(64) std::uint64_t claim_total_ns = 0;
+  alignas(64) std::uint64_t claim_timing_samples = 0;
+#endif
 };
-// 固定每个 worker 的缓存行边界，防止后续新增字段引入跨进程伪共享。
-static_assert(alignof(PublisherDiagnostic) == 64);
-static_assert(sizeof(PublisherDiagnostic) == 64);
-static_assert(alignof(ConsumerDiagnostic) == 64);
-static_assert(sizeof(ConsumerDiagnostic) == 64);
 static_assert(alignof(DiagnosticCounters) == 64);
+static_assert(sizeof(DiagnosticCounters) % 64 == 0);
 
 /**
  * @brief 跨进程共享的运行态与统计区，经匿名 mmap 映射在父子进程间共享。
@@ -205,6 +227,8 @@ Options parse_options(int argc, char** argv) {
       options.latency_origin = require_value("--latency-origin");
     } else if (arg == "--diagnostic") {
       options.diagnostic = require_value("--diagnostic");
+    } else if (arg == "--publish-path") {
+      options.publish_path = require_value("--publish-path");
     } else if (arg == "--help") {
       std::cout << "usage: salias_ipc_compare --scenario fifo|ordered "
                    "[--messages N] [--producers N] [--consumers N] [--payload N] "
@@ -214,7 +238,7 @@ Options parse_options(int argc, char** argv) {
                    "[--name NAME] [--cpu-base N] [--cpu-stride N] "
                    "[--latency-sample-rate N] [--rate N] "
                    "[--latency-origin claim|attempt|planned] "
-                   "[--diagnostic off|counters|timed]\n";
+                   "[--diagnostic off|counters|timed] [--publish-path claim|offer]\n";
       std::exit(0);
     } else {
       std::cerr << "unknown argument: " << arg << '\n';
@@ -249,6 +273,15 @@ Options parse_options(int argc, char** argv) {
     std::cerr << "invalid producers/consumers/payload/batch-size/poll-limit/cpu-stride\n";
     std::exit(2);
   }
+  if (options.publish_path != "claim" && options.publish_path != "offer") {
+    std::cerr << "unknown publish path: " << options.publish_path << '\n';
+    std::exit(2);
+  }
+  if (options.publish_path == "offer" &&
+      (options.batch_size != 1 || options.diagnostic != "off")) {
+    std::cerr << "offer path requires batch1 and diagnostic off\n";
+    std::exit(2);
+  }
   if ((options.diagnostic != "off" && options.diagnostic != "counters" &&
        options.diagnostic != "timed") ||
       (options.diagnostic != "off" &&
@@ -274,6 +307,10 @@ Options parse_options(int argc, char** argv) {
       options.rate > 1'000'000'000ull) {
     throw std::invalid_argument("invalid pacing/latency origin; paced runs require batch-size 1");
   }
+#if INSTRUMENTATION_LEVEL == 0
+  // L0 must remain a true no-instrumentation build even if a caller requests counters.
+  options.diagnostic = "off";
+#endif
   return options;
 }
 
@@ -444,6 +481,38 @@ void ready_and_wait_for_start(SharedRunState& state) noexcept {
 }
 
 /**
+ * @brief 通过 offer 路径发布一条消息，用于 claim 包装层的配对诊断。
+ * @details offer 路径仅复用 benchmark 的 payload 写入语义；背压时与 claim 路径
+ *   一样 yield 重试。该路径不改变产品默认 API。
+ */
+template <salias::Mode M>
+bool offer_until_committed(salias::Publisher<M>& publisher, std::size_t payload_len,
+                           std::uint64_t marker, std::uint64_t send_time_ns,
+                           bool latency_enabled, SharedRunState& state,
+                           std::vector<std::byte>& storage) noexcept {
+  if (storage.size() < payload_len) {
+    storage.resize(payload_len);
+  }
+  write_payload(std::span<std::byte>(storage.data(), payload_len), marker, send_time_ns,
+                latency_enabled);
+  for (;;) {
+    if (has_failed(state)) {
+      return false;
+    }
+    auto offered = publisher.offer(
+        std::span<const std::byte>(storage.data(), payload_len));
+    if (offered && offered.value()) {
+      return true;
+    }
+    if (offered || offered.error() != salias::Error::BackPressured) {
+      mark_failed(state);
+      return false;
+    }
+    std::this_thread::yield();
+  }
+}
+
+/**
  * @brief 逐条 claim-写-commit，直到该消息成功发布或检测到失败。
  * @tparam M salias 模式枚举。
  * @param publisher 生产者句柄。
@@ -456,11 +525,10 @@ void ready_and_wait_for_start(SharedRunState& state) noexcept {
  * @details 遇到 BackPressured（流控背压）时不视为失败，yield 退避后重试，
  *   实现流控窗口下的自适应发布。非背压错误则标记全局失败。
  */
-template <salias::Mode M, bool Diagnostic = false, bool Timed = false>
-bool claim_until_committed(salias::Publisher<M>& publisher, std::size_t payload_len,
-                           std::uint64_t marker, std::uint64_t sequence, const Options& options,
-                           SharedRunState& state, std::uint64_t planned_ns,
-                           PublisherDiagnostic* diagnostic = nullptr) noexcept {
+template <salias::Mode M, bool Timed>
+bool claim_once_timed(salias::Publisher<M>& publisher, std::size_t payload_len,
+                      std::uint64_t marker, std::uint64_t sequence, const Options& options,
+                      SharedRunState& state, std::uint64_t planned_ns) noexcept {
   const bool sampled = should_sample(options, sequence);
   const std::uint64_t origin_ns = !sampled || options.latency_origin == "claim" ? 0 :
       options.latency_origin == "planned" ? planned_ns : latency::monotonic_now_ns();
@@ -468,42 +536,115 @@ bool claim_until_committed(salias::Publisher<M>& publisher, std::size_t payload_
     if (has_failed(state)) {
       return false;
     }
+#if INSTRUMENTATION_LEVEL >= 4
     std::chrono::steady_clock::time_point claim_start{};
-    if constexpr (Timed) {
+    if constexpr (Timed && instrumentation::kEnableTiming) {
       claim_start = std::chrono::steady_clock::now();
     }
+#endif
     auto claim_result = publisher.try_claim(payload_len);
-    std::uint64_t claim_ns = 0;
-    if constexpr (Timed) {
-      claim_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-          std::chrono::steady_clock::now() - claim_start).count());
+#if INSTRUMENTATION_LEVEL >= 4
+    if constexpr (Timed && instrumentation::kEnableTiming) {
+      const auto elapsed_ns = static_cast<std::uint64_t>(
+          std::chrono::duration_cast<std::chrono::nanoseconds>(
+              std::chrono::steady_clock::now() - claim_start).count());
+      state.diagnostic.claim_total_ns += elapsed_ns;
+      ++state.diagnostic.claim_timing_samples;
     }
+#endif
     if (claim_result) {
-      if constexpr (Diagnostic) {
-        ++diagnostic->claim_success;
-        if constexpr (Timed) {
-          diagnostic->claim_total_ns += claim_ns;
-        }
-      }
       auto claim = std::move(claim_result).value();
-      // 仅在采样序列号上取时间戳，避免每条消息都读 TSC 带来的开销。
       const std::uint64_t send_time_ns =
           sampled ? (origin_ns != 0 ? origin_ns : latency::monotonic_now_ns()) : 0;
       write_payload(claim.payload(), marker, send_time_ns, options.latency_sample_rate != 0);
-      // commit 以 release 语义发布该消息，consumer acquire 后可见。
-      claim.commit();
+      publisher.commit(std::move(claim));
       return true;
     }
-    // 背压：consumer 尚未消费足够位置，yield 退避后重试。
     if (claim_result.error() != salias::Error::BackPressured) {
       mark_failed(state);
       return false;
     }
-    if constexpr (Diagnostic) {
-      ++diagnostic->claim_backpressure;
-      ++diagnostic->claim_yield_cycles;
-    }
     std::this_thread::yield();
+  }
+}
+
+/**
+ * @brief 逐条 claim-写-commit；L0 实例保持与原始发布循环相同的代码形状。
+ * @details LayoutControl 仅用于让对照实例与 L0 实例具有不同的代码布局，
+ *   便于把“插桩结构/代码布局”与 claim 语义本身分开评估；它不改变发布行为。
+ */
+template <salias::Mode M, bool Diagnostic = false, bool Timed = false,
+          bool LayoutControl = false>
+bool claim_until_committed(salias::Publisher<M>& publisher, std::size_t payload_len,
+                           std::uint64_t marker, std::uint64_t sequence, const Options& options,
+                           SharedRunState& state, std::uint64_t planned_ns) noexcept {
+  if constexpr (!Diagnostic && !LayoutControl) {
+    // L0 保留原 benchmark 的静态发布方法签名和循环结构，避免诊断实参影响调用点布局。
+    return claim_once_timed<M, false>(publisher, payload_len, marker, sequence, options, state,
+                                      planned_ns);
+  } else {
+    const bool sampled = should_sample(options, sequence);
+    const std::uint64_t origin_ns = !sampled || options.latency_origin == "claim" ? 0 :
+        options.latency_origin == "planned" ? planned_ns : latency::monotonic_now_ns();
+    for (;;) {
+      if (has_failed(state)) {
+        return false;
+      }
+#if INSTRUMENTATION_LEVEL >= 4
+      const bool time_this_claim = Timed && instrumentation::kEnableTiming &&
+          sequence % kDiagnosticTimingStride == 0;
+      std::chrono::steady_clock::time_point claim_start{};
+      if constexpr (Timed && instrumentation::kEnableTiming) {
+        if (time_this_claim) {
+          claim_start = std::chrono::steady_clock::now();
+        }
+      }
+#endif
+      auto claim_result = publisher.try_claim(payload_len);
+#if INSTRUMENTATION_LEVEL >= 4
+      std::uint64_t claim_ns = 0;
+      if constexpr (Timed && instrumentation::kEnableTiming) {
+        if (time_this_claim) {
+          claim_ns = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+              std::chrono::steady_clock::now() - claim_start).count());
+        }
+      }
+#endif
+      const bool claim_succeeded = claim_result.has_value();
+      static_cast<void>(claim_succeeded);
+      if (claim_result.has_value()) {
+#if INSTRUMENTATION_LEVEL >= 1
+        if constexpr (Diagnostic && instrumentation::kCountSuccess) {
+          ++state.diagnostic.claim_success;
+        }
+#endif
+#if INSTRUMENTATION_LEVEL >= 4
+        if constexpr (Timed && instrumentation::kEnableTiming) {
+          if (time_this_claim) {
+            state.diagnostic.claim_total_ns += claim_ns;
+            ++state.diagnostic.claim_timing_samples;
+          }
+        }
+#endif
+        auto claim = std::move(claim_result).value();
+        const std::uint64_t send_time_ns =
+            sampled ? (origin_ns != 0 ? origin_ns : latency::monotonic_now_ns()) : 0;
+        write_payload(claim.payload(), marker, send_time_ns, options.latency_sample_rate != 0);
+        publisher.commit(std::move(claim));
+        return true;
+      }
+      if (claim_result.error() != salias::Error::BackPressured) {
+        mark_failed(state);
+        return false;
+      }
+#if INSTRUMENTATION_LEVEL >= 2
+      if constexpr (Diagnostic && instrumentation::kCountBackpressure) {
+        ++state.diagnostic.claim_backpressure;
+        ++state.diagnostic.claim_yield_cycles;
+      }
+#endif
+      std::this_thread::yield();
+    }
   }
 }
 
@@ -598,11 +739,15 @@ template <salias::Mode M, bool Diagnostic = false>
     std::uint64_t consumed = 0;
     std::uint64_t sample_count = 0;
     std::uint64_t max_latency_ns = 0;
-    ConsumerDiagnostic diagnostic{};
     auto* const latency_buckets = state.latency_buckets[consumer_index].data();
     /// poll 回调：计消费数，并在启用采样时从 payload 提取时间戳计算延迟。
     auto handler = [&](const salias::Message& message) noexcept {
       ++consumed;
+#if INSTRUMENTATION_LEVEL >= 1
+      if constexpr (Diagnostic && instrumentation::kCountSuccess) {
+        ++state.diagnostic.poll_total_messages[consumer_index];
+      }
+#endif
       // 关闭采样或 payload 过短无法读取时间戳，跳过延迟统计。
       if (options.latency_sample_rate == 0 || message.payload.size() < sizeof(std::uint64_t)) {
         return;
@@ -631,29 +776,28 @@ template <salias::Mode M, bool Diagnostic = false>
         _exit(22);
       }
       // poll_limit 限制单次 poll 处理上限，平衡延迟与吞吐。
-      if constexpr (Diagnostic) {
-        // 使用回调实际消费数区分空轮询；保持 poll 的参数顺序与产品 API 一致。
-        const auto before = consumed;
-        static_cast<void>(subscriber.poll(options.poll_limit, handler));
-        if (consumed == before) {
-          ++diagnostic.poll_empty;
-        } else {
-          ++diagnostic.poll_success;
-          diagnostic.poll_total_messages += consumed - before;
+      const auto poll_result = subscriber.poll(options.poll_limit, handler);
+      static_cast<void>(poll_result);
+#if INSTRUMENTATION_LEVEL >= 1
+      if constexpr (Diagnostic && instrumentation::kCountSuccess) {
+        if (poll_result > 0) {
+          ++state.diagnostic.poll_success[consumer_index];
         }
-      } else {
-        static_cast<void>(subscriber.poll(options.poll_limit, handler));
       }
+#endif
+#if INSTRUMENTATION_LEVEL >= 3
+      if constexpr (Diagnostic && instrumentation::kCountPollDetail) {
+        if (poll_result == 0) {
+          ++state.diagnostic.poll_empty[consumer_index];
+        }
+      }
+#endif
     }
     // 以 release 语义发布本 consumer 的消费计数，供父进程 acquire 读取核验。
     std::atomic_ref<std::uint64_t>(state.consumed[consumer_index])
         .store(consumed, std::memory_order_release);
     state.latency_samples[consumer_index] = sample_count;
     state.latency_max_ns[consumer_index] = max_latency_ns;
-    if constexpr (Diagnostic) {
-      // 热路径本地累计，结束时才写共享页；waitpid 后父进程读取。
-      state.diagnostic.consumers[consumer_index] = diagnostic;
-    }
     _exit(0);
   } catch (...) {
     mark_failed(state);
@@ -688,8 +832,8 @@ template <salias::Mode M, bool Diagnostic = false, bool Timed = false>
       _exit(31);
     }
 
-    PublisherDiagnostic diagnostic{};
     if (options.batch_size == 1) {
+      std::vector<std::byte> storage;
       for (std::uint64_t i = 0; i < options.messages; ++i) {
         const auto planned_ns = options.rate == 0 ? 0 : latency::planned_arrival_ns(
             state.start_ns, i, options.rate, producer_index, options.producers);
@@ -697,13 +841,23 @@ template <salias::Mode M, bool Diagnostic = false, bool Timed = false>
           latency::wait_for_arrival(planned_ns);
         }
         const std::uint64_t marker = (static_cast<std::uint64_t>(producer_index) << 48) | i;
-        if (!claim_until_committed<M, Diagnostic, Timed>(
-                publisher, options.payload, marker, i, options, state, planned_ns, &diagnostic)) {
-          _exit(32);
+        const bool claim_path = options.publish_path == "claim";
+        if (claim_path) {
+          if (!claim_until_committed<M, Diagnostic, Timed>(
+                  publisher, options.payload, marker, i, options, state, planned_ns)) {
+            _exit(32);
+          }
+        } else {
+          const bool sampled = should_sample(options, i);
+          const std::uint64_t send_time_ns =
+              sampled ? (options.latency_origin == "planned" ? planned_ns
+                                                              : latency::monotonic_now_ns())
+                      : 0;
+          if (!offer_until_committed<M>(publisher, options.payload, marker, send_time_ns,
+                                        options.latency_sample_rate != 0, state, storage)) {
+            _exit(32);
+          }
         }
-      }
-      if constexpr (Diagnostic) {
-        state.diagnostic.publisher = diagnostic;
       }
     } else {
       if (!offer_batch_until_committed<M>(publisher, options, producer_index, state)) {
@@ -733,8 +887,10 @@ pid_t fork_consumer(const Options& options, std::uint32_t consumer_index, Shared
     throw std::runtime_error("fork consumer failed");
   }
   if (pid == 0) {
-    if (options.diagnostic != "off") {
-      run_consumer_child<M, true>(options, consumer_index, state);
+    if constexpr (instrumentation::kEnabled) {
+      if (options.diagnostic != "off") {
+        run_consumer_child<M, true>(options, consumer_index, state);
+      }
     }
     run_consumer_child<M>(options, consumer_index, state);
   }
@@ -757,11 +913,13 @@ pid_t fork_producer(const Options& options, std::uint32_t producer_index, Shared
     throw std::runtime_error("fork producer failed");
   }
   if (pid == 0) {
-    if (options.diagnostic == "timed") {
-      run_producer_child<M, true, true>(options, producer_index, state);
-    }
-    if (options.diagnostic == "counters") {
-      run_producer_child<M, true>(options, producer_index, state);
+    if constexpr (instrumentation::kEnabled) {
+      if (options.diagnostic == "timed") {
+        run_producer_child<M, true, true>(options, producer_index, state);
+      }
+      if (options.diagnostic == "counters") {
+        run_producer_child<M, true>(options, producer_index, state);
+      }
     }
     run_producer_child<M>(options, producer_index, state);
   }
@@ -981,6 +1139,7 @@ void print_result(const Options& options, const Result& result) {
             << " producers=" << result.producers << " consumers=" << result.consumers
             << " payload=" << result.payload << " capacity=" << result.capacity
             << " batch_size=" << options.batch_size
+            << " publish_path=" << options.publish_path
             << " publication_window=" << options.publication_window
             << " poll_limit=" << result.poll_limit
             << " published=" << result.published << " delivered=" << result.delivered
@@ -996,29 +1155,60 @@ void print_result(const Options& options, const Result& result) {
             << " latency_p999_ns=" << result.aggregate_latency.p999_ns
             << " latency_max_ns=" << result.aggregate_latency.max_ns << '\n';
   if (options.diagnostic != "off") {
-    const auto& counters = result.diagnostic.publisher;
-    std::cout << "diagnostic_mode=" << options.diagnostic << '\n'
-              << "diagnostic_claim_success=" << counters.claim_success << '\n'
-              << "diagnostic_claim_backpressure=" << counters.claim_backpressure << '\n'
-              << "diagnostic_claim_yield_cycles=" << counters.claim_yield_cycles << '\n'
-              << "diagnostic_claim_total_ns=" << counters.claim_total_ns << '\n';
-    // counters 模式没有计时，不能把 0 伪装成实测 claim 延迟。
-    if (options.diagnostic == "timed") {
-      std::cout << "diagnostic_claim_avg_ns="
-                << (counters.claim_success == 0 ? 0.0 :
-                    static_cast<double>(counters.claim_total_ns) /
-                    static_cast<double>(counters.claim_success)) << '\n';
-    }
+    std::cout << "diagnostic_mode=" << options.diagnostic << '\n';
+#if INSTRUMENTATION_LEVEL >= 1
+    std::cout << "diagnostic_claim_success=" << result.diagnostic.claim_success << '\n';
+#else
+    std::cout << "diagnostic_claim_success=0\n";
+#endif
+#if INSTRUMENTATION_LEVEL >= 2
+    std::cout << "diagnostic_claim_backpressure=" << result.diagnostic.claim_backpressure << '\n'
+              << "diagnostic_claim_yield_cycles=" << result.diagnostic.claim_yield_cycles << '\n';
+#else
+    std::cout << "diagnostic_claim_backpressure=0\n"
+              << "diagnostic_claim_yield_cycles=0\n";
+#endif
+#if INSTRUMENTATION_LEVEL >= 4
+    std::cout << "diagnostic_claim_total_ns=" << result.diagnostic.claim_total_ns << '\n';
+    // Keep the historical key while exposing the design-document name too.
+    std::cout << "diagnostic_claim_timing_samples="
+              << result.diagnostic.claim_timing_samples << '\n'
+              << "diagnostic_claim_timed_samples="
+              << result.diagnostic.claim_timing_samples << '\n'
+              << "diagnostic_claim_avg_ns="
+              << (result.diagnostic.claim_timing_samples == 0 ? 0.0 :
+                  static_cast<double>(result.diagnostic.claim_total_ns) /
+                  static_cast<double>(result.diagnostic.claim_timing_samples)) << '\n';
+#else
+    std::cout << "diagnostic_claim_total_ns=0\n";
+#endif
     for (std::uint32_t i = 0; i < options.consumers; ++i) {
-      const auto& consumer = result.diagnostic.consumers[i];
-      std::cout << "diagnostic_consumer" << i << "_poll_empty=" << consumer.poll_empty << '\n'
-                << "diagnostic_consumer" << i << "_poll_success=" << consumer.poll_success << '\n'
+#if INSTRUMENTATION_LEVEL >= 1
+      std::cout << "diagnostic_consumer" << i << "_poll_success="
+                << result.diagnostic.poll_success[i] << '\n'
                 << "diagnostic_consumer" << i << "_poll_total_messages="
-                << consumer.poll_total_messages << '\n'
-                << "diagnostic_consumer" << i << "_avg_batch="
-                << (consumer.poll_success == 0 ? 0.0 :
-                    static_cast<double>(consumer.poll_total_messages) /
-                    static_cast<double>(consumer.poll_success)) << '\n';
+                << result.diagnostic.poll_total_messages[i] << '\n';
+#else
+      std::cout << "diagnostic_consumer" << i << "_poll_success=0\n"
+                << "diagnostic_consumer" << i << "_poll_total_messages=0\n";
+#endif
+#if INSTRUMENTATION_LEVEL >= 3
+      std::cout << "diagnostic_consumer" << i << "_poll_empty="
+                << result.diagnostic.poll_empty[i] << '\n';
+#else
+      std::cout << "diagnostic_consumer" << i << "_poll_empty=0\n";
+#endif
+#if INSTRUMENTATION_LEVEL >= 1
+      const auto poll_success = result.diagnostic.poll_success[i];
+      const auto poll_messages = result.diagnostic.poll_total_messages[i];
+#else
+      constexpr std::uint64_t poll_success = 0;
+      constexpr std::uint64_t poll_messages = 0;
+#endif
+      std::cout << "diagnostic_consumer" << i << "_avg_batch="
+                << (poll_success == 0 ? 0.0 :
+                    static_cast<double>(poll_messages) /
+                    static_cast<double>(poll_success)) << '\n';
     }
   }
 }

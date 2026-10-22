@@ -27,7 +27,7 @@ class Phase1DiagnosticsTest(unittest.TestCase):
                      "diagnostic_claim_backpressure=100", "diagnostic_claim_yield_cycles=100",
                      f"diagnostic_claim_total_ns={100000 if mode == 'timed' else 0}"]
             if mode == "timed":
-                lines.append("diagnostic_claim_avg_ns=1e2")
+                lines += ["diagnostic_claim_timed_samples=100", "diagnostic_claim_avg_ns=1e3"]
             for i in range(2):
                 lines += [f"diagnostic_consumer{i}_poll_empty=100",
                           f"diagnostic_consumer{i}_poll_success=50",
@@ -43,7 +43,8 @@ class Phase1DiagnosticsTest(unittest.TestCase):
     def test_rates_and_timing_use_exact_totals(self):
         row = analyze_record(self.record(), self.directory)
         self.assertAlmostEqual(row["backpressure_rate"], 100 / 1100)
-        self.assertEqual(row["claim_avg_ns"], 100)
+        self.assertEqual(row["claim_avg_ns"], 1000)
+        self.assertEqual(row["claim_timed_samples"], 100)
         self.assertAlmostEqual(row["consumers"][0]["empty_rate"], 2 / 3)
         self.assertEqual(row["consumers"][1]["avg_batch"], 20)
 
@@ -132,9 +133,12 @@ class ComparatorSmokeTest(unittest.TestCase):
                 total_ns = int(metrics["diagnostic_claim_total_ns"])
                 if mode == "timed":
                     expected_keys.add("diagnostic_claim_avg_ns")
+                    expected_keys.add("diagnostic_claim_timed_samples")
+                    samples = int(metrics["diagnostic_claim_timed_samples"])
+                    self.assertEqual(samples, 1)
                     self.assertGreater(total_ns, 0)
                     self.assertAlmostEqual(float(metrics["diagnostic_claim_avg_ns"]),
-                                           total_ns / 1000, delta=total_ns / 1000 * 1e-5)
+                                           total_ns / samples, delta=total_ns / samples * 1e-5)
                 else:
                     self.assertEqual(total_ns, 0)
                 for i in range(2):

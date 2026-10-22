@@ -35,12 +35,12 @@ int main() {
   std::memcpy(first->payload().data(), &first_value, sizeof(first_value));
   std::memcpy(second->payload().data(), &second_value, sizeof(second_value));
 
-  second->commit();
+  second_publisher.commit(std::move(*second));
   if (subscriber.try_recv()) {
     return 3;
   }
 
-  first->commit();
+  first_publisher.commit(std::move(*first));
   for (const std::uint32_t expected : {first_value, second_value}) {
     auto message = subscriber.try_recv();
     if (!message) {

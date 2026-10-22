@@ -331,7 +331,7 @@ TEST(ChannelApiTest, SchemaBoundChannelRoundTripsWithFixedClaimSize) {
   EXPECT_EQ(moved_claim.payload().size(), sizeof(Payload));
   EXPECT_TRUE(claim->payload().empty());
   std::memcpy(moved_claim.payload().data(), &expected, sizeof(expected));
-  moved_claim.commit();
+  publisher.commit(std::move(moved_claim));
   EXPECT_TRUE(moved_claim.payload().empty());
   auto claimed = subscriber.recv_copy();
   ASSERT_TRUE(claimed);
@@ -652,7 +652,7 @@ void check_ordered_batches() {
   std::memcpy(gap->payload().data(), &missing, sizeof(missing));
   ASSERT_TRUE(publishers[0].offer(encode(Payload{0, missing.sequence + 1})));
   EXPECT_EQ(subscriber.poll(32, check), 0u);
-  gap->commit();
+  publishers[2].commit(std::move(*gap));
   EXPECT_EQ(subscriber.poll(32, check), 2u);
   EXPECT_FALSE(subscriber.try_recv());
 }
@@ -679,8 +679,9 @@ void check_batch_retention() {
   for (std::uint32_t p = 0; p < 3; ++p) {
     auto claim = publishers[p].try_claim(4088);
     ASSERT_TRUE(claim);
+    auto* owner = &publishers[p];
     std::fill(claim->payload().begin(), claim->payload().end(), static_cast<std::byte>(p));
-    claim->commit();
+    owner->commit(std::move(*claim));
   }
   std::uint32_t callbacks = 0;
   auto check = [&](const salias::Message& message) noexcept {
@@ -711,7 +712,7 @@ void check_batch_retention() {
   for (auto& publisher : publishers) {
     auto next = publisher.try_claim(4088);
     ASSERT_TRUE(next);
-    next->commit();
+    publisher.commit(std::move(*next));
   }
 }
 
@@ -951,7 +952,7 @@ TEST(ChannelApiTest, FifoMpscClaimOfferAndPersistentSubscriberRoundTrip) {
   std::memcpy(first_claim->payload().data(), &first, sizeof(first));
   // commit 之前消费者应观测不到该消息。
   EXPECT_FALSE(subscriber.try_recv().has_value());
-  first_claim->commit();
+  publisher.commit(std::move(*first_claim));
 
   auto first_message = subscriber.try_recv();
   ASSERT_TRUE(first_message);
@@ -1014,7 +1015,7 @@ TEST(ChannelApiTest, FifoMpscConsumesReadyProducerWithoutGlobalGap) {
   // 第一个 producer 随后 commit，消费者照样能消费，不受全局序列号约束。
   const Payload first_payload{.producer = 0, .sequence = 10};
   std::memcpy(first->payload().data(), &first_payload, sizeof(first_payload));
-  first->commit();
+  first_publisher.commit(std::move(*first));
   auto first_message = subscriber.try_recv();
   ASSERT_TRUE(first_message);
   EXPECT_EQ(first_message->producer_id, 0u);
@@ -1039,13 +1040,13 @@ TEST(ChannelApiTest, OrderedMpscWaitsForEarlierGlobalSequence) {
   ASSERT_TRUE(second);
   const Payload second_payload{.producer = 1, .sequence = 20};
   std::memcpy(second->payload().data(), &second_payload, sizeof(second_payload));
-  second->commit();
+  second_publisher.commit(std::move(*second));
   // 第二条先 commit，但全局序列号 0 的第一条尚未就绪，消费者必须等待。
   EXPECT_FALSE(subscriber.try_recv().has_value());
 
   const Payload first_payload{.producer = 0, .sequence = 10};
   std::memcpy(first->payload().data(), &first_payload, sizeof(first_payload));
-  first->commit();
+  first_publisher.commit(std::move(*first));
   auto first_message = subscriber.try_recv();
   ASSERT_TRUE(first_message);
   EXPECT_EQ(first_message->sequence, 0u);
@@ -1096,10 +1097,10 @@ TEST(ChannelApiTest, OrderedMpmcPreservesGlobalOrderForEverySubscriber) {
   auto second = second_publisher.try_claim(sizeof(Payload));
   ASSERT_TRUE(first);
   ASSERT_TRUE(second);
-  second->commit();
+  second_publisher.commit(std::move(*second));
   EXPECT_FALSE(first_subscriber.try_recv().has_value());
   EXPECT_FALSE(second_subscriber.try_recv().has_value());
-  first->commit();
+  first_publisher.commit(std::move(*first));
 
   auto first_a = first_subscriber.try_recv();
   auto first_b = second_subscriber.try_recv();
@@ -1287,7 +1288,7 @@ TEST(ChannelApiTest, TtlClaimBatchPartialPrefixAndWraparoundAreHandled) {
     ASSERT_TRUE(claim);
     const auto encoded = encode(Payload{.sequence = static_cast<std::uint32_t>(sequence)});
     std::memcpy(claim->payload().data(), encoded.data(), encoded.size());
-    claim->commit();
+    publisher.commit(std::move(*claim));
     auto message = subscriber.try_recv();
     ASSERT_TRUE(message);
     EXPECT_GT(message->expires_at_monotonic_ns, 0u);
@@ -1913,7 +1914,7 @@ TEST(ChannelApiTest, LatestMpmcHandlesEmptyAndOverWatermarkFrames) {
 
   auto zero_frame = publisher.try_claim(0);
   ASSERT_TRUE(zero_frame);
-  zero_frame->commit();
+  publisher.commit(std::move(*zero_frame));
   auto claimed_empty_message = subscriber.try_recv();
   ASSERT_TRUE(claimed_empty_message);
   EXPECT_TRUE(claimed_empty_message->payload.empty());
@@ -1943,7 +1944,7 @@ TEST(ChannelApiTest, LatestMpmcFullWatermarkSupportsMaximumFramesAndPinnedRetry)
   ASSERT_TRUE(claim);
   std::memcpy(claim->payload().data(), payload.data(), payload.size());
   EXPECT_FALSE(subscriber.try_recv());
-  claim->commit();
+  publisher.commit(std::move(*claim));
   auto message = subscriber.try_recv();
   ASSERT_TRUE(message);
   EXPECT_EQ(message->sequence, 1u);

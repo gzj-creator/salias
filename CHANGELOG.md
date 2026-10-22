@@ -16,11 +16,38 @@ are released.
 
 ## [Unreleased]
 
+## [v4.0.0] - 2026-10-22
+
+### Release Decision
+
+- 用户确认两次正式压测均有效，只是未达到理论收益值，并明确批准发布 v4.0.0。两次三臂 A/B 的 64 B claim API 收益为 +25.88%/+23.84%，256 B 为 +28.17%/+29.07%，均为 p=0.002165、6/6 组同向；第二次 64 B 未达到预注册 1.25 门槛，判定为 INCONCLUSIVE。本次发布记录稳定正向收益，但不宣称吞吐 GO 已复现、延迟非劣或 HFT 长尾门禁通过。
+
+### Changed
+
+- **不兼容的零拷贝 claim API 变更**：`PublishClaim` 不再持有 `shared_ptr<PublisherEndpoint>`，仅保存预留位置和发布端身份；`claim.commit()` 已移除，改由 `publisher.commit(std::move(claim))` 提交。Publisher 在提交时校验 claim 归属，跨 Publisher 提交在调试构建断言、发布构建拒绝；同一 Publisher 的副本仍可提交。未提交 claim 在调试构建析构时断言。旧代码必须迁移，schema-bound claim 同步改用 typed Publisher 的 `commit()`。
+- 新增 claim API v4 契约测试，覆盖 raw/schema-bound 提交、移动后提交、同一 Publisher 副本提交、跨 Publisher 拒绝和未提交可见性；示例、mcpp 测试、Aeron/HFT 工具全部迁移到新提交方式。
+- 发布路径改用非对称屏障：具名共享通道协议升级到 v15，在既有填充区新增一字节 `claim_fence_protocol`（控制段尺寸与热字段偏移不变，旧通道返回 `VersionMismatch` 需重建）。协议取 `1` 时 `Tx::claim` / `claim_batch` 只保留编译器屏障，完整屏障移到订阅者注册、注销与首轮阻塞接收的通知激活路径，由 `membarrier(GLOBAL_EXPEDITED)` 送达到已注册的发布进程；注册握手、动态订阅、代际回收、最慢订阅者背压、TTL 与借用期语义全部不变。发布进程在创建首个 Publisher 时自行注册，注册失败或平台不支持时该进程退回原有 seq_cst 路径；`SALIAS_DISABLE_ASYMMETRIC_FENCE=1` 可让新建通道退回 seq_cst。注册端在 heavy fence 失败时 fail closed（注册报 `PlatformFail`、注销放弃清理、通知激活退回轮询），不会在缺失屏障时读写 `claim_active`。
+
+### Tools
+
+- 新增 claim API v4 三臂 A/B 构建、正式吞吐/延迟 runner 和独立分析器；B=v3.0.0、S=v4 顺序屏障、A=v4 默认屏障，分别隔离 claim API 与 fence 改动，并校验客户端源码提交点、二进制身份、runner 环境、原始 RESULT、延迟 stdout、完成轮次和组级校验和。完成两次完整正式矩阵：第一次 64 B S/B 中位数比 1.258804，达到预注册 1.25 门槛；同日复跑为 1.238393，判为 INCONCLUSIVE。两次 p=0.002165、方向均为 6/6，256 B 分别为 +28.17%/+29.07%，说明收益方向稳定，但 claim API 吞吐 GO 未复现。1P1S 短延迟仍见毫秒级轮间尖峰，未重跑 HFT 长尾，不能据此宣称延迟非劣或整体发布验收通过。
+
 ### Diagnostics
 
 - 完成 64 B 广播吞吐 Phase 1 长测、共享/本地计数及逐条 claim 计时实验；增加可关闭的比较器诊断、严格解析器、源码驱动帧布局分析及回归测试，保留完整本地证据与 SHA-256 清单。
 - 100M 消息长测仍有 7.63 倍 64 B 差距，但稳定性与插桩扰动门禁未通过；报告不把空 poll、非对齐或完整 try_claim 耗时误认成根因，仅有条件推荐 Phase 2B 隔离验证，不修改产品源码。
 - 完成本轮 Session 3–6：64/256 B 各三模式、五轮正式同二进制诊断，补充分模式/合并计数指标、严格 stdout 与源码哈希校验、解析及帧布局回归；冻结独立本地证据并更新报告、产物清单和接续状态，不混用历史诊断。假设阈值未触发，Phase 2B 仍仅为有条件隔离验证。
+- 完成 Phase 1.5 测量稳定性复测：timed 改为每 1000 条成功消息采样，runner 默认 10 轮，解析器补充四分位/IQR/CV 与采样分母校验；64 B counters 相对 off 的中位变化 +2.00%，通过 <5% 扰动门禁，CV 7.05% 仅通过放宽后的 <8% 门禁，原 <5% 稳定性门禁仍未通过。
+
+### Verification
+
+- 发布前 Release CTest 22/22、ASan/UBSan CTest 21/21 通过；`tools/aeron_compare` 196 项通过、6 项跳过，`tools/hft_acceptance` 62 项通过，claim API v4 分析器 11 项通过。两次正式 A/B 的客户端身份、块账本、原始 RESULT、延迟 stdout、完成轮次和组级校验和均经独立分析器复核。
+
+### Docs
+
+- 将性能入口统一为 `doc/performance-report.md`，汇总 v3.0.0 的 Salias/Aeron 1P2S 同组对比、单/双订阅变化、已采用优化和失败验收；明确 64 B 广播吞吐短板、典型延迟差和短测公平性边界，给出下一位 agent 的归因/优化顺序与正确性约束。
+- 日期性能报告移入 `doc/archive/performance/`，冻结两组新测量的精简 JSON/JSONL、环境、stdout 与 runner 哈希；未入库草稿及重复生成证据移至 Git 忽略的本地归档，不改写历史发布记录或 v3.0.0 tag。
+- 清理其余本地压测散文件：四组旧实验逐文件 SHA-256 核验后无损归档，保留失败原始证据；三个未完成 fast-path/guard 探针移出正式工具目录，保留现行基准、二进制、依赖与回归工具，并同步恢复说明。
 
 ## [v3.0.0] - 2026-10-19
 

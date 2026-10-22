@@ -1,8 +1,8 @@
 # Phase 1 诊断产物清单
 
 执行日期：2026-10-19（Asia/Singapore）；产品基线：v3.0.0 / `c5e6aa7`。
-本轮沿用 Session 1/2，从 Session 3 顺序完成至 Session 6；执行起点为 `55e301a`，
-该历史提交不代表本轮已经完成。本次只做一个本地普通提交，不创建版本号、tag 或远端推送；
+本轮沿用 Session 1/2，从 Session 3 顺序完成至 Session 6，并完成 Phase 1.5 稳定性复测；
+执行起点为 `55e301a`，该历史提交不代表后续工作已经完成。当前不创建版本号、tag 或远端推送；
 不打包原有工作区性能文档归档修改。文件身份和实际结果以本清单、本轮报告及冻结证据为准。
 
 ## 入库范围
@@ -10,11 +10,13 @@
 - `doc/plans/phase1-64b-throughput-diagnosis.md`：原始计划；已入库，本轮不改写。
 - `doc/plans/session-handoff-prompts.md`：跨 session 执行提示词及本轮进度。
 - `doc/plans/phase1-diagnosis-report.md`：实际测量、未通过门禁及下一步。
+- `doc/plans/phase1-diagnosis-report.md` §二点五：Phase 1.5 降扰动 timed 采样、10 轮
+  统计与 CV 门禁结果。
 - `doc/plans/session3-diagnostic-results.md`、`session4-frame-layout-results.md`：逐 session 验收与溯源。
 - `doc/plans/phase1-artifacts.md`、`doc/plans/session-state.json`：证据与接续信息。
-- `doc/plans/runners/baseline-extended-runner.py`：已入库、未改；`diagnostic-runner.py`：冻结执行文件与二进制。
-- `tools/aeron_compare/salias_ipc_compare.cpp`：沿用 Session 2 默认关闭的 off/counters/timed 插桩，纳入相关对齐断言与共享态注释；未改产品 `src/`。
-- `tools/aeron_compare/parse_diagnostic.py`、`analyze_frame_layout.py`：分模式汇总、整数计数合并、严格原始证据及布局校验。
+- `doc/plans/runners/baseline-extended-runner.py`：已入库、未改；`diagnostic-runner.py`：默认 10 轮并冻结执行文件与二进制。
+- `tools/aeron_compare/salias_ipc_compare.cpp`：沿用 Session 2 默认关闭的 off/counters/timed 插桩；Phase 1.5 将 timed 改为每 1000 条成功消息采样；未改产品 `src/`。
+- `tools/aeron_compare/parse_diagnostic.py`、`analyze_frame_layout.py`：分模式汇总、整数计数合并、四分位/IQR/CV、严格原始证据及布局校验。
 - `tools/aeron_compare/test_phase1_diagnostics.py`、`test_parse_diagnostic.py`、`test_analyze_frame_layout.py`：三模式/零消息冒烟及解析、布局回归。
 - `CHANGELOG.md`：仅暂存本轮 Diagnostics 新条目，保留执行前已有的 Docs 修改在工作区。
 
@@ -53,9 +55,24 @@
 每轮发布 10M、交付 20M；无 OOM、timeout 或内存门禁事件。只测 Salias 1P2S 吞吐，
 不测延迟、不混入其他运行。off 与 counters/timed 使用同一二进制，非历史未插桩对照。
 布局 JSON 使用保留的 Session 1 五轮正式长测，未覆盖基线目录内历史 `frame-layout.json`。
-runner 日志、工具快照及相对路径 `SHA256SUMS` 一并本地保留，不入库。
 
-H1/交接 H2/H3 阈值均未触发；原计划 H2（帧非对齐）也未确认为根因。
+### Phase 1.5 低扰动复测：`build/benchmarks/diagnostic-stable-20261019-205458/`
+
+| 文件 | SHA-256 |
+|---|---|
+| `diagnostic_summary.json` | `0bddda8fa78fb5e57c0420caf7b670c9bca4051a9cf9192c54b32f9268f3dfb1` |
+
+66 个 stdout / 66 个 stderr：64/256 B × off/counters/timed，每组 1 轮预热及 10 轮正式，
+每轮发布 10M、交付 20M；无非背压失败、OOM 或 timeout。timed 每 1000 条成功消息采样一次，
+每组正式轮 10,000 个计时样本；汇总 schema v3 含四分位、IQR 与测得的吞吐 CV。
+该目录只保留在本地 `build/`，不入库；二进制、runner 与源码快照由 runner 写入
+`environment.json` 及对应快照字段。正式测量后只为 `PublisherDiagnostic` 补了保持 64 字节
+缓存行布局的 padding，不改变样本路径；完整 66 次矩阵未因该后置对齐改动重跑。
+runner 同步冻结了执行时 runner、源码、instrumented/control 二进制及 `environment.json`；
+这些文件只保留在本地，不入库。
+
+原计划 H2（帧非对齐）未确认为根因；Phase 1.5 的 H1/H2 未触发，H3 的降频采样
+中位值超过 200 ns，但仍是完整 `try_claim` 的测量，不能归因为 Guard 独立成本。
 逐条计时扰动超过 5%，Phase 2B 仅是完成低扰动复核后的有条件隔离实验，未批准产品优化。
 
 ### 历史诊断（不纳入本轮汇总）：`build/benchmarks/diagnostic-20261019-185329/`
@@ -126,6 +143,17 @@ sha256sum -c "$BASE/SHA256SUMS"
 - runner、解析/分析工具及三份诊断测试具有执行权限；入库仅文本源码、报告和状态，不含 `build/`、二进制或产品 `src/`。
 - 仅纳入相关 Session 2 对齐/映射断言和冒烟补强；其余预先存在的性能文档与归档变更保持未暂存。
 - 提交身份由 `git log -1 --format='%H%n%s' -- doc/plans/phase1-artifacts.md` 查询；不将提交自身 SHA 写入提交内容。
+
+## Phase 1.5 验证
+
+- Release 构建 `salias_ipc_compare` 通过；off/counters/timed 三模式真实 IPC 冒烟全部交付。
+- Python 解析回归 19 项通过（3 项 IPC 测试在未设置客户端时跳过）；设置真实客户端后
+  `test_phase1_diagnostics` 10 项全部通过。
+- 66 次正式矩阵记录均由解析器校验 stdout SHA-256、发布/交付数量和诊断计数；
+  60 个 measured 轮次进入统计，6 个 warmup 不计入。
+- timed 每条正式记录采样 10,000 次；`claim_avg_ns` 使用采样次数作分母，不使用全部消息数。
+- 64 B counters 配对变化 +2.00% 通过 <5% 门禁；CV 7.05% 只通过放宽后的 <8% 门禁；
+  原 CV<5% 与 256 B 稳定性门禁仍未通过。
 
 计数器只支持单发布者、batch1、无 pacing/延迟采样；consumer lag 未采样，无 debug API。
 实际构建命令为 `cmake --build build/release --target salias_ipc_compare --parallel 1`。

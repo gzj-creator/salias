@@ -48,6 +48,7 @@
 
 #include "core/channel/shared_hybrid_mpsc.hpp"
 #include "core/platform/monotonic_clock.hpp"
+#include "core/platform/asymmetric_fence.hpp"
 #include "core/ring/magic_ring.hpp"
 
 namespace salias {
@@ -57,7 +58,7 @@ namespace {
 /// @brief 匿名命名空间，仅本翻译单元可见的具名通道辅助类型与函数。
 
 inline constexpr std::uint32_t kNamedMagic = 0x53414C43u;  // ASCII "SALC"，校验控制段归属。
-inline constexpr std::uint32_t kNamedVersion = 14;  // schema 元数据协议版本，connect 须严格匹配。
+inline constexpr std::uint32_t kNamedVersion = 15;  // schema 元数据协议版本，connect 须严格匹配。
 inline constexpr std::size_t kControlSize = 16u * 1024u;  // 控制段固定 16 KiB。
 inline constexpr std::size_t kCacheLineGuard = 128;  // 双 cache line 填充宽度，规避伪共享。
 inline constexpr std::size_t kMaxProducers = 16;  // 单 channel 最大 producer 数。
@@ -170,7 +171,8 @@ struct alignas(kCacheLineGuard) NamedControl {
   std::uint64_t schema_id = 0;                        ///< 应用声明的稳定 wire schema ID。
   std::uint32_t schema_version = 0;       ///< 应用显式递增的 wire schema 版本。
   std::uint32_t schema_flags = 0;         ///< bit 0 表示绑定了固定消息 schema。
-  std::byte pad[kCacheLineGuard - 96]{};  ///< 头部填充，隔离后续热字段。
+  std::uint8_t claim_fence_protocol = 0;  ///< claim 屏障协议（0=seq_cst，1=membarrier）。
+  std::byte pad[kCacheLineGuard - 97]{};  ///< 头部填充，隔离后续热字段。
 
   alignas(kCacheLineGuard) std::uint64_t global_sequence = 0;  ///< 全局单调序列号。
   alignas(kCacheLineGuard) std::uint32_t next_producer = 0;  ///< 下一个待分配 producer id。
@@ -190,6 +192,10 @@ static_assert(sizeof(NamedConsumerSlot) == 64);
 static_assert(sizeof(NamedConsumerCursorSlot) == 64);
 static_assert(sizeof(NamedProducerSlot) == 2 * kCacheLineGuard + 64 * kMaxConsumers);
 static_assert(sizeof(NamedControl) <= kControlSize);
+// 协议升级（v14→v15）只在内联填充区里新增 claim_fence_protocol，控制段尺寸与
+// global_sequence 等热字段的偏移必须保持逐字节不变，避免引入任何布局效应。
+static_assert(sizeof(NamedControl) == 14'208);
+static_assert(offsetof(NamedControl, global_sequence) == 2 * kCacheLineGuard);
 
 /// @brief 依据 channel 模式推导 ordering 语义。
 /// @details FifoMpsc/FifoMpmc 采用 FIFO 顺序；OrderedMpsc/OrderedMpmc 采用有序（按
@@ -760,6 +766,11 @@ typename SharedChannel<M>::SharedControl make_shared_control(NamedControl& contr
   shared.wait_word = &control.wait_word;
   shared.notification_enabled = &control.notification_enabled;
   shared.registration_gate = &control.registration_gate;
+  shared.claim_fence_protocol =
+      control.claim_fence_protocol ==
+              static_cast<std::uint8_t>(platform::fence::ClaimFenceProtocol::kMembarrier)
+          ? platform::fence::ClaimFenceProtocol::kMembarrier
+          : platform::fence::ClaimFenceProtocol::kSeqCst;
   shared.num_producers = &control.num_producers;
   shared.num_consumers = &control.num_consumers;
   shared.is_process_alive = is_registered_process_alive;
@@ -992,6 +1003,9 @@ class NamedChannelState {
       return std::unexpected(gate.error());
     }
     RegistrationGateGuard gate_guard(control, *gate);
+    if (!enter_registration_barrier(*control)) {
+      return std::unexpected(Error::PlatformFail);
+    }
     wait_for_claims(*control);
 
     const auto pid = static_cast<std::uint32_t>(::getpid());
@@ -1145,6 +1159,22 @@ class NamedChannelState {
     }
   }
 
+  /**
+   * @brief 在写下 registration_gate 之后、读取 claim_active 之前建立跨进程完整屏障。
+   * @param control 控制段引用。
+   * @return true 表示可以安全读取 claim_active；false 表示必须 fail closed。
+   * @note 通道协议为 kSeqCst 时无需额外屏障：发布端的两次 seq_cst store 已各自是完整屏障，
+   *       本端随后读取 claim_active 与写 gate 之间由 seq_cst 序保证。协议为 kMembarrier 时，
+   *       发布端只留编译器屏障，必须由本端用 membarrier 补上另一半，否则 Dekker 握手失效。
+   */
+  static bool enter_registration_barrier(NamedControl& control) noexcept {
+    if (control.claim_fence_protocol !=
+        static_cast<std::uint8_t>(platform::fence::ClaimFenceProtocol::kMembarrier)) {
+      return true;
+    }
+    return platform::fence::heavy_fence();
+  }
+
   static void wait_for_claims(NamedControl& control) noexcept {
     for (std::uint32_t producer_id = 0; producer_id < control.num_producers; ++producer_id) {
       auto& producer = control.producers[producer_id];
@@ -1200,6 +1230,11 @@ class NamedChannelState {
       return;
     }
     RegistrationGateGuard gate_guard(control, *gate);
+    if (!enter_registration_barrier(*control)) {
+      // fail closed：没有屏障就不能读 claim_active，也不能继续清理该槽位，
+      // 保持注册原样（消费者继续有效）比在缺失屏障时读写游标安全。
+      return;
+    }
     wait_for_claims(*control);
 
     auto& slot = control->consumers[consumer_id];
@@ -1335,6 +1370,9 @@ Result<NamedChannelState<M>> create_named_state(const Config& config,
     control->publication_window = config.publication_window;
     control->publication_window_messages = config.publication_window_messages;
     control->high_watermark_percent = config.high_watermark_percent;
+    // claim 屏障协议在 ready=1 之前写入，此后不可变。
+    control->claim_fence_protocol =
+        static_cast<std::uint8_t>(platform::fence::select_channel_protocol());
 
     SharedChannel<M> channel(std::move(rings), make_producer_states<M>(*control),
                              make_shared_control<M>(*control));
@@ -1378,6 +1416,12 @@ Result<NamedChannelState<M>> connect_named_state(std::string_view name,
   }
   const std::uint32_t sequence_domains =
       kOrdering<M> == channel::Order::Ordered ? control->num_producers : 1;
+
+  // 未知协议值必须显式拒绝：否则本端可能不发 heavy fence，却与依赖它的发布端通信。
+  if (control->claim_fence_protocol >
+      static_cast<std::uint8_t>(platform::fence::ClaimFenceProtocol::kMembarrier)) {
+    return std::unexpected(Error::BadConfig);
+  }
   if (control->mode != static_cast<std::uint32_t>(M) ||
       !is_valid_ring_capacity(control->capacity) || control->num_producers == 0 ||
       control->num_producers > kMaxProducers || control->num_consumers == 0 ||
@@ -1623,18 +1667,19 @@ template <Mode M>
 Publisher<M, RawPayloadSchema>::Publisher(std::shared_ptr<PublisherEndpoint<M>> endpoint) noexcept
     : endpoint_(std::move(endpoint)) {}
 
-/// @brief 构造一个未提交的 claim，持有端点与 claim 句柄。
-/// @param endpoint publisher 端点。
+/// @brief 构造一个未提交的 claim，只记录发布端身份与 claim 句柄。
+/// @param owner 申请该 claim 的发布端；仅作身份令牌，不参与生命周期管理。
 /// @param claim 底层 flow 层返回的 claim（含 payload 区域与 producer id）。
 template <Mode M>
-PublishClaim<M, RawPayloadSchema>::PublishClaim(std::shared_ptr<PublisherEndpoint<M>> endpoint,
+PublishClaim<M, RawPayloadSchema>::PublishClaim(const PublisherEndpoint<M>* owner,
                                                 flow::Claim claim) noexcept
-    : endpoint_(std::move(endpoint)), claim_(claim), committed_(false) {}
+    : owner_(owner), claim_(claim), committed_(false) {}
 
 /// @brief 移动构造；源对象置为已提交空状态，确保其析构不再 commit。
 template <Mode M>
 PublishClaim<M, RawPayloadSchema>::PublishClaim(PublishClaim&& other) noexcept
-    : endpoint_(std::move(other.endpoint_)), claim_(other.claim_), committed_(other.committed_) {
+    : owner_(other.owner_), claim_(other.claim_), committed_(other.committed_) {
+  other.owner_ = nullptr;
   other.claim_ = {};
   other.committed_ = true;
 }
@@ -1643,13 +1688,22 @@ PublishClaim<M, RawPayloadSchema>::PublishClaim(PublishClaim&& other) noexcept
 template <Mode M>
 PublishClaim<M>& PublishClaim<M, RawPayloadSchema>::operator=(PublishClaim&& other) noexcept {
   if (this != &other) {
-    endpoint_ = std::move(other.endpoint_);
+    // 目标对象仍持有未提交预留时，覆盖它会丢失 ring 内的位置信息；调试构建直接拒绝。
+    assert(committed_ && "PublishClaim move assignment overwrites an uncommitted claim");
+    owner_ = other.owner_;
     claim_ = other.claim_;
     committed_ = other.committed_;
+    other.owner_ = nullptr;
     other.claim_ = {};
     other.committed_ = true;
   }
   return *this;
+}
+
+/// @brief 析构时检查未提交 reservation；Release 构建不保留该检查。
+template <Mode M>
+PublishClaim<M, RawPayloadSchema>::~PublishClaim() noexcept {
+  assert(committed_ && "PublishClaim destroyed without publisher.commit()");
 }
 
 /// @brief 返回可写的 payload 区域供调用方填充帧体。
@@ -1659,18 +1713,25 @@ std::span<std::byte> PublishClaim<M, RawPayloadSchema>::payload() noexcept {
   return claim_.payload;
 }
 
-/// @brief 提交本次 claim，将帧对外可见。
-/// @note 幂等：已提交或无效端点直接返回；提交后立即释放端点引用以缩短生命周期。
+/// @brief 提交由当前 Publisher 申请的 claim，将帧对外可见。
+/// @note 只比较发布端身份，不解引用 claim 中保存的指针；提交使用当前 Publisher 的端点。
 template <Mode M>
-void PublishClaim<M, RawPayloadSchema>::commit() noexcept {
-  if (committed_ || endpoint_ == nullptr || !endpoint_->valid ||
-      claim_.producer_id == kInvalidEndpoint) {
+void Publisher<M, RawPayloadSchema>::commit(PublishClaim<M, RawPayloadSchema>&& claim) noexcept {
+  if (claim.committed_ || claim.owner_ == nullptr) {
     return;
   }
-  endpoint_->tx.commit(claim_);
-  claim_ = {};
-  committed_ = true;
-  endpoint_.reset();
+  // 跨 Publisher 提交会把预留位置交给另一个生产端；调试构建直接断言，发布构建拒绝。
+  if (claim.owner_ != endpoint_.get()) {
+    claim.mark_committed();
+    assert(false && "PublishClaim does not belong to this Publisher");
+    return;
+  }
+  if (endpoint_ == nullptr || !endpoint_->valid) {
+    claim.mark_committed();
+    return;
+  }
+  endpoint_->tx.commit(claim.claim_);
+  claim.mark_committed();
 }
 
 /// @brief 尝试申请指定长度的 payload 区域，返回调用方填充的 claim。
@@ -1692,7 +1753,7 @@ Result<PublishClaim<M>> Publisher<M, RawPayloadSchema>::try_claim(
   if (!claim) {
     return std::unexpected(map_flow_error(claim.error()));
   }
-  return PublishClaim<M>(endpoint_, claim.value());
+  return PublishClaim<M>(endpoint_.get(), claim.value());
 }
 
 template <Mode M>
@@ -1712,7 +1773,7 @@ Result<PublishClaim<M>> Publisher<M, RawPayloadSchema>::try_claim_for(
   if (!claim) {
     return std::unexpected(map_flow_error(claim.error()));
   }
-  return PublishClaim<M>(endpoint_, claim.value());
+  return PublishClaim<M>(endpoint_.get(), claim.value());
 }
 
 /// @brief 单帧零拷贝发布：拷贝 payload 后立即提交。

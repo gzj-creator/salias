@@ -1,167 +1,465 @@
-# salias 最终独立进程性能报告
+# Salias 最终性能测试与优化交接报告
 
-> 日期：2026-07-11。本文是项目唯一有效的 salias/Aeron 性能对比报告；历史阶段数据仅用于开发过程，
-> 不再作为当前性能结论。
+更新日期：2026-10-22，Asia/Singapore。**本页是当前性能结论与下一轮优化的唯一阅读入口。**
+“最终”表示本轮结果已经汇总，不表示性能或生产 SLA 已验收。历史实验移入
+[性能归档](archive/performance/README.md)；不要拼接不同日期、版本、CPU 分配或计时口径的数据。
 
-最新 Publisher/尾延迟结果见 [2026-10-18 性能总结](performance-summary-2026-10-18.md)：
-候选正确性回归通过，但 50 µs p99.9 验收 0/8 配置通过，不能与本页历史 Aeron 吞吐对比混用。
-后续 [三组相对收益验收](publisher-tail-relative-acceptance-2026-10-18.md) 也未通过，
-该轮新产品候选已撤销，不计入已实现的性能收益。
+## 1. 给下一个 agent 的结论
 
-## 结论摘要
+### 1.1 P3-1 当前状态（2026-10-21）
 
-在 Tencent 4 vCPU x86 KVM、64 B 消息、两个独立 Publisher 程序的最终测试中：
+发布路径非对称屏障已随 v4.0.0 发布，具名通道协议为 v15。验证证据，以及未通过的
+G4 长尾门禁，均保留在下方结果中。
+正式结果与证据入口为 [P3-1 验收报告](plans/phase3-p31-acceptance-report.md)；
+以下结果不与后文 2026-10-19 的 Aeron 测量拼接。
 
-- 2 Publisher / 1 Subscriber：salias FIFO 在 1/4/64 MiB 容量下分别达到 Aeron 的
-  109.1%、115.5%、176.3%。
-- 2 Publisher / 2 Subscriber：salias FIFO Fanout 分别达到 Aeron MPMC 的
-  192.0%、120.0%、160.2%。
-- salias 的最佳 FIFO MPSC 中位发布吞吐为 44.867 Mmsg/s；最佳 FIFO Fanout 中位发布吞吐
-  为 30.158 Mmsg/s，对应 60.316 Mmsg/s 交付吞吐。
-- salias Ordered 提供 Aeron 不具备的跨 Publisher 全局全序。batch=8、64 MiB 时，2P1S
-  达到 42.856 Mmsg/s，2P2S 达到 34.207 Mmsg/s 发布吞吐和 68.414 Mmsg/s 交付吞吐。
-- salias 在 64 MiB 下背压中位数为 0；但大容量没有提高 FIFO 绝对吞吐，说明容量主要是
-  突发与排队参数，不是越大越快。
+- **吞吐 G1/G2 通过**：64 B、FIFO 1P2S、每臂 120 轮，B/S/A 发布中位数分别为
+  **6.492160 / 6.506805 / 9.061755 Mmsg/s**。同候选二进制 A/S 为 **1.392658**，
+  组级精确置换检验 p=0.0021645、6/6 组方向一致；A/B 为 **1.395800**。
+- **192 B 非劣 G3 通过**：A/S 中位数比 1.048841，高模式率 69.17%→87.50%，
+  但 CV 仍高，不能声称双模态或稳定性问题已解决。
+- **G4 FAIL**：独立 1P1S、1M msg/s、每臂每格 10 轮，planned p50 的 A−S 为
+  −24/−12 ns（64/256 B），收发完成率均为 100%，短测部分通过。HFT 96 轮全部退出 0，
+  但 S 臂有 4/48 轮原始输入未完成；按采集前固定的 p99/p99.9 5% 非劣规则，
+  仅 7/24 个组/配置单元通过，50 µs 预算 A 也仅 2/24 通过。因此长尾非劣和完成度均未通过。
+- **正确性 G5 通过**：Release 22/22、ASan/UBSan 21/21、TSan 21/21；
+  membarrier 正确性主要依据跨进程压力、故障注入与握手论证，不依赖 TSan 对系统调用的建模。
+- **注册成本 G6 已记录**：独立直接调用 acquire_consumer 的探针，S/A 为
+  **12.2065/15.3725 µs**，增加约 **3.166 µs**，高于立项时 +0.6 µs 预估。
+  此项只报告，不设阈值；不代表并发 claim 下的最坏注册耗时。
 
-## 机器配置
+**P3-1 整体验收未通过，根因是 G4。** 后续若继续该方向，应另立实验定位 2P2S 长尾和
+S 臂输入完成度，先固定新假设与门槛；不重跑本轮以追求通过，不改 5% 界限，不跨组池化，
+不拼接 E1 nofence 诊断客户端作为产品收益。
 
-| 项目 | 配置 |
+### 1.2 Claim API v4 状态（2026-10-22）
+
+claim API v4 的代码、契约测试、示例和文档迁移已完成：`PublishClaim` 不再持有
+`shared_ptr<PublisherEndpoint>`，改由 `Publisher::commit(std::move(claim))` 提交并校验
+归属。Release 22/22、ASan/UBSan 21/21 通过。
+
+**同一天完成两次完整正式产品 A/B。** 两次都是 36 个吞吐 block、4 个延迟 case；
+每轮原始 RESULT 与 stdout、组级 `SHA256SUMS`、客户端二进制及 fence 环境均通过独立
+分析器复核。B=v3.0.0，S=v4 且 `SALIAS_DISABLE_ASYMMETRIC_FENCE=1`，A=v4 默认。
+S/B 单独归因 claim API，A/S 单独归因屏障，A/B 才是组合效果。
+
+| 运行 | 证据目录 | 64 B S/B | 256 B S/B | 64 B 判定 |
+|---|---|---:|---:|---|
+| 第一次 | `claim-api-v4-20261022-181707` | 1.258804 (+25.88%) | 1.281718 (+28.17%) | GO |
+| 第二次 | `claim-api-v4-release-20261022-204139` | 1.238393 (+23.84%) | 1.290653 (+29.07%) | INCONCLUSIVE |
+
+第二次运行的完整吞吐矩阵：
+
+| Payload | 对比 | 候选 Mmsg/s | 基线 Mmsg/s | 相对变化 | 组方向 | 精确置换 p |
+|---|---:|---:|---:|---:|---:|---:|
+| 64 B | S/B claim API | 6.139 | 4.957 | **+23.84%** | 6/6 | 0.002165 |
+| 64 B | A/S fence | 7.044 | 6.139 | +14.74% | 6/6 | 0.002165 |
+| 64 B | A/B combined | 7.044 | 4.957 | +42.10% | 6/6 | 0.002165 |
+| 256 B | S/B claim API | 6.294 | 4.877 | **+29.07%** | 6/6 | 0.002165 |
+| 256 B | A/S fence | 7.038 | 6.294 | +11.82% | 6/6 | 0.002165 |
+| 256 B | A/B combined | 7.038 | 4.877 | +44.32% | 6/6 | 0.002165 |
+
+**claim API 吞吐 GO 未复现。** 第一次 64 B S/B 中位数比 1.258804，达到预注册 1.25；
+第二次为 **1.238393**，低于同一门槛，分析器判为 **INCONCLUSIVE**。两次精确置换
+p 都是 0.002165、组方向都是 6/6，说明约 24%–26% 的正向收益稳定存在，但第二次没有
+证明收益至少达到 1.25。预注册指标是 120 轮池化中位数；不能改用组中位数比
+（第二次为 1.258986）或挑选一次结果把它改判为 GO，也没有登记“不确定后扩样”分支。
+因此当前只能表述为**吞吐收益方向稳定、claim API 吞吐 GO 尚未复现**；不能宣称
+已通过吞吐门槛。256 B 只作描述性报告，不套用 64 B 门槛。
+
+第二次 1P1S、1M msg/s 的短延迟中位数（各轮独立分位数取中位数，不合并直方图）显示：
+64 B S/B 的 attempt p50/p99/p99.9 为 385/471/4287 ns 对 387/483/4287 ns，planned 为
+447/3375/12351 ns 对 439/4079/12799 ns；64 B planned p99.9 的候选轮间范围达到
+7743–2064383 ns。256 B A/S 的 attempt p99/p99.9 为 1247/9471 ns 对 501/4607 ns，
+约 2.49x/2.06x。本轮**没有重跑 HFT 长尾门禁**；因此不能宣称延迟非劣、长尾已解决
+或 v4.0.0 整体发布验收通过。完整表格、轮间范围与重算命令见
+[迁移计划](plans/phase3-claim-api-v4-migration-plan.md) §4.8，精简证据见
+[2026-10-22 证据说明](benchmarks/2026-10-22/README.md)。
+
+### 1.3 v3.0.0 / Aeron 历史对照（2026-10-19）
+
+1. **最明确的瓶颈是 64 B、单发布双订阅广播吞吐。** 同组五轮发布中位数：
+   Salias **6.341 Mmsg/s**，Aeron **42.441 Mmsg/s**，Aeron 约为 **6.69 倍**。
+   五轮范围分别为 6.110–6.653 / 37.169–42.827 Mmsg/s，短测中差距稳定存在。
+2. **256 B 吞吐大致相当，不能把 64 B 的差距推广为所有消息大小。**
+   Salias/Aeron 为 14.962/15.019 Mmsg/s，中位数差约 0.38%，小于轮次波动。
+   Salias 的 256 B 反而比 64 B 快，这是待诊断现象，不是大消息天然更快的结论。
+3. **典型延迟仍落后。** 同组 1P2S、100 万条/s，attempt p50 为
+   363/199 ns（64 B）与 379/203 ns（256 B），Salias 多 164/176 ns。
+   较早 1P1S 确认组仍有约 80–100 ns 差距，两者不是同一拓扑。
+4. **长尾没有解决，也不存在一方全面胜出的结论。** 两端 1P2S 均出现毫秒级尾部；
+   Salias 在本组 attempt p99.9 较低，但 planned 64 B 反而比 Aeron 更高。
+   共享 VM、短轮次和不同计时起点不能证明生产 SLA 或稳定尾部收益。
+5. **已经采用的安全减负是移除空 poll 的 2 KiB 描述符清零。** 后续六个轮询/布局候选
+   没有一致收益，均未晋升。不要继续基于固定“原子指令纳秒成本”盲目削弱同步。
+6. 下一轮先**复现并剖析 64 B 广播吞吐断点**，同时用同步调度证据解释长尾；
+   不要从不安全帧头原型、默认 FIFO 调度或挑选最佳轮次重新开始。
+
+## 2. 产品版本、语义和状态
+
+- 第 3–8 节历史测量产品：`v3.0.0`，提交 `c5e6aa7df4397df6f47a4e00cf5f72ed5ae778bd`。
+  2026-10-19 整理只修改文档与精简证据；P3-1 与 claim API v4 已随 `v4.0.0` 发布，
+  对应结果分别单列于 §1.1 与 §1.2，不能反向当作第 3–8 节 v3 测量的重跑。
+- 已采用 poll 优化：`f9ea5c2`；Reliable 发布慢路径减少冗余存活探测：`ffbf6e1`。
+- 本页 1P2S 是 **Reliable FIFO 广播**：每个订阅者接收每条消息，不是两个消费者分摊消息。
+  Salias 使用 `FifoMpmc`；1P1S 对照使用 `FifoMpsc`，因此拓扑对照也包含产品模式选择差异。
+- Aeron 1.52.0：IPC exclusive publication，每个进程独立 client，另有 media driver。
+- 历史测量使用具名通道协议 v14，LatestByKey 布局 v2。当前 P3-1 工作区候选协议为 v15；
+  跨进程参与者必须同步升级，旧共享通道须重建。
+
+## 3. 主实验：1P2S Salias / Aeron 同组对比
+
+### 3.1 条件与公平性边界
+
+| 项目 | 设置 |
 |---|---|
-| 云厂商 | Tencent Cloud CVM |
-| 主机名 | `VM-8-5-ubuntu` |
-| 虚拟化 | KVM 全虚拟化 |
-| CPU | Intel Xeon Platinum 8255C @ 2.50 GHz |
-| vCPU | 4，1 socket，4 cores，1 thread/core |
-| Cache | L1d 128 KiB，L1i 128 KiB，L2 16 MiB，L3 35.8 MiB |
-| NUMA | 1 node，CPU 0-3 |
-| 系统 | Ubuntu 24.04.4 LTS |
-| Kernel | Linux 6.8.0-101-generic x86_64 |
-| 编译器 | GCC 13.3.0 |
-| CMake | 3.28.3 |
-| salias | C++23，Release `-O3 -flto -march=native -DNDEBUG` |
-| Aeron | 1.52.0，C++ client + 独立 `aeronmd` |
+| 时间 | 2026-10-19 17:08:04 起，运行约 2 分 35 秒 |
+| 主机 | Tencent 4 vCPU KVM，Intel Xeon Platinum 8255C，Linux 6.8.0-101-generic |
+| 产品工具链 | Salias 与 Aeron C++ 比较器为 GCC 14.2，Release，O3/native/LTO；Aeron 原生依赖含 GCC 13.3 产物，见下方边界 |
+| 应用绑核 | subscriber0 CPU1、subscriber1 CPU2、publisher CPU3，两端相同 |
+| 附加进程 | coordinator CPU0；Aeron SHARED/backoff driver 也在 CPU0 |
+| 缓冲与消费 | Salias 1 MiB ring、普通页、batch=1、poll-limit=64；Aeron 1 MiB term、fragment-limit=64 |
+| 轮次 | 每格 1 轮预热、5 轮正式；引擎顺序交错，所有案例串行，无同时编译 |
+| 资源约束 | 704 MiB cgroup，MemoryHigh=640 MiB，零 swap，Nice=5，超时和进程组清理 |
+| 延迟负载 | 计划 1M msg/s，每例 200 万条，约 2 秒，固定 1/16 采样 |
+| 吞吐负载 | 不限速、不采样，每例 1000 万条；实际轮次约 0.23–1.64 秒 |
 
-完整机器输出见 `benchmarks/final-performance-machine.txt`。
+**不是相同总 CPU 成本或独占机器对比**：Aeron 有额外 driver，客户端内部线程继承其
+应用进程亲和性；CPU0 上的其他任务不受本实验控制。两端应用角色有各自固定核，
+driver 不与这些应用角色共享核。Aeron 为三段 term 日志，总映射容量不是 Salias 的 1 MiB。
 
-## 独立进程模型
+**不是整栈同编译器构建**：文档复核对原哈希匹配二进制执行 `readelf -p .comment`，
+Salias 显示 GCC 14.2，Aeron 比较器同时含 GCC 14.2/13.3 标记，`aeronmd` 和 `libaeron.so`
+显示 GCC 13.3。元数据没有冻结完整构建命令，不能由标签推断所有依赖使用相同编译器/flags；
+下一轮应记录完整构建输入，必要时同工具链重建作为独立对照，不能声称现有差距已排除此因素。
 
-本次没有在 benchmark 主程序中 `fork()` Publisher 或 Subscriber worker。每个角色都是由 shell
-coordinator 独立启动的可执行程序：
+**不是完整 payload 或完整正确性基准**：64/256 B 是逻辑长度，延迟路径只写 16 B
+时间戳与 marker，吞吐只写 8 B marker；消费者主要计数/采样，没有逐条序号验重或完整内容校验。
+吞吐是计数消费下的 IPC 结果，不能直接解释成业务可处理带宽。
 
-```text
-salias_final_publisher   × Publisher 数量
-salias_final_subscriber  × Subscriber 数量
+### 3.2 吞吐：64 B 是优先排查项
 
-aeron_final_publisher    × Publisher 数量
-aeron_final_subscriber   × Subscriber 数量
-aeronmd                  × 1
+单位 Mmsg/s。广播交付按订阅者计数，1 条发布对应 2 次交付；不把交付吞吐冒充发布吞吐。
+
+| 逻辑长度 | 引擎 | 发布中位数 | 五轮发布 min–max | 总交付中位数 |
+|---|---|---:|---:|---:|
+| 64 B | Salias | **6.341** | 6.110–6.653 | 12.682 |
+| 64 B | Aeron | **42.441** | 37.169–42.827 | 84.881 |
+| 256 B | Salias | **14.962** | 9.190–15.454 | 29.924 |
+| 256 B | Aeron | **15.019** | 11.638–16.809 | 30.038 |
+
+这是短轮次观察，不是持续容量保证。64 B 差距应先复现，再区分发布、消费、进度回写、
+环回绕与背压各项成本；目前没有数据证明某一项就是 6.69 倍差距的根因。
+
+### 3.3 attempt 延迟：首次尝试前到接收
+
+包含 claim 重试、payload 写入、commit 和期间停顿，不是单个库函数 CPU 开销。
+先取每轮两个订阅者中更大的对应分位数，再取五轮中位数；**不是合并直方图分位数**。
+`latency_histogram.hpp` 报告的是命中桶上界：64 ns 以下精确、每个二次幂区间再分 64 桶；
+本表保留原输出精度，不表示纳秒级测量置信度。`max` 也只是采样消息的最大值，不是全量最大值。
+
+| 逻辑长度 | 引擎 | p50 ns | p99 us | p99.9 us | 五轮 p99.9 min–max us |
+|---|---|---:|---:|---:|---:|
+| 64 B | Salias | 363 | 3.039 | 1605.631 | 266.239–1867.775 |
+| 64 B | Aeron | 199 | 5.311 | 2326.527 | 51.711–4063.231 |
+| 256 B | Salias | 379 | 4.671 | 614.399 | 68.607–2949.119 |
+| 256 B | Aeron | 203 | 78.847 | 3014.655 | 120.831–3964.927 |
+
+### 3.4 planned 延迟：原始到达排期到接收
+
+包含进入发送函数之前的排期积压，落后时不重置到达计划。
+attempt/planned 是独立运行，不能将其分位数相减作为阶段成本。
+
+| 逻辑长度 | 引擎 | p50 ns | p99 us | p99.9 us | 五轮 p99.9 min–max us |
+|---|---|---:|---:|---:|---:|
+| 64 B | Salias | 379 | 137.215 | 2326.527 | 109.567–3932.159 |
+| 64 B | Aeron | 267 | 92.159 | 2080.767 | 1687.551–3571.711 |
+| 256 B | Salias | 367 | 14.079 | 1540.095 | 1048.575–4063.231 |
+| 256 B | Aeron | 263 | 1228.799 | 3473.407 | 2752.511–4915.199 |
+
+程序平均发布速率约 0.995 Mmsg/s：总计时包含约 10 ms 发令等待及结束开销。
+固定消息数最终发完不等于严格 2 秒截止完成性通过。没有丢弃不利轮次，没有测 p99.99。
+
+### 3.5 核验结果
+
+共 12 次预热、60 次正式测量；正式发布 **280,000,000** 条、广播交付 **560,000,000** 次、
+采样交付 **10,000,000** 次。每例收发计数、两个订阅者采样数、原始输出 SHA-256、
+二进制/依赖哈希和五轮分组聚合均复核通过。
+`memory.events` 的 high/max/oom/oom_kill 均为零；cgroup 峰值约 578.3 MiB，
+最低观测 MemAvailable 约 1377.5 MiB。此峰值不是单独库内存占用基准。
+
+## 4. 辅助实验：1P1S 到 1P2S 的变化
+
+这是 **16:58:21 起的较早 Salias-only 实验**，不是上节同组 Aeron 对照。
+CPU1/2 仍是订阅者、CPU3 发布者，但当时禁用 CPU0，coordinator 在 CPU1–3，
+会竞争应用角色的核。共享 VM、绑核安排和运行时间不同，不可拼接或解释为代码优化前后。
+
+100 万条/s，五轮中位数；同样先逐轮取最慢订阅者分位数。attempt：
+
+| 拓扑 | 逻辑长度 | p50 ns | p99 us | p99.9 us | 最差轮 p99.9 us |
+|---|---:|---:|---:|---:|---:|
+| 1P1S | 64 B | 287 | 0.463 | 4.479 | 479.231 |
+| 1P2S | 64 B | 303 | 0.679 | 208.895 | 1163.263 |
+| 1P1S | 256 B | 283 | 0.487 | 5.759 | 11.775 |
+| 1P2S | 256 B | 303 | 7.039 | 1081.343 | 2260.991 |
+
+同实验吞吐（1P1S / 1P2S 发布中位数）：64 B **9.315 / 6.323 Mmsg/s**，
+256 B **14.906 / 15.594 Mmsg/s**。1P2S 的 256 B 轮次范围 6.636–15.745 Mmsg/s，
+不能据此声称增加订阅者提升吞吐。该实验只支持多订阅长尾值得单独研究的观察。
+共 60 次正式运行、2.8 亿发布、4.2 亿交付、750 万时延样本，计数核验通过。
+
+## 5. 已做优化、诊断证据和失败路线
+
+### 5.1 已合入的 poll 存储优化
+
+两种 `Subscriber::poll` 重载使用调用独占栈存储，去掉每次空轮询 32 个 `Message`
+共 2 KiB 清零；只有前 `got` 个完整赋值的描述符可读。保留公开默认值、递归调用隔离、
+批量边界、借用/flush 和 TTL 契约，不使用端点共享 scratch，不改原子内存序。
+
+较早 1P1S、64 B、1M/s 五轮确认：旧/新 attempt p50 **287/267 ns**，p99 **475/435 ns**，
+p99.9 **7.999/4.159 us**；同组 Aeron p50=187 ns。另一独立组 p50 仅改善 **4 ns**；
+低速有小回退，新版部分最差轮更差。因此只确认移除了无用工作，不承诺稳定追回 20 ns。
+
+反汇编旧版四处 2048 B memset，新版零处；小样本 profile 中旧消费者 memset 占 14%，
+新版无命中。不能把该占比折算为端到端收益。
+
+### 5.2 perf 和调度究竟证明了什么
+
+- 本 VM 硬件 cycles/instructions/cache-misses 事件不支持，没有 HITM/perf-c2c/IPC 结论。
+  `perf_event_paranoid=4`；既有受控权限下曾采集 cpu-clock/DWARF 与 switch-events，未改 sysctl。
+- cpu-clock 199 Hz、约 400–600 个消费者样本的 profile 指向接收轮询热路径；存在未解析地址、
+  样本少等限制。它支持定位调查，不支持完整归因 100 ns 或证明缓存行是唯一瓶颈。
+- 较早干净 trace 的三个最慢事件中，off-CPU 重合约占 **81.7% / 94.9% / 92.7%**。
+  只证明这些具体事件大部分时间不在库内执行，不能推广到所有长尾或直接归咎宿主机。
+- 一次普通调度 2.278 ms 尖峰没有 switch 重合，原因未定。**本页主实验没有同步 trace**，
+  不可把其他实验的解释直接套给当前毫秒尖峰。
+
+较早 1P1S 的同消息阶段探针提供了进一步方向（三次独立运行 p50 中位数）：
+
+| 探针区间 | Salias ns | Aeron ns |
+|---|---:|---:|
+| 首次 attempt 到 claim 成功并取时钟 | 110 | 37 |
+| claim 后取时钟到 precommit 取时钟 | 31 | 32 |
+| precommit 到消费回调取时钟 | 255 | 114 |
+
+数据来自[stages.json](benchmarks/2026-10-19/design-diagnosis/stages.json)。探针使 Salias
+端到端 p50 升到约 403 ns；handoff 包含最后时间戳写入、commit 与回调前处理，不是纯缓存传输。
+这些阶段分位数不能相加还原无探针延迟，也不能把 73/141 ns 差直接套回本轮 1P2S。
+它只支持“发布准入与接收交接都需剖析，payload 填充不是该探针里的主要差异”。
+
+源码层面的设计差异是：Aeron commit release 发布帧长、poll acquire 观察帧长；Salias 写帧头
+后 release 推进独立的 `visible_producer_pos`，接收者先观察水位再读取帧头。后者还承担乱序
+commit 空洞、动态注册与 TTL 等语义。这是需要证明的依赖链候选，不是可直接删掉的“多余同步”。
+
+### 5.3 不要重复推广的候选
+
+| 方案 | 实测/反例 | 当前决策 |
+|---|---|---|
+| visible/reservation 分隔 64 B | 较早 1P1S attempt p50 283→279 ns，仅 4 ns；planned p99.9 12.543→13.183 us | 无高收益证据，不合入 |
+| 每帧步长补齐 64 B | 64 B payload 的帧步长 72→128 B，空间 +77.8%；p50 283→423 ns | 拒绝通用 padding |
+| 首条立即回调 / 逐条 try_recv+release | 同一初筛 p50 283→387/383 ns，分别慢 104/100 ns | 不替换默认批量路径 |
+| 空 poll PAUSE / yield | PAUSE 初筛仅好 4 ns、尾部不稳；另一组 yield p50 287→459 ns | 不改默认；需按负载重新验证 |
+| 分支回绕代替取模 | 初筛 p50 好 24 ns，跨负载仅好 4 ns，另两格退化 52 ns | 不合入 |
+| 五组本地游标聚合 | 64 B/1M 初筛 p50 反而差 92 ns | 不合入 |
+| 缓存注册定位、布局组合 | 256 B 某格好 20 ns，64 B p50/p99/p99.9 同时退化 | 不合入 |
+| 延后 pending-progress、控制流组合 | 没有稳定整体收益 | 不合入 |
+| 端点共享 scratch | 破坏递归调用描述符隔离；产品改用调用独占栈存储 | 不用 |
+| 跳过 authoritative visible bound 的帧头发布原型 | 变长回绕可读到陈旧 payload，被反例否决 | 不安全，禁止产品化 |
+| 保留可见水位的修正版 | 没有稳定额外高收益 | 仅诊断 |
+| 默认 SCHED_FIFO busy-spin | 观测约 49–50 ms off-CPU，planned p99.9 约 47.710 ms | 不启用，不关闭 RT 限流 |
+
+六个后续轮询候选共 165 次非 profile 正式运行、2.58 亿消息、1612.5 万样本；
+没有新候选晋升，不等于证明这些操作没有成本。
+前四行来自较早[设计诊断](archive/performance/aeron-design-diagnosis-2026-10-19.md)，
+不是六候选矩阵，也不是本轮 1P2S。现有 `NamedProducerSlot` 已按 128 B 对齐，不能把
+“结构体已经对齐”和“热字段已隔离”混为一谈；字段偏移变化即使 sizeof 不变也须评估协议升级。
+
+### 5.4 Publisher/HFT 验收没有通过
+
+2026-10-18 的八配置 30 分钟总长测，p99.9 50 us 门禁 **0/8**；这是产品早期实现的历史验收，
+不是 v3.0.0 全部重新验收。后续 `ffbf6e1` 基线上的新候选完成三组 ABBA、96 个正式阶段、
+总计 48 分钟；三组均未通过“重点尾部至少改善 20%、其他配置退化不超过 5%”的预设门禁。
+2P2S/256 B 突发端到端 p99.9 分别退化 **115.4% / 735.7% / 418.9%**，新候选已撤销。
+
+该 ABBA 正式计划输入 3,312,000,000 条，实际发布 3,311,999,463 条；已发布消息完整性通过，
+但两个基线阶段合计 537 条计划输入未发送，仍算完成性失败。不能混淆“未发送输入”和传输丢失。
+有条件的后续 30 分钟长测没有运行。不得把本页短测或测试套件通过当成长期 SLA 通过。
+
+## 6. 历史吞吐为什么与新结果不同
+
+2026-07-11 的旧版本、独立可执行程序、2P1S/2P2S 测试曾记录 Salias FIFO 发布
+44.867/30.158 Mmsg/s，部分配置超过 Aeron。它不是当前 v3.0.0、1P2S、fork harness、
+GCC 14.2 的重测，**不能用来否定当前 64 B 的差距，也不能当成新优化前的同组基线**。
+完整旧表移至 [2026-07-11 历史吞吐](archive/performance/throughput-2026-07-11.md)。
+Ordered 提供不同的跨发布者全序语义，不用其吞吐直接替代 FIFO/Aeron 的可比结论。
+
+## 7. 下一轮优化任务：先归因，再改变设计
+
+### P0：重建可重复的 64 B 广播吞吐基线
+
+1. 固定当前提交与二进制，先复跑主实验。将吞吐轮次延长至至少 5–10 秒，单独预热、
+   交错顺序；记录全范围、输入完成性及每订阅者结果，不能只报最好一轮。
+2. 保持 publisher CPU3、subscriber CPU1/2、coordinator/driver CPU0；明确 driver 的额外核成本。
+   若不能使用 CPU0，必须另列“核共享部署”实验，不能暗中把 driver 放到 publisher 核。
+3. 一次只改一个变量：优先扫描相邻 payload（如 48/64/80/96/128/256 B）、1P1S/1P2S、
+   固定/不同 ring 容量；核查实际帧步进、回绕与消费批次，不先假定 cache-line 因果。
+4. 在独立诊断运行里测 publisher 的成功/失败 claim、commit、背压重试，以及每订阅者
+   poll 空转/成功批次、每批消息数、共享进度回写频率、消费滞后。插桩数据不进入正式收益表。
+5. 同时检查比较器差异：Salias 背压 yield 与 Aeron busy-spin、FifoMpsc/FifoMpmc 分派、
+   单发布者通用路径开销、Aeron triple-term/window、原生依赖工具链。要做公平诊断，
+   不默认删除产品可靠性语义。
+
+### P1：同步解释尾部，不靠提高线程优先级掩盖问题
+
+同条消息记录 planned/attempt/commit/receive 时间，与调度 off-CPU 区间关联，保留单个未解释
+尖峰。按 publisher、两个 subscriber、driver 角色区分停顿、背压传播与纯 on-CPU 工作。
+需要硬件缓存/流水线结论时迁移到具备 PMU 的受控机器；本机不要伪造 cache-miss/HITM 数字。
+独占核、IRQ/频率或宿主配额实验必须单独报告，不能与普通共享 VM 混为同组代码收益。
+
+### P2：只推进经证据支持的设计变化
+
+候选方向是进度发布/回收、广播批量路径和单发布者路径；缓存行对齐与预取也必须有布局或
+访问证据支持。每次只改一个候选，先正确性再交错 A/B，64/256 B、1P1S/1P2S 都检查；
+有资源再扩展 1P3S/1P4S、2P2S。现在没有这些拓扑的新版公平扩展性结论。
+
+**不可牺牲的契约**：注册 gate/代际互斥、PID 启动身份和死亡回收、最慢可靠订阅者背压、
+payload 借用期、批量安全前缀、TTL 过期推进、递归 poll 描述符隔离、raw/schema 分帧和变长回绕。
+不得用丢消息、减少计划输入、缩短计时、跳过可见水位或直接改 seq_cst 来换漂亮数字。
+
+### 下一轮完成条件
+
+交付“根因证据 → 单一候选 → 正确性回归 → 无插桩同组收益 → 退化检查”的完整链条；
+保留失败路线和最差轮。正确性至少覆盖发布版本的 Release CTest 21 项及工具回归，
+涉及内存/同步时加定向 sanitizer、跨进程故障与借用/注册测试。历史通过数不是无需重跑的证明。
+当前未定义新的吞吐百分比验收阈值，不自行把某个短测改善称为 SLA；HFT 长测需复用其显式门禁。
+
+## 8. 证据位置与复现入口
+
+### 8.1 仓库内冻结证据
+
+| 数据集 | 位置 | 内容 |
+|---|---|---|
+| 本轮 1P2S 同组对比（主结论） | [spmc-aeron](benchmarks/2026-10-19/spmc-aeron/summary.json) | summary、环境、72 条 JSONL、72 份小 stdout、冻结 runner |
+| 较早 Salias-only（辅助） | [spmc-salias](benchmarks/2026-10-19/spmc-salias/summary.json) | summary、环境、72 条 JSONL、72 份小 stdout、冻结 runner |
+| 新证据完整性 | [evidence-manifest.json](benchmarks/2026-10-19/evidence-manifest.json) | 源路径、目标路径、每文件 SHA-256/字节数 |
+| 既有 1P1S 实作确认 | [design-implementation](benchmarks/2026-10-19/design-implementation/summary.json) | 安全 poll 优化、调度与协议原型，分组聚合 |
+| 六候选失败实验 | [poll-path-followup](benchmarks/2026-10-19/poll-path-followup/summary.json) | 全部格子、范围及七实现的精简核验 |
+| perf/调度证据 | [design-diagnosis](benchmarks/2026-10-19/design-diagnosis/summary.json) | 真实 profile、stage/switch 关联，详见历史报告 |
+| HFT 较早长测精简归档 | [performance-results.json](benchmarks/2026-10-18/performance-results.json) | 标量和来源哈希；不含可重算历史分位数的完整桶 |
+
+新证据保持原始数值和历史绝对路径；`results.jsonl` 的 stdout 原位置可能只在本机存在，
+其小文件已按原 basename 冻结到对应 `raw/`，可据 stdout_sha256 核验。
+旧二进制、perf.data、完整日志没有入库，哈希不是这些文件的备份。
+
+### 8.2 本机原始目录与源码定位
+
+主实验：`build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/`；辅助实验：
+`build/benchmarks/spmc-v3.0.0-20261019-165821/`。两组目录、冻结二进制、runner 与 Aeron 依赖
+继续保留原位，主实验复跑命令不变。
+
+按后续清理要求，四组旧压测目录已无损压缩到 Git 忽略的
+`build/benchmark-cleanup-20261019/`，验证后移除散文件：
+
+| 原 `build/benchmarks/` 子目录 | 本地归档文件 | 原文件数 |
+|---|---|---:|
+| `poll-path-20261019/` | `poll-path-20261019.tar.gz` | 567 |
+| `design-diagnosis-20261019/` | `design-diagnosis-20261019.tar.gz` | 1799 |
+| `design-implementation-20261019/` | `design-implementation-20261019.tar.gz` | 719 |
+| `publisher-tail-20261018/` | `publisher-tail-20261018.tar.gz` | 725 |
+
+每个归档均逐文件解流核验原 SHA-256 后才清理原目录；3,810 个文件从 890.9 MiB
+压为 217.6 MiB，按文件字节差节省约 673.3 MiB。失败结果、perf.data、原始日志、冻结源码
+及二进制均在包内，未因不利结论被丢弃。`manifest.json` 记录映射、逐文件和归档哈希。
+这些包仅在本机保留，不属于仓库交付；历史 JSONL 中的旧路径需要先恢复才能访问。
+
+要复核某组完整证据，先确认无测试正在运行且目标目录不存在，在仓库根解压对应包，例如：
+
+```bash
+test ! -e build/benchmarks/design-diagnosis-20261019 && \
+  tar --no-same-owner -xzf build/benchmark-cleanup-20261019/design-diagnosis-20261019.tar.gz -C "$PWD"
 ```
 
-salias Subscriber 0 创建具名 Channel，其他 Subscriber 和所有 Publisher 分别连接。Aeron 每个
-Publisher/Subscriber 创建自己的 Aeron client；media driver 是额外独立进程。Coordinator 只通过
-ready/start/result 文件同步，不参与消息收发。
+常规分析仍优先使用仓库内精简证据，无须先恢复全部旧产物。
 
-## 公平条件
+| 组件 | 路径与定位标识 |
+|---|---|
+| 对比入口/重试策略 | `tools/aeron_compare/salias_ipc_compare.cpp`、`aeron_ipc_compare.cpp` |
+| 开环计时 | `tools/aeron_compare/latency_pacing.hpp`：`planned_arrival_ns` |
+| 发布/注册/消费主路径 | `src/core/channel/shared_hybrid_mpsc.hpp`：`ClaimReservationGuard`、`Tx::claim`、`Rx::try_recv_run`、`flush_progress` |
+| 共享布局/公开端点 | `src/salias/src/channel.cpp`：`NamedProducerSlot`、`Publisher::try_claim`、`Subscriber::fetch_batch/poll` |
+| 描述符存储 | `src/salias/include/salias/detail/poll_buffer.hpp` |
+| 帧步进/基础容量缓存 | `src/core/frame/codec.hpp`、`src/core/flow/producer.cpp`：`cached_head_` |
+| 设计原型/trace | `tools/aeron_compare/build_*`、`diagnose_design.py`、`analyze_switches.py` |
+| 正式 HFT 门禁 | `tools/hft_acceptance/run_tail_suite.sh`、`summarize_tail_ab.py` |
 
-- 每个 Publisher 发布 2,000,000 条 64 B 消息。
-- 2 个 Publisher；分别测试 1 个和 2 个 Subscriber。
-- 容量/term length：1、4、64 MiB。
-- 每组预热 3 次，正式测量 20 次；容量顺序轮转。
-- salias FIFO batch=1 使用 `Publisher::offer()` 拷贝发布；Ordered batch=8 使用 `offer_batch()`。
-  本轮没有测 `try_claim()` 零拷贝热路径。
-- Aeron 使用 `ExclusivePublication::tryClaim()`。
-- Subscriber poll/fragment limit 均为 64。
-- 2P1S：Subscriber CPU0，Publisher CPU1/2，Aeron driver CPU3。
-- 2P2S：Subscriber CPU0/1，Publisher CPU2/3；Aeron driver 与 CPU0 共享。机器只有 4 vCPU，
-  因而 2P2S Aeron 存在 driver 共享核限制，结果不能替代更多物理核心上的最终验证。
-- FIFO 对比采用等价的 per-publication FIFO 与 fanout 语义。
-- Ordered 是 salias 扩展能力，不计算 salias/Aeron 公平比例。
+先使用 `rg` 定位当前函数，不依赖文档行号。工具能力、构建与通用安全条件见
+[Aeron 工具说明](../tools/aeron_compare/README.md)、[HFT 工具说明](../tools/hft_acceptance/README.md)。
 
-吞吐使用所有 worker 的最早单调时钟开始值到最晚结束值计算，包含最慢 Publisher/Subscriber 的完成时间。
-所有 480 个正式样本均完成消息数校验，`invalid=0`。
+### 8.3 在同一主机复跑主实验
 
-## Publisher 指标口径
+冻结 runner 按原目录深度推导仓库根；先恢复到以下路径，不要直接在 doc 目录运行。
+命令只适用于原有 Linux/systemd/cgroup-v2 主机；先检查没有其他测量/编译并发、二进制存在、
+源版本一致且 MemAvailable 至少 1 GiB。不满足条件就重新构建并记录新输入，不能称原二进制复跑。
 
-这里的性能是独立进程 Publisher 到 Subscriber 的端到端结果，不是单次 `offer()` 的函数耗时。
-常用 FIFO MPSC 对应 2P1S；2P2S 是 fanout 场景，每条发布消息交付给两个 Subscriber。
+```bash
+mkdir -p build/spmc-check-20261019
+cp doc/benchmarks/2026-10-19/spmc-aeron/frozen-runner.py build/spmc-check-20261019/compare_aeron.py
+python3 -m py_compile build/spmc-check-20261019/compare_aeron.py
+OUT="$PWD/build/benchmarks/spmc-aeron-repeat-$(date +%Y%m%d-%H%M%S)"
+systemd-run --user --wait --pipe --collect \
+  -p WorkingDirectory="$PWD" -p AllowedCPUs=0-3 -p 'CPUAffinity=0 1 2 3' -p Nice=5 \
+  -p MemoryHigh=640M -p MemoryMax=704M -p MemorySwapMax=0 -p TasksMax=48 \
+  -p RuntimeMaxSec=600s -p KillMode=control-group -p OOMPolicy=stop \
+  /usr/bin/env SALIAS_RESOURCE_CAPPED=1 PYTHONDONTWRITEBYTECODE=1 \
+  python3 "$PWD/build/spmc-check-20261019/compare_aeron.py" --output "$OUT"
+```
 
-- **发布吞吐**：每秒成功发布的消息数，表中以 Mmsg/s 表示。
-- **交付吞吐**：每秒成功消费的总消息数；fanout 按所有 Subscriber 的交付数累加。
-- **有效载荷带宽**：按 64 B payload 换算，`消息数/秒 × 64 ÷ 1,048,576`，表中以 MiB/s 表示。
-  交付带宽在 fanout 下包含每个 Subscriber 各自收到的 payload，是逻辑有效载荷统计，不是物理内存总线带宽。
-- **背压率**：发布尝试中因容量限制而需要重试的比例；salias 记 `BackPressured`，Aeron 记可重试的
-  `tryClaim()` 非成功。两者实现口径不完全相同，只适合分别观察趋势。
-- **离散度与样本数**：吞吐列给出 20 次正式运行的中位数及 p10-p90；完整矩阵还列发布/交付带宽和
-  中位背压率。`invalid=0` 表示本轮样本的发布数、交付数校验全部通过。
+runner 中主实验允许 CPU0 是刻意的拓扑设置，不要直接套用只允许 CPU1–3 的旧单订阅 runner。
+冻结 runner 目前固定 2M/10M 消息短测；延长吞吐和增加诊断需要另存新实验并标注工具变化。
+若不在精确 tag HEAD，先审查版本和脚本的 `git describe --exact-match` 检查，不通过伪造 tag 绕过。
 
-这轮 salias/Aeron 最终对比没有测单次 Publisher 调用延迟、p50/p99/p99.9、CPU 占用、峰值内存或分配量；
-不能从吞吐反推出这些指标。当前代码另有一组 salias FIFO 采样单向时延结果，含 publication window 对照，
-见 [当前 Publisher 时延报告](publisher-latency-2026-10-18.md)。另有包含发布前积压的
-[30分钟合成IPC验收](hft-market-data-acceptance-2026-10-18.md)及
-[尾延迟优化独立验收](tail-latency-acceptance-2026-10-18.md)；后者为性能仍待改进的候选补丁，
-完整性回归通过但50µs p99.9未达标，不能混为本页Aeron对比结果。Benchmark worker 还会记录每个 Publisher
-的尝试数和最长连续重试次数，但最终对比的归档汇总未包含这些逐 Publisher 原始计数。
+## 9. 文档整理结果和禁止误读
 
-## FIFO 与 Aeron 公平对比
+- 当前只有本页作为最终性能汇总；日期报告和旧吞吐表移入 `doc/archive/performance/`，
+  历史数字保留，README 和工具入口统一指向本页。
+- `docs/release_note.md`、`doc/release_note.md` 是历史发布记录，不改写已发布版本声明。
+  CHANGELOG 只记录本次整理，不改产品版本或已存在的 v3.0.0 tag。
+- 未入库的旧优化估算草稿、生成源码副本及重复 bulk 日志移到本机
+  `build/document-cleanup-20261019/`，共 1,069 个文件、2,705,527 字节，映射及哈希保存在
+  `relocation-manifest.json`，避免下一位 agent 当成已实现事实。
+  不删除源码、测试、失败证据或其他未提交实验来制造干净状态。
+- 2026-10-19 的 §3–8 历史整理未重新采样 perf、未运行新性能矩阵，只复核并冻结既有测量；
+  2026-10-22 claim API v4 的独立正式 A/B 见 §1.2。两者不拼接。
+  尚无独占裸机、长时新版公平 1P2S、完整 payload、1P3S/1P4S 或新 2P2S 的验收结果。
+- 整理核验：152 个新证据文件的源/目标哈希一致，144 份 stdout 已重解析、24 个五轮分组
+  已重算，报告主表与辅助表对齐；历史已跟踪证据及两处 release note 保持原字节。
+  该次整理为文档改动，未重跑 CTest；历史通过记录不作为新的测试结果。
+- 后续清理将三个未跟踪实验文件 `tools/aeron_compare/salias_fast_path_compare.cpp`、
+  `tools/aeron_compare/verify_fast_path.sh`、`tools/microbench/measure_guard_cost.cpp` 移至本地
+  `build/benchmark-cleanup-20261019/drafts/`，按原相对路径保留并记录哈希，工具目录不再暴露骨架。
+  fast-path 提示性程序/脚本、guard 微测都不是完整产品 A/B；不能把其输出、注释或
+  `SkipRegistrationGuard` 设想当成已实现功能或性能证据。
+- 保留所有受维护的压测/诊断/回归工具及 Release、ASan/UBSan、TSan 构建目录；未删除产品或测试。
+  四组旧实验归档哈希与单文件恢复抽查通过；Aeron 工具回归 23 项、HFT 汇总回归 36 项全部通过。
+  无损归档详情见第 8.2 节；该次整理未提交、打 tag 或运行新性能测试。
 
-单位为中位发布吞吐 Mmsg/s；范围为 p10-p90。
+## 10. Phase 2 的冻结基线与已知 benchmark 限制
 
-| 拓扑 | 容量 | salias FIFO | Aeron | salias/Aeron | salias 背压 | Aeron 背压 |
-|---|---:|---:|---:|---:|---:|---:|
-| 2P1S | 1 MiB | 44.867 (42.783-46.408) | 41.108 (36.112-45.335) | **109.1%** | 0.312% | 27.828% |
-| 2P1S | 4 MiB | 44.485 (38.606-46.316) | 38.515 (34.980-42.101) | **115.5%** | 0.200% | 15.891% |
-| 2P1S | 64 MiB | 38.806 (35.909-43.545) | 22.011 (20.672-22.617) | **176.3%** | 0.000% | 0.000% |
-| 2P2S | 1 MiB | 29.206 (24.095-32.785) | 15.214 (9.253-18.579) | **192.0%** | 0.884% | 73.875% |
-| 2P2S | 4 MiB | 30.158 (24.403-34.688) | 25.127 (21.480-27.882) | **120.0%** | 0.386% | 45.811% |
-| 2P2S | 64 MiB | 28.423 (24.456-33.147) | 17.743 (15.694-18.699) | **160.2%** | 0.000% | 22.189% |
+Phase 2 已采纳“接受当前状态、基于 v3.0.0 快照继续”的路线。正式性能 A/B 固定使用
+SHA-256 为 `3f8fc6957ce56483d7051dd6625f44fd8f755d57a66d04e1e5efa48e65b9c7da`
+的本地冻结客户端，不再把扩展后的诊断 benchmark 当成同期性能基线。
 
-2P2S 中每条消息交付给两个 Subscriber，因此 salias 4 MiB 的 30.158 Mmsg/s 发布吞吐对应
-60.316 Mmsg/s 交付吞吐；Aeron 对应 50.254 Mmsg/s。
-按 64 B payload 换算，salias 该场景的发布/交付有效载荷带宽分别为 1,840.706 / 3,681.412 MiB/s；
-各容量、拓扑及模式的带宽见 `benchmarks/final-performance-table.md`。
+2026-10-20 的 192 B、1P2S、50M 消息复验中，冻结客户端为 **18/20** 高模式、中位数
+**16.7988 Mmsg/s**；当前扩展 benchmark 为 **0/20**、中位数 **4.90339 Mmsg/s**。
+将 v3.0.0 benchmark 源码链接当前产品库后，客户端仍与冻结 v3 二进制逐字节相同，因此差异
+属于 benchmark 编译单元/LTO 布局，不是 claim 产品实现回归。
 
-## salias Ordered 性能
-
-Ordered 保证跨 Publisher 全局全序，Aeron IPC 没有直接等价模式。表格只报告 salias：
-
-| 拓扑 | 容量 | Batch | 发布中位数 | p10-p90 | 交付中位数 | 背压中位数 |
-|---|---:|---:|---:|---:|---:|---:|
-| 2P1S | 1 MiB | 1 | 18.784 | 16.790-20.219 | 18.784 | 3.178% |
-| 2P1S | 1 MiB | 8 | 34.890 | 33.155-36.644 | 34.890 | 12.616% |
-| 2P1S | 4 MiB | 1 | 18.267 | 17.234-19.764 | 18.267 | 3.209% |
-| 2P1S | 4 MiB | 8 | 34.607 | 33.024-38.625 | 34.607 | 12.342% |
-| 2P1S | 64 MiB | 1 | 19.517 | 17.705-22.377 | 19.517 | 0.111% |
-| 2P1S | 64 MiB | 8 | **42.856** | 40.049-43.809 | **42.856** | 0.000% |
-| 2P2S | 1 MiB | 1 | 15.498 | 13.329-17.338 | 30.997 | 0.871% |
-| 2P2S | 1 MiB | 8 | 28.691 | 23.395-31.117 | 57.382 | 14.184% |
-| 2P2S | 4 MiB | 1 | 15.129 | 13.360-18.503 | 30.259 | 0.455% |
-| 2P2S | 4 MiB | 8 | 28.208 | 23.135-32.046 | 56.415 | 12.876% |
-| 2P2S | 64 MiB | 1 | 16.512 | 15.225-17.727 | 33.025 | 0.000% |
-| 2P2S | 64 MiB | 8 | **34.207** | 26.649-35.737 | **68.414** | 0.000% |
-
-## 容量结论
-
-- salias FIFO 的最佳绝对结果出现在 1/4 MiB，而不是 64 MiB。64 MiB 消除了背压，但扩大了
-  工作集，吞吐反而下降。因此 Ring 容量应按突发吸收与延迟目标选择。
-- Aeron 对 term length 更敏感：2P1S 64 MiB 的绝对吞吐明显低于 1/4 MiB。扩大 term length
-  不能被视为通用吞吐优化。
-- Ordered batch=8 在 64 MiB 下受益明显，说明批量全局 sequence 分配与更大在途窗口可以共同
-  降低 Ordered 的同步摊销；延迟敏感部署仍需使用 publication window 控制排队。
-
-## 限制
-
-- Tencent 节点是 4 vCPU KVM，不是独占物理机，p10-p90 仍包含宿主机调度波动。
-- 2P2S Aeron media driver 与一个 Subscriber 共享 CPU；该限制已明确列入公平条件。
-- 本轮最终对比矩阵聚焦吞吐、正确性与背压，没有做时钟采样延迟结论；当前 salias 代码的独立采样结果见
-  `publisher-latency-2026-10-18.md`，它不是 Aeron 对照，也不能从本矩阵的吞吐推导。
-- salias 和 Aeron 的背压计数含义不同：salias 统计 API 返回 BackPressured；Aeron 统计
-  `tryClaim()` 非成功且可重试的次数。比例只用于各自容量趋势诊断。
-
-## 原始数据
-
-- `benchmarks/final-performance-summary.txt`：机器可读汇总，含发布/交付吞吐、64 B 有效载荷带宽及背压率。
-- `benchmarks/final-performance-table.md`：完整 24 组自动生成汇总表。
-- `benchmarks/final-performance-machine.txt`：机器配置原始输出。
-
-原始逐轮 `final-performance-raw.log` 未随当前仓库归档；summary/table 是已提交的汇总数据，不能据此恢复
-单轮时间或每个 Publisher 的背压尝试计数。
+P2-A 又用同一冻结客户端完成 100 轮复核：高模式 **69/100（69.0%）**，未通过“85% 以上”
+推荐门槛；全体中位数 16.4806 Mmsg/s，仅高模式轮中位数 16.6859 Mmsg/s。与历史 192 B
+400 轮基线的 288/400（72.0%）相比为 -3.0 个百分点（双侧两比例检验 `p=0.5527`），
+差异不显著。因此 192 B 仍是已观测的高吞吐区域，但**不标记为稳定推荐配置或 SLA**。
+400 轮基线全体轮次中位数为 16.6187 Mmsg/s、仅高模式轮为 16.8356 Mmsg/s。
+后续 P2-C、P2-B 的条件、客户端身份、交错 A/B
+和 perf 边界统一见 [Phase 2 执行基线](plans/phase2-execution-baseline.md)；
+P2-A 的完整结果与失败样本见
+[192 B 100 轮验证报告](plans/phase2-a-192b-validation-report.md)。

@@ -165,11 +165,17 @@ DropOldest 订阅端非阻塞读取仍可能返回 `Error::Lagged`。此路径�
 
 ```cpp
 auto claim = publisher.try_claim(payload_size);
+if (!claim) {
+  handle(claim.error());
+}
 write(claim->payload());
-claim->commit();
+publisher.commit(std::move(*claim));
 ```
 
-每个成功 claim 都必须提交。乱序 commit 不会把可见水位推进到空洞之后，补齐后才连续发布。
+每个成功 claim 都必须由申请它的 Publisher 通过 `commit()` 显式提交；`PublishClaim`
+只保存预留位置和发布端身份，不再保活发布端，因此 Publisher 必须覆盖 claim 的生命周期。
+把 claim 交给其他 Publisher 会在调试构建中断言，在发布构建中拒绝且不发布。乱序 commit
+不会把可见水位推进到空洞之后，补齐后才连续发布。
 不支持放弃未提交 claim，也不支持发布进程异常退出后的自动恢复；这类故障需要重建通道。
 
 `LatestByKeyChannel<Key, Value, Capacity, SchemaVersion>` 提供跨进程的有界 key-value 最新值表。

@@ -42,11 +42,11 @@ int main() {
   write_payload(first.value(), 0);
   write_payload(second.value(), 1);
 
-  second->commit();
+  publisher.commit(std::move(*second));
   if (subscriber.try_recv()) {
     return 3;
   }
-  first->commit();
+  publisher.commit(std::move(*first));
 
   for (std::uint64_t expected = 0; expected < 2; ++expected) {
     auto message = subscriber.try_recv();

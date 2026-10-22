@@ -1,12 +1,89 @@
 # Resource-Limited IPC Latency Comparison
 
-Results and limitations: [2026-10-19 report](../../doc/aeron-latency-comparison-2026-10-19.md).
+Current results and next-agent handoff: [final performance report](../../doc/performance-report.md).
+Historical single-subscriber matrix: [2026-10-19 report](../../doc/archive/performance/aeron-latency-comparison-2026-10-19.md).
 This harness is Linux/cgroup-v2 specific and uses the user systemd manager.
-It deliberately leaves CPU0 out of the benchmark. Do not use the older
+The original single-subscriber runner deliberately leaves CPU0 out. The final
+report's separate frozen 1P2S runner uses CPU0 for the coordinator and Aeron driver;
+do not mix the two CPU budgets or splice their results. Do not use the older
 `run_release_compare.sh` for this constrained host: it rebuilds with `nproc`,
 defaults to larger topologies and includes huge-page configurations.
 
+Local cleanup archived old design/poll experiment trees losslessly under
+`build/benchmark-cleanup-20261019/`; restore the matching archive before using
+historical absolute paths. See section 8.2 of the final report. Maintained tools,
+current 1P2S datasets, frozen binaries and Aeron dependencies remain in place.
+
 ## Measurement
+
+### Phase 3 E1 Diagnostic
+
+`make_fence_patch_client.py` derives the zero-layout diagnostic client only from
+the frozen v3 binary. It verifies the source and patched SHA-256 values, four
+``cmp`` byte differences and exactly four ``xchg`` to ``mov`` disassembly changes.
+The result is diagnostic-only: it removes the registration/claim SC handshake and
+is valid only when registration is complete before the start signal.
+
+```bash
+python3 tools/aeron_compare/make_fence_patch_client.py \
+  --source build/benchmarks/baseline-extended-20261019-183822/salias_ipc_compare.uninstrumented \
+  --output-dir build/benchmarks/p3-e1-<timestamp>
+```
+
+`compare_throughput_ab.py` requires six complete 20-round groups per arm, verifies
+every `SHA256SUMS` entry and raw RESULT line, and applies the pre-registered E1
+GO/NO-GO rule. `doc/plans/runners/p3-e1-throughput.py` runs the 12 independent
+ABBA blocks in the registered order. `run_latency_compare.py
+--alternate-salias-client` runs both clients within each round 1..10 and reverses
+their order on alternate rounds; `compare_latency_ab.py` splits the result by the
+per-run client hash.
+
+The claim API v4 product comparison uses the build manifest from
+`build_claim_v4_ab.py` and the three-arm runner:
+
+```bash
+python3 tools/aeron_compare/build_claim_v4_ab.py \
+  --output build/claim-api-v4-ab-$(date +%Y%m%d-%H%M%S)
+
+systemd-run --user --wait --pipe --collect \
+  -p "WorkingDirectory=$PWD" -p 'AllowedCPUs=0-3' -p Nice=5 \
+  -p MemoryHigh=640M -p MemoryMax=704M -p MemorySwapMax=0 \
+  -p TasksMax=64 -p RuntimeMaxSec=14400s -p KillMode=control-group \
+  python3 doc/plans/runners/p3-claim-api-v4-ab.py \
+  --build-manifest build/claim-api-v4-ab-<timestamp>/manifest.json \
+  --output build/benchmarks/claim-api-v4-<timestamp>
+```
+
+Arm `B` is v3.0.0, `S` is the v4 client with
+`SALIAS_DISABLE_ASYMMETRIC_FENCE=1`, and `A` is the v4 default. `S/B` isolates
+the claim API change, `A/S` isolates the fence change, and `A/B` is the combined
+product effect. The formal matrix is 64 B and 256 B, six groups of twenty
+50-million-message rounds, plus 1P1S attempt/planned latency at 1M msg/s. A
+smoke matrix is explicitly non-acceptance evidence. `analyze_claim_v4_ab.py`
+checks the finished block ledger, executable identity, runner environments,
+raw throughput and latency RESULT lines, group completeness and checksums
+before writing the three comparison tables. Latency records from one case are
+split by their `arm` field; do not expect per-arm latency subdirectories.
+
+There are two complete 2026-10-22 formal runs. The first,
+`build/benchmarks/claim-api-v4-20261022-181707/`, measured 64 B S/B 1.258804
+(exact group permutation p=0.002165, 6/6 groups) and 256 B S/B 1.281718, so the
+pre-registered 64 B gate was GO. The same-day release rebuild in
+`build/benchmarks/claim-api-v4-release-20261022-204139/` measured 64 B S/B
+1.238393 and 256 B S/B 1.290653; 64 B retained p=0.002165 and 6/6 direction
+but is INCONCLUSIVE because the pooled median ratio is below 1.25. Do not use
+the group-median ratio to reclassify it. The stable conclusion is a consistent
+throughput gain with the GO not reproduced. The short 1P1S latency matrix still
+has millisecond-scale round spikes and is not an HFT long-tail acceptance.
+
+High-mode relative comparisons use the P1.1A 192 B stability artifacts. Do not
+re-label the existing 192 B baseline as an optimization: its recorded rate is
+288/400 (72.0%), while the same run is already the 192 B condition. Use
+`compare_high_mode_rates.py` with a real candidate build and require complete,
+same-threshold evidence. The comparator uses a pooled two-proportion z test,
+Newcombe interval, one-sided Fisher test and a group-level permutation check;
+100 rounds per arm is underpowered for a 10-point gain from 72% to 82%
+(about 218 rounds per arm at one-sided 80% power).
 
 Both comparison binaries accept:
 
@@ -27,6 +104,39 @@ Each group has one discarded pre-run and five independent measured runs, with
 engine order rotated. Workers and channels are recreated on every run. The
 summary reports **medians/ranges of run quantiles**, never pooled percentiles.
 No histogram buckets are emitted, so pooled percentiles cannot be reconstructed.
+
+The Phase 1 diagnostic runner is separate from this latency matrix. It defaults
+to ten measured rounds and reports quartiles, IQR and sample CV. Its `counters`
+mode avoids clock reads in the publish loop; `timed` now measures every 1000th
+successful `try_claim` rather than every call. The timed average divides by the
+number of sampled claims, not by all published messages. A timed sample covers
+the whole call and is not a measurement of `ClaimReservationGuard` alone.
+
+The Phase 1 P1 sweep tools use the preserved uninstrumented binary and never mix
+Aeron into the topology/payload populations:
+
+```bash
+OUT="$PWD/build/benchmarks/topology-sweep-$(date +%Y%m%d-%H%M%S)"
+systemd-run --user --wait --pipe --collect \
+  -p WorkingDirectory="$PWD" -p AllowedCPUs=0-3 -p Nice=5 \
+  -p MemoryHigh=640M -p MemoryMax=704M -p MemorySwapMax=0 \
+  --setenv=SALIAS_RESOURCE_CAPPED=1 \
+  python3 doc/plans/runners/topology-sweep-runner.py --output "$OUT"
+python3 tools/aeron_compare/analyze_topology_sweep.py "$OUT"
+
+OUT="$PWD/build/benchmarks/payload-sweep-$(date +%Y%m%d-%H%M%S)"
+systemd-run --user --wait --pipe --collect \
+  -p WorkingDirectory="$PWD" -p AllowedCPUs=0-3 -p Nice=5 \
+  -p MemoryHigh=640M -p MemoryMax=704M -p MemorySwapMax=0 \
+  --setenv=SALIAS_RESOURCE_CAPPED=1 \
+  python3 doc/plans/runners/payload-sweep-runner.py --output "$OUT"
+python3 tools/aeron_compare/analyze_payload_sweep.py "$OUT"
+```
+
+On a four-vCPU host the topology runner records 1P1S/1P2S and skips 1P3S, which
+needs CPU4. Both runners retain every round, emit `results.jsonl`, `summary.json`,
+`environment.json`, `frozen-runner.py` and `SHA256SUMS`, and exclude warmups from
+analysis. Payload frame strides come from `codec.hpp`, not from the plan table.
 
 ## Bounded Build
 
@@ -123,9 +233,9 @@ throughput-saturation matrix is run on this four-vCPU shared host.
 ## Design Diagnostics
 
 Results, rejected candidates, profiling limits and tail correlation:
-[2026-10-19 design diagnosis](../../doc/aeron-design-diagnosis-2026-10-19.md).
+[2026-10-19 design diagnosis](../../doc/archive/performance/aeron-design-diagnosis-2026-10-19.md).
 The original diagnosis left product sources and atomic ordering unchanged.
-The follow-up [implementation report](../../doc/aeron-design-implementation-2026-10-19.md)
+The follow-up [implementation report](../../doc/archive/performance/aeron-design-implementation-2026-10-19.md)
 uses call-local uninitialized descriptor storage in both product poll overloads;
 it does not use the recursive-unsafe endpoint scratch. Source-level variants are
 generated under `build/` and must not be used as installed-compatible binaries.
@@ -245,7 +355,7 @@ instrumentation or unsafe-protocol populations.
 ### Poll-path Follow-up
 
 The accepted call-local descriptor-storage change was first saved in commit
-`f9ea5c2`. The [poll-path follow-up report](../../doc/aeron-poll-path-followup-2026-10-19.md)
+`f9ea5c2`. The [poll-path follow-up report](../../doc/archive/performance/aeron-poll-path-followup-2026-10-19.md)
 records six further candidates, two confirmation matrices, real profiles and
 the decision not to promote any new default optimization.
 

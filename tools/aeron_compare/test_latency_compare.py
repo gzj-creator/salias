@@ -74,15 +74,17 @@ class ResourceTests(unittest.TestCase):
             (path / "memory.max").write_text(str(704 * 1024 * 1024))
             (path / "memory.swap.max").write_text("0")
             with patch.object(runner, "cgroup_directory", return_value=path), \
-                    patch.object(runner.os, "sched_getaffinity", return_value={1, 2, 3}), \
+                    patch.object(runner.os, "sched_getaffinity", return_value={0, 1, 2, 3}), \
                     patch.dict(runner.os.environ, {"SALIAS_RESOURCE_CAPPED": "1"}):
                 runner.check_resource_limits()
+                with patch.object(runner.os, "sched_getaffinity", return_value={1, 2, 3}):
+                    runner.check_resource_limits()
                 for limit in ("max", str(705 * 1024 * 1024)):
                     (path / "memory.max").write_text(limit)
                     with self.assertRaises(RuntimeError):
                         runner.check_resource_limits()
                 (path / "memory.max").write_text(str(704 * 1024 * 1024))
-                with patch.object(runner.os, "sched_getaffinity", return_value={0, 1, 2, 3}):
+                with patch.object(runner.os, "sched_getaffinity", return_value={0, 1, 2, 3, 4}):
                     with self.assertRaises(RuntimeError):
                         runner.check_resource_limits()
 
@@ -99,6 +101,55 @@ class ResourceTests(unittest.TestCase):
             runner.stop(process)
             killpg.assert_called_once_with(1234, runner.signal.SIGTERM)
             process.wait.assert_called_once_with(timeout=3)
+
+    def test_arm_rotation_is_explicit(self):
+        self.assertTrue(hasattr(runner, "run_case"))
+        source = (Path(runner.__file__).read_text())
+        self.assertIn("--alternate-salias-client", source)
+        self.assertIn("--salias-arm", source)
+        self.assertIn("--salias-arm-env", source)
+        self.assertIn("order = arms", source)
+        self.assertIn('"round": round_number, "arm": arm,', source)
+        self.assertIn('"arm_environment": dict(sorted((salias_env or {}).items())),',
+                      source)
+
+    def test_arm_specs_carry_per_arm_environment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            client = Path(directory) / "client"
+            client.write_text("binary")
+            arms = runner.parse_arm_specs(
+                [f"B={client}", f"S={client}", f"A={client}"],
+                ["S=SALIAS_DISABLE_ASYMMETRIC_FENCE=1"],
+            )
+        self.assertEqual([arm[0] for arm in arms], ["B", "S", "A"])
+        self.assertEqual(arms[0][2], {})
+        self.assertEqual(arms[1][2], {"SALIAS_DISABLE_ASYMMETRIC_FENCE": "1"})
+        self.assertEqual(arms[2][2], {})
+
+    def test_arm_specs_reject_bad_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            client = Path(directory) / "client"
+            client.write_text("binary")
+            for specs, envs in (
+                ([f"B={client}", f"B={client}"], []),
+                ([f"B={client}"], ["S=KEY=1"]),
+                ([f"B={client}"], ["B=no-separator"]),
+                ([f"B={Path(directory) / 'missing'}"], []),
+                (["nopath"], []),
+            ):
+                with self.subTest(specs=specs, envs=envs):
+                    with self.assertRaises(ValueError):
+                        runner.parse_arm_specs(specs, envs)
+
+    def test_explicit_arms_do_not_inherit_fence_override(self):
+        with patch.dict(runner.os.environ, {"SALIAS_DISABLE_ASYMMETRIC_FENCE": "1"}):
+            self.assertNotIn("SALIAS_DISABLE_ASYMMETRIC_FENCE",
+                             runner.arm_process_environment({}))
+            self.assertEqual(runner.arm_process_environment(
+                {"SALIAS_DISABLE_ASYMMETRIC_FENCE": "1"})[
+                    "SALIAS_DISABLE_ASYMMETRIC_FENCE"], "1")
+            self.assertEqual(runner.arm_process_environment(None)[
+                "SALIAS_DISABLE_ASYMMETRIC_FENCE"], "1")
 
 
 if __name__ == "__main__":

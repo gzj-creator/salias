@@ -35,7 +35,7 @@ int run(const salias::final_bench::Options& options) {
       auto claimed = publisher.try_claim(kPayloadSize);
       if (claimed) {
         write_payload(claimed->payload(), options.index, published);
-        claimed->commit();
+        publisher.commit(std::move(*claimed));
         ++published;
         consecutive_retries = 0;
       } else if (claimed.error() == salias::Error::BackPressured) {

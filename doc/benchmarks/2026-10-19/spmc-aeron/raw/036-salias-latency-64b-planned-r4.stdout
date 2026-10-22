@@ -1,0 +1,3 @@
+LATENCY library=salias-ipc scenario=fifo consumer=0 samples=125000 p50_ns=355 p99_ns=503807 p999_ns=3571711 max_ns=5153090
+LATENCY library=salias-ipc scenario=fifo consumer=1 samples=125000 p50_ns=311 p99_ns=647167 p999_ns=3932159 max_ns=5152959
+RESULT library=salias-ipc scenario=fifo page=normal pinning=on cpu_base=1 cpu_stride=1 producers=1 consumers=2 payload=64 capacity=1048576 batch_size=1 publication_window=0 poll_limit=64 published=2000000 delivered=4000000 seconds=2.01451 publish_msg_per_sec=992799 delivery_msg_per_sec=1.9856e+06 delivery_mib_per_sec=121.191 latency_sample_rate=16 rate_per_producer=1000000 latency_origin=planned latency_samples=250000 latency_p50_ns=335 latency_p99_ns=581631 latency_p999_ns=3801087 latency_max_ns=5153090

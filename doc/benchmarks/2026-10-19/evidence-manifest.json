@@ -1,0 +1,938 @@
+{
+  "date": "2026-10-19",
+  "product_commit": "c5e6aa7df4397df6f47a4e00cf5f72ed5ae778bd",
+  "product_tag": "v3.0.0",
+  "policy": "Byte-identical copies; retain original JSONL absolute paths. Resolve saved stdout by basename in dataset/raw and verify stdout_sha256. Frozen runners must be restored under build/spmc-check-20261019 before use. No binaries or driver logs exported.",
+  "datasets": [
+    {
+      "id": "spmc-aeron",
+      "source_directory": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804",
+      "rows": 72,
+      "measured_rows": 60,
+      "warmup_rows": 12,
+      "files": [
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/summary.json",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/summary.json",
+          "bytes": 15271,
+          "sha256": "06772fb74e4b8e1e47c869b444ae87bace3d32ebc35cc8061a0ad86470eaddb0"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/environment.json",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/environment.json",
+          "bytes": 2530,
+          "sha256": "30aa2fed931eefe44fe21304e8ff16da58e9eca637a6e3f9326edcedc6d5508a"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/results.jsonl",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/results.jsonl",
+          "bytes": 191193,
+          "sha256": "4e5ffdaa256f856869f7f7eeb194ec284dbfdb43cee4a00e4abbdffe5abe7584"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/001-salias-latency-64b-attempt-r0.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/001-salias-latency-64b-attempt-r0.stdout",
+          "bytes": 742,
+          "sha256": "5e0d46dce323eea18109e5f4d5c53a553a0e62c983d8ad7bf11e0053adffd0bb"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/002-aeron-latency-64b-attempt-r0.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/002-aeron-latency-64b-attempt-r0.stdout",
+          "bytes": 685,
+          "sha256": "9da4c600d50dcd9ce5644e9ca1b9e3cdc252bec90d28ee61e079e02b2820315d"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/003-aeron-latency-64b-planned-r0.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/003-aeron-latency-64b-planned-r0.stdout",
+          "bytes": 685,
+          "sha256": "25a4b6d322c58078e96de0cc5c18805508a58fa5c7a962928309ab8bbcf75f63"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/004-salias-latency-64b-planned-r0.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/004-salias-latency-64b-planned-r0.stdout",
+          "bytes": 741,
+          "sha256": "de999bc9bd639668a88f3a96e31d18f86fdb7688ac5038124dc7e1a238f67ba0"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/005-salias-latency-256b-attempt-r0.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/005-salias-latency-256b-attempt-r0.stdout",
+          "bytes": 738,
+          "sha256": "5559e7c4ccc713f0f0586813880c1d3630d30d20b93fca6c35b98b31d6daa2cb"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/006-aeron-latency-256b-attempt-r0.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/006-aeron-latency-256b-attempt-r0.stdout",
+          "bytes": 687,
+          "sha256": "6297f9a3052fa6c9e9f0dbc90156feef5790eb731505bd80be1abe3a5893bc6c"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/007-aeron-latency-256b-planned-r0.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/007-aeron-latency-256b-planned-r0.stdout",
+          "bytes": 689,
+          "sha256": "790de983797500f36058e48f2132f61c945adfe2c24bd1d4b46595f545fa1601"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/008-salias-latency-256b-planned-r0.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/008-salias-latency-256b-planned-r0.stdout",
+          "bytes": 751,
+          "sha256": "6d7c8d6129a35280530636978229675b7410f950d638312598c582b208d19d00"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/009-aeron-latency-64b-planned-r1.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/009-aeron-latency-64b-planned-r1.stdout",
+          "bytes": 697,
+          "sha256": "38091a8268e1f9d0312891026bbb2fc940e1205aa619aadf03fd2d40446568ca"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/010-salias-latency-64b-planned-r1.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/010-salias-latency-64b-planned-r1.stdout",
+          "bytes": 747,
+          "sha256": "936d4092f37d73c2e92e54324937d706e0e8f8dcee0a55502b64c115585ba1e3"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/011-salias-latency-256b-attempt-r1.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/011-salias-latency-256b-attempt-r1.stdout",
+          "bytes": 744,
+          "sha256": "6150d72bf79b784bb75c4999c801741626ebf4e7d3061072b12afcfa48d1d37b"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/012-aeron-latency-256b-attempt-r1.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/012-aeron-latency-256b-attempt-r1.stdout",
+          "bytes": 683,
+          "sha256": "d67581f9e527b71399c5096ca10f8a88d373e93b267b3b1c68c75816c2d45f64"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/013-aeron-latency-256b-planned-r1.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/013-aeron-latency-256b-planned-r1.stdout",
+          "bytes": 700,
+          "sha256": "3a94495443e7f3abcaf227aaa0b9d869a0e4782419a72116406eda8f06329e97"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/014-salias-latency-256b-planned-r1.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/014-salias-latency-256b-planned-r1.stdout",
+          "bytes": 754,
+          "sha256": "337f334273b03da1dcf897592e3b16a249350b5480b04b0fcf4624c8718c4fa5"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/015-salias-latency-64b-attempt-r1.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/015-salias-latency-64b-attempt-r1.stdout",
+          "bytes": 745,
+          "sha256": "5d1370e5ed27667b76c3109b2ecdda5d095e922e0650b00088557b86d252ad4c"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/016-aeron-latency-64b-attempt-r1.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/016-aeron-latency-64b-attempt-r1.stdout",
+          "bytes": 681,
+          "sha256": "6d3b5bc4ef131a1385ff88ae938075a05fb052571440168fb64611ad05a103c2"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/017-salias-latency-256b-attempt-r2.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/017-salias-latency-256b-attempt-r2.stdout",
+          "bytes": 754,
+          "sha256": "9949443c4952952b2fd176c4e8c73b16e3e9cf791007e975b6126585bd00b92b"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/018-aeron-latency-256b-attempt-r2.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/018-aeron-latency-256b-attempt-r2.stdout",
+          "bytes": 694,
+          "sha256": "592f6475b01509c03fc38185b194ce1ea7da830a845100467cf652fb39760b84"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/019-aeron-latency-256b-planned-r2.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/019-aeron-latency-256b-planned-r2.stdout",
+          "bytes": 698,
+          "sha256": "3f96ced1c0f56b39e5b2d2af78b4fff9bb83a8aeb3f4d082af412c6107a0451b"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/020-salias-latency-256b-planned-r2.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/020-salias-latency-256b-planned-r2.stdout",
+          "bytes": 747,
+          "sha256": "cc0d169605e25670d0851a3774f4dba20e747ee17b25b66e92fb3cda3dd63992"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/021-salias-latency-64b-attempt-r2.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/021-salias-latency-64b-attempt-r2.stdout",
+          "bytes": 747,
+          "sha256": "a35cf120fec0a83c9db4bd03b24f58b2a8817ce245d4a496782fc29df1788eb7"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/022-aeron-latency-64b-attempt-r2.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/022-aeron-latency-64b-attempt-r2.stdout",
+          "bytes": 690,
+          "sha256": "a9aaa0b39693fea370c4d1e514c3c504edb5054939f371089057b79b0f75f58c"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/023-aeron-latency-64b-planned-r2.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/023-aeron-latency-64b-planned-r2.stdout",
+          "bytes": 692,
+          "sha256": "9162a24d05d4dc4f23f9ced9f669a8a9a9a8d2dc4a65b8fbde33a01dbac732e9"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/024-salias-latency-64b-planned-r2.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/024-salias-latency-64b-planned-r2.stdout",
+          "bytes": 743,
+          "sha256": "a52b27b57d16d9f81deb8c6ab125875acabb3d962d9b4249bef2e328aa2e28b0"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/025-aeron-latency-256b-planned-r3.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/025-aeron-latency-256b-planned-r3.stdout",
+          "bytes": 700,
+          "sha256": "c73bcb5a2902dd22e73e470d6f2f516fb0e3711ec43e24d82087c96c58f093ce"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/026-salias-latency-256b-planned-r3.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/026-salias-latency-256b-planned-r3.stdout",
+          "bytes": 752,
+          "sha256": "3db3dc0a60121c08db89bba97c36f7102e162958d23d3d3abfee9f9ba1159da4"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/027-salias-latency-64b-attempt-r3.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/027-salias-latency-64b-attempt-r3.stdout",
+          "bytes": 741,
+          "sha256": "b1fc22a063b769a595b7ca6570fe519a3d38310d45e848ff68ed0c6be81ba008"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/028-aeron-latency-64b-attempt-r3.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/028-aeron-latency-64b-attempt-r3.stdout",
+          "bytes": 684,
+          "sha256": "8aaa445ebefa8bd6f92c0fbae90100c127af2a90f216bebf30d69d1bfe4af1cb"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/029-aeron-latency-64b-planned-r3.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/029-aeron-latency-64b-planned-r3.stdout",
+          "bytes": 700,
+          "sha256": "cc6fd595f689db82c903123a7f0a8eef91d70e40fa598795fdf0ed5ac5b67427"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/030-salias-latency-64b-planned-r3.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/030-salias-latency-64b-planned-r3.stdout",
+          "bytes": 755,
+          "sha256": "7cd8882b016974bb9b33e65d3535de684433ee287671a18ba42a1e044e575f9b"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/031-salias-latency-256b-attempt-r3.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/031-salias-latency-256b-attempt-r3.stdout",
+          "bytes": 739,
+          "sha256": "4091cace8f002d5b0d9e8dd27435dbfa58e1dfcd483b75920defa83df2b99369"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/032-aeron-latency-256b-attempt-r3.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/032-aeron-latency-256b-attempt-r3.stdout",
+          "bytes": 694,
+          "sha256": "493f476b726f317cc80f5c9eec2ddf142d4ac4d492953077456b901a07b15450"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/033-salias-latency-64b-attempt-r4.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/033-salias-latency-64b-attempt-r4.stdout",
+          "bytes": 749,
+          "sha256": "7c827eead0558788e2e5e2428e94b0109eca3d3fc1d0831c914fd902086dcbbc"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/034-aeron-latency-64b-attempt-r4.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/034-aeron-latency-64b-attempt-r4.stdout",
+          "bytes": 693,
+          "sha256": "3cd496bc3412139c4edc56c9fc1461d1629f8159437c427a8a7faa88e5cb1af1"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/035-aeron-latency-64b-planned-r4.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/035-aeron-latency-64b-planned-r4.stdout",
+          "bytes": 694,
+          "sha256": "a59c01b29e58a2831647e6a43013f741add08c5617e7c3022fe0e93a877cefde"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/036-salias-latency-64b-planned-r4.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/036-salias-latency-64b-planned-r4.stdout",
+          "bytes": 756,
+          "sha256": "bde2ec0ac58e8f173fbe32b4277a464421b87bfd726ebd7bedd39d24d67aeb19"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/037-salias-latency-256b-attempt-r4.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/037-salias-latency-256b-attempt-r4.stdout",
+          "bytes": 743,
+          "sha256": "03dcfa6a4d80bb94f8a5672ef474a06fe890435ce0567dcf296d826d02612384"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/038-aeron-latency-256b-attempt-r4.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/038-aeron-latency-256b-attempt-r4.stdout",
+          "bytes": 697,
+          "sha256": "773104f041ea9e08384ac2d782bf3a58d4a9fad657c2ae493d27257d9e51ad74"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/039-aeron-latency-256b-planned-r4.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/039-aeron-latency-256b-planned-r4.stdout",
+          "bytes": 701,
+          "sha256": "fd29295fdfd79518ee02c77660d859ad914bb5aa59f833a3f36da46e1d1c66ad"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/040-salias-latency-256b-planned-r4.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/040-salias-latency-256b-planned-r4.stdout",
+          "bytes": 761,
+          "sha256": "0e329e49660c4d01e866adfca5b6d99c016ab0d981c91e939eb6a45aa2fa43a4"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/041-aeron-latency-64b-planned-r5.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/041-aeron-latency-64b-planned-r5.stdout",
+          "bytes": 693,
+          "sha256": "b876df5016391e0b304a0743ef2befd1067879c3b9a7b5bdc1fe22cdc3b96007"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/042-salias-latency-64b-planned-r5.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/042-salias-latency-64b-planned-r5.stdout",
+          "bytes": 753,
+          "sha256": "e7aaadf3713de518a9da778f84bc60ca230291f85ce6850cf3f024f502553e92"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/043-salias-latency-256b-attempt-r5.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/043-salias-latency-256b-attempt-r5.stdout",
+          "bytes": 748,
+          "sha256": "91a3a10a41c02148ca64ea3d28149cbe18da54a91228ee509ffe96556dc10efc"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/044-aeron-latency-256b-attempt-r5.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/044-aeron-latency-256b-attempt-r5.stdout",
+          "bytes": 700,
+          "sha256": "f1470bf0a903c1157eef8ba9ff0ecc950964859710e13de064cf6e9b9b2b4a7b"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/045-aeron-latency-256b-planned-r5.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/045-aeron-latency-256b-planned-r5.stdout",
+          "bytes": 698,
+          "sha256": "b94e6ecba6d78f31f30242257cb833b2f1842242fc931861164faf29b029cb9d"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/046-salias-latency-256b-planned-r5.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/046-salias-latency-256b-planned-r5.stdout",
+          "bytes": 761,
+          "sha256": "9c671798b163b147ce32b6779882ce59924a7957060bb09870ce8c36364f65be"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/047-salias-latency-64b-attempt-r5.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/047-salias-latency-64b-attempt-r5.stdout",
+          "bytes": 749,
+          "sha256": "5c63aca9d4706212243ab41fd7dd52c15b6999fd0fbb68040c326555e5c152c0"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/048-aeron-latency-64b-attempt-r5.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/048-aeron-latency-64b-attempt-r5.stdout",
+          "bytes": 700,
+          "sha256": "85b7ed23c6cff5b98efc5ba8f0e416775ed3a44d016621663cecbde0e08e66e7"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/049-salias-throughput-64b-claim-r0.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/049-salias-throughput-64b-claim-r0.stdout",
+          "bytes": 681,
+          "sha256": "5b04177d6c2a90dbfaed84824a37031ec317a9e66952aeccc1751c84cd6622b1"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/050-aeron-throughput-64b-claim-r0.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/050-aeron-throughput-64b-claim-r0.stdout",
+          "bytes": 622,
+          "sha256": "fe5d52f4223ddb94512aab6291e77b9f09889cfb37db08dd26c134cea667a7a6"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/051-aeron-throughput-256b-claim-r0.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/051-aeron-throughput-256b-claim-r0.stdout",
+          "bytes": 625,
+          "sha256": "793d81f38e7c3212a06f6bf4b875508def12bf5ac0582b0df5719893da5c7d3f"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/052-salias-throughput-256b-claim-r0.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/052-salias-throughput-256b-claim-r0.stdout",
+          "bytes": 685,
+          "sha256": "d270e89cb329007acaf52d8f4a2ca7c32c46e32dd04607b65801feb42777f638"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/053-aeron-throughput-256b-claim-r1.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/053-aeron-throughput-256b-claim-r1.stdout",
+          "bytes": 625,
+          "sha256": "baeef886bac3bb871ce566063da5a1873ed86a813d8592e186565c47383c1c0b"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/054-salias-throughput-256b-claim-r1.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/054-salias-throughput-256b-claim-r1.stdout",
+          "bytes": 684,
+          "sha256": "446d7a31f54954ddf392a0ce353f271aef82df450f56c802d1ab5c4ff6c3a08d"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/055-salias-throughput-64b-claim-r1.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/055-salias-throughput-64b-claim-r1.stdout",
+          "bytes": 683,
+          "sha256": "2c91e5163f3a83e6c8903bcfed4ecdad55db1b23f827ad0d836229628b339b17"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/056-aeron-throughput-64b-claim-r1.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/056-aeron-throughput-64b-claim-r1.stdout",
+          "bytes": 622,
+          "sha256": "ecda0b766f4db5fbe56fb13ac9ab2dbd5b5b7858dcc49cbf41d18922a761e580"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/057-salias-throughput-64b-claim-r2.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/057-salias-throughput-64b-claim-r2.stdout",
+          "bytes": 680,
+          "sha256": "19deab11c95d37dc91e93beb1ece39e1c06f6c01f2507ecc6cb5087d013601dd"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/058-aeron-throughput-64b-claim-r2.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/058-aeron-throughput-64b-claim-r2.stdout",
+          "bytes": 624,
+          "sha256": "9a5d4178d68167724f09375ab7e54757acfe3053e790b3117d35e9a7bc57a551"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/059-aeron-throughput-256b-claim-r2.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/059-aeron-throughput-256b-claim-r2.stdout",
+          "bytes": 625,
+          "sha256": "a251ca74a7fe0d7a817d96a3443e5a19a3aa920df3e47aa76cdd7fc9533d1b90"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/060-salias-throughput-256b-claim-r2.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/060-salias-throughput-256b-claim-r2.stdout",
+          "bytes": 684,
+          "sha256": "c58ee355db513fe68badaccc4435c10cbf6c99dd70329a08439d1f071b980e34"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/061-aeron-throughput-256b-claim-r3.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/061-aeron-throughput-256b-claim-r3.stdout",
+          "bytes": 625,
+          "sha256": "cf888cec0524b9275cca1ea3b62c8e307de52980d414e05bc10e71539ac0b64a"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/062-salias-throughput-256b-claim-r3.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/062-salias-throughput-256b-claim-r3.stdout",
+          "bytes": 685,
+          "sha256": "41c301359899bd1a8ac61f9b16c9a0256c9baad21d9d94e4b137bd1101a569c2"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/063-salias-throughput-64b-claim-r3.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/063-salias-throughput-64b-claim-r3.stdout",
+          "bytes": 683,
+          "sha256": "331119bbbec2bca52d4de38984d24a19253f6d6ee9822d83a3823280f3d08b29"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/064-aeron-throughput-64b-claim-r3.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/064-aeron-throughput-64b-claim-r3.stdout",
+          "bytes": 624,
+          "sha256": "18a5742f3302820fd46dacf21235dbf1c8ac33d3f7f7cc6a76743d2ec06ce522"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/065-salias-throughput-64b-claim-r4.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/065-salias-throughput-64b-claim-r4.stdout",
+          "bytes": 683,
+          "sha256": "5687333b16dc87328fcadfb4fba41c774fe5b8d2a18087dc85122c7ca2c9ff77"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/066-aeron-throughput-64b-claim-r4.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/066-aeron-throughput-64b-claim-r4.stdout",
+          "bytes": 624,
+          "sha256": "4886b2e9fc99035f5e45207b5fbe850052acb65827517527574ed26487837426"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/067-aeron-throughput-256b-claim-r4.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/067-aeron-throughput-256b-claim-r4.stdout",
+          "bytes": 625,
+          "sha256": "6502ed24c29c5ad09d93fe19cd03f771e2c22ce7e2ffe8b9cda58371675e15e4"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/068-salias-throughput-256b-claim-r4.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/068-salias-throughput-256b-claim-r4.stdout",
+          "bytes": 685,
+          "sha256": "2289f9f6feda6ddd762db053195b77ed54d9f0883719ba93d7007c92e5b4a3b1"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/069-aeron-throughput-256b-claim-r5.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/069-aeron-throughput-256b-claim-r5.stdout",
+          "bytes": 625,
+          "sha256": "5621c58893ef8ef663992b3edacfed43fa1bba9a436e7662ed33d245d07b6f05"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/070-salias-throughput-256b-claim-r5.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/070-salias-throughput-256b-claim-r5.stdout",
+          "bytes": 683,
+          "sha256": "2e9004dd319e00251fd8dbbf0af869745bf3ac13dbc80d8d3067fc3d55592ded"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/071-salias-throughput-64b-claim-r5.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/071-salias-throughput-64b-claim-r5.stdout",
+          "bytes": 683,
+          "sha256": "79e183b9dff3808e8b96a37e24a4d89ed1f9c69f4fe962636b75a95fdba42cef"
+        },
+        {
+          "source": "build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/072-aeron-throughput-64b-claim-r5.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/raw/072-aeron-throughput-64b-claim-r5.stdout",
+          "bytes": 623,
+          "sha256": "e9e5b51e1330691b05caf934f4f9d111fc6254831fbc0409d83c13eac28f459d"
+        },
+        {
+          "source": "build/spmc-check-20261019/compare_aeron.py",
+          "target": "doc/benchmarks/2026-10-19/spmc-aeron/frozen-runner.py",
+          "bytes": 12679,
+          "sha256": "1134e1b3e236d6a2d98d54c7478c809a6600fc6c1f721bbc73d87f7c211e6bae"
+        }
+      ]
+    },
+    {
+      "id": "spmc-salias",
+      "source_directory": "build/benchmarks/spmc-v3.0.0-20261019-165821",
+      "rows": 72,
+      "measured_rows": 60,
+      "warmup_rows": 12,
+      "files": [
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/summary.json",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/summary.json",
+          "bytes": 12138,
+          "sha256": "4b9eb46a48e9527d238db0781582e3d677a2cb0edc55f2fe619ec5f16c587ba5"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/environment.json",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/environment.json",
+          "bytes": 1139,
+          "sha256": "7d814cd05b94199f527391fe7fcdf09e2717e1ba4664e9de4860a2d3d361b445"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/results.jsonl",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/results.jsonl",
+          "bytes": 156118,
+          "sha256": "8ea690d31c18bb6a1ff41746e18c3944ea7f18eab69430bbf7c2069a8648ed56"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/001-latency-1s-64b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/001-latency-1s-64b-attempt.stdout",
+          "bytes": 613,
+          "sha256": "c2e832acc889f026b925ab5b928aae50b3790246e70e29e506deaf88dce74530"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/002-latency-2s-64b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/002-latency-2s-64b-attempt.stdout",
+          "bytes": 741,
+          "sha256": "e4d21b4b417551284f6ae41a82b43adc83197cdc02a8e0d21f84cd854704596a"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/003-latency-1s-64b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/003-latency-1s-64b-planned.stdout",
+          "bytes": 619,
+          "sha256": "5c32932e3bcd32f9ec6001c2af9676e810653d96b16771b57b6c92ec07fb3ef6"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/004-latency-2s-64b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/004-latency-2s-64b-planned.stdout",
+          "bytes": 750,
+          "sha256": "556733f1b391b0fb5c4918672d1b22fb597c4249e2d44f52f2ca7f49064e40b9"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/005-latency-1s-256b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/005-latency-1s-256b-attempt.stdout",
+          "bytes": 620,
+          "sha256": "d8ea7cf60e8020e43e4752febc543357c6510db6cae77d2da8ee1ff4d7f742ae"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/006-latency-2s-256b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/006-latency-2s-256b-attempt.stdout",
+          "bytes": 752,
+          "sha256": "a606fd5a5685c1e8deeb2e0dcfdec03f62786c96ea57851d390364b98338f341"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/007-latency-1s-256b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/007-latency-1s-256b-planned.stdout",
+          "bytes": 618,
+          "sha256": "4fa0ef1c7331624e498971c2d4c2bd3c2eeebdbab1b2e29b6b6d2d532f829220"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/008-latency-2s-256b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/008-latency-2s-256b-planned.stdout",
+          "bytes": 761,
+          "sha256": "ac86f5479d823825d73094b1f29d8212d847effb37bfcf94132e1d3fc77cb00a"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/009-latency-2s-64b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/009-latency-2s-64b-attempt.stdout",
+          "bytes": 745,
+          "sha256": "d3961e40b7c566f2100149fc4b5f86be066cca39f393c135128fb5132eb7e0e0"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/010-latency-1s-64b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/010-latency-1s-64b-planned.stdout",
+          "bytes": 619,
+          "sha256": "1130a4a0252213635320ae11bc13a61b82cf9b5dd7e7cd554e4a663878489f66"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/011-latency-2s-64b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/011-latency-2s-64b-planned.stdout",
+          "bytes": 747,
+          "sha256": "d1e30260c5286b540b91357cb4c6a29cd6ab01f5569876a2bcbc0e14d66721be"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/012-latency-1s-256b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/012-latency-1s-256b-attempt.stdout",
+          "bytes": 614,
+          "sha256": "af7c3c10c2fd2068ca5f6b3e627ae9be23618154ba5d50108b04516feab6138a"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/013-latency-2s-256b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/013-latency-2s-256b-attempt.stdout",
+          "bytes": 750,
+          "sha256": "90e8a21048a15ab67bd0d84e47855fd7d3dec9957d9e5fc1a3f7c54f3552be20"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/014-latency-1s-256b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/014-latency-1s-256b-planned.stdout",
+          "bytes": 618,
+          "sha256": "9e29b3f5c2e7232f980c2c07c9b1e57fd47162fdb6bc217050b4b31a9d4a3407"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/015-latency-2s-256b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/015-latency-2s-256b-planned.stdout",
+          "bytes": 750,
+          "sha256": "4b1cc9489cbde748707506d4ee05b9bf2646beb2d7390cdd0ae40c88490239af"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/016-latency-1s-64b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/016-latency-1s-64b-attempt.stdout",
+          "bytes": 613,
+          "sha256": "90ea5d2991988a220e5fddf084ccebd184f29e847f2370bca7e1cc6b52921851"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/017-latency-1s-64b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/017-latency-1s-64b-planned.stdout",
+          "bytes": 619,
+          "sha256": "c3108a83fe3bfdc04f0d20b9abe0c471735f33c3b0a3a19c90a4e33fbc3bb093"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/018-latency-2s-64b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/018-latency-2s-64b-planned.stdout",
+          "bytes": 751,
+          "sha256": "4a2eb4389946da3242b21a1befa1faae43967fc13e401b834d47ff2bd747c21a"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/019-latency-1s-256b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/019-latency-1s-256b-attempt.stdout",
+          "bytes": 620,
+          "sha256": "4b2f5dd94a30604d43032ecaf024942330608ee990ebc06350763f43f680de5d"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/020-latency-2s-256b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/020-latency-2s-256b-attempt.stdout",
+          "bytes": 747,
+          "sha256": "6820158fdd9a9cfa0e65ca345ac0354471b97e2795f6c801a093ff9ff32d08a6"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/021-latency-1s-256b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/021-latency-1s-256b-planned.stdout",
+          "bytes": 620,
+          "sha256": "9f14e8c5a983233b26c001b8439f7531123ae5e93a3b6ff3b1dea0f132e11250"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/022-latency-2s-256b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/022-latency-2s-256b-planned.stdout",
+          "bytes": 752,
+          "sha256": "73e1f5962e64a447649fd64a8bf0ae2b4f6b6d79d5d7f4ed0022d82496b1d309"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/023-latency-1s-64b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/023-latency-1s-64b-attempt.stdout",
+          "bytes": 613,
+          "sha256": "7e5efed7372fd4a1379c1b0ec4b43ef51deaaefe12b595ab0ac5f0845ccd2dbe"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/024-latency-2s-64b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/024-latency-2s-64b-attempt.stdout",
+          "bytes": 739,
+          "sha256": "770cc6593d8ebc743aa53662dff7c7e5e7b6707b497a2d11dc687b966eec2949"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/025-latency-2s-64b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/025-latency-2s-64b-planned.stdout",
+          "bytes": 748,
+          "sha256": "7da2406d06c68ddaed4e2b71a944170a8fef789f22ae383218ca19aa665cad8e"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/026-latency-1s-256b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/026-latency-1s-256b-attempt.stdout",
+          "bytes": 614,
+          "sha256": "8a3186943bf140ccbc9afcad4baf2400d3bc725ef4d82589c984213ba402348f"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/027-latency-2s-256b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/027-latency-2s-256b-attempt.stdout",
+          "bytes": 745,
+          "sha256": "4fc8162e4fb17956fafbe21937644918034589cce9e2ea93baf713d3c805ccf6"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/028-latency-1s-256b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/028-latency-1s-256b-planned.stdout",
+          "bytes": 618,
+          "sha256": "6a28c6b5a513724c9c1171ee9068e98f552cf130f5bf719d2af86891117b530c"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/029-latency-2s-256b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/029-latency-2s-256b-planned.stdout",
+          "bytes": 754,
+          "sha256": "80fece25e8d3ccab2ca72efdcfd006e169a89ce4198f2fba96b15430aa3d9903"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/030-latency-1s-64b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/030-latency-1s-64b-attempt.stdout",
+          "bytes": 615,
+          "sha256": "f460f693b1e0a0d5a96664e519735be2b83abcdcc23063649d5ce1a68ce35b1c"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/031-latency-2s-64b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/031-latency-2s-64b-attempt.stdout",
+          "bytes": 747,
+          "sha256": "de5cbb44b30cd99dd651b228e5e69ea74e79a13b0b35c0b3b138332acd1205f0"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/032-latency-1s-64b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/032-latency-1s-64b-planned.stdout",
+          "bytes": 617,
+          "sha256": "0a33c2fb51772896b35449b3eefed009fe690be6f8344364c7e407f5f9b8a815"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/033-latency-1s-256b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/033-latency-1s-256b-attempt.stdout",
+          "bytes": 614,
+          "sha256": "c96e45dfbff7fa2e9daa5c04c248e86e5b1cf7ca0d69f85344f2cdbaac675593"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/034-latency-2s-256b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/034-latency-2s-256b-attempt.stdout",
+          "bytes": 748,
+          "sha256": "bd865091657cfce96cb6cc95ff674ec4199d8c956fae0bedd206ace4c688ffa0"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/035-latency-1s-256b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/035-latency-1s-256b-planned.stdout",
+          "bytes": 618,
+          "sha256": "540bb361a4273bff3a2715e95bea977894f0ec1343edc130165b80d3d40138a6"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/036-latency-2s-256b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/036-latency-2s-256b-planned.stdout",
+          "bytes": 747,
+          "sha256": "a3ad6b097d472281a3d1c585ce19205dd905cba7bc7d11305c6a14ec1b92122a"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/037-latency-1s-64b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/037-latency-1s-64b-attempt.stdout",
+          "bytes": 617,
+          "sha256": "4e617dfd8e3626c972b947a774904c506c8a52eed2792b385a2d95c6ec176c08"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/038-latency-2s-64b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/038-latency-2s-64b-attempt.stdout",
+          "bytes": 744,
+          "sha256": "907439c4b287515246f4c0559213820bcd2446c4e8517359769633528268eb1f"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/039-latency-1s-64b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/039-latency-1s-64b-planned.stdout",
+          "bytes": 623,
+          "sha256": "0cf79aa495d13be18a6f66e6e543bfe75a87523816dac4a9b1be2df7bb2e753d"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/040-latency-2s-64b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/040-latency-2s-64b-planned.stdout",
+          "bytes": 745,
+          "sha256": "a171d2e8a29aeba16f510af90d95aabbcc1e60c1d74734b8ff8aa559d3ed5566"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/041-latency-2s-256b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/041-latency-2s-256b-attempt.stdout",
+          "bytes": 750,
+          "sha256": "179917c22d21fdfaa608efcba2599d55762994d400dfede2b7b45db2f0710a20"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/042-latency-1s-256b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/042-latency-1s-256b-planned.stdout",
+          "bytes": 616,
+          "sha256": "5552b52897b1207743c0ab7e4b27ce608e96acdc576966f930712dce0a3a7456"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/043-latency-2s-256b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/043-latency-2s-256b-planned.stdout",
+          "bytes": 754,
+          "sha256": "da7fb71282a99f3d279aebe23e1ae849976c2098f23d23188b0a9e64e20f71dc"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/044-latency-1s-64b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/044-latency-1s-64b-attempt.stdout",
+          "bytes": 621,
+          "sha256": "dd29dbd601d246fb689a47487ed6a9fe6a36d586fcf276c51cbda081984247ba"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/045-latency-2s-64b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/045-latency-2s-64b-attempt.stdout",
+          "bytes": 742,
+          "sha256": "85e574028ea3c9ec5e1ffcda724dbee6196b6524bead7805e416c9da22081311"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/046-latency-1s-64b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/046-latency-1s-64b-planned.stdout",
+          "bytes": 617,
+          "sha256": "4b8c06b62c3794447aa427046ff30d0cd474bf8dc67373cfde9b3e875d25e97a"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/047-latency-2s-64b-planned.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/047-latency-2s-64b-planned.stdout",
+          "bytes": 746,
+          "sha256": "a38efedd7471ae1ded473113bc1db14ad124aa0f385fa5f83e150c0186c21d24"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/048-latency-1s-256b-attempt.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/048-latency-1s-256b-attempt.stdout",
+          "bytes": 614,
+          "sha256": "a7d53fe2744ed030e777537b373acd6b105ce0d560efa39d3674e81ec0caae30"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/049-throughput-1s-64b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/049-throughput-1s-64b-claim.stdout",
+          "bytes": 584,
+          "sha256": "7a7a397bb1131300e72ed897b8f636443a172167ad8afb0e572820022fe8da48"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/050-throughput-2s-64b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/050-throughput-2s-64b-claim.stdout",
+          "bytes": 683,
+          "sha256": "db10ba3f9d1e08b476afe46d9124a24c86343c31b62dc42121c60c31bb1b4128"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/051-throughput-1s-256b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/051-throughput-1s-256b-claim.stdout",
+          "bytes": 584,
+          "sha256": "ece0c3f2e16bf41488ed35d37e33a1d12ec49899669440cd8271fd1b7536d2ff"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/052-throughput-2s-256b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/052-throughput-2s-256b-claim.stdout",
+          "bytes": 685,
+          "sha256": "8d9b07c6b92008a74b8027bb587c4dadc05cbc6efd888c7a0b6deff1167dcf0d"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/053-throughput-2s-64b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/053-throughput-2s-64b-claim.stdout",
+          "bytes": 683,
+          "sha256": "432727979daa28cd033278e7674378b896888d1083d441360e2435d4a71bbe93"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/054-throughput-1s-256b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/054-throughput-1s-256b-claim.stdout",
+          "bytes": 586,
+          "sha256": "2040b4e876805c20fe25853067e05b33024889c000b07ea3b20ba8ba286a8334"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/055-throughput-2s-256b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/055-throughput-2s-256b-claim.stdout",
+          "bytes": 685,
+          "sha256": "4f984e597066b7cf212929f875ca1f2d37adfafd9bfa24279deef7d74975144d"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/056-throughput-1s-64b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/056-throughput-1s-64b-claim.stdout",
+          "bytes": 584,
+          "sha256": "5a3362fbe15d480fe3e4f3f25a8280850f0eb6d5b182fd40126082e8aa8a9b8e"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/057-throughput-1s-256b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/057-throughput-1s-256b-claim.stdout",
+          "bytes": 586,
+          "sha256": "13dff81b42c4e522d5e0690753f632db7f09a71096ceadc9905509b5d97e98a8"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/058-throughput-2s-256b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/058-throughput-2s-256b-claim.stdout",
+          "bytes": 685,
+          "sha256": "a7f3172184a16c905d8a60fff382cfa03bcf6c1c49a24280dab3164eb9c376b5"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/059-throughput-1s-64b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/059-throughput-1s-64b-claim.stdout",
+          "bytes": 585,
+          "sha256": "af7e5ed1d470e37b80e2adbfb68af5d2506061a7d7553dd4305be5625376571a"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/060-throughput-2s-64b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/060-throughput-2s-64b-claim.stdout",
+          "bytes": 683,
+          "sha256": "e4bd7f8b7cd51a62a490ce2096d2d40f363409356ca728222d7c17c82cdb5995"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/061-throughput-2s-256b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/061-throughput-2s-256b-claim.stdout",
+          "bytes": 685,
+          "sha256": "f98b3e3fe84d9554ab5cb95ec09d5bf680c7519763bdda91185a0da169e5697f"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/062-throughput-1s-64b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/062-throughput-1s-64b-claim.stdout",
+          "bytes": 583,
+          "sha256": "e4e4e64b7ffeee271546f590f46abf313ef7fe470470c7bd29bc77e47d9af585"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/063-throughput-2s-64b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/063-throughput-2s-64b-claim.stdout",
+          "bytes": 683,
+          "sha256": "e7c723d2333ceb3bc672787b6941ec4ade1da60f55c98e6c6c263e51e88abf7e"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/064-throughput-1s-256b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/064-throughput-1s-256b-claim.stdout",
+          "bytes": 586,
+          "sha256": "58e9301ca86ea828b5b6d3b96f95ed926ceacb0d7b2d31d0836c1a0fb0529a79"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/065-throughput-1s-64b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/065-throughput-1s-64b-claim.stdout",
+          "bytes": 582,
+          "sha256": "5249d9d9ed60d338908d94af161a7144d735690ad1494acd683566d3d642c6fc"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/066-throughput-2s-64b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/066-throughput-2s-64b-claim.stdout",
+          "bytes": 683,
+          "sha256": "674253cf75b3f24d68c42d8b3b80c238f364075cf2a51c79e6782f00ee72a30c"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/067-throughput-1s-256b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/067-throughput-1s-256b-claim.stdout",
+          "bytes": 584,
+          "sha256": "0185f3dd0adf07459da516b7968348a05dcb1b6f7714e88e7977f1650722034f"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/068-throughput-2s-256b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/068-throughput-2s-256b-claim.stdout",
+          "bytes": 683,
+          "sha256": "7af3515a3516f56e5ad9a41325856e891a0cdc46aeee96815539cf68f55e9b1e"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/069-throughput-2s-64b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/069-throughput-2s-64b-claim.stdout",
+          "bytes": 683,
+          "sha256": "d141632f292f36e4cd8d67b3b51ab44e8f9ce29f35819a28546e1448600e7c73"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/070-throughput-1s-256b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/070-throughput-1s-256b-claim.stdout",
+          "bytes": 586,
+          "sha256": "6719a8d43d18cd4f7e7bf09d8d1da1d6a3c3038277d7e88e9bf16e9e8a79c466"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/071-throughput-2s-256b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/071-throughput-2s-256b-claim.stdout",
+          "bytes": 685,
+          "sha256": "4191c6b9c5012db140326a20e3ff816cc1e755e247cdda1ccfa45f5d1c333177"
+        },
+        {
+          "source": "build/benchmarks/spmc-v3.0.0-20261019-165821/072-throughput-1s-64b-claim.stdout",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/raw/072-throughput-1s-64b-claim.stdout",
+          "bytes": 584,
+          "sha256": "d9d1bb448d1560d6b79fd308a43ef6aa3929703d7d73f6c964fa6dd7381b066e"
+        },
+        {
+          "source": "build/spmc-check-20261019/runner.py",
+          "target": "doc/benchmarks/2026-10-19/spmc-salias/frozen-runner.py",
+          "bytes": 8968,
+          "sha256": "57863c0916537fb998a87cfef3784dbab67261362db99d685742e57bdd72887d"
+        }
+      ]
+    }
+  ]
+}

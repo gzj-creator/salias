@@ -6,7 +6,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from statistics import mean, median, stdev
+from statistics import mean, median, quantiles, stdev
 
 
 def parse_stdout(path):
@@ -34,8 +34,32 @@ def ratio(numerator, denominator, label):
 
 
 def statistics(values):
-    return dict(median=median(values), mean=mean(values), min=min(values), max=max(values),
-                sample_stddev=stdev(values) if len(values) > 1 else None)
+    sample_mean = mean(values)
+    sample_stddev = stdev(values) if len(values) > 1 else None
+    quartiles = quantiles(values, n=4, method="inclusive") if len(values) > 1 else [values[0]] * 3
+    return dict(median=median(values), mean=sample_mean, min=min(values), max=max(values),
+                q1=quartiles[0], q3=quartiles[2], iqr=quartiles[2] - quartiles[0],
+                sample_stddev=sample_stddev,
+                cv=(sample_stddev / sample_mean
+                    if sample_stddev is not None and sample_mean != 0 else None))
+
+
+def signed_statistics(values):
+    """Signed ratio statistics must not expose a misleading standard-deviation CV."""
+    result = statistics(values)
+    result["cv"] = None
+    return result
+
+
+def measure_consistency(group):
+    """Report throughput drift even when no zero-instrumentation control exists."""
+    throughput = group["publish_mmsg_s"]
+    relative_iqr = throughput["iqr"] / throughput["median"] if throughput["median"] else None
+    return dict(cv=throughput["cv"], relative_iqr=relative_iqr,
+                cv_below_5_percent=(throughput["cv"] is not None and
+                                    throughput["cv"] < 0.05),
+                cv_below_8_percent=(throughput["cv"] is not None and
+                                    throughput["cv"] < 0.08))
 
 
 def analyze_record(record, directory):
@@ -65,9 +89,12 @@ def analyze_record(record, directory):
     row["backpressure_rate"] = ratio(backpressure, success + backpressure, "claims")
     row["backpressure_per_success"] = ratio(backpressure, success, "successful claims")
     row["claim_avg_ns"] = None
+    row["claim_timed_samples"] = None
     if mode == "timed":
-        # Recompute from integer totals rather than rounded console output.
-        row["claim_avg_ns"] = ratio(metrics["diagnostic_claim_total_ns"], success, "claim time")
+        # 每次采样覆盖一条成功消息，因此分母是采样数而不是全部成功消息。
+        row["claim_timed_samples"] = metrics["diagnostic_claim_timed_samples"]
+        row["claim_avg_ns"] = ratio(metrics["diagnostic_claim_total_ns"],
+                                    row["claim_timed_samples"], "claim time")
     consumers = []
     for i in range(2):
         prefix = f"diagnostic_consumer{i}_"
@@ -103,6 +130,7 @@ def assess_hypotheses(groups):
             consumer_empty_rate=counters["consumer_empty_rate"]["median"] if counters else None,
             avg_batch=counters["avg_batch"]["median"] if counters else None,
             claim_avg_ns=timed["claim_avg_ns"]["median"] if timed else None,
+            claim_timed_samples=timed["claim_timed_samples"]["median"] if timed else None,
             claim_timing_mode="timed" if timed else None,
             aggregation="median of measured rounds; consumer ratios pool both consumers per round",
         ))
@@ -131,11 +159,32 @@ def assess_hypotheses(groups):
                          paired_throughput_change_fraction=g["paired_throughput_change_fraction"]["median"])
                     for g in groups if g["mode"] != "off"
                     and g["paired_throughput_change_fraction"] is not None]
+    measurement_controls = {}
+    for payload in (64, 256):
+        available = {group["mode"]: group for group in groups if group["payload"] == payload}
+        off = available.get("off")
+        counters = available.get("counters")
+        timed = available.get("timed")
+        measurement_controls[str(payload)] = dict(
+            off_measure_consistency=measure_consistency(off) if off else None,
+            counters_measure_consistency=measure_consistency(counters) if counters else None,
+            timed_measure_consistency=measure_consistency(timed) if timed else None,
+            counters_median_change=counters["paired_throughput_change_fraction"]["median"]
+            if counters and counters.get("paired_throughput_change_fraction") else None,
+            counters_change_below_5_percent=(
+                abs(counters["paired_throughput_change_fraction"]["median"]) < 0.05
+                if counters and counters.get("paired_throughput_change_fraction") else None),
+            timed_median_change=timed["paired_throughput_change_fraction"]["median"]
+            if timed and timed.get("paired_throughput_change_fraction") else None,
+            timed_change_below_5_percent=(
+                abs(timed["paired_throughput_change_fraction"]["median"]) < 0.05
+                if timed and timed.get("paired_throughput_change_fraction") else None))
     return dict(payload_summary=summaries, hypotheses=hypotheses,
                 phase2_candidates=candidates, instrumentation_controls=perturbation,
                 instrumentation_exceeds_5_percent=any(
                     abs(g["paired_throughput_change_fraction"]) > 0.05 for g in perturbation)
                     if perturbation else None,
+                measurement_controls=measurement_controls,
                 hypothesis_naming="H2 follows the session prompt (consumer empty rate); the plan uses H2 for frame alignment",
                 causal_confirmation="Threshold crossings alone do not establish consumer lag or Guard overhead")
 
@@ -166,23 +215,25 @@ def summarize(directory):
                 group["avg_batch"] = statistics([r["avg_batch"] for r in cell])
                 group["claim_avg_ns"] = (statistics([r["claim_avg_ns"] for r in cell])
                                           if mode == "timed" else None)
+                group["claim_timed_samples"] = (statistics([r["claim_timed_samples"] for r in cell])
+                                                 if mode == "timed" else None)
                 group["consumers"] = [dict(consumer=i, **{
                     key: statistics([r["consumers"][i][key] for r in cell])
                     for key in ("empty_rate", "avg_batch")}) for i in range(2)]
                 controls = {r["round"]: r["publish_mmsg_s"] for r in rows
                             if r["payload"] == payload and r["mode"] == "off"
                             and r["phase"] == "measured"}
-                group["paired_throughput_change_fraction"] = (statistics([
+                group["paired_throughput_change_fraction"] = (signed_statistics([
                     r["publish_mmsg_s"] / controls[r["round"]] - 1 for r in cell])
                     if controls else None)
             groups.append(group)
-    return dict(schema_version=2, input_directory=str(directory.resolve()), environment=environment,
+    return dict(schema_version=3, input_directory=str(directory.resolve()), environment=environment,
                 measured_runs=sum(r["phase"] == "measured" for r in rows),
                 warmup_runs=sum(r["phase"] == "warmup" for r in rows), groups=groups, runs=rows,
                 **assess_hypotheses(groups),
                 interpretation=[
                     "Empty poll rate above 50% does NOT prove consumers cannot keep up; it can indicate starvation.",
-                    "Timed claim covers the entire successful try_claim, not ClaimReservationGuard alone.",
+                    "Timed claim samples every 1000th successful try_claim; each sample covers the entire call, not ClaimReservationGuard alone.",
                     "Timing and counters perturb scheduling; compare paired controls before causal attribution."])
 
 

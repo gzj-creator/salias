@@ -72,3 +72,17 @@
   - **验证**：发布前 Linux Release 串行构建及 CTest 21/21 通过，包含安装消费者和 API/独立 poll 存储契约；HFT Python 36/36、Aeron Python 23/23 通过，HFT 独立 harness self-test、两端比较器构建、Shell 语法与版本元数据校验通过。历史报告中的 sanitizer 和候选验证有独立范围，不等同于本次全部重跑。
   - **证据与边界**：仅提交精简逐轮数据、必要真实火焰图、哈希与核验记录；生成源码副本、构建产物、perf.data、批量日志和误导性临时实验保留本地。共享 VM 无有效硬件 PMU；约 100 ns 典型延迟差仍未完整归因，不宣称已解决尾延迟或通过长时 SLA，本次不重跑 48 分钟 ABBA/30 分钟长测，也不声明新增 macOS 或 mcpp 实测。
   - **版本治理**：CMake、vcpkg、mcpp 与 README 统一为 3.0.0；注解 tag 直接复用本版本节，不代表包索引发布。
+
+## v4.0.0 - 2026-10-22
+
+- **版本级别**：主版本（major），移除 `PublishClaim::commit()` 并升级具名共享通道协议，属于不兼容 API/ABI 与协议变更。
+- **Git 提交消息**：feat: 发布 v4.0.0 零拷贝 claim API 与非对称屏障
+- **git tag**：v4.0.0
+- **自上次 tag（v3.0.0）以来的变更摘要**：
+  - **破坏性变更**：`PublishClaim` 不再持有 `shared_ptr<PublisherEndpoint>`，仅保存预留位置和非拥有发布端身份；`claim.commit()` 已移除，统一改为 `publisher.commit(std::move(claim))`。Publisher 提交时校验归属，跨 Publisher 提交在调试构建断言、发布构建拒绝；claim 不保活 Publisher，同一 Publisher 的副本仍可提交，未提交 claim 在调试构建析构时断言。schema-bound claim 使用 typed Publisher 的 `commit()`；下游必须修改调用点并重新编译库、头文件和 mcpp BMI。
+  - **发布路径优化**：具名共享通道协议从 v14 升至 v15，在既有填充区新增 `claim_fence_protocol`，控制段尺寸与热字段偏移不变，旧通道返回 `VersionMismatch` 需重建。协议启用后，`Tx::claim` / `claim_batch` 只保留编译器屏障，完整屏障移到订阅者注册、注销和首轮阻塞接收的通知激活路径，通过 `membarrier(GLOBAL_EXPEDITED)` 送达到已注册发布进程；注册握手、动态订阅、代际回收、最慢订阅者背压、TTL 与借用期语义保持不变。注册失败或平台不支持时退回原 seq_cst 路径，`SALIAS_DISABLE_ASYMMETRIC_FENCE=1` 可让新建通道显式回退；heavy fence 失败时 fail closed，不在缺失屏障时读写 `claim_active`。
+  - **正确性验证**：新增 claim API v4 契约测试，覆盖 raw/schema-bound 提交、移动后提交、同一 Publisher 副本提交、跨 Publisher 拒绝和未提交可见性；新增非对称屏障的跨进程压力、fork、故障注入与协议边界测试。Release CTest 22/22、ASan/UBSan CTest 21/21 通过；`tools/aeron_compare` 196 项通过、6 项跳过，`tools/hft_acceptance` 62 项通过，claim API v4 分析器 11 项通过。
+  - **正式性能测量**：完成两次完整三臂产品 A/B，B=v3.0.0、S=v4 顺序屏障、A=v4 默认屏障，分别隔离 claim API、屏障和组合效果。两次均为 64/256 B、FIFO 1P2S、1 MiB ring、batch=1、poll-limit=64，每格 6 组 × 20 轮 × 5000 万条，延迟为 1P1S、100 万条/s、attempt/planned 各 10 轮 × 2 秒。第一次 64 B S/B 为 1.258804（+25.88%）、256 B 为 1.281718（+28.17%），64 B 判 GO；第二次 64 B 为 1.238393（+23.84%）、256 B 为 1.290653（+29.07%），64 B 因低于预注册 1.25 门槛判 INCONCLUSIVE。两次精确置换检验均为 p=0.002165、6/6 组同向。
+  - **发布决定**：用户确认两次压测均有效，只是未达到理论收益值，并明确批准发布 v4.0.0。约 24%–26% 的 64 B claim API 吞吐收益在两次运行中方向稳定，但 GO 未复现；不得合并两次运行、改用组中位数比或挑选有利运行来改写判定，也不得把 256 B 的描述性收益套用 64 B 门槛。
+  - **延迟与范围边界**：第二次 64 B planned p99.9 为 12351/12799 ns（候选/基线），候选轮间范围 7743–2064383 ns；256 B A/S attempt p99/p99.9 为 1247/501 ns 与 9471/4607 ns，约 2.49x/2.06x。短测仍见毫秒级尖峰，本轮未重跑 HFT 长尾门禁，因此本次发布不宣称延迟非劣、长尾已解决、生产 SLA 或 v4.0.0 整体性能验收通过。
+  - **证据与文档**：两次运行的 Markdown 摘要、分析 JSON、实验 JSON 与 SHA-256 清单收录于 `doc/benchmarks/2026-10-22/`；完整 12 MiB 工作目录保留本地 `build/`。新增 claim API 迁移指南，更新 L7 API、最终性能报告、A/B 工具说明和接续状态；CMake、vcpkg、mcpp 与 README 版本统一为 4.0.0。

@@ -4,13 +4,19 @@ This harness tests the real salias named FIFO channel in forked processes. It is
 not an exchange feed decoder, order-book validator, NIC benchmark, or production
 tick-to-trade acceptance test. No product code is changed.
 
-See `doc/hft-market-data-acceptance-2026-10-18.md` for status, methodology, results,
-limitations, exact commands, and the provisional 50 us percentile criteria.
+See the [historical HFT report](../../doc/archive/performance/hft-market-data-acceptance-2026-10-18.md)
+for that run's status, methodology, results, limitations, exact commands, and
+the provisional 50 us percentile criteria.
 
-Latest consolidated results: `doc/performance-summary-2026-10-18.md`.
+Current consolidated results and optimization handoff:
+[final performance report](../../doc/performance-report.md).
+Historical HFT-only summary: [2026-10-18](../../doc/archive/performance/performance-summary-2026-10-18.md).
 The later three-group relative-gain experiment is documented in
-`doc/publisher-tail-relative-acceptance-2026-10-18.md`; its product candidate was
-rejected and removed. Its new raw data remains under `build/benchmarks/`.
+[the relative-gain report](../../doc/archive/performance/publisher-tail-relative-acceptance-2026-10-18.md); its product candidate was
+rejected and removed. That experiment's complete local tree is now preserved in
+`build/benchmark-cleanup-20261019/publisher-tail-20261018.tar.gz`; restore it before
+auditing the original `build/benchmarks/publisher-tail-20261018/` paths. Archive
+hashes and restoration details are in section 8.2 of the final report.
 Historical temporary raw results were removed after verification; compact scalar
 results and final Markdown tables remain in `doc/benchmarks/2026-10-18/`.
 They do not contain histogram buckets and cannot regenerate historical quantiles.
@@ -165,3 +171,47 @@ Keep these artifacts under `build/benchmarks/`; do not remove them after reporti
 Run serially on unchanged binaries with no overlapping diagnostic or build load.
 If relative gates fail, skip the conditional long matrix and do not retain an
 unaccepted product patch as a claimed optimization.
+
+## P3-1 Fence Non-Inferiority
+
+The P3-1 gate is a separate experiment, not the historical publisher-tail
+improvement target above. It uses **one frozen candidate binary** for C-seq
+(`SALIAS_DISABLE_ASYMMETRIC_FENCE=1`) and C-asym (switch removed). The rule is
+fixed before collection in [plan section 6.4](../../doc/plans/phase3-final-optimizations.md):
+three independent SAAS groups, all eight existing HFT configurations, 30 seconds
+per run. Both worst-subscriber planned p99 and p99.9 must be at most C-seq * 1.05
+in every group/configuration. Integrity and original-input completion are
+mandatory; the independent 50 us budget is not a relative-pass substitute.
+
+```bash
+# First build and self-test a candidate harness linked to the intended frozen
+# product libraries. Do not compile while collecting formal HFT data.
+systemd-run --user --wait --pipe --collect \
+  -p WorkingDirectory="$PWD" -p AllowedCPUs=0-3 -p Nice=5 \
+  -p MemoryHigh=640M -p MemoryMax=704M -p MemorySwapMax=0 -p RuntimeMaxSec=3900 \
+  --setenv=SALIAS_RESOURCE_CAPPED=1 --setenv="PATH=$PATH" \
+  taskset -c 0-3 python3 doc/plans/runners/p3-p31-tail.py \
+  --client /absolute/path/to/frozen/hft-candidate --output /new/output/directory
+python3 tools/hft_acceptance/compare_p31_tail.py /new/output/directory
+```
+
+The runner records its protocol before warm-up, then commands, exact environment
+overrides, input/binary hashes, raw stdout/stderr hashes and exit codes. The
+auditor re-reads the existing HFT raw-bucket validator and rejects missing runs,
+changed inputs, unexpected order, mismatched identities and invalid completion.
+Exit zero means execution and auditing completed, **not** that G4 passed.
+On this four-vCPU host 2P2S needs CPUs 0-3; do not reuse the short latency runner's
+CPUs 1-3 restriction. Explicit PATH forwarding also makes the environment
+capture's `rg` available inside the transient service.
+
+The 2026-10-21 formal run completed all 96 workers with exit zero, but G4 **failed**:
+4/48 S runs did not complete the original input, and only 7/24 group/configuration
+cells met both p99 and p99.9 non-inferiority. The candidate 50 us p99.9 budget passed
+in 2/24 cells. Keep those failures rather than rerunning or repooling to seek a pass.
+See the [P3-1 acceptance report](../../doc/plans/phase3-p31-acceptance-report.md).
+
+The separate `registration_cost.cpp` probe includes the selected revision's
+`channel.cpp` to time the real `acquire_consumer` without modifying product
+sources. `doc/plans/runners/p3-p31-registration.py` builds baseline/candidate
+probes and retains 90,000 raw registration timings. These idle-registration
+measurements do not bound registration under concurrent claims.

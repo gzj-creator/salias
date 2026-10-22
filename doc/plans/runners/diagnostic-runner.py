@@ -87,14 +87,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--messages", type=int, default=10_000_000)
-    parser.add_argument("--rounds", type=int, default=5)
+    parser.add_argument("--rounds", type=int, default=10)
     parser.add_argument("--modes", nargs="+", choices=("off", "counters", "timed"),
                         default=["off", "counters", "timed"])
     parser.add_argument("--salias-client", type=Path, default=harness.SALIAS)
     parser.add_argument("--control-client", type=Path)
     args = parser.parse_args()
-    if not 1 <= args.messages <= 100_000_000 or not 1 <= args.rounds <= 10:
-        parser.error("Require 1..100M messages and 1..10 rounds")
+    if not 1 <= args.messages <= 100_000_000 or not 1 <= args.rounds <= 20:
+        parser.error("Require 1..100M messages and 1..20 rounds")
     if len(set(args.modes)) != len(args.modes):
         parser.error("Duplicate diagnostic modes")
     args.salias_client = args.salias_client.resolve()
@@ -116,7 +116,7 @@ def main():
                     payloads=[64, 256], producers=1, consumers=2,
                     latency_sample_rate=0, rate_per_producer=0,
                     salias_client=str(args.salias_client), control_client=str(args.control_client),
-                    claim_timing="timed: two steady_clock reads per try_claim; successful calls only; not Guard-exclusive",
+                    claim_timing="timed: two steady_clock reads every 1000th successful try_claim; not Guard-exclusive",
                     limits=harness.resource_counters())
     # Freeze the executed harness and binaries; later rebuilds must not change the evidence.
     snapshots = {

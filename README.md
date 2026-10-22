@@ -132,7 +132,7 @@ target_link_libraries(my_app PRIVATE salias::salias)
 
 ## mcpp 与 C++23 模块
 
-原生包身份为 `gzj-creator.salias`，版本 `3.0.0` 与 CMake 一致。`mcpp.toml`
+原生包身份为 `gzj-creator.salias`，版本 `4.0.0` 与 CMake 一致。`mcpp.toml`
 编译公共库和必要的 core 实现，`src/salias.cppm` 提供 `import salias;`；默认构建不需要
 GTest、Google Benchmark 或 Aeron。模块导出公共配置、枚举、错误和结果类型、Message、
 Channel/Publisher/Subscriber/PublishClaim 模板、五种模式的端点别名、静态配置的
@@ -161,8 +161,15 @@ TTL 发送/过期跳过、模板 poll 和共享内存清理。`check_mcpp.py` �
 序列号低位回绕、三生产者与单条/批量订阅者并发、批内 payload 保留及 `SIGKILL` 后的 lease 回收。
 消息数窗口回归覆盖可靠模式的单条/批量背压、批量 poll 后恢复、fanout 慢订阅者边界、
 LatestMpmc 的部分批次、可靠订阅者保护，以及变长空消息和物理回绕后的保留后缀。
-共享通道协议当前为 v14；旧布局通道需重建，发布端和订阅端需一起升级。raw 与 schema-bound 通道
+共享通道协议当前为 v15；旧布局通道需重建，发布端和订阅端需一起升级。raw 与 schema-bound 通道
 不能互连；所有参与进程必须使用一致的 schema ID 和版本。
+v15 在原有填充区新增一字节 `claim_fence_protocol`，控制段尺寸与热字段偏移不变。取值为 `0`
+时每次 claim 仍付出两条 seq_cst store（x86 上是两次完整屏障）；取值为 `1` 时 claim 只保留
+编译器屏障，把完整屏障移到订阅者注册/注销的冷路径，由内核 `membarrier(GLOBAL_EXPEDITED)`
+送达已注册的发布进程。协议由建表端在 `ready=1` 之前选定，之后不可变；连接端拒绝未知取值。
+发布进程在创建首个 Publisher 时自行注册为 `membarrier` 接收方，注册失败或不支持的进程退回
+seq_cst，仍与该协议兼容。设置 `SALIAS_DISABLE_ASYMMETRIC_FENCE=1` 可让新建通道退回 seq_cst，
+用于同一二进制上的两种模式对照。
 
 Linux Adaptive 接收在 64 次短自旋后使用共享 epoch 的 futex 事件等待，并以 1ms 单调时钟期限
 重扫兜底；内核不支持 `futex_waitv` 时，以及 macOS 上，使用 1ms 全流轮询。普通阻塞接收也会
@@ -311,39 +318,28 @@ NUMA 放置当前尚未实现，Linux 与 macOS 请求都会明确返回 `NumaUn
 
 ## 最终性能
 
-2026-10-19 的 [Salias/Aeron 设计级延迟诊断](doc/aeron-design-diagnosis-2026-10-19.md)
-提供真实 perf/火焰图、缓存布局与轮询 A/B，以及长尾与调度抢占的逐事件关联。
-约 100 ns 典型延迟差仍存在；未验收原型未合入产品，不将 p50 与 p99.9 混为一谈。
+当前结论与下一位 agent 的优化交接统一见
+[最终性能测试与优化交接报告](doc/performance-report.md)。
+Phase 2 的冻结客户端身份与正式 A/B 规则见
+[Phase 2 执行基线](doc/plans/phase2-execution-baseline.md)。
 
-后续[设计级优化实作](doc/aeron-design-implementation-2026-10-19.md)移除了空 poll 的
-2 KiB 描述符清零，并实测调度策略和帧内发布原型；RT 限流与变长回绕反例均保留，
-不将不安全原型的低延迟列为产品收益。
+- v4.0.0 两次正式 claim API A/B 的 64 B 收益为 **+25.88%/+23.84%**，256 B 为
+  **+28.17%/+29.07%**，均为 p=0.002165、6/6 组同向；第二次 64 B 未达到 1.25
+  预注册门槛，判定为 INCONCLUSIVE。报告记录稳定正向收益，不宣称吞吐 GO 已复现。
+- 1P2S 可靠广播同组短测：64 B 发布吞吐 Salias/Aeron 为 **6.341/42.441 Mmsg/s**，
+  256 B 为 **14.962/15.019 Mmsg/s**；64 B 是当前明确需要归因的短板。
+- 100 万条/s 的 1P2S attempt p50：64 B 为 **363/199 ns**，256 B 为 **379/203 ns**；
+  两端均出现毫秒级长尾，不同计时口径的尾部胜负不同，不能宣称 SLA 通过。
+- 已合入空 poll 的 2 KiB 清零减负；六个后续候选和新的 Publisher 尾延迟候选没有通过门禁。
+- 同组应用角色固定 CPU1–3，Aeron 额外 driver 在 CPU0；逻辑 payload 未完整填充，
+  吞吐轮次较短。完整条件、原始证据和优先优化任务均在最终报告中。
+- 192 B、1P2S、1 MiB ring 是已观测的高吞吐区域（历史高模式轮次中位数 16.8356 Mmsg/s，
+  400 轮仅 72.0% 进入高模式）；P2-A 100 轮复核为 69/100，未通过 85% 推荐门槛，因此不是
+  所有 payload 或拓扑的稳定 SLA。Phase 2 正式实验固定使用 v3.0.0 冻结客户端，当前扩展
+  benchmark 的高模式失真不得当作产品回归。
 
-2026-10-18 的 [Publisher 尾延迟相对收益验收](doc/publisher-tail-relative-acceptance-2026-10-18.md)
-已完成三组 ABBA、48 分钟正式测量；新候选未通过，已撤销，不计入已验收优化。
-诊断、复跑工具和原始证据保留，不能与下方历史 Aeron 吞吐结果混用。
-
-2026-09-25 的 FIFO 消费热路径改动、对照数据与回归测试见
-[本地优化验证报告](doc/performance-optimization-2026-09-25.md)。该报告仅验证本次改动，
-测量环境和指标与以下独立进程验收不同。
-
-Tencent 4 vCPU x86 KVM，两个独立 Publisher 程序，每 Publisher 2,000,000 条 64B 消息；
-每组预热 3 次、正式 20 次。Publisher/Subscriber 均为独立可执行程序，没有在 benchmark
-程序内 `fork()` worker。完整机器配置、公平条件、Ordered 表格与原始数据见
-[最终独立进程性能报告](doc/performance-report.md)。
-
-| 拓扑 | 容量 | salias FIFO | Aeron | salias/Aeron | salias 背压 |
-|---|---:|---:|---:|---:|---:|
-| 2 Publisher / 1 Subscriber | 1 MiB | **44.867 M/s** | 41.108 M/s | **109.1%** | 0.312% |
-| 2 Publisher / 1 Subscriber | 4 MiB | **44.485 M/s** | 38.515 M/s | **115.5%** | 0.200% |
-| 2 Publisher / 1 Subscriber | 64 MiB | **38.806 M/s** | 22.011 M/s | **176.3%** | 0.000% |
-| 2 Publisher / 2 Subscriber | 1 MiB | **29.206 M/s** | 15.214 M/s | **192.0%** | 0.884% |
-| 2 Publisher / 2 Subscriber | 4 MiB | **30.158 M/s** | 25.127 M/s | **120.0%** | 0.386% |
-| 2 Publisher / 2 Subscriber | 64 MiB | **28.423 M/s** | 17.743 M/s | **160.2%** | 0.000% |
-
-2P2S 的每条消息交付两次；salias 4 MiB 对应 **60.316 Mmsg/s** 交付吞吐。Ordered 是
-Aeron 不具备的跨 Publisher 全局全序能力，最佳结果为 2P1S batch=8、64 MiB 的
-**42.856 Mmsg/s**，以及 2P2S 的 **34.207 Mmsg/s** 发布 / **68.414 Mmsg/s** 交付。
+旧日期报告和不同拓扑吞吐表归入 [历史性能记录](doc/archive/performance/README.md)，
+不作为当前版本同组验收或重复的“最终结论”。
 
 ## 目录
 
@@ -364,9 +360,8 @@ example/             FIFO MPSC 示例
 
 - `fifo` 对齐 Aeron 的 per-publication FIFO 语义，是追平 Aeron 的性能路径。
 - `ordered` 提供 Aeron 不提供的跨生产者全序，因此必须承担一个共享 rank 与归并点。
-- Ring 容量按每个 Producer 独立配置。最终独立进程测试中，FIFO 的最佳绝对吞吐出现在
+- Ring 容量按每个 Producer 独立配置。2026-07-11 历史独立进程测试中，FIFO 的最佳绝对吞吐出现在
   1/4 MiB；64 MiB 虽消除背压，但扩大工作集后吞吐下降。容量主要用于突发吸收，不能替代
   Consumer 稳定吞吐能力或受控的 `publication_window`。
 - ARM Colima VM 只用于功能回归；最终性能验收必须在公平绑核的 x86 真机完成。
-- salias/Aeron 独立进程吞吐对比见 `doc/performance-report.md`；Publisher 尾延迟验收见
-  `doc/publisher-tail-relative-acceptance-2026-10-18.md`，两者的负载、计时与通过标准不同。
+- 性能结论、负载/计时差异、失败验收与优化交接统一见 `doc/performance-report.md`。

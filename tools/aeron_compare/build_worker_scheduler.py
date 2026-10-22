@@ -68,8 +68,8 @@ void pin_worker_if_requested(const Options& options, std::uint32_t worker_index)
     else:
         text = text.replace("    if (has_failed(state)) {\n      _exit(21);",
                             "    activate_fifo_worker();\n    if (has_failed(state)) {\n      _exit(21);")
-        text = replace_once(text, "    if (options.batch_size == 1) {\n      for (std::uint64_t i = 0;",
-                            "    activate_fifo_worker();\n    if (options.batch_size == 1) {\n      for (std::uint64_t i = 0;")
+        text = replace_once(text, "    if (options.batch_size == 1) {",
+                            "    activate_fifo_worker();\n    if (options.batch_size == 1) {")
         if text.count("    activate_fifo_worker();") != 2:
             raise ValueError("Salias worker activation anchors changed")
     return text

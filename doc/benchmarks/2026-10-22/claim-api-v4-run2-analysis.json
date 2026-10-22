@@ -1,0 +1,841 @@
+{
+  "protocol": "p3-claim-api-v4-analysis-v1",
+  "payloads": [
+    {
+      "payload": 64,
+      "throughput": {
+        "claim_api_S_vs_B": {
+          "candidate": "S",
+          "baseline": "B",
+          "candidate_median_mmsg_s": 6.139165,
+          "baseline_median_mmsg_s": 4.957365,
+          "ratio": 1.23839277519408,
+          "relative_percent": 23.839277519407997,
+          "group_directions_candidate_above_baseline": 6,
+          "permutation": {
+            "observed_difference_mmsg_s": 1.2268116666666664,
+            "extreme_partitions": 2,
+            "partitions": 924,
+            "p_value": 0.0021645021645021645
+          },
+          "bootstrap": {
+            "samples": 20000,
+            "seed": 20261022,
+            "median_difference_mmsg_s": 1.1877499999999994,
+            "ci95_low_mmsg_s": 1.0313049999999997,
+            "ci95_high_mmsg_s": 1.3268699999999995
+          },
+          "group_medians_mmsg_s": {
+            "candidate": [
+              6.170315,
+              6.27785,
+              5.9612300000000005,
+              6.18056,
+              6.132215,
+              6.26052
+            ],
+            "baseline": [
+              5.2145,
+              4.82557,
+              5.00201,
+              4.769565,
+              4.842155,
+              4.96802
+            ]
+          }
+        },
+        "fence_A_vs_S": {
+          "candidate": "A",
+          "baseline": "S",
+          "candidate_median_mmsg_s": 7.044345,
+          "baseline_median_mmsg_s": 6.139165,
+          "ratio": 1.1474435041247466,
+          "relative_percent": 14.74435041247466,
+          "group_directions_candidate_above_baseline": 6,
+          "permutation": {
+            "observed_difference_mmsg_s": 0.8832075000000001,
+            "extreme_partitions": 2,
+            "partitions": 924,
+            "p_value": 0.0021645021645021645
+          },
+          "bootstrap": {
+            "samples": 20000,
+            "seed": 20261022,
+            "median_difference_mmsg_s": 0.9045500000000004,
+            "ci95_low_mmsg_s": 0.7970449999999998,
+            "ci95_high_mmsg_s": 1.0476100000000006
+          },
+          "group_medians_mmsg_s": {
+            "candidate": [
+              6.98623,
+              7.08969,
+              7.092465000000001,
+              7.077385,
+              6.920495000000001,
+              7.11567
+            ],
+            "baseline": [
+              6.170315,
+              6.27785,
+              5.9612300000000005,
+              6.18056,
+              6.132215,
+              6.26052
+            ]
+          }
+        },
+        "combined_A_vs_B": {
+          "candidate": "A",
+          "baseline": "B",
+          "candidate_median_mmsg_s": 7.044345,
+          "baseline_median_mmsg_s": 4.957365,
+          "ratio": 1.4209857454514645,
+          "relative_percent": 42.09857454514645,
+          "group_directions_candidate_above_baseline": 6,
+          "permutation": {
+            "observed_difference_mmsg_s": 2.1100191666666666,
+            "extreme_partitions": 2,
+            "partitions": 924,
+            "p_value": 0.0021645021645021645
+          },
+          "bootstrap": {
+            "samples": 20000,
+            "seed": 20261022,
+            "median_difference_mmsg_s": 2.0913299999999992,
+            "ci95_low_mmsg_s": 1.9716650000000007,
+            "ci95_high_mmsg_s": 2.2278000000000002
+          },
+          "group_medians_mmsg_s": {
+            "candidate": [
+              6.98623,
+              7.08969,
+              7.092465000000001,
+              7.077385,
+              6.920495000000001,
+              7.11567
+            ],
+            "baseline": [
+              5.2145,
+              4.82557,
+              5.00201,
+              4.769565,
+              4.842155,
+              4.96802
+            ]
+          }
+        }
+      },
+      "claim_api_throughput_decision": "INCONCLUSIVE",
+      "latency": {
+        "claim_api_S_vs_B": {
+          "attempt": {
+            "p50": 0.9948320413436692,
+            "p99": 0.9751552795031055,
+            "p999": 1.0
+          },
+          "planned": {
+            "p50": 1.0182232346241458,
+            "p99": 0.8274086785976955,
+            "p999": 0.9649972654113602
+          }
+        },
+        "fence_A_vs_S": {
+          "attempt": {
+            "p50": 0.9896103896103896,
+            "p99": 1.0339702760084926,
+            "p999": 2.0898063914159084
+          },
+          "planned": {
+            "p50": 0.9642058165548099,
+            "p99": 0.7131851851851851,
+            "p999": 1.0310905999514208
+          }
+        },
+        "combined_A_vs_B": {
+          "attempt": {
+            "p50": 0.9844961240310077,
+            "p99": 1.0082815734989647,
+            "p999": 2.0898063914159084
+          },
+          "planned": {
+            "p50": 0.9817767653758542,
+            "p99": 0.5900956116695268,
+            "p999": 0.9949996093444801
+          }
+        }
+      },
+      "latency_detail": {
+        "claim_api_S_vs_B": {
+          "attempt": {
+            "p50": {
+              "candidate_ns": 385.0,
+              "baseline_ns": 387.0,
+              "ratio": 0.9948320413436692,
+              "candidate_range_ns": [
+                379,
+                407
+              ],
+              "baseline_range_ns": [
+                367,
+                399
+              ]
+            },
+            "p99": {
+              "candidate_ns": 471.0,
+              "baseline_ns": 483.0,
+              "ratio": 0.9751552795031055,
+              "candidate_range_ns": [
+                451,
+                1151
+              ],
+              "baseline_range_ns": [
+                459,
+                2975
+              ]
+            },
+            "p999": {
+              "candidate_ns": 4287.0,
+              "baseline_ns": 4287.0,
+              "ratio": 1.0,
+              "candidate_range_ns": [
+                3839,
+                10623
+              ],
+              "baseline_range_ns": [
+                3743,
+                12415
+              ]
+            }
+          },
+          "planned": {
+            "p50": {
+              "candidate_ns": 447.0,
+              "baseline_ns": 439.0,
+              "ratio": 1.0182232346241458,
+              "candidate_range_ns": [
+                435,
+                459
+              ],
+              "baseline_range_ns": [
+                275,
+                451
+              ]
+            },
+            "p99": {
+              "candidate_ns": 3375.0,
+              "baseline_ns": 4079.0,
+              "ratio": 0.8274086785976955,
+              "candidate_range_ns": [
+                1087,
+                5823
+              ],
+              "baseline_range_ns": [
+                1247,
+                5503
+              ]
+            },
+            "p999": {
+              "candidate_ns": 12351.0,
+              "baseline_ns": 12799.0,
+              "ratio": 0.9649972654113602,
+              "candidate_range_ns": [
+                7743,
+                2064383
+              ],
+              "baseline_range_ns": [
+                9983,
+                23039
+              ]
+            }
+          }
+        },
+        "fence_A_vs_S": {
+          "attempt": {
+            "p50": {
+              "candidate_ns": 381.0,
+              "baseline_ns": 385.0,
+              "ratio": 0.9896103896103896,
+              "candidate_range_ns": [
+                367,
+                403
+              ],
+              "baseline_range_ns": [
+                379,
+                407
+              ]
+            },
+            "p99": {
+              "candidate_ns": 487.0,
+              "baseline_ns": 471.0,
+              "ratio": 1.0339702760084926,
+              "candidate_range_ns": [
+                471,
+                2527
+              ],
+              "baseline_range_ns": [
+                451,
+                1151
+              ]
+            },
+            "p999": {
+              "candidate_ns": 8959.0,
+              "baseline_ns": 4287.0,
+              "ratio": 2.0898063914159084,
+              "candidate_range_ns": [
+                4031,
+                12671
+              ],
+              "baseline_range_ns": [
+                3839,
+                10623
+              ]
+            }
+          },
+          "planned": {
+            "p50": {
+              "candidate_ns": 431.0,
+              "baseline_ns": 447.0,
+              "ratio": 0.9642058165548099,
+              "candidate_range_ns": [
+                419,
+                447
+              ],
+              "baseline_range_ns": [
+                435,
+                459
+              ]
+            },
+            "p99": {
+              "candidate_ns": 2407.0,
+              "baseline_ns": 3375.0,
+              "ratio": 0.7131851851851851,
+              "candidate_range_ns": [
+                1183,
+                6207
+              ],
+              "baseline_range_ns": [
+                1087,
+                5823
+              ]
+            },
+            "p999": {
+              "candidate_ns": 12735.0,
+              "baseline_ns": 12351.0,
+              "ratio": 1.0310905999514208,
+              "candidate_range_ns": [
+                7679,
+                729087
+              ],
+              "baseline_range_ns": [
+                7743,
+                2064383
+              ]
+            }
+          }
+        },
+        "combined_A_vs_B": {
+          "attempt": {
+            "p50": {
+              "candidate_ns": 381.0,
+              "baseline_ns": 387.0,
+              "ratio": 0.9844961240310077,
+              "candidate_range_ns": [
+                367,
+                403
+              ],
+              "baseline_range_ns": [
+                367,
+                399
+              ]
+            },
+            "p99": {
+              "candidate_ns": 487.0,
+              "baseline_ns": 483.0,
+              "ratio": 1.0082815734989647,
+              "candidate_range_ns": [
+                471,
+                2527
+              ],
+              "baseline_range_ns": [
+                459,
+                2975
+              ]
+            },
+            "p999": {
+              "candidate_ns": 8959.0,
+              "baseline_ns": 4287.0,
+              "ratio": 2.0898063914159084,
+              "candidate_range_ns": [
+                4031,
+                12671
+              ],
+              "baseline_range_ns": [
+                3743,
+                12415
+              ]
+            }
+          },
+          "planned": {
+            "p50": {
+              "candidate_ns": 431.0,
+              "baseline_ns": 439.0,
+              "ratio": 0.9817767653758542,
+              "candidate_range_ns": [
+                419,
+                447
+              ],
+              "baseline_range_ns": [
+                275,
+                451
+              ]
+            },
+            "p99": {
+              "candidate_ns": 2407.0,
+              "baseline_ns": 4079.0,
+              "ratio": 0.5900956116695268,
+              "candidate_range_ns": [
+                1183,
+                6207
+              ],
+              "baseline_range_ns": [
+                1247,
+                5503
+              ]
+            },
+            "p999": {
+              "candidate_ns": 12735.0,
+              "baseline_ns": 12799.0,
+              "ratio": 0.9949996093444801,
+              "candidate_range_ns": [
+                7679,
+                729087
+              ],
+              "baseline_range_ns": [
+                9983,
+                23039
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "payload": 256,
+      "throughput": {
+        "claim_api_S_vs_B": {
+          "candidate": "S",
+          "baseline": "B",
+          "candidate_median_mmsg_s": 6.29411,
+          "baseline_median_mmsg_s": 4.876685,
+          "ratio": 1.290653384419949,
+          "relative_percent": 29.065338441994903,
+          "group_directions_candidate_above_baseline": 6,
+          "permutation": {
+            "observed_difference_mmsg_s": 1.439306666666666,
+            "extreme_partitions": 2,
+            "partitions": 924,
+            "p_value": 0.0021645021645021645
+          },
+          "bootstrap": {
+            "samples": 20000,
+            "seed": 20261022,
+            "median_difference_mmsg_s": 1.417135,
+            "ci95_low_mmsg_s": 1.25467,
+            "ci95_high_mmsg_s": 1.551005
+          },
+          "group_medians_mmsg_s": {
+            "candidate": [
+              6.53994,
+              6.348545,
+              6.2836300000000005,
+              6.166725,
+              6.243545,
+              6.38492
+            ],
+            "baseline": [
+              5.052905,
+              4.848105,
+              4.8518550000000005,
+              4.72478,
+              4.7299500000000005,
+              5.12387
+            ]
+          }
+        },
+        "fence_A_vs_S": {
+          "candidate": "A",
+          "baseline": "S",
+          "candidate_median_mmsg_s": 7.037955,
+          "baseline_median_mmsg_s": 6.29411,
+          "ratio": 1.1181811248929556,
+          "relative_percent": 11.818112489295562,
+          "group_directions_candidate_above_baseline": 6,
+          "permutation": {
+            "observed_difference_mmsg_s": 0.7044325000000002,
+            "extreme_partitions": 2,
+            "partitions": 924,
+            "p_value": 0.0021645021645021645
+          },
+          "bootstrap": {
+            "samples": 20000,
+            "seed": 20261022,
+            "median_difference_mmsg_s": 0.7382049999999989,
+            "ci95_low_mmsg_s": 0.6450200000000006,
+            "ci95_high_mmsg_s": 0.8448250000000002
+          },
+          "group_medians_mmsg_s": {
+            "candidate": [
+              7.03884,
+              7.053405,
+              7.16446,
+              7.079745,
+              6.896625,
+              6.960825
+            ],
+            "baseline": [
+              6.53994,
+              6.348545,
+              6.2836300000000005,
+              6.166725,
+              6.243545,
+              6.38492
+            ]
+          }
+        },
+        "combined_A_vs_B": {
+          "candidate": "A",
+          "baseline": "B",
+          "candidate_median_mmsg_s": 7.037955,
+          "baseline_median_mmsg_s": 4.876685,
+          "ratio": 1.443184253237599,
+          "relative_percent": 44.31842532375989,
+          "group_directions_candidate_above_baseline": 6,
+          "permutation": {
+            "observed_difference_mmsg_s": 2.1437391666666663,
+            "extreme_partitions": 2,
+            "partitions": 924,
+            "p_value": 0.0021645021645021645
+          },
+          "bootstrap": {
+            "samples": 20000,
+            "seed": 20261022,
+            "median_difference_mmsg_s": 2.16127,
+            "ci95_low_mmsg_s": 2.0123349999999993,
+            "ci95_high_mmsg_s": 2.2689199999999996
+          },
+          "group_medians_mmsg_s": {
+            "candidate": [
+              7.03884,
+              7.053405,
+              7.16446,
+              7.079745,
+              6.896625,
+              6.960825
+            ],
+            "baseline": [
+              5.052905,
+              4.848105,
+              4.8518550000000005,
+              4.72478,
+              4.7299500000000005,
+              5.12387
+            ]
+          }
+        }
+      },
+      "claim_api_throughput_decision": "DESCRIPTIVE",
+      "latency": {
+        "claim_api_S_vs_B": {
+          "attempt": {
+            "p50": 1.0318302387267904,
+            "p99": 0.9766081871345029,
+            "p999": 0.7618653877956011
+          },
+          "planned": {
+            "p50": 1.0278422273781902,
+            "p99": 1.0211314109619194,
+            "p999": 0.9954747931839072
+          }
+        },
+        "fence_A_vs_S": {
+          "attempt": {
+            "p50": 0.9794344473007712,
+            "p99": 2.489021956087824,
+            "p999": 2.055784675493814
+          },
+          "planned": {
+            "p50": 0.9774266365688488,
+            "p99": 0.9655098081483078,
+            "p999": 1.0
+          }
+        },
+        "combined_A_vs_B": {
+          "attempt": {
+            "p50": 1.0106100795755968,
+            "p99": 2.4307992202729043,
+            "p999": 1.5662311890193485
+          },
+          "planned": {
+            "p50": 1.0046403712296983,
+            "p99": 0.9859123926920537,
+            "p999": 0.9954747931839072
+          }
+        }
+      },
+      "latency_detail": {
+        "claim_api_S_vs_B": {
+          "attempt": {
+            "p50": {
+              "candidate_ns": 389.0,
+              "baseline_ns": 377.0,
+              "ratio": 1.0318302387267904,
+              "candidate_range_ns": [
+                375,
+                403
+              ],
+              "baseline_range_ns": [
+                203,
+                387
+              ]
+            },
+            "p99": {
+              "candidate_ns": 501.0,
+              "baseline_ns": 513.0,
+              "ratio": 0.9766081871345029,
+              "candidate_range_ns": [
+                471,
+                551
+              ],
+              "baseline_range_ns": [
+                495,
+                2271
+              ]
+            },
+            "p999": {
+              "candidate_ns": 4607.0,
+              "baseline_ns": 6047.0,
+              "ratio": 0.7618653877956011,
+              "candidate_range_ns": [
+                4287,
+                9727
+              ],
+              "baseline_range_ns": [
+                4063,
+                1048575
+              ]
+            }
+          },
+          "planned": {
+            "p50": {
+              "candidate_ns": 443.0,
+              "baseline_ns": 431.0,
+              "ratio": 1.0278422273781902,
+              "candidate_range_ns": [
+                431,
+                483
+              ],
+              "baseline_range_ns": [
+                275,
+                443
+              ]
+            },
+            "p99": {
+              "candidate_ns": 4639.0,
+              "baseline_ns": 4543.0,
+              "ratio": 1.0211314109619194,
+              "candidate_range_ns": [
+                1263,
+                9855
+              ],
+              "baseline_range_ns": [
+                2655,
+                9215
+              ]
+            },
+            "p999": {
+              "candidate_ns": 14079.0,
+              "baseline_ns": 14143.0,
+              "ratio": 0.9954747931839072,
+              "candidate_range_ns": [
+                8959,
+                868351
+              ],
+              "baseline_range_ns": [
+                9727,
+                190463
+              ]
+            }
+          }
+        },
+        "fence_A_vs_S": {
+          "attempt": {
+            "p50": {
+              "candidate_ns": 381.0,
+              "baseline_ns": 389.0,
+              "ratio": 0.9794344473007712,
+              "candidate_range_ns": [
+                191,
+                415
+              ],
+              "baseline_range_ns": [
+                375,
+                403
+              ]
+            },
+            "p99": {
+              "candidate_ns": 1247.0,
+              "baseline_ns": 501.0,
+              "ratio": 2.489021956087824,
+              "candidate_range_ns": [
+                303,
+                4351
+              ],
+              "baseline_range_ns": [
+                471,
+                551
+              ]
+            },
+            "p999": {
+              "candidate_ns": 9471.0,
+              "baseline_ns": 4607.0,
+              "ratio": 2.055784675493814,
+              "candidate_range_ns": [
+                751,
+                14207
+              ],
+              "baseline_range_ns": [
+                4287,
+                9727
+              ]
+            }
+          },
+          "planned": {
+            "p50": {
+              "candidate_ns": 433.0,
+              "baseline_ns": 443.0,
+              "ratio": 0.9774266365688488,
+              "candidate_range_ns": [
+                415,
+                447
+              ],
+              "baseline_range_ns": [
+                431,
+                483
+              ]
+            },
+            "p99": {
+              "candidate_ns": 4479.0,
+              "baseline_ns": 4639.0,
+              "ratio": 0.9655098081483078,
+              "candidate_range_ns": [
+                2847,
+                7359
+              ],
+              "baseline_range_ns": [
+                1263,
+                9855
+              ]
+            },
+            "p999": {
+              "candidate_ns": 14079.0,
+              "baseline_ns": 14079.0,
+              "ratio": 1.0,
+              "candidate_range_ns": [
+                10751,
+                245759
+              ],
+              "baseline_range_ns": [
+                8959,
+                868351
+              ]
+            }
+          }
+        },
+        "combined_A_vs_B": {
+          "attempt": {
+            "p50": {
+              "candidate_ns": 381.0,
+              "baseline_ns": 377.0,
+              "ratio": 1.0106100795755968,
+              "candidate_range_ns": [
+                191,
+                415
+              ],
+              "baseline_range_ns": [
+                203,
+                387
+              ]
+            },
+            "p99": {
+              "candidate_ns": 1247.0,
+              "baseline_ns": 513.0,
+              "ratio": 2.4307992202729043,
+              "candidate_range_ns": [
+                303,
+                4351
+              ],
+              "baseline_range_ns": [
+                495,
+                2271
+              ]
+            },
+            "p999": {
+              "candidate_ns": 9471.0,
+              "baseline_ns": 6047.0,
+              "ratio": 1.5662311890193485,
+              "candidate_range_ns": [
+                751,
+                14207
+              ],
+              "baseline_range_ns": [
+                4063,
+                1048575
+              ]
+            }
+          },
+          "planned": {
+            "p50": {
+              "candidate_ns": 433.0,
+              "baseline_ns": 431.0,
+              "ratio": 1.0046403712296983,
+              "candidate_range_ns": [
+                415,
+                447
+              ],
+              "baseline_range_ns": [
+                275,
+                443
+              ]
+            },
+            "p99": {
+              "candidate_ns": 4479.0,
+              "baseline_ns": 4543.0,
+              "ratio": 0.9859123926920537,
+              "candidate_range_ns": [
+                2847,
+                7359
+              ],
+              "baseline_range_ns": [
+                2655,
+                9215
+              ]
+            },
+            "p999": {
+              "candidate_ns": 14079.0,
+              "baseline_ns": 14143.0,
+              "ratio": 0.9954747931839072,
+              "candidate_range_ns": [
+                10751,
+                245759
+              ],
+              "baseline_range_ns": [
+                9727,
+                190463
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

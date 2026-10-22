@@ -36,6 +36,7 @@
 #include "core/frame/codec.hpp"
 #include "core/frame/header.hpp"
 #include "core/frame/sequence.hpp"
+#include "core/platform/asymmetric_fence.hpp"
 #include "core/platform/monotonic_clock.hpp"
 #include "core/ring/magic_ring.hpp"
 #include "core/wait/spin_pause.hpp"
@@ -102,6 +103,10 @@ class SharedHybridMpscChannel {
     std::uint32_t* wait_word = nullptr;          ///< 等待策略唤醒事件计数字。
     std::uint32_t* notification_enabled = nullptr;  ///< sticky Adaptive 通知开关。
     std::uint64_t* registration_gate = nullptr;  ///< 注册边界快照期间阻止新 claim。
+    /// claim 屏障协议：创建端写入、运行期只读。kSeqCst 时每次 claim 付两次完整屏障；
+    /// kMembarrier 时 claim 只留编译器屏障，注册端在 gate 与 claim_active 之间执行 heavy fence。
+    platform::fence::ClaimFenceProtocol claim_fence_protocol =
+        platform::fence::ClaimFenceProtocol::kSeqCst;
     std::uint32_t* num_producers = nullptr;      ///< producer 总数(只读)。
     std::uint32_t* num_consumers = nullptr;      ///< consumer 总数(只读)。
     bool (*is_process_alive)(std::uint32_t,
@@ -270,6 +275,19 @@ class SharedHybridMpscChannel {
           return false;
         }
 
+        // 非对称屏障协议下，写 gate 与读 claim_active 之间必须有一次完整屏障；
+        // 本路径只在 sticky 通知激活之前执行，属于冷路径。屏障失败时释放 gate 并
+        // 退回有界轮询，绝不在缺失屏障的情况下读取 claim_active。
+        if (control_.claim_fence_protocol ==
+                platform::fence::ClaimFenceProtocol::kMembarrier &&
+            !platform::fence::heavy_fence()) {
+          auto owned_gate = gate_token;
+          static_cast<void>(gate.compare_exchange_strong(owned_gate, 0,
+                                                         std::memory_order_seq_cst,
+                                                         std::memory_order_relaxed));
+          return false;
+        }
+
         bool claims_idle = true;
         for (const auto& producer : producer_rings_) {
           if (producer.shared.claim_active == nullptr ||
@@ -398,15 +416,43 @@ class SharedHybridMpscChannel {
 
   class ClaimReservationGuard {
    public:
+    /**
+     * @brief 进入 claim 临界区：置位 claim_active 并复查 registration_gate。
+     * @param control 通道共享控制字。
+     * @param producer 本 producer 的共享进度字。
+     * @param asymmetric 是否使用非对称屏障（本进程已注册为前提，由 Tx 在构造时决定）。
+     * @note 两个分支满足同一条 Dekker 不变式：每次 claim 要么读到 gate 已置位并放弃，
+     *       要么注册端能看到 claim_active 已置位并等待。非对称分支把第二条完整屏障
+     *       换成编译器屏障，代价转移到注册端的 membarrier。
+     */
     ClaimReservationGuard(const SharedControl& control,
-                          const ProducerSharedState& producer) noexcept
-        : gate_(control.registration_gate), active_(producer.claim_active) {
+                          const ProducerSharedState& producer,
+                          bool asymmetric = false) noexcept
+        : gate_(control.registration_gate),
+          active_(producer.claim_active),
+          asymmetric_(asymmetric) {
       if (gate_ != nullptr &&
           std::atomic_ref<std::uint64_t>(*gate_).load(std::memory_order_seq_cst) != 0) {
         return;
       }
       if (active_ == nullptr) {
         acquired_ = true;
+        return;
+      }
+      if (asymmetric) {
+        // light side：置位只需 relaxed store；编译器屏障阻止把它挪到 gate 读之后。
+        // 跨核完整屏障由注册端的 heavy fence 提供（见 platform::fence::heavy_fence）。
+        std::atomic_ref<std::uint32_t>(*active_).store(1, std::memory_order_relaxed);
+        platform::fence::light_fence();
+        owns_active_ = true;
+        acquired_ = gate_ == nullptr ||
+                    std::atomic_ref<std::uint64_t>(*gate_).load(std::memory_order_relaxed) == 0;
+        if (!acquired_) {
+          // 注册端已经建立屏障并可能正在观察本临界区，必须用 release 清除，
+          // 让它看到 reservation 写入（它随后以 acquire 读 claim_active）。
+          std::atomic_ref<std::uint32_t>(*active_).store(0, std::memory_order_release);
+          owns_active_ = false;
+        }
         return;
       }
       std::atomic_ref<std::uint32_t>(*active_).store(1, std::memory_order_seq_cst);
@@ -420,9 +466,18 @@ class SharedHybridMpscChannel {
     }
 
     ~ClaimReservationGuard() noexcept {
-      if (owns_active_) {
-        std::atomic_ref<std::uint32_t>(*active_).store(0, std::memory_order_seq_cst);
+      if (!owns_active_) {
+        return;
       }
+      // 非对称路径用 release 清除：注册端以 acquire 读 claim_active，
+      // 因此 reservation 写入对该注册端可见，同时不产生硬件屏障。
+      // 注意必须写成提前返回而不是条件表达式：GCC 会把 release/seq_cst 的三目分支
+      // 合并成单条 xchg（更强的实现合法但会让热路径重新付掉一次屏障）。
+      if (asymmetric_) {
+        std::atomic_ref<std::uint32_t>(*active_).store(0, std::memory_order_release);
+        return;
+      }
+      std::atomic_ref<std::uint32_t>(*active_).store(0, std::memory_order_seq_cst);
     }
 
     ClaimReservationGuard(const ClaimReservationGuard&) = delete;
@@ -433,6 +488,7 @@ class SharedHybridMpscChannel {
    private:
     std::uint64_t* gate_ = nullptr;
     std::uint32_t* active_ = nullptr;
+    bool asymmetric_ = false;
     bool owns_active_ = false;
     bool acquired_ = false;
   };
@@ -778,6 +834,14 @@ class SharedHybridMpscChannel {
       if (!channel.has_producer(producer_id)) {
         return;
       }
+      // 通道允许非对称屏障时，把本进程注册为 membarrier 接收方（每进程一次）；
+      // 注册失败或平台不支持时，本进程的全部 Publisher 退回 seq_cst 路径，
+      // 与通道协议仍然兼容（注册端照常执行 heavy fence）。
+      if (channel.control_.claim_fence_protocol ==
+          platform::fence::ClaimFenceProtocol::kMembarrier) {
+        asymmetric_claim_fence_ = platform::fence::register_publisher_process() ==
+                                  platform::fence::RegistrationStatus::kRegistered;
+      }
       auto& shared = channel.producer_rings_[producer_id].shared;
       auto* visible_pos = shared.visible_producer_pos;
       auto* reservation_pos = shared.reservation_position;
@@ -831,7 +895,8 @@ class SharedHybridMpscChannel {
           (Ordering == Order::Fifo && producer.shared.local_sequence == nullptr)) {
         return std::unexpected(flow::FlowError::MessageTooLarge);
       }
-      ClaimReservationGuard reservation_guard(channel_->control_, producer.shared);
+      ClaimReservationGuard reservation_guard(channel_->control_, producer.shared,
+                                              asymmetric_claim_fence_);
       if (!reservation_guard.acquired()) {
         return std::unexpected(flow::FlowError::BackPressured);
       }
@@ -929,7 +994,8 @@ class SharedHybridMpscChannel {
           (Ordering == Order::Fifo && producer.shared.local_sequence == nullptr)) {
         return std::unexpected(flow::FlowError::MessageTooLarge);
       }
-      ClaimReservationGuard reservation_guard(channel_->control_, producer.shared);
+      ClaimReservationGuard reservation_guard(channel_->control_, producer.shared,
+                                              asymmetric_claim_fence_);
       if (!reservation_guard.acquired()) {
         return std::unexpected(flow::FlowError::BackPressured);
       }
@@ -1122,6 +1188,8 @@ class SharedHybridMpscChannel {
     /// 缓存的最慢消费者位置；claim 快路径用它判空间，避免每次跨核 load。
     std::uint64_t cached_consumer_pos_ = 0;
     std::uint64_t cached_consumer_message_sequence_ = 0;
+    /// 本进程已注册为 membarrier 接收方且通道协议允许时置 true：claim 只付编译器屏障。
+    bool asymmetric_claim_fence_ = false;
     /// 乱序 commit 的已提交区间。按序 commit 时为空。
     std::vector<hybrid_detail::CommitSpan> pending_commits_;
 

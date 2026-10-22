@@ -1,21 +1,38 @@
 {
   "schema_version": 2,
-  "updated_at": "2026-10-19",
+  "updated_at": "2026-10-22",
   "timezone": "Asia/Singapore",
   "baseline_version": "v3.0.0",
   "baseline_commit": "c5e6aa7df4397df6f47a4e00cf5f72ed5ae778bd",
   "active_sequence": {
     "instruction": "Complete sessions sequentially from Session 3; accept completed Session 1/2 without rerunning",
-    "current_session": 6,
-    "current_session_status": "complete",
-    "next_session": null,
+    "current_session": "Claim API v4 formal verification",
+    "current_session_status": "complete: two full formal A/B matrices identity-verified; claim API gain 24-26% with consistent direction, but the 64 B pre-registered 1.25 throughput gate did not reproduce on the second run; latency tails and HFT non-inferiority not accepted",
+    "next_session": "If releasing v4.0.0, first decide the release gate explicitly; do not pool the two runs, switch to group medians, or select the favorable run to claim GO. Otherwise define a new pre-registered replication or acceptance experiment.",
     "sessions": {
       "1": "completed by previous session; baseline retained",
       "2": "completed by previous session; executable and IPC smoke verified",
       "3": "complete: 36-run same-binary diagnostic matrix and strict parsing",
       "4": "complete: source-derived frame layout and retained baseline stdout evidence verified",
       "5": "complete: current baseline, diagnostic and frame-layout evidence integrated into Phase 1 report",
-      "6": "complete: current artifact manifest, evidence integrity checks and one scoped local commit"
+      "6": "complete: current artifact manifest, evidence integrity checks and one scoped local commit",
+      "1.5": "complete: 66-run low-perturbation replay; counters change gate passed at 64 B, CV<5% gate not passed",
+      "P1.1": "complete: 40 measured topology runs; 1P3S skipped on 4-vCPU host",
+      "P1.2": "complete: 45 measured payload runs on 1P2S",
+      "P1.3": "complete: P1 sweep report, topology/payload analysis and state updated",
+      "A.1": "complete: 20-round 192 B replication; high mode reproducible but two >50% low outliers, CV 19.26%",
+      "A.2": "complete: direct/192-B/192+128-B preload groups; no 64 B throughput gain from preload",
+      "S.1": "complete: 45-round monitored replay; no CPU/IRQ metric exceeds the 20% significance gate",
+      "S.2.1": "blocked: instrumented 192 B run had 0 high-mode rounds; uninstrumented control retained 17/20 high-mode rounds, so no valid high/low counter comparison",
+      "P1.1-stability": "complete: 400/400 rounds; 288 high-mode (72.0%); no significant hot-start benefit; low-mode runs are short",
+      "P2-A": "complete: 100/100 rounds; 69 high-mode (69.0%); all median 16.4806 Mmsg/s; high-only median 16.6859 Mmsg/s; failed >85% gate",
+      "P2-C-candidate-2": "complete: 64 B; 1 MiB 0/100 and 4 MiB 0/100 high-mode; +0.0 pp; p=1.0000; no significant improvement",
+      "P2-C-candidate-1": "complete: 64 B; -falign-functions=64 0/100 high-mode; max 8.73222 Mmsg/s; median -5.97%; rejected; P2-C closed",
+      "E1": "complete: zero-layout frozen-client patch verified; 64 B B/C 120 rounds per arm GO; 192 B and latency descriptive; no src/ changes",
+      "P3-1": "complete: asymmetric fence (membarrier) implemented; light claim path has zero locked instructions; protocol v15; 22/22 Release CTest, ASan/UBSan and TSan green; 126 aeron + 36 hft python tests green; implementation report at doc/plans/phase3-p31-implementation-report.md",
+      "P3-1-acceptance": "complete, overall FAIL (G4): throughput 720/720 runs; G1 A/S=1.392658 p=0.0021645 direction 6/6; G2 A/B=1.395800; G3 A/S=1.048841 high-mode +18.33 pp; short planned p50 -24/-12 ns; HFT 96/96 workers exited zero but 4/48 S runs incomplete and only 7/24 p99+p99.9 cells passed non-inferiority; G6 A-S=+3.166 us",
+      "P3-followup": "complete: HFT history analyzer and P3-2 multithread probe completed; 96 HFT identities verified, 92 complete and four incomplete S runs retained; P3-2 144/144 formal rounds valid; ST/MT median throughput 8.849/6.223 Mmsg/s at 64 B and 16.298/6.246 Mmsg/s at 256 B, 6/6 directions each; multithread-process cost confirmed, shared_ptr attribution not isolated",
+      "Claim API v4": "complete and released as v4.0.0 on 2026-10-22 with explicit user authorization; two full formal three-arm A/B matrices run; 64 B S/B 1.258804 GO then 1.238393 INCONCLUSIVE, p=0.002165 and 6/6 directions both times; throughput gain stable but GO not reproduced; latency tails remain unaccepted"
     },
     "historical_results_note": "The previous_execution fields preserve the archived run; active_sequence is authoritative for the current sequential handoff",
     "report": "doc/plans/phase1-diagnosis-report.md",
@@ -28,14 +45,18 @@
     "warmup_runs": 6,
     "rounds_per_payload_per_mode": 5,
     "messages_per_run": 10000000,
-    "modes": ["off", "counters", "timed"],
+    "modes": [
+      "off",
+      "counters",
+      "timed"
+    ],
     "same_binary_controls": true,
     "all_runs_successful_without_timeout_or_oom": true,
     "payload_summary": [
       {
         "payload": 64,
         "counter_mode": "counters",
-        "backpressure_rate": 0.000003299989110035937,
+        "backpressure_rate": 3.299989110035937e-06,
         "consumer_empty_rate": 0.2042013007160175,
         "claim_avg_ns_timed": 186.3749872,
         "avg_batch": 3.2891225920127933
@@ -43,16 +64,127 @@
       {
         "payload": 256,
         "counter_mode": "counters",
-        "backpressure_rate": 0.00001289983359214666,
+        "backpressure_rate": 1.289983359214666e-05,
         "consumer_empty_rate": 0.25050546552896574,
         "claim_avg_ns_timed": 185.2867526,
         "avg_batch": 2.7235414754513587
       }
     ],
-    "thresholds_exceeded": {"H1": false, "H2_consumer_empty": false, "H3": false},
+    "phase1_5_diagnostic": "build/benchmarks/diagnostic-stable-20261019-205458",
+    "phase1_5_diagnostic_summary_sha256": "0bddda8fa78fb5e57c0420caf7b670c9bca4051a9cf9192c54b32f9268f3dfb1",
+    "phase1_5_measured_runs": 60,
+    "phase1_5_warmup_runs": 6,
+    "phase1_5_rounds_per_payload_per_mode": 10,
+    "phase1_5_timing_stride": 1000,
+    "phase1_5_measurement_controls": {
+      "64": {
+        "off_cv": 0.10180195896734592,
+        "counters_cv": 0.07047819084649137,
+        "counters_median_change": 0.02001607719140569,
+        "timed_median_change": -0.05013507074784773,
+        "counters_change_below_5_percent": true,
+        "counters_cv_below_5_percent": false,
+        "counters_below_8_percent": true
+      },
+      "256": {
+        "off_cv": 0.1420995809333548,
+        "counters_cv": 0.16644657186336392,
+        "counters_median_change": -0.04283625075746916,
+        "timed_median_change": -0.09759791502818721,
+        "counters_change_below_5_percent": true,
+        "counters_cv_below_5_percent": false,
+        "counters_below_8_percent": false
+      }
+    },
+    "thresholds_exceeded": {
+      "phase1_initial": {
+        "H1": false,
+        "H2_consumer_empty": false,
+        "H3": false
+      },
+      "phase1_5": {
+        "H1": false,
+        "H2_consumer_empty": false,
+        "H3": true
+      }
+    },
     "instrumentation_overhead_below_5_percent": false,
     "root_cause_confirmed": false,
-    "phase2_decision": "Session 5 recommends Phase 2B as a conditional isolated experiment after low-perturbation and topology checks; no root cause confirmed and no product optimization approved; Phase 2A needs backpressure evidence and Phase 2C needs alignment experiments",
+    "p1_topology": "build/benchmarks/topology-sweep-20261019-212200",
+    "p1_payload": "build/benchmarks/payload-sweep-20261019-212638",
+    "p1_conclusion": "unclear: 64 B topology degradation crossed 30% but 1P1S stayed below 10 Mmsg/s with high CV; payload breakpoint at 192 B; H2 rejected; stability review required",
+    "p1_topology_metrics": {
+      "measured_runs": 40,
+      "warmup_runs": 4,
+      "skipped_topologies": [
+        "1P3S"
+      ],
+      "1P1S_64_median_mmsg_s": 9.49193,
+      "1P1S_64_cv": 0.3916164369683794,
+      "1P2S_64_median_mmsg_s": 6.56017,
+      "1P2S_64_cv": 0.26525713803572565,
+      "one_to_two_64_change_percent": -30.886869161487713
+    },
+    "p1_payload_metrics": {
+      "measured_runs": 45,
+      "warmup_runs": 9,
+      "breakpoint": "128->192 B (+167.46%)",
+      "difference_56_vs_64_percent": 6.63,
+      "h2_supported": false
+    },
+    "a1_192b": {
+      "data": "build/benchmarks/verify-192b-20261019-220501",
+      "report": "doc/plans/phase1-a1-192b-verification-report.md",
+      "measured_runs": 20,
+      "warmup_runs": 1,
+      "median_mmsg_s": 16.449,
+      "cv": 0.1926,
+      "min_mmsg_s": 8.029,
+      "max_mmsg_s": 17.381,
+      "outlier_rounds": 2,
+      "stable_replication_passed": false,
+      "conclusion": "high-throughput region reproducible, but runtime mode switching remains"
+    },
+    "a2_warmup_effect": {
+      "data": "build/benchmarks/warmup-effect-20261019-221804",
+      "report": "doc/plans/phase1-a2-warmup-effect-report.md",
+      "measured_rounds_per_group": 10,
+      "direct_64_median_mmsg_s": 6.655,
+      "preload_192_64_median_mmsg_s": 6.923,
+      "preload_192_128_64_median_mmsg_s": 6.441,
+      "preload_effect_supported": false,
+      "conclusion": "preload improves run-to-run stability but does not transfer 192 B high throughput to 64 B"
+    },
+    "s2_1_instrumented_192b": {
+      "data": "build/benchmarks/instrumented-192b-20261019-234346",
+      "analysis": "build/benchmarks/instrumented-192b-20261019-234346/instrumented-192b-comparison.json",
+      "report": "doc/plans/phase1-s2-1-instrumented-192b-report.md",
+      "control_data": "build/benchmarks/instrumented-192b-control-replay-20261020-001026",
+      "control_analysis": "build/benchmarks/instrumented-192b-control-replay-20261020-001026/verify-192b-analysis.json",
+      "instrumented_measured_rounds": 20,
+      "instrumented_high_mode_rounds": 0,
+      "instrumented_low_mode_rounds": 20,
+      "instrumented_median_mmsg_s": 5.253,
+      "instrumented_backpressure_rate": 2.9552905751537013e-05,
+      "instrumented_consumer_empty_rate": 0.1764709027435366,
+      "instrumented_avg_batch": 3.123064012021767,
+      "control_measured_rounds": 20,
+      "control_high_mode_rounds": 17,
+      "control_low_mode_rounds": 2,
+      "control_intermediate_rounds": 1,
+      "control_median_mmsg_s": 16.749,
+      "backpressure_difference_over_100x": null,
+      "poll_empty_difference_over_5x": null,
+      "largest_difference_metric": null,
+      "comparison_valid": false,
+      "conclusion": "instrumentation/build observer effect suppresses high mode; do not use single-mode counters as backpressure or poll root-cause evidence"
+    },
+    "phase2_decision": "Accept the benchmark-layout limitation and continue Phase 2 on the frozen v3.0.0 client SHA-256 3f8fc6957ce56483d7051dd6625f44fd8f755d57a66d04e1e5efa48e65b9c7da. Do not treat the extended benchmark's 0/20 claim result as a product regression. New diagnostics must use a separate tool or client and may not be spliced into the v3 stability series.",
+    "phase2_report": "doc/plans/phase2-execution-baseline.md",
+    "phase2_frozen_client": "build/benchmarks/baseline-extended-20261019-183822/salias_ipc_compare.uninstrumented",
+    "phase2_frozen_client_sha256": "3f8fc6957ce56483d7051dd6625f44fd8f755d57a66d04e1e5efa48e65b9c7da",
+    "phase2_v3_verification": "build/benchmarks/v3-reference-verify-20261020-173837",
+    "phase2_extended_client_limitation": "build/benchmarks/fixed-claim-verify-20261020-173147",
     "phase1_report": {
       "path": "doc/plans/phase1-diagnosis-report.md",
       "baseline": "build/benchmarks/baseline-extended-20261019-183822/summary.json",
@@ -85,7 +217,10 @@
       "baseline_all_throughput_cv_below_5_percent": false,
       "baseline_64b_gap_in_6_to_7_range": false,
       "baseline_all_throughput_rounds_longer_than_8_seconds": false,
-      "timed_paired_throughput_change_fraction": {"64": -0.19527850386093148, "256": -0.24951826978689995},
+      "timed_paired_throughput_change_fraction": {
+        "64": -0.19527850386093148,
+        "256": -0.24951826978689995
+      },
       "hypothesis_naming": "Original-plan H2 is frame nonalignment; Session 3 prompt H2 is consumer lag; neither is confirmed",
       "recommended_candidate": "Phase 2B: conditional isolated single-publisher fast-path experiment, not product implementation",
       "root_cause_confirmed": false,
@@ -102,8 +237,14 @@
       "source_matches_baseline_commit": true,
       "header_bytes": 8,
       "alignment_bytes": 8,
-      "frame_stride_bytes": {"64": 72, "256": 264},
-      "ring_wraps_nominal": {"64": 6866.455078125, "256": 25177.001953125},
+      "frame_stride_bytes": {
+        "64": 72,
+        "256": 264
+      },
+      "ring_wraps_nominal": {
+        "64": 6866.455078125,
+        "256": 25177.001953125
+      },
       "wrap_ratio_64_to_256": 0.2727272727272727,
       "wraps_64b_more_than_twice_256b": false,
       "header_can_straddle_cacheline": false,
@@ -111,7 +252,13 @@
       "H2_frame_alignment_root_cause_confirmed": false,
       "phase2c_supported_by_layout_alone": false
     },
-    "validation": {"python_tests_including_ipc_smoke": 52, "new_summary_tests": 7, "new_frame_layout_tests": 12, "frame_ring_platform_ctest_targets_passed": 3, "src_unchanged_by_this_sequence": true},
+    "validation": {
+      "python_tests_including_ipc_smoke": 52,
+      "new_summary_tests": 7,
+      "new_frame_layout_tests": 12,
+      "frame_ring_platform_ctest_targets_passed": 3,
+      "src_unchanged_by_this_sequence": true
+    },
     "artifact_manifest": "doc/plans/phase1-artifacts.md",
     "delivery_commit_lookup": "git log -1 --format=%H -- doc/plans/phase1-artifacts.md",
     "session6_validation": {
@@ -123,7 +270,169 @@
       "frozen_summaries_reproduce_exactly": true,
       "unrelated_changes_excluded": true
     },
-    "committed_in_this_sequence": true
+    "committed_in_this_sequence": true,
+    "phase2a_report": "doc/plans/phase2-a-192b-validation-report.md",
+    "phase2a_run": "build/benchmarks/p2a-192b-validation-20261020-191535",
+    "phase2a_validation": {
+      "status": "failed",
+      "measured_rounds": 100,
+      "expected_rounds": 100,
+      "high_mode_rounds": 69,
+      "high_mode_rate_percent": 69.0,
+      "all_median_mmsg_s": 16.4806,
+      "high_only_median_mmsg_s": 16.6859,
+      "all_mean_mmsg_s": 14.3953286,
+      "min_mmsg_s": 5.07568,
+      "max_mmsg_s": 17.3518,
+      "below_10_rounds": 16,
+      "intermediate_10_to_15_rounds": 15,
+      "baseline_high_mode_rounds": 288,
+      "baseline_rounds": 400,
+      "baseline_high_mode_rate_percent": 72.0,
+      "delta_pp": -3.0,
+      "two_sided_p_value": 0.552651,
+      "high_mode_gate": ">85%",
+      "median_gate": ">16 Mmsg/s",
+      "median_gate_passed": true,
+      "high_mode_gate_passed": false,
+      "client_sha256": "3f8fc6957ce56483d7051dd6625f44fd8f755d57a66d04e1e5efa48e65b9c7da"
+    },
+    "phase2a_aborted_run": {
+      "path": "build/benchmarks/p2a-192b-validation-20261020-191432",
+      "completed_rounds": 3,
+      "reason": "baseline admission aborted after three low rounds",
+      "included_in_acceptance": false,
+      "throughputs_mmsg_s": [
+        14.2939,
+        14.9313,
+        7.35988
+      ]
+    },
+    "phase2c_candidate2_report": "doc/plans/phase2-c-ring-4mib-report.md",
+    "phase2c_candidate2_run_1mib": "build/benchmarks/p2c-baseline-64b-1mib-20261020-205649",
+    "phase2c_candidate2_run_4mib": "build/benchmarks/p2c-ring-4mib-64b-20261020-211023",
+    "phase2c_candidate2_validation": {
+      "status": "no_significant_difference",
+      "payload_bytes": 64,
+      "messages_per_round": 50000000,
+      "rounds_per_arm": 100,
+      "groups_per_arm": 5,
+      "high_mode_threshold_mmsg_s": 15.0,
+      "baseline_capacity_bytes": 1048576,
+      "candidate_capacity_bytes": 4194304,
+      "baseline_high_mode_rounds": 0,
+      "candidate_high_mode_rounds": 0,
+      "baseline_high_mode_rate_percent": 0.0,
+      "candidate_high_mode_rate_percent": 0.0,
+      "delta_pp": 0.0,
+      "two_sided_p_value": 1.0,
+      "baseline_all_median_mmsg_s": 6.56935,
+      "candidate_all_median_mmsg_s": 6.51221,
+      "baseline_mean_mmsg_s": 6.7621019,
+      "candidate_mean_mmsg_s": 7.0005485,
+      "baseline_cv": 0.15296491101298584,
+      "candidate_cv": 0.20354184167336084,
+      "ge10_baseline_rounds": 4,
+      "ge10_candidate_rounds": 9,
+      "ge10_delta_pp": 5.0,
+      "ge10_two_sided_p_value": 0.15153139765800214,
+      "correction_cycles": "statistical median is used; jq sort[length/2] selects the 51st of 100 values",
+      "client_sha256": "3f8fc6957ce56483d7051dd6625f44fd8f755d57a66d04e1e5efa48e65b9c7da",
+      "checksums_verified_files_per_arm": 312,
+      "completed_rounds_per_arm": 100,
+      "expected_rounds_per_arm": 100,
+      "all_runs_successful_without_timeout_or_oom": true,
+      "recommended_capacity_bytes": 1048576
+    },
+    "phase2c_candidate1_report": "doc/plans/phase2-c-candidate1-align64-report.md",
+    "phase2c_candidate1_run": "build/benchmarks/p2c1-align64-64b-1mib-20261020-234900",
+    "phase2c_candidate1_validation": {
+      "status": "failed_screening",
+      "payload_bytes": 64,
+      "capacity_bytes": 1048576,
+      "rounds_per_arm": 100,
+      "groups_per_arm": 5,
+      "high_mode_threshold_mmsg_s": 15.0,
+      "baseline_high_mode_rounds": 0,
+      "candidate_high_mode_rounds": 0,
+      "delta_pp": 0.0,
+      "two_sided_p_value": 1.0,
+      "baseline_all_median_mmsg_s": 6.56935,
+      "candidate_all_median_mmsg_s": 6.1772,
+      "median_change_percent": -5.969388143423626,
+      "baseline_max_mmsg_s": 11.1809,
+      "candidate_max_mmsg_s": 8.73222,
+      "baseline_cv": 0.15296491101298584,
+      "candidate_cv": 0.0889351857728317,
+      "mann_whitney_two_sided_p_value": 5.63031927170444e-06,
+      "compile_flag_added": "-falign-functions=64",
+      "benchmark_source_sha256": "6a23a77598c6e980f7b6625eb2471cc42a26917469dc77fc51ab9d5b767bab1e",
+      "reference_client_sha256": "3f8fc6957ce56483d7051dd6625f44fd8f755d57a66d04e1e5efa48e65b9c7da",
+      "candidate_client_sha256": "024591a60a3f44c401941934724e5907ed630be9ea9ca7df8dc5c9a3b6d17d63",
+      "checksums_verified_files": 312,
+      "completed_rounds": 100,
+      "expected_rounds": 100,
+      "all_runs_successful_without_timeout_or_oom": true,
+      "confirmation_run_skipped": "no high-mode rounds; 220-round confirmation cannot satisfy +10 pp gate",
+      "next_action": "close P2-C; move to P2-B latency or a proven stable topology/workload"
+    },
+    "phase3_plan": "doc/plans/phase3-final-optimizations.md",
+    "phase3_e1_report": "doc/plans/phase3-e1-fence-report.md",
+    "phase3_e1_patch_dir": "build/benchmarks/p3-e1-20261021-091727",
+    "phase3_e1_formal_dir": "build/benchmarks/p3-e1-formal-20261021-092102",
+    "phase3_e1_decision": "GO",
+    "phase3_e1_baseline_sha256": "3f8fc6957ce56483d7051dd6625f44fd8f755d57a66d04e1e5efa48e65b9c7da",
+    "phase3_e1_candidate_sha256": "5efae0b41ed42f9a38d69997ed8a1fafc69d78ae69eea948c79abbdec0f433b6",
+    "phase3_e1_64b_median_ratio": 1.4047767726055629,
+    "phase3_e1_64b_permutation_p": 0.0021645021645021645,
+    "phase3_e1_64b_directions": "6/6",
+    "phase3_e1_192b_median_ratio": 1.0674948837294926,
+    "phase3_e1_latency_attempt_p50_ns": {
+      "64": {
+        "B": 269,
+        "C": 259
+      },
+      "256": {
+        "B": 275,
+        "C": 255
+      }
+    },
+    "phase3_e1_diagnostic_only": true,
+    "phase3_p31_acceptance_report": "doc/plans/phase3-p31-acceptance-report.md",
+    "phase3_p31_acceptance_dir": "build/benchmarks/p3-p31-acceptance-20261021-155122",
+    "phase3_p31_hft_formal_dir": "build/benchmarks/p3-p31-acceptance-20261021-155122/hft-tail-formal",
+    "phase3_p31_acceptance_status": "failed_g4",
+    "phase3_p31_hft_formal_runs": 96,
+    "phase3_p31_hft_incomplete_s_runs": 4,
+    "phase3_p31_hft_passed_cells": 7,
+    "phase3_p31_hft_total_cells": 24,
+    "phase3_p31_candidate_50us_passed_cells": 2,
+    "phase3_followup_plan": "doc/plans/phase3-followup-diagnostics.md",
+    "phase3_p31_tail_diagnosis_report": "doc/plans/phase3-p31-tail-diagnosis-report.md",
+    "phase3_p31_tail_diagnosis_status": "complete: 96 formal runs identity-verified; 92 complete; four incomplete S runs retained; no causal scheduling/cache/backpressure claim",
+    "phase3_p32_report": "doc/plans/phase3-p32-multithread-report.md",
+    "phase3_p32_run": "build/benchmarks/p3-p32-multithread-20261022-104421",
+    "phase3_p32_status": "complete: 144/144 formal rounds, all ST/MT thread states and cgroup checks valid; throughput direction 6/6 per payload; shared_ptr attribution not isolated",
+    "phase3_p32_probe_sha256": "f6367f645710b5cb761c08b79e071f282c67d7873309fd63ca399db3ad7bed38",
+    "phase3_p32_throughput_median_mmsg_s": {
+      "64": {
+        "ST": 8.84906,
+        "MT": 6.223405,
+        "ST_over_MT": 1.4219000691743506
+      },
+      "256": {
+        "ST": 16.29805,
+        "MT": 6.246215,
+        "ST_over_MT": 2.6092681728054514
+      }
+    },
+    "next_steps": [
+      "Treat P3-1 overall acceptance as failed at G4; do not describe tails as non-inferior",
+      "Preserve the four incomplete S runs and the P3-2 ST/MT matrix; do not rerun either to seek a different result",
+      "Do not attribute the entire P3-2 ST/MT difference to shared_ptr; isolate claim reference counting and live-helper effects separately before any lifecycle change",
+      "Do not rerun, repool, select favorable rounds or change the 5% gate for this acceptance",
+      "Do not commit, tag or push; do not use the nofence diagnostic client in product performance claims"
+    ]
   },
   "completed_steps": [
     "Session 1: completed previously; extended baseline retained",
@@ -131,7 +440,15 @@
     "Session 3: 36-run same-binary diagnostic matrix, strict parsing and result handoff",
     "Session 4: source-derived frame layout, double mapping and five-round baseline evidence validated",
     "Session 5: current Phase 1 report and conditional Phase 2B decision completed with source-verified evidence",
-    "Session 6: current artifact manifest, SHA-256 evidence archive, validation and scoped local commit completed"
+    "Session 6: current artifact manifest, SHA-256 evidence archive, validation and scoped local commit completed",
+    "Phase 1.5: lower-frequency timed sampling, 10-round matrix, quartile/CV reporting and 66-run replay completed",
+    "P1.1-P1.3: uninstrumented topology and payload sweeps, source-derived frame strides, report and state handoff completed",
+    "P2-C candidate 2: 64 B 1 MiB vs 4 MiB, 200 complete rounds and checksum verification",
+    "P2-C candidate 1: same-source align64 rebuild, 100 complete rounds and checksum verification",
+    "P3 E1: zero-layout frozen-client fence diagnostic passed the 64 B GO gate; diagnostic client excluded from product claims",
+    "P3-1 implementation: asymmetric membarrier fence, v15 protocol and correctness regression completed; not committed",
+    "P3-1 acceptance: 720 throughput rounds, short latency, 96 formal HFT runs and registration probe completed; overall FAIL at G4, with all failures retained",
+    "P3 follow-up: historical HFT inventory and P3-2 ST/MT matrix completed; four incomplete S runs preserved; no product or claim-lifetime change"
   ],
   "previous_execution_completed_steps": [
     "Session 1: 72-run extended baseline",
@@ -144,6 +461,53 @@
   "data_paths": {
     "baseline": "build/benchmarks/baseline-extended-20261019-183822",
     "diagnostic": "build/benchmarks/diagnostic-20261019-195710",
+    "phase1_5_diagnostic": "build/benchmarks/diagnostic-stable-20261019-205458",
+    "p1_topology": "build/benchmarks/topology-sweep-20261019-212200",
+    "p1_payload": "build/benchmarks/payload-sweep-20261019-212638",
+    "p1_report": "doc/plans/phase1-p1-sweep-report.md",
+    "a1_report": "doc/plans/phase1-a1-192b-verification-report.md",
+    "a2_report": "doc/plans/phase1-a2-warmup-effect-report.md",
+    "p1_1_stability_run": "build/benchmarks/high-frequency-p0-20261020-140227",
+    "p1_1_stability_report": "doc/plans/phase1-p1-1-high-frequency-stability-report.md",
+    "p1_1_stability_status": "complete",
+    "p1_1_stability_completed_rounds": 400,
+    "p1_1_stability_expected_rounds": 400,
+    "p1_1_stability_high_mode_rounds": 288,
+    "p1_1_stability_low_mode_rounds": 112,
+    "p1_1_stability_admission_rule": "at least one high-mode round before allowing vulnerable mode switching",
+    "p1_1_stability_interval_result": "no significant hot-start advantage; 60s 65% vs no_sleep 75%, p=0.123",
+    "p1_1_stability_original_client": "build/benchmarks/baseline-extended-20261019-183822/salias_ipc_compare.uninstrumented",
+    "p1_1_stability_original_client_sha256": "3f8fc6957ce56483d7051dd6625f44fd8f755d57a66d04e1e5efa48e65b9c7da",
+    "p1_1_stability_avg_high_run": 3.6455696202531644,
+    "p1_1_stability_avg_low_run": 1.4177215189873418,
+    "p1_1_stability_transitions": 157,
+    "p1_1_stability_high_median_mmsg_s": 16.8356,
+    "s1_run": "build/benchmarks/warmup-monitored-20261019-225816",
+    "s1_report": "doc/plans/phase1-s1-system-state-report.md",
+    "s1_analysis": "build/benchmarks/warmup-monitored-20261019-225816/system-correlation.json",
+    "s1_system_metrics_significant": false,
+    "s1_high_mode_rounds": 8,
+    "s1_low_mode_rounds": 37,
+    "s1_high_mode_cpu_percent": {
+      "1": 82.55,
+      "2": 82.51,
+      "3": 82.36
+    },
+    "s1_low_mode_cpu_percent": {
+      "1": 96.89,
+      "2": 96.86,
+      "3": 96.8
+    },
+    "s1_high_mode_irq_per_second": {
+      "1": 985.84,
+      "2": 973.39,
+      "3": 974.47
+    },
+    "s1_low_mode_irq_per_second": {
+      "1": 1030.46,
+      "2": 1030.06,
+      "3": 1022.67
+    },
     "previous_diagnostic": "build/benchmarks/diagnostic-20261019-185329",
     "session3_report": "doc/plans/session3-diagnostic-results.md",
     "frame_layout": "build/benchmarks/diagnostic-20261019-195710/frame-layout.json",
@@ -153,7 +517,14 @@
       "build/benchmarks/diagnostic-20261019-184933"
     ],
     "report": "doc/plans/phase1-diagnosis-report.md",
-    "artifacts": "doc/plans/phase1-artifacts.md"
+    "artifacts": "doc/plans/phase1-artifacts.md",
+    "phase2a_report": "doc/plans/phase2-a-192b-validation-report.md",
+    "phase2a_run": "build/benchmarks/p2a-192b-validation-20261020-191535",
+    "phase2c_candidate2_report": "doc/plans/phase2-c-ring-4mib-report.md",
+    "phase2c_candidate2_run_1mib": "build/benchmarks/p2c-baseline-64b-1mib-20261020-205649",
+    "phase2c_candidate2_run_4mib": "build/benchmarks/p2c-ring-4mib-64b-20261020-211023",
+    "phase2c_candidate1_report": "doc/plans/phase2-c-candidate1-align64-report.md",
+    "phase2c_candidate1_run": "build/benchmarks/p2c1-align64-64b-1mib-20261020-234900"
   },
   "previous_execution_acceptance": {
     "all_runs_successful_without_timeout_or_oom": true,
@@ -185,12 +556,43 @@
     "src_unchanged": true
   },
   "next_steps": [
-    "Before any Phase 2B causal claim: reduce timing observer effects and compare uninstrumented topology/payload sweeps"
+    "v4.0.0 is released as an API/release decision; do not describe it as having reproduced the pre-registered 64 B throughput GO or passed latency-tail acceptance",
+    "Keep both 2026-10-22 formal runs as evidence; do not pool them, switch the decision metric to group medians, or select the favorable run",
+    "If tail latency becomes a release requirement, define a new pre-registered replication or acceptance experiment rather than relabeling the existing short matrix",
+    "P3-1 acceptance remains overall FAIL at G4; do not describe tail latency as non-inferior",
+    "Preserve the 96 formal HFT runs and the 144-round P3-2 matrix, including all four incomplete S runs; do not rerun to seek a different result"
   ],
   "git_policy": {
-    "local_phase1_only": true,
+    "local_phase1_only": false,
     "preserve_preexisting_worktree_changes": true,
-    "create_tag": false,
-    "push": false
+    "create_tag": true,
+    "push": true,
+    "reason": "user explicitly authorized release: both formal benchmarks are valid, the stable gain did not reach the theoretical value, and v4.0.0 should be committed and tagged"
+  },
+  "claim_api_v4": {
+    "plan": "doc/plans/phase3-claim-api-v4-migration-plan.md",
+    "migration_guide": "doc/migration/claim-api-v4.md",
+    "report": "doc/performance-report.md#12-claim-api-v4-状态2026-10-22",
+    "evidence": "doc/benchmarks/2026-10-22/README.md",
+    "run1": "build/benchmarks/claim-api-v4-20261022-181707",
+    "run2": "build/benchmarks/claim-api-v4-release-20261022-204139",
+    "decision": "GO_NOT_REPRODUCED",
+    "run1_64b_claim_ratio": 1.258803985349906,
+    "run1_64b_claim_p": 0.0021645021645021645,
+    "run1_64b_decision": "GO",
+    "run2_64b_claim_ratio": 1.23839277519408,
+    "run2_64b_claim_p": 0.0021645021645021645,
+    "run2_64b_decision": "INCONCLUSIVE",
+    "run2_64b_group_median_ratio_not_for_decision": 1.258986,
+    "run1_256b_claim_ratio": 1.2817175676759556,
+    "run2_256b_claim_ratio": 1.290653384419949,
+    "directions": "6/6 both runs and payloads",
+    "latency_tail_acceptance": false,
+    "hft_non_inferiority_rerun": false,
+    "release_ready": true,
+    "release_authorization": "user explicitly approved v4.0.0 on 2026-10-22: both stress runs are valid and the stable gain is accepted despite not reaching the theoretical value",
+    "release_version": "v4.0.0",
+    "release_scope": "API correctness and stable 24%-26% claim-api gain; GO_NOT_REPRODUCED and latency-tail non-inferiority remain unclaimed",
+    "tests": "Release CTest 22/22; ASan/UBSan CTest 21/21; aeron_compare 196 passed with 6 skipped; hft_acceptance 62 passed"
   }
 }
