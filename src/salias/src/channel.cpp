@@ -555,10 +555,22 @@ class ControlMapping {
   /// @brief 以连接者身份打开并映射已存在的控制段。
   /// @param name shm 名称。
   /// @retval ControlMapping 成功。
-  /// @retval Error::NotFound 段不存在。
+  /// @retval Error::NotFound 段不存在或尚未完成定长初始化。
+  /// @retval Error::PlatformFail 段状态无法查询。
+  /// @note 创建端会先 shm_open 再 ftruncate；连接端必须等文件达到 kControlSize 后再 mmap，
+  /// 否则零长映射上的原子读取会触发 SIGBUS。
   static Result<ControlMapping> open(const std::string& name) noexcept {
     const int fd = ::shm_open(name.c_str(), O_RDWR | O_CLOEXEC, 0600);
     if (fd < 0) {
+      return std::unexpected(Error::NotFound);
+    }
+    struct stat status {};
+    if (::fstat(fd, &status) != 0) {
+      close_if_open(fd);
+      return std::unexpected(Error::PlatformFail);
+    }
+    if (status.st_size != static_cast<off_t>(kControlSize)) {
+      close_if_open(fd);
       return std::unexpected(Error::NotFound);
     }
     return map_fd(fd);

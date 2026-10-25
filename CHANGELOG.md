@@ -16,6 +16,18 @@ are released.
 
 ## [Unreleased]
 
+## [v4.0.1] - 2026-10-25
+
+### Fixed
+
+- 连接具名共享通道时先用 `fstat()` 校验控制段大小，避免创建端 `shm_open()` 与 `ftruncate()` 之间的零长度窗口触发 `SIGBUS`；未达到固定大小返回可重试的 `NotFound`，查询状态失败返回 `PlatformFail`，两种失败均关闭文件描述符。
+- 增加零长度控制段连接回归测试。公共 claim API、消息布局及共享通道 v15 协议不变，已有 v4 调用点无需迁移；下游需重新构建、部署才能获得修复。
+
+### Docs
+
+- 归档已有的第三次 v4.0.0 三臂 A/B 报告、分析 JSON 和实验清单，同步 API、性能报告及迁移计划。64 B claim API 的 S/B 比为 1.245886，仍判 `INCONCLUSIVE`；组合收益和历史数据不代表 v4.0.1 已重跑压测或通过 HFT 长尾门禁。
+- CMake、mcpp、vcpkg 与 README 的当前包版本统一为 4.0.1。
+
 ## [v4.0.0] - 2026-10-22
 
 ### Release Decision

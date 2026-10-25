@@ -1,0 +1,602 @@
+{
+  "protocol": "p3-claim-api-v4-formal-ab-v1",
+  "mode": "formal",
+  "started": "2026-10-22T23:29:32+0800",
+  "build_manifest": "/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/manifest.json",
+  "build_manifest_sha256": "7472e03525f8869fd653a70e8fc16962610a38663ac17fe5e8365ea73b3b4c11",
+  "client_template_sha256": "99edd570c7169078496d0ce9cc4362da9f689bc4cca303da64d08aa03449656f",
+  "baseline_client_source_sha256": "6a23a77598c6e980f7b6625eb2471cc42a26917469dc77fc51ab9d5b767bab1e",
+  "clients": {
+    "B": {
+      "path": "/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client",
+      "sha256": "92a86786beafb79d2a8a5e2fab8039358779cc6aba00c34c57bb360311dc2060",
+      "environment": []
+    },
+    "S": {
+      "path": "/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client",
+      "sha256": "ce1d61f1077ca4407ce03f2810468f1a543da713b5e5d704f036a7061014c01a",
+      "environment": [
+        "SALIAS_DISABLE_ASYMMETRIC_FENCE=1"
+      ]
+    },
+    "A": {
+      "path": "/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client",
+      "sha256": "ce1d61f1077ca4407ce03f2810468f1a543da713b5e5d704f036a7061014c01a",
+      "environment": []
+    }
+  },
+  "throughput": {
+    "payloads": [
+      64,
+      256
+    ],
+    "groups": 6,
+    "rounds_per_group": 20,
+    "messages_per_round": 50000000,
+    "capacity_bytes": 1048576,
+    "sequence": [
+      [
+        "B0",
+        "S0",
+        "A0"
+      ],
+      [
+        "A1",
+        "S1",
+        "B1"
+      ],
+      [
+        "B2",
+        "S2",
+        "A2"
+      ],
+      [
+        "A3",
+        "S3",
+        "B3"
+      ],
+      [
+        "B4",
+        "S4",
+        "A4"
+      ],
+      [
+        "A5",
+        "S5",
+        "B5"
+      ]
+    ]
+  },
+  "latency": {
+    "payloads": [
+      64,
+      256
+    ],
+    "origins": [
+      "attempt",
+      "planned"
+    ],
+    "rounds": 10,
+    "seconds": 2,
+    "rate_per_producer": 1000000
+  },
+  "blocks": [
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/baseline --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 0 --end-group 1",
+      "returncode": 0,
+      "wall_seconds": 192.62024426460266,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-001-B0.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-001-B0.stderr",
+      "stdout_sha256": "445e2b2d8dbe740c4a0cf612eb06f5e99666869405a4948553fd0da27ea82484",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "B",
+      "group": 0
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/candidate-sequential-fence --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 0 --end-group 1 --setenv SALIAS_DISABLE_ASYMMETRIC_FENCE=1",
+      "returncode": 0,
+      "wall_seconds": 165.63555717468262,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-002-S0.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-002-S0.stderr",
+      "stdout_sha256": "75a3e7c36d27b916cd19e6139656d888178ab4ab2d59618fb9db5ba365b25cc7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "S",
+      "group": 0
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/candidate-default-fence --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 0 --end-group 1",
+      "returncode": 0,
+      "wall_seconds": 140.57281351089478,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-003-A0.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-003-A0.stderr",
+      "stdout_sha256": "a1c36d8c90d6425f76daf9ee7f6ebf19cfc9256d8b15066e54ef3eaf1ef32386",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "A",
+      "group": 0
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/candidate-default-fence --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 1 --end-group 2 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 143.50177454948425,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-004-A1.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-004-A1.stderr",
+      "stdout_sha256": "7bec50b2065e638c1b342b3471b433686a249c4358a749a95e40712a9e49ac55",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "A",
+      "group": 1
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/candidate-sequential-fence --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 1 --end-group 2 --setenv SALIAS_DISABLE_ASYMMETRIC_FENCE=1 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 167.2452371120453,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-005-S1.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-005-S1.stderr",
+      "stdout_sha256": "92648aa5c04dc615e0efabc36e1a073346d66b590de2782cbd07391e3b71b470",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "S",
+      "group": 1
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/baseline --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 1 --end-group 2 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 204.0425488948822,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-006-B1.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-006-B1.stderr",
+      "stdout_sha256": "fd861b48072c4c892de30253f3618cbd18606fd175a052470ec657be4a096e4d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "B",
+      "group": 1
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/baseline --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 2 --end-group 3 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 191.94472217559814,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-007-B2.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-007-B2.stderr",
+      "stdout_sha256": "ec78f1dc3c53f9d009f39f38f6c38a16e612e7e6716c9fbbc619bf57af735c7b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "B",
+      "group": 2
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/candidate-sequential-fence --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 2 --end-group 3 --setenv SALIAS_DISABLE_ASYMMETRIC_FENCE=1 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 162.66603112220764,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-008-S2.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-008-S2.stderr",
+      "stdout_sha256": "69b576d6cb3fe93e7f4415ae9d563a822f7a9dc7c476acef8ac30e88abc8da39",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "S",
+      "group": 2
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/candidate-default-fence --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 2 --end-group 3 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 142.62057876586914,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-009-A2.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-009-A2.stderr",
+      "stdout_sha256": "778a810905cf0c04eede2af0b7e02fd0221a5251081c96e352c223798a935a9d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "A",
+      "group": 2
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/candidate-default-fence --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 3 --end-group 4 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 136.49440622329712,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-010-A3.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-010-A3.stderr",
+      "stdout_sha256": "703ccccafbdbc645008cdde3aecb8d3a87166a4505a8d8acd981918f11058a5c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "A",
+      "group": 3
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/candidate-sequential-fence --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 3 --end-group 4 --setenv SALIAS_DISABLE_ASYMMETRIC_FENCE=1 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 168.1621105670929,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-011-S3.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-011-S3.stderr",
+      "stdout_sha256": "8c9809084aa2d7efcc8cbf67f41f7160211a1ca1116cbe489a60b1fa947c73cf",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "S",
+      "group": 3
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/baseline --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 3 --end-group 4 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 201.18310475349426,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-012-B3.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-012-B3.stderr",
+      "stdout_sha256": "68ff93a1961150784615232968fd63b523715b06670f462e111a51952ca72174",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "B",
+      "group": 3
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/baseline --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 4 --end-group 5 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 202.12369680404663,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-013-B4.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-013-B4.stderr",
+      "stdout_sha256": "15a7e4d1de0338acb7ccb8c10327e32c5bcf7f00b62cca30b474d3c3c99953ab",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "B",
+      "group": 4
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/candidate-sequential-fence --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 4 --end-group 5 --setenv SALIAS_DISABLE_ASYMMETRIC_FENCE=1 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 162.84811305999756,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-014-S4.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-014-S4.stderr",
+      "stdout_sha256": "455d68bb8f759707126b8c2b4618c2a5689ac62e1f8286663a97bf671c2a72d5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "S",
+      "group": 4
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/candidate-default-fence --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 4 --end-group 5 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 140.63693523406982,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-015-A4.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-015-A4.stderr",
+      "stdout_sha256": "84b833d21665ae9a846305c0844d815d56e8fd8fa22d7ca09e6a3383e7dc38bc",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "A",
+      "group": 4
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/candidate-default-fence --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 5 --end-group 6 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 141.25954842567444,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-016-A5.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-016-A5.stderr",
+      "stdout_sha256": "bf36383a01bfe77262692dd89f542d67ad46024a5e79a33d8852097377c16c80",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "A",
+      "group": 5
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/candidate-sequential-fence --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 5 --end-group 6 --setenv SALIAS_DISABLE_ASYMMETRIC_FENCE=1 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 163.12156224250793,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-017-S5.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-017-S5.stderr",
+      "stdout_sha256": "7dde629671924a3f968bd8c74b637425fd02aad79d05ba8840182c2d0bfc8c44",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "S",
+      "group": 5
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-64b/baseline --messages 50000000 --payload 64 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 5 --end-group 6 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 192.96190118789673,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-018-B5.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-064-block-018-B5.stderr",
+      "stdout_sha256": "1ec320c982cfad0c888b2db979a14bee6e2db9ad343cfecb337300e3df3697a2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 64,
+      "arm": "B",
+      "group": 5
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/baseline --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 0 --end-group 1",
+      "returncode": 0,
+      "wall_seconds": 200.7952058315277,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-019-B0.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-019-B0.stderr",
+      "stdout_sha256": "4bf458e760d9da8833abd1cdf03640ba8daebd78c9551b09698de108ccb40864",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "B",
+      "group": 0
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/candidate-sequential-fence --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 0 --end-group 1 --setenv SALIAS_DISABLE_ASYMMETRIC_FENCE=1",
+      "returncode": 0,
+      "wall_seconds": 162.84307837486267,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-020-S0.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-020-S0.stderr",
+      "stdout_sha256": "2f4a2d8fc400468fc287f122cccd7ff00df7c680ceba199cdb41201da94d02d9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "S",
+      "group": 0
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/candidate-default-fence --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 0 --end-group 1",
+      "returncode": 0,
+      "wall_seconds": 142.31963181495667,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-021-A0.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-021-A0.stderr",
+      "stdout_sha256": "99c9de8a7ba433135c7a9ee4a7c4c621e7fd1d3fb9b1f65b774a1e190bca72c5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "A",
+      "group": 0
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/candidate-default-fence --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 1 --end-group 2 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 142.0111949443817,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-022-A1.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-022-A1.stderr",
+      "stdout_sha256": "42dad22becfc901957308eb11ec3d2522c91077b984fad7cdf5daccb747e090e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "A",
+      "group": 1
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/candidate-sequential-fence --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 1 --end-group 2 --setenv SALIAS_DISABLE_ASYMMETRIC_FENCE=1 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 154.58231592178345,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-023-S1.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-023-S1.stderr",
+      "stdout_sha256": "7c13fa051238385d92710628d5a717ade0e220667c0b54a3016d0725df367c71",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "S",
+      "group": 1
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/baseline --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 1 --end-group 2 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 205.2512776851654,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-024-B1.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-024-B1.stderr",
+      "stdout_sha256": "78abf36b0809c579416c00b67c5331e1eadfc7013d3080491744a27a9b17fcd6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "B",
+      "group": 1
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/baseline --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 2 --end-group 3 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 206.4800169467926,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-025-B2.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-025-B2.stderr",
+      "stdout_sha256": "4d0607374919ed95b9fbefe460feafa2b53f36717da6defc282d24026e53bca5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "B",
+      "group": 2
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/candidate-sequential-fence --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 2 --end-group 3 --setenv SALIAS_DISABLE_ASYMMETRIC_FENCE=1 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 162.23870968818665,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-026-S2.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-026-S2.stderr",
+      "stdout_sha256": "bb79f6d492f46ac82a57a409c7142aae70209ebfbc62bcbe1cb7f0b72f86aa42",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "S",
+      "group": 2
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/candidate-default-fence --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 2 --end-group 3 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 139.46602821350098,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-027-A2.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-027-A2.stderr",
+      "stdout_sha256": "690155aa18d2c389b9aa436998d5a1aadcdec2edb192c1deb6a781214b1d1a29",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "A",
+      "group": 2
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/candidate-default-fence --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 3 --end-group 4 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 141.44818115234375,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-028-A3.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-028-A3.stderr",
+      "stdout_sha256": "79d519be0bc3aaff768f14bbe18ebd7540a6e1c868ce44dc1bd8d70206804cf7",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "A",
+      "group": 3
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/candidate-sequential-fence --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 3 --end-group 4 --setenv SALIAS_DISABLE_ASYMMETRIC_FENCE=1 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 157.4225926399231,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-029-S3.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-029-S3.stderr",
+      "stdout_sha256": "be21258f5bf170f74f138a326ca546a951e62551ef7ad0bec4f991c6585bd7f9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "S",
+      "group": 3
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/baseline --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 3 --end-group 4 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 205.74899053573608,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-030-B3.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-030-B3.stderr",
+      "stdout_sha256": "4e0c7b480b8aae4d590075672662f22f2850ad026ad68ce2924c2405e4aec35f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "B",
+      "group": 3
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/baseline --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 4 --end-group 5 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 195.4384469985962,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-031-B4.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-031-B4.stderr",
+      "stdout_sha256": "4ce5f64c3800d5d9b7e8f4a8b1a9066cabaeb321b3642ac0bef171c85e550e41",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "B",
+      "group": 4
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/candidate-sequential-fence --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 4 --end-group 5 --setenv SALIAS_DISABLE_ASYMMETRIC_FENCE=1 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 157.40625834465027,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-032-S4.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-032-S4.stderr",
+      "stdout_sha256": "04487605303c781774b51fa39dee2f8324a38d98ecc8db0f6d32e5df58e1fc0a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "S",
+      "group": 4
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/candidate-default-fence --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 4 --end-group 5 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 143.95492911338806,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-033-A4.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-033-A4.stderr",
+      "stdout_sha256": "bf4a5771750db873c1e98f1df847ed887fd268070433a519c7d1dddf8d1e5b52",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "A",
+      "group": 4
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/candidate-default-fence --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 5 --end-group 6 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 142.52026796340942,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-034-A5.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-034-A5.stderr",
+      "stdout_sha256": "caf2b046663c4f938cd0bcb32d99855741d9acdb1756bb700519868e9d566d8d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "A",
+      "group": 5
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/candidate-sequential-fence --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 5 --end-group 6 --setenv SALIAS_DISABLE_ASYMMETRIC_FENCE=1 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 157.6464159488678,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-035-S5.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-035-S5.stderr",
+      "stdout_sha256": "8f1c9ab49a3297f060ed9d86745dc57a254971cee9dd77d3abbfbedd161c4595",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "S",
+      "group": 5
+    },
+    {
+      "command": "taskset -c 0 /usr/bin/python3 /data/disk1/projects/salias/doc/plans/runners/high-frequency-stability-runner.py --client /data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/throughput-256b/baseline --messages 50000000 --payload 256 --capacity 1048576 --groups 6 --rounds 20 --interval-seconds 0 --max-consecutive-low 0 --timeout 120 --start-group 5 --end-group 6 --allow-existing",
+      "returncode": 0,
+      "wall_seconds": 208.60528349876404,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-036-B5.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/payload-256-block-036-B5.stderr",
+      "stdout_sha256": "3503a6feb1a5f423332e500d77b20a86f98d9c6234d87e40abba76e63a18b342",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "throughput",
+      "payload": 256,
+      "arm": "B",
+      "group": 5
+    },
+    {
+      "command": "systemd-run --user --wait --pipe --collect -p WorkingDirectory=/data/disk1/projects/salias -p AllowedCPUs=0-3 -p Nice=5 -p MemoryHigh=640M -p MemoryMax=704M -p MemorySwapMax=0 -p TasksMax=48 -p RuntimeMaxSec=1800s -p KillMode=control-group -p OOMPolicy=stop --setenv=SALIAS_RESOURCE_CAPPED=1 /usr/bin/python3 /data/disk1/projects/salias/tools/aeron_compare/run_latency_compare.py --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/latency/64b-attempt --engines fifo --seconds 2 --rounds 10 --rates 1000000 --payloads 64 --producers 1 --origin attempt --salias-arm B=/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --salias-arm S=/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --salias-arm A=/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --salias-arm-env S=SALIAS_DISABLE_ASYMMETRIC_FENCE=1",
+      "returncode": 0,
+      "wall_seconds": 86.54902672767639,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/latency-064-attempt.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/latency-064-attempt.stderr",
+      "stdout_sha256": "d7eaa11441b096dbec471c0e9150f49d3dd857179e81154b12d1e8105f7e9ecd",
+      "stderr_sha256": "2891d8481bd3fa7e8ec72e25946d432bce98ee65dbb44b72715d3f6d133d8494",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt"
+    },
+    {
+      "command": "systemd-run --user --wait --pipe --collect -p WorkingDirectory=/data/disk1/projects/salias -p AllowedCPUs=0-3 -p Nice=5 -p MemoryHigh=640M -p MemoryMax=704M -p MemorySwapMax=0 -p TasksMax=48 -p RuntimeMaxSec=1800s -p KillMode=control-group -p OOMPolicy=stop --setenv=SALIAS_RESOURCE_CAPPED=1 /usr/bin/python3 /data/disk1/projects/salias/tools/aeron_compare/run_latency_compare.py --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/latency/64b-planned --engines fifo --seconds 2 --rounds 10 --rates 1000000 --payloads 64 --producers 1 --origin planned --salias-arm B=/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --salias-arm S=/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --salias-arm A=/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --salias-arm-env S=SALIAS_DISABLE_ASYMMETRIC_FENCE=1",
+      "returncode": 0,
+      "wall_seconds": 86.54151320457458,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/latency-064-planned.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/latency-064-planned.stderr",
+      "stdout_sha256": "c1b7f4685f69d1fb080205609485d9da5004f6142c94eb73ecc0f7a8493eb4d8",
+      "stderr_sha256": "f66b1fff20d72420dfde3661291432f0afcd4e8075a5b40235ac74f66a34c87a",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned"
+    },
+    {
+      "command": "systemd-run --user --wait --pipe --collect -p WorkingDirectory=/data/disk1/projects/salias -p AllowedCPUs=0-3 -p Nice=5 -p MemoryHigh=640M -p MemoryMax=704M -p MemorySwapMax=0 -p TasksMax=48 -p RuntimeMaxSec=1800s -p KillMode=control-group -p OOMPolicy=stop --setenv=SALIAS_RESOURCE_CAPPED=1 /usr/bin/python3 /data/disk1/projects/salias/tools/aeron_compare/run_latency_compare.py --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/latency/256b-attempt --engines fifo --seconds 2 --rounds 10 --rates 1000000 --payloads 256 --producers 1 --origin attempt --salias-arm B=/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --salias-arm S=/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --salias-arm A=/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --salias-arm-env S=SALIAS_DISABLE_ASYMMETRIC_FENCE=1",
+      "returncode": 0,
+      "wall_seconds": 86.54571509361267,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/latency-256-attempt.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/latency-256-attempt.stderr",
+      "stdout_sha256": "be1644dbcabc467c8df3a2f394581b0954d87468ef9d7a926babc09b68466a4f",
+      "stderr_sha256": "fff711b7f5fdf3c2ff1b5e5c8b12e7cd9978487af5efbb515a117de9dd3385ce",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt"
+    },
+    {
+      "command": "systemd-run --user --wait --pipe --collect -p WorkingDirectory=/data/disk1/projects/salias -p AllowedCPUs=0-3 -p Nice=5 -p MemoryHigh=640M -p MemoryMax=704M -p MemorySwapMax=0 -p TasksMax=48 -p RuntimeMaxSec=1800s -p KillMode=control-group -p OOMPolicy=stop --setenv=SALIAS_RESOURCE_CAPPED=1 /usr/bin/python3 /data/disk1/projects/salias/tools/aeron_compare/run_latency_compare.py --output /data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/latency/256b-planned --engines fifo --seconds 2 --rounds 10 --rates 1000000 --payloads 256 --producers 1 --origin planned --salias-arm B=/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v3/client --salias-arm S=/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --salias-arm A=/data/disk1/projects/salias/build/claim-api-v4-ab-release-20261022-204034/v4/client --salias-arm-env S=SALIAS_DISABLE_ASYMMETRIC_FENCE=1",
+      "returncode": 0,
+      "wall_seconds": 86.54190373420715,
+      "stdout": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/latency-256-planned.stdout",
+      "stderr": "/data/disk1/projects/salias/build/benchmarks/claim-api-v4-stress3-20261022-232932/orchestration-logs/latency-256-planned.stderr",
+      "stdout_sha256": "57984421900e60531e160593c3ae5835f5f4fe855e20db1407ecadbe036e9907",
+      "stderr_sha256": "24d080b6628d27ce27b0ce9268c2e9db48d5f2bd30dabb962200c86d4cde5260",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned"
+    }
+  ],
+  "finished": "2026-10-23T01:16:04+0800"
+}

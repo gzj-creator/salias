@@ -41,6 +41,8 @@ struct Config {
 `Channel<M>::create` 创建 owner，`connect` 连接已有通道。模板参数覆盖 `Config::mode`。
 single 模式要求 `num_consumers == 1`；fanout 模式允许 1–8 个消费者；生产者上限为 16。
 `FifoMpmc` / `OrderedMpmc` 是广播语义，每个订阅者都会收到消息，不是竞争式消费。
+`connect` 先确认控制段达到固定尺寸后再建立映射，随后等待 `ready == 1`；创建端
+`shm_open` 与 `ftruncate` 之间的半初始化段会被继续等待，不会被当作可读控制块。
 `capacity` 必须为 2 的幂和系统页大小的整数倍；显式大页配置还要求它是所选大页大小的整数倍。
 `publication_window == 0` 表示满环。低延迟推荐 64KiB–256KiB：窗口把在途字节数收成窗口量级，
 从而把排队延迟压到同一量级。128KiB 对照满 4MiB 环时，p99 从约 5.7ms 降到约 350us，吞吐约少一成。

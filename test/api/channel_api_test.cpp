@@ -10,6 +10,8 @@
  */
 
 #include <gtest/gtest.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -148,6 +150,23 @@ std::string unique_name(std::string_view suffix) {
          std::string(suffix);
 }
 
+/// @brief 复算控制段 shm 名称，用于构造“已创建但尚未 ftruncate”的竞态现场。
+/// @details 该编码是连接协议的一部分；测试直接构造半成品段，验证连接端不会映射零长文件。
+std::string control_shm_name_for_test(std::string_view name) {
+  std::uint64_t hash = 14695981039346656037ull;
+  for (const unsigned char character : name) {
+    hash ^= character;
+    hash *= 1099511628211ull;
+  }
+  constexpr char hex_digits[] = "0123456789abcdef";
+  std::array<char, 16> encoded{};
+  for (std::size_t index = encoded.size(); index != 0; --index) {
+    encoded[index - 1] = hex_digits[hash & 0x0fu];
+    hash >>= 4;
+  }
+  return "/salias-" + std::string(encoded.data(), encoded.size()) + "-c";
+}
+
 /// @brief 构造一个最小可用的 channel 配置。
 /// @param mode channel 工作模式（FIFO/Ordered × Mpsc/Fanout）。
 /// @param suffix 用于生成唯一名称的后缀。
@@ -195,6 +214,19 @@ salias::Message wait_for_message(salias::Subscriber<M>& subscriber) {
     std::this_thread::yield();
   }
   return {};
+}
+
+TEST(ChannelApiTest, ConnectDoesNotMapZeroSizedControlSegment) {
+  const std::string name = unique_name("zero-sized-control");
+  const std::string shm_name = control_shm_name_for_test(name);
+  const int fd = ::shm_open(shm_name.c_str(), O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600);
+  ASSERT_GE(fd, 0);
+  ASSERT_EQ(::close(fd), 0);
+
+  const auto connected = salias::FifoMpscChannel::connect(name);
+  EXPECT_FALSE(connected);
+  EXPECT_EQ(connected.error(), salias::Error::NotFound);
+  EXPECT_EQ(::shm_unlink(shm_name.c_str()), 0);
 }
 
 TEST(ChannelApiTest, TypedSendAndCopyReceiveRoundTripWithoutBorrowedRelease) {

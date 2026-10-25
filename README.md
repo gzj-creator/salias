@@ -132,7 +132,7 @@ target_link_libraries(my_app PRIVATE salias::salias)
 
 ## mcpp 与 C++23 模块
 
-原生包身份为 `gzj-creator.salias`，版本 `4.0.0` 与 CMake 一致。`mcpp.toml`
+原生包身份为 `gzj-creator.salias`，版本 `4.0.1` 与 CMake 一致。`mcpp.toml`
 编译公共库和必要的 core 实现，`src/salias.cppm` 提供 `import salias;`；默认构建不需要
 GTest、Google Benchmark 或 Aeron。模块导出公共配置、枚举、错误和结果类型、Message、
 Channel/Publisher/Subscriber/PublishClaim 模板、五种模式的端点别名、静态配置的
