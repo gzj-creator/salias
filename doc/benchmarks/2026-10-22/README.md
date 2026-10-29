@@ -2,7 +2,7 @@
 
 本目录收录 claim API v4 三次完整正式三臂 A/B 的精简证据。第三次跨过午夜，完成于
 2026-10-23 01:16。完整原始实验工作目录保留在本地 `build/`，不整目录入库。当前结论统一见
-[性能报告](../../performance-report.md) §1.2 和
+[性能报告](../../performance-report.md) §1.3 和
 [迁移计划](../../plans/phase3-claim-api-v4-migration-plan.md) §4.7–4.8。
 
 ## 入库内容

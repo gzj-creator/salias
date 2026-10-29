@@ -318,21 +318,45 @@ NUMA 放置当前尚未实现，Linux 与 macOS 请求都会明确返回 `NumaUn
 
 ## 最终性能
 
-当前结论与下一位 agent 的优化交接统一见
-[最终性能测试与优化交接报告](doc/performance-report.md)。
+最新正式对比为 **v4.0.1**（2026-10-29），同一矩阵覆盖 SPSC、MPSC、SPMC、MPMC，
+以及吞吐、attempt 延迟和 planned 延迟。完整表格与逐轮证据见
+[四拓扑 Salias / Aeron 对比](doc/benchmarks/2026-10-29/README.md)，结论和下一轮优化入口见
+[最终性能测试与优化交接报告](doc/performance-report.md)。旧版 1P2S 数据保留为历史记录，
+不与本组拼接。
+
+吞吐采用每 producer 1000 万条、五轮正式结果中位数：
+
+| 拓扑 | 64 B Salias / Aeron | Salias/Aeron | 256 B Salias / Aeron | Salias/Aeron |
+|---|---:|---:|---:|---:|
+| SPSC | 8.883 / 36.717 Mmsg/s | 0.242 | 8.629 / 14.389 Mmsg/s | 0.600 |
+| MPSC | 33.700 / 43.618 Mmsg/s | 0.773 | 14.907 / 15.603 Mmsg/s | 0.955 |
+| SPMC | 6.863 / 28.440 Mmsg/s | 0.241 | 6.484 / 10.035 Mmsg/s | 0.646 |
+| MPMC | 16.895 / 11.948 Mmsg/s | 1.414 | 12.032 / 7.227 Mmsg/s | 1.665 |
+
+MPSC 的 256 B 已接近持平，64 B 尚未稳定追平；SPSC/SPMC 的 64 B 吞吐仍是明确短板。
+MPMC 的 2P2S 占满四个应用 worker，Aeron driver 与 subscriber0 共用 CPU0，因此本组
+1.665 不能外推为无核竞争的通用领先。
+
+延迟采用总计 100 万 msg/s、2 秒、每 16 条采样一次；attempt p50 如下：
+
+| 拓扑 | 64 B Salias / Aeron | 256 B Salias / Aeron |
+|---|---:|---:|
+| SPSC | 375 / 191 ns | 359 / 189 ns |
+| MPSC | 403 / 197 ns | 383 / 199 ns |
+| SPMC | 415 / 205 ns | 415 / 203 ns |
+| MPMC | 431 / 221 ns | 427 / 267 ns |
+
+Aeron 在全部八个 attempt p50 单元中更低，Salias 多 **160–212 ns**。尾延迟没有一致赢家，
+例如 SPSC/64 B attempt p99 为 Salias 67.583 us、Aeron 46.591 us，而 SPMC/256 B 为
+110.591 us 对 157.695 us。两端都有毫秒级 p99.9，planned 中还有数十毫秒尖峰；本组短测
+不能证明 SLA 或稳定尾部优势。
+
+本组运行在共享 4 vCPU KVM 上，不是独占裸机或生产验收；Aeron 额外 driver、总映射容量、
+native 依赖工具链和 MPMC 核共享均保留为差异。64/256 B 是逻辑长度，延迟只写 16 B、
+吞吐只写 8 B，没有逐条校验完整 payload、重复或顺序。
 Phase 2 的冻结客户端身份与正式 A/B 规则见
 [Phase 2 执行基线](doc/plans/phase2-execution-baseline.md)。
 
-- v4.0.0 两次正式 claim API A/B 的 64 B 收益为 **+25.88%/+23.84%**，256 B 为
-  **+28.17%/+29.07%**，均为 p=0.002165、6/6 组同向；第二次 64 B 未达到 1.25
-  预注册门槛，判定为 INCONCLUSIVE。报告记录稳定正向收益，不宣称吞吐 GO 已复现。
-- 1P2S 可靠广播同组短测：64 B 发布吞吐 Salias/Aeron 为 **6.341/42.441 Mmsg/s**，
-  256 B 为 **14.962/15.019 Mmsg/s**；64 B 是当前明确需要归因的短板。
-- 100 万条/s 的 1P2S attempt p50：64 B 为 **363/199 ns**，256 B 为 **379/203 ns**；
-  两端均出现毫秒级长尾，不同计时口径的尾部胜负不同，不能宣称 SLA 通过。
-- 已合入空 poll 的 2 KiB 清零减负；六个后续候选和新的 Publisher 尾延迟候选没有通过门禁。
-- 同组应用角色固定 CPU1–3，Aeron 额外 driver 在 CPU0；逻辑 payload 未完整填充，
-  吞吐轮次较短。完整条件、原始证据和优先优化任务均在最终报告中。
 - 192 B、1P2S、1 MiB ring 是已观测的高吞吐区域（历史高模式轮次中位数 16.8356 Mmsg/s，
   400 轮仅 72.0% 进入高模式）；P2-A 100 轮复核为 69/100，未通过 85% 推荐门槛，因此不是
   所有 payload 或拓扑的稳定 SLA。Phase 2 正式实验固定使用 v3.0.0 冻结客户端，当前扩展

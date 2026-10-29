@@ -1,12 +1,63 @@
 # Salias 最终性能测试与优化交接报告
 
-更新日期：2026-10-23，Asia/Singapore。**本页是当前性能结论与下一轮优化的唯一阅读入口。**
-“最终”表示本轮结果已经汇总，不表示性能或生产 SLA 已验收。历史实验移入
+更新日期：2026-10-29，Asia/Singapore。**本页是当前性能结论与下一轮优化的唯一阅读入口。**
+“最终”表示本轮结果已经汇总，不表示性能或生产 SLA 已验收。更早的完整实验和旧吞吐表保留在
 [性能归档](archive/performance/README.md)；不要拼接不同日期、版本、CPU 分配或计时口径的数据。
 
 ## 1. 给下一个 agent 的结论
 
-### 1.1 P3-1 当前状态（2026-10-21）
+### 1.1 v4.0.1 当前四拓扑结果（2026-10-29）
+
+本组在 `v4.0.1`、提交 `064281a77d8b` 上重新执行 SPSC、MPSC、SPMC、MPMC 四拓扑，
+同一轮内配对 Salias FIFO 与 Aeron 1.52.0 IPC exclusive publication，同时覆盖吞吐、
+attempt 和 planned 延迟。完整表格、逐轮原始记录和环境见
+[2026-10-29 四拓扑对比](benchmarks/2026-10-29/README.md)。该组不与任何早期拓扑数据拼接。
+
+吞吐为每 producer 1000 万条、五轮正式结果中位数，单位为 Mmsg/s：
+
+| 拓扑 | 64 B Salias / Aeron | Salias/Aeron | 256 B Salias / Aeron | Salias/Aeron |
+|---|---:|---:|---:|---:|
+| SPSC | 8.883 / 36.717 | 0.242 | 8.629 / 14.389 | 0.600 |
+| MPSC | 33.700 / 43.618 | 0.773 | 14.907 / 15.603 | 0.955 |
+| SPMC | 6.863 / 28.440 | 0.241 | 6.484 / 10.035 | 0.646 |
+| MPMC | 16.895 / 11.948 | 1.414 | 12.032 / 7.227 | 1.665 |
+
+- **MPSC 的 256 B 已接近持平，64 B 尚未稳定追平。** 比值分别为 0.955/0.773；两种
+  payload 都只有 1/5 轮 Salias 更快，轮间范围也宽，不能据此宣称稳定领先。
+- **SPSC/SPMC 的 64 B 吞吐仍是明确短板。** 比值分别为 0.242/0.241；256 B 分别回升到
+  0.600/0.646，说明差距不能只按 payload 大小归一。
+- **MPMC 的本组领先有核共享边界。** 2P2S 已占满四个应用 worker，Aeron driver 与
+  subscriber0 共用 CPU0；64 B 仅 3/5 轮 Salias 胜出，256 B 虽 5/5 胜出，但 1.665
+  不能解释成无核竞争条件下的通用性能结论。
+
+延迟负载为总计 100 万 msg/s、2 秒、每 16 条采样一次；每轮先取各订阅者最差分位数，
+再取五轮中位数。下表为 attempt p50（Salias / Aeron）：
+
+| 拓扑 | 64 B | 256 B |
+|---|---:|---:|
+| SPSC | 375 / 191 ns | 359 / 189 ns |
+| MPSC | 403 / 197 ns | 383 / 199 ns |
+| SPMC | 415 / 205 ns | 415 / 203 ns |
+| MPMC | 431 / 221 ns | 427 / 267 ns |
+
+- **Aeron 在全部八个 attempt p50 单元中更低。** Salias 为 359–431 ns，Aeron 为
+  189–267 ns，中位数差为 **160–212 ns**；不能把这个差值外推到其他 CPU、批处理
+  或生产负载。
+- **尾延迟没有一致赢家。** 例如 SPSC/64 B 的 attempt p99 为 Salias 67.583 us、Aeron
+  46.591 us；SPMC/256 B 则为 Salias 110.591 us、Aeron 157.695 us。两端均出现毫秒级
+  p99.9，planned 中还有数十毫秒尖峰，本组短测不能证明 SLA 或稳定尾部优势。
+- **planned p50 不能替代 attempt。** MPMC planned p50 的描述性中位数由 Salias 更低，
+  但 Aeron 在该格出现更大的计划积压和轮间波动，且 p99 方向并不一致；两者是独立运行，
+  不能相减推断某个阶段成本。
+
+本机是共享 4 vCPU KVM，不是独占裸机或生产 SLA 基线。Aeron 额外 media driver、
+两端总映射容量不同、Aeron native 依赖工具链不同均保留为差异；64/256 B 是逻辑长度，
+延迟只写 16 B、吞吐只写 8 B，未逐条校验完整 payload、重复或顺序。正式 240 次测量全部
+完成计数核验，但不能据此宣称四拓扑全面领先、延迟非劣或长尾已解决。测量时工作区含
+文档和 runner 修改，`environment.json` 的 git 描述为 `v4.0.1-dirty`；产品输入由其中
+记录的二进制 SHA-256 固定。
+
+### 1.2 P3-1 历史验收状态（2026-10-21）
 
 发布路径非对称屏障已随 v4.0.0 发布，具名通道协议为 v15。验证证据，以及未通过的
 G4 长尾门禁，均保留在下方结果中。
@@ -32,7 +83,7 @@ G4 长尾门禁，均保留在下方结果中。
 S 臂输入完成度，先固定新假设与门槛；不重跑本轮以追求通过，不改 5% 界限，不跨组池化，
 不拼接 E1 nofence 诊断客户端作为产品收益。
 
-### 1.2 Claim API v4 状态（2026-10-23）
+### 1.3 Claim API v4 历史产品 A/B（2026-10-23）
 
 claim API v4 的代码、契约测试、示例和文档迁移已完成：`PublishClaim` 不再持有
 `shared_ptr<PublisherEndpoint>`，改由 `Publisher::commit(std::move(claim))` 提交并校验
@@ -87,7 +138,7 @@ planned p99 为 3599 对 4175 ns。256 B A/B 的 attempt p99/p99.9 为 479/4159 
 [迁移计划](plans/phase3-claim-api-v4-migration-plan.md) §4.8，精简证据见
 [2026-10-22 证据说明](benchmarks/2026-10-22/README.md)。
 
-### 1.3 v3.0.0 / Aeron 历史对照（2026-10-19）
+### 1.4 v3.0.0 / Aeron 历史对照（2026-10-19）
 
 1. **最明确的瓶颈是 64 B、单发布双订阅广播吞吐。** 同组五轮发布中位数：
    Salias **6.341 Mmsg/s**，Aeron **42.441 Mmsg/s**，Aeron 约为 **6.69 倍**。
@@ -108,9 +159,10 @@ planned p99 为 3599 对 4175 ns。256 B A/B 的 attempt p99/p99.9 为 479/4159 
 
 ## 2. 产品版本、语义和状态
 
-- 第 3–8 节历史测量产品：`v3.0.0`，提交 `c5e6aa7df4397df6f47a4e00cf5f72ed5ae778bd`。
+- 第 3–6 节和第 10 节的历史测量产品：`v3.0.0`，提交 `c5e6aa7df4397df6f47a4e00cf5f72ed5ae778bd`。
   2026-10-19 整理只修改文档与精简证据；P3-1 与 claim API v4 已随 `v4.0.0` 发布，
-  对应结果分别单列于 §1.1 与 §1.2，不能反向当作第 3–8 节 v3 测量的重跑。
+  对应结果分别单列于 §1.2 与 §1.3。当前四拓扑数据见 §1.1；这些结果不能反向当作
+  第 3–8 节 v3 测量的重跑，也不能互相拼接。
 - 已采用 poll 优化：`f9ea5c2`；Reliable 发布慢路径减少冗余存活探测：`ffbf6e1`。
 - 本页 1P2S 是 **Reliable FIFO 广播**：每个订阅者接收每条消息，不是两个消费者分摊消息。
   Salias 使用 `FifoMpmc`；1P1S 对照使用 `FifoMpsc`，因此拓扑对照也包含产品模式选择差异。
@@ -118,7 +170,7 @@ planned p99 为 3599 对 4175 ns。256 B A/B 的 attempt p99/p99.9 为 479/4159 
 - 历史测量使用具名通道协议 v14，LatestByKey 布局 v2。当前 P3-1 工作区候选协议为 v15；
   跨进程参与者必须同步升级，旧共享通道须重建。
 
-## 3. 主实验：1P2S Salias / Aeron 同组对比
+## 3. 历史主实验（v3.0.0）：1P2S Salias / Aeron 同组对比
 
 ### 3.1 条件与公平性边界
 
@@ -306,14 +358,18 @@ Ordered 提供不同的跨发布者全序语义，不用其吞吐直接替代 FI
 
 ## 7. 下一轮优化任务：先归因，再改变设计
 
-### P0：重建可重复的 64 B 广播吞吐基线
+### P0：优先归因 SPSC/SPMC 的小 payload 吞吐差距
 
-1. 固定当前提交与二进制，先复跑主实验。将吞吐轮次延长至至少 5–10 秒，单独预热、
-   交错顺序；记录全范围、输入完成性及每订阅者结果，不能只报最好一轮。
-2. 保持 publisher CPU3、subscriber CPU1/2、coordinator/driver CPU0；明确 driver 的额外核成本。
-   若不能使用 CPU0，必须另列“核共享部署”实验，不能暗中把 driver 放到 publisher 核。
-3. 一次只改一个变量：优先扫描相邻 payload（如 48/64/80/96/128/256 B）、1P1S/1P2S、
-   固定/不同 ring 容量；核查实际帧步进、回绕与消费批次，不先假定 cache-line 因果。
+1. 在受控裸机或能保证独占 vCPU 的主机上复跑当前四拓扑，优先使用更长时间窗口和
+   相邻 payload（32/48/64/80/96/128/256 B）；保留全范围、输入完成性和每订阅者结果，
+   不只报最好一轮。
+2. 对 SPSC/SPMC 分别检查单发布者通用路径、订阅者 poll、进度回写、环回绕和广播扇出。
+   当前 SPSC/64 B 比值为 0.242，而 SPMC/256 B 为 0.646，说明不能只按 payload 或
+   多订阅开销做单一解释。
+3. MPSC 当前 64/256 B 比值为 0.773/0.955。可把 256 B 作为接近持平的对照，但 64 B
+   仍有差距，两种 payload 都只有 1/5 轮 Salias 更快，不能把单次改善称为稳定超越。
+   MPMC 的 2P2S 数据只能在记录 driver/worker 核共享后比较；若目标是通用扩展性，
+   另做无核共享的公平实验。
 4. 在独立诊断运行里测 publisher 的成功/失败 claim、commit、背压重试，以及每订阅者
    poll 空转/成功批次、每批消息数、共享进度回写频率、消费滞后。插桩数据不进入正式收益表。
 5. 同时检查比较器差异：Salias 背压 yield 与 Aeron busy-spin、FifoMpsc/FifoMpmc 分派、
@@ -330,8 +386,9 @@ Ordered 提供不同的跨发布者全序语义，不用其吞吐直接替代 FI
 ### P2：只推进经证据支持的设计变化
 
 候选方向是进度发布/回收、广播批量路径和单发布者路径；缓存行对齐与预取也必须有布局或
-访问证据支持。每次只改一个候选，先正确性再交错 A/B，64/256 B、1P1S/1P2S 都检查；
-有资源再扩展 1P3S/1P4S、2P2S。现在没有这些拓扑的新版公平扩展性结论。
+访问证据支持。每次只改一个候选，先正确性再交错 A/B，至少覆盖 64/256 B 和当前
+SPSC/MPSC/SPMC/MPMC 四拓扑。2P2S 结果必须同时记录应用 worker 与 Aeron driver 的
+CPU 归属；有资源再扩展到 1P3S/1P4S 或独占核扩展性实验。
 
 **不可牺牲的契约**：注册 gate/代际互斥、PID 启动身份和死亡回收、最慢可靠订阅者背压、
 payload 借用期、批量安全前缀、TTL 过期推进、递归 poll 描述符隔离、raw/schema 分帧和变长回绕。
@@ -350,7 +407,8 @@ payload 借用期、批量安全前缀、TTL 过期推进、递归 poll 描述�
 
 | 数据集 | 位置 | 内容 |
 |---|---|---|
-| 本轮 1P2S 同组对比（主结论） | [spmc-aeron](benchmarks/2026-10-19/spmc-aeron/summary.json) | summary、环境、72 条 JSONL、72 份小 stdout、冻结 runner |
+| **v4.0.1 四拓扑（当前主结论）** | [2026-10-29](benchmarks/2026-10-29/README.md) | 吞吐与 attempt/planned 延迟、288 个案例、逐案例 JSONL、环境、冻结 runner、路径感知 SHA-256 |
+| v3.0.0 1P2S 同组对比（历史） | [spmc-aeron](benchmarks/2026-10-19/spmc-aeron/summary.json) | summary、环境、72 条 JSONL、72 份小 stdout、冻结 runner |
 | 较早 Salias-only（辅助） | [spmc-salias](benchmarks/2026-10-19/spmc-salias/summary.json) | summary、环境、72 条 JSONL、72 份小 stdout、冻结 runner |
 | 新证据完整性 | [evidence-manifest.json](benchmarks/2026-10-19/evidence-manifest.json) | 源路径、目标路径、每文件 SHA-256/字节数 |
 | 既有 1P1S 实作确认 | [design-implementation](benchmarks/2026-10-19/design-implementation/summary.json) | 安全 poll 优化、调度与协议原型，分组聚合 |
@@ -365,7 +423,7 @@ payload 借用期、批量安全前缀、TTL 过期推进、递归 poll 描述�
 
 ### 8.2 本机原始目录与源码定位
 
-主实验：`build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/`；辅助实验：
+历史 v3.0.0 主实验：`build/benchmarks/spmc-aeron-v3.0.0-20261019-170804/`；辅助实验：
 `build/benchmarks/spmc-v3.0.0-20261019-165821/`。两组目录、冻结二进制、runner 与 Aeron 依赖
 继续保留原位，主实验复跑命令不变。
 
@@ -407,7 +465,7 @@ test ! -e build/benchmarks/design-diagnosis-20261019 && \
 先使用 `rg` 定位当前函数，不依赖文档行号。工具能力、构建与通用安全条件见
 [Aeron 工具说明](../tools/aeron_compare/README.md)、[HFT 工具说明](../tools/hft_acceptance/README.md)。
 
-### 8.3 在同一主机复跑主实验
+### 8.3 在同一主机复跑历史 v3.0.0 1P2S 实验
 
 冻结 runner 按原目录深度推导仓库根；先恢复到以下路径，不要直接在 doc 目录运行。
 命令只适用于原有 Linux/systemd/cgroup-v2 主机；先检查没有其他测量/编译并发、二进制存在、
@@ -429,20 +487,25 @@ systemd-run --user --wait --pipe --collect \
 runner 中主实验允许 CPU0 是刻意的拓扑设置，不要直接套用只允许 CPU1–3 的旧单订阅 runner。
 冻结 runner 目前固定 2M/10M 消息短测；延长吞吐和增加诊断需要另存新实验并标注工具变化。
 若不在精确 tag HEAD，先审查版本和脚本的 `git describe --exact-match` 检查，不通过伪造 tag 绕过。
+当前 v4.0.1 四拓扑的通用命令和输入要求见
+[2026-10-29 证据说明](benchmarks/2026-10-29/README.md#证据与复现)。
 
 ## 9. 文档整理结果和禁止误读
 
-- 当前只有本页作为最终性能汇总；日期报告和旧吞吐表移入 `doc/archive/performance/`，
-  历史数字保留，README 和工具入口统一指向本页。
+- 本页作为最终性能汇总；日期报告保留完整证据，旧吞吐表移入 `doc/archive/performance/`。
+  README 和工具入口统一指向本页，当前四拓扑明细从本页 §1.1 链接。
 - `docs/release_note.md`、`doc/release_note.md` 是历史发布记录，不改写已发布版本声明。
   CHANGELOG 只记录本次整理，不改产品版本或已存在的 v3.0.0 tag。
 - 未入库的旧优化估算草稿、生成源码副本及重复 bulk 日志移到本机
   `build/document-cleanup-20261019/`，共 1,069 个文件、2,705,527 字节，映射及哈希保存在
   `relocation-manifest.json`，避免下一位 agent 当成已实现事实。
   不删除源码、测试、失败证据或其他未提交实验来制造干净状态。
+- 2026-10-29 的 v4.0.1 四拓扑正式矩阵见 §1.1：240 次测量、48 次预热全部退出 0，
+  计数和 720 份 stdout/stderr/driver log 的哈希已核验。该组仍是共享 4 vCPU 短测，
+  MPMC 存在 driver/subscriber0 核共享；尚无独占裸机、长时持续负载、完整 payload、
+  1P3S/1P4S 或无核共享 2P2S 的验收。
 - 2026-10-19 的 §3–8 历史整理未重新采样 perf、未运行新性能矩阵，只复核并冻结既有测量；
-  2026-10-22 claim API v4 的独立正式 A/B 见 §1.2。两者不拼接。
-  尚无独占裸机、长时新版公平 1P2S、完整 payload、1P3S/1P4S 或新 2P2S 的验收结果。
+  2026-10-22 claim API v4 的独立正式 A/B 见 §1.3。各版本、日期和拓扑数据不得拼接。
 - 整理核验：152 个新证据文件的源/目标哈希一致，144 份 stdout 已重解析、24 个五轮分组
   已重算，报告主表与辅助表对齐；历史已跟踪证据及两处 release note 保持原字节。
   该次整理为文档改动，未重跑 CTest；历史通过记录不作为新的测试结果。

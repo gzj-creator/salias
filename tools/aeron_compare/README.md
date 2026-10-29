@@ -1,11 +1,13 @@
-# Resource-Limited IPC Latency Comparison
+# Resource-Limited IPC Salias / Aeron Comparison
 
-Current results and next-agent handoff: [final performance report](../../doc/performance-report.md).
+Current four-topology results: [2026-10-29 Salias / Aeron comparison](../../doc/benchmarks/2026-10-29/README.md).
+Current conclusions and next-agent handoff: [final performance report](../../doc/performance-report.md).
 Historical single-subscriber matrix: [2026-10-19 report](../../doc/archive/performance/aeron-latency-comparison-2026-10-19.md).
 This harness is Linux/cgroup-v2 specific and uses the user systemd manager.
-The original single-subscriber runner deliberately leaves CPU0 out. The final
-report's separate frozen 1P2S runner uses CPU0 for the coordinator and Aeron driver;
-do not mix the two CPU budgets or splice their results. Do not use the older
+The original single-subscriber runner deliberately leaves CPU0 out. The frozen
+1P2S runner uses CPU0 for the coordinator and Aeron driver. `run_topology_suite.py`
+adds SPSC/MPSC/SPMC/MPMC throughput plus attempt/planned latency. Do not mix the
+different runners' CPU budgets or splice their results. Do not use the older
 `run_release_compare.sh` for this constrained host: it rebuilds with `nproc`,
 defaults to larger topologies and includes huge-page configurations.
 
@@ -15,6 +17,54 @@ historical absolute paths. See section 8.2 of the final report. Maintained tools
 current 1P2S datasets, frozen binaries and Aeron dependencies remain in place.
 
 ## Measurement
+
+### Four-Topology Suite
+
+`run_topology_suite.py` is the current paired matrix for SPSC (1P1S), MPSC (2P1S),
+SPMC (1P2S), and MPMC (2P2S). It defaults to 64/256 B, one warmup plus five
+measured rounds, throughput of 10M messages per producer, and 1M msg/s latency
+for two seconds with attempt and planned origins. Every round recreates the
+channel and processes. The summary uses medians and ranges of per-round
+quantiles, and latency takes the slower subscriber before cross-round aggregation.
+
+```bash
+OUT="$PWD/build/benchmarks/topology-suite-$(date +%Y%m%d-%H%M%S)"
+systemd-run --user --wait --pipe --collect \
+  -p "WorkingDirectory=$PWD" -p AllowedCPUs=0-3 -p Nice=5 \
+  -p MemoryHigh=704M -p MemoryMax=704M -p MemorySwapMax=0 \
+  -p TasksMax=64 -p RuntimeMaxSec=2400s -p KillMode=control-group -p OOMPolicy=stop \
+  --setenv=SALIAS_RESOURCE_CAPPED=1 \
+  python3 tools/aeron_compare/run_topology_suite.py --output "$OUT" \
+  --salias-client build/release/bench/salias_ipc_compare \
+  --aeron-client build/benchmarks/<aeron-build>/aeron_ipc_compare \
+  --aeron-driver build/benchmarks/<aeron-build>/binaries/aeronmd
+```
+
+The runner refuses an output directory that already contains files, checks the
+cgroup and CPU mask, keeps all stdout/stderr/driver logs, and writes
+`results.jsonl`, `summary.json`, `environment.json`, `frozen-runner.py`, and a
+top-level `SHA256SUMS`. When moving logs into a `raw/` subtree, regenerate the
+manifest so it contains paths relative to the evidence directory:
+
+```bash
+cd doc/benchmarks/<date>
+find . -type f ! -name SHA256SUMS -printf '%P\0' | sort -z | \
+  xargs -0 sha256sum > SHA256SUMS
+sha256sum -c SHA256SUMS
+```
+
+Tests are synthetic and do not launch either engine:
+
+```bash
+cd tools/aeron_compare
+python3 -m unittest test_topology_suite.py test_latency_compare.py
+```
+
+The suite bundles one Aeron driver per case. For SPSC/MPSC/SPMC, workers use
+CPU1–3 and the coordinator/driver uses CPU0. MPMC needs all four application
+workers on CPU0–3, so the driver and coordinator share CPU0 with subscriber0.
+That MPMC result is a valid deployment comparison for this host, not an
+unconstrained-library or exclusive-core baseline.
 
 ### Phase 3 E1 Diagnostic
 
@@ -227,8 +277,9 @@ cgroup if necessary. Results under `build/` are intentionally Git-ignored.
 CPU1 hosts the subscriber, CPU2 publisher0, CPU3 publisher1 when present.
 The Aeron SHARED/backoff driver is always pinned to CPU3: independent in 1P1S,
 but **shared with publisher1 in 2P1S**. Do not interpret that second topology as
-an equally provisioned, non-oversubscribed Aeron latency baseline. No 2P2S or
-throughput-saturation matrix is run on this four-vCPU shared host.
+an equally provisioned, non-oversubscribed Aeron latency baseline. This
+`run_latency_compare.py` path does not run 2P2S or a throughput matrix; use
+`run_topology_suite.py` for those, with its explicit CPU-sharing caveat above.
 
 ## Design Diagnostics
 

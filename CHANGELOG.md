@@ -16,6 +16,15 @@ are released.
 
 ## [Unreleased]
 
+### Tools
+
+- 新增四拓扑 Salias/Aeron 对比 runner，统一覆盖 SPSC、MPSC、SPMC、MPMC 的吞吐及 attempt/planned 延迟测量，校验资源边界、消息计数和订阅者结果，并生成可复核的聚合、环境信息、冻结 runner 与 SHA-256 清单。
+- 增加 runner 的合成单元测试，覆盖拓扑与 CPU 布局、计数预期、最慢订阅者聚合和预热排除。
+
+### Docs
+
+- 归档 v4.0.1 四拓扑正式对比证据，更新 README、最终性能报告与 Aeron 工具说明。结果明确 SPSC/SPMC 吞吐差距、MPSC 接近持平、MPMC 核共享边界及延迟尾部限制，不与历史拓扑或版本数据拼接。
+
 ## [v4.0.1] - 2026-10-25
 
 ### Fixed
