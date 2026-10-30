@@ -8,7 +8,7 @@
 |---|---|---|
 | 动态、变长、Ordered、TTL 或 schema-bound 通用流 | `Channel<Mode, Schema>` | per-producer magic-ring |
 | 固定 payload、固定参与者、可靠 FIFO 快速流 | `FixedChannel<Topology, Schema, Capacity, ...>` | 固定槽 Ring |
-| 有界 latest fanout | `LatestMpmcChannel<Capacity, HighWatermarkPercent>` | latest 保留窗口 |
+| 有界 latest fanout | `LatestMpmcChannel<Capacity, HighWatermarkPercent, Schema>` | latest 保留窗口 |
 
 `Channel<Mode>` 与 `Channel<Mode, Schema>` 是同一通用 Channel 产品的 raw 和 fixed-message payload
 模式，不是两套产品；两者不能互连。`FixedChannel` 是独立数据面，不经过通用 Channel 的变长 frame、
@@ -23,9 +23,9 @@
 | `OrderedMpscChannel` | `Channel<Mode::OrderedMpsc>` | 同上 |
 | `OrderedMpmcChannel` | `Channel<Mode::OrderedMpmc>` | 同上 |
 
-直接 `Channel<Mode::LatestMpmc>` 也是 **compat** 入口，不再并列主推。raw latest 的替代入口是
-`LatestMpmcChannel`；typed latest 仍保留直接 `Channel<Mode::LatestMpmc, Schema>` 路径，其正式替代
-入口须等 Phase 2 先定义类型安全和静态配置契约，不能把 typed 用户静默迁移成 raw wrapper。
+直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()` 不再公开。latest fanout 的 raw 和 typed
+payload 都使用 `LatestMpmcChannel`：省略 `Schema` 时是 raw payload，显式传入 `Schema` 时保持
+schema ID、版本和 payload 大小校验。这样 latest 入口不会绕过静态容量与水位检查。
 完整迁移表见 [Channel API 迁移说明](migration/channel-api-convergence.md)。
 
 公共 API 暴露单一 per-producer-ring 引擎的四种排序/拓扑组合，并增加 `LatestMpmc` 保留窗口模式：
@@ -72,9 +72,10 @@ single 模式要求 `num_consumers == 1`；fanout 模式允许 1–8 个消费�
 字节水位两者中更严格者约束；等长批次可返回部分成功条数。
 
 `LatestMpmc` 使用 FIFO 顺序和 fanout 拓扑。`salias::LatestMpmcChannel<Capacity,
-HighWatermarkPercent>` 将每个 producer ring 的字节容量和保留比例固定在模板参数中，水位默认
+HighWatermarkPercent, Schema>` 将每个 producer ring 的字节容量和保留比例固定在模板参数中，水位默认
 为 90%；创建时模板参数覆盖 `Config::capacity` 与 `Config::high_watermark_percent`，连接时会
-校验共享通道参数，不一致返回 `Error::BadConfig`。默认订阅策略为 `DropOldest`；创建
+校验共享通道参数，不一致返回 `Error::BadConfig`。省略 `Schema` 时使用 raw payload；显式传入时，
+连接还会校验 schema ID、版本和 payload 大小，不匹配返回 `Error::SchemaMismatch`。默认订阅策略为 `DropOldest`；创建
 `Subscriber` 时也可显式选择 `SubscriptionPolicy::Reliable`。Reliable 订阅者的未读游标参与
 保留边界，生产者不能跨过它淘汰消息，因此慢的 Reliable 订阅者会在高水位处施加背压；
 DropOldest 订阅者则可独立跳过已淘汰消息，不会拖住其他消费者。其他 channel mode 只支持
@@ -101,7 +102,8 @@ Reliable 订阅端的 checked 接收只返回普通消息或空结果，不会�
 `skip_to_latest()`。
 
 ```cpp
-using QuoteChannel = salias::LatestMpmcChannel<1u << 20>;  // 默认保留水位为 90%
+// 默认保留水位为 90%；省略第三个模板参数即可使用 raw payload。
+using QuoteChannel = salias::LatestMpmcChannel<1u << 20, 90, QuoteSchema>;
 auto owner = QuoteChannel::create(config);
 auto publisher = owner->publisher();
 auto subscriber = owner->subscriber();

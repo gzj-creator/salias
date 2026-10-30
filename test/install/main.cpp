@@ -50,5 +50,22 @@ int main() {
   if (!received || !*received || (**received).sequence != 42) {
     return 6;
   }
+
+  using LatestChannel = salias::LatestMpmcChannel<4096, 75, InstallFixedSchema>;
+  salias::Config latest_config;
+  latest_config.name = "install-consumer-latest-" + std::to_string(::getpid());
+  auto latest = LatestChannel::create(latest_config);
+  if (!latest || latest->capacity() != 4096 || latest->high_watermark_percent() != 75) {
+    return 7;
+  }
+  auto latest_publisher = latest->publisher();
+  auto latest_subscriber = latest->subscriber();
+  if (!latest_publisher.send(InstallFixedMessage{.sequence = 43})) {
+    return 8;
+  }
+  auto latest_received = latest_subscriber.try_recv_copy();
+  if (!latest_received || !*latest_received || (**latest_received).sequence != 43) {
+    return 9;
+  }
   return 0;
 }

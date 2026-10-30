@@ -188,7 +188,7 @@ def validate_docs(by_name: dict[str, dict]) -> None:
     required_snippets = (
         "salias::Channel<salias::Mode::FifoMpsc, QuoteSchema>",
         "salias::FixedChannel<salias::FixedTopology::Spsc, QuoteSchema, 1024>",
-        "salias::LatestMpmcChannel<1u << 20, 90>",
+        "salias::LatestMpmcChannel<1u << 20, 90, QuoteSchema>",
     )
     for snippet in required_snippets:
         if snippet not in quick_start:

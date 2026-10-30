@@ -1553,7 +1553,9 @@ Channel<M, RawPayloadSchema>::Channel(std::shared_ptr<ChannelState<M>> state) no
 /// @retval Error 配置非法或平台创建失败。
 /// @note 公共入口校验后再委托 ChannelTraits 创建具名状态。
 template <Mode M>
-Result<Channel<M>> Channel<M, RawPayloadSchema>::create(const Config& config) {
+Result<Channel<M>> Channel<M, RawPayloadSchema>::create(const Config& config)
+  requires(M != Mode::LatestMpmc)
+{
   return create_with_schema(config, detail::kRawPayloadSchema);
 }
 
@@ -1582,7 +1584,9 @@ Result<Channel<M>> Channel<M, RawPayloadSchema>::create_with_schema(
 /// @retval Channel 连接成功。
 /// @retval Error 未找到、版本不匹配或配置非法。
 template <Mode M>
-Result<Channel<M>> Channel<M, RawPayloadSchema>::connect(std::string_view name) {
+Result<Channel<M>> Channel<M, RawPayloadSchema>::connect(std::string_view name)
+  requires(M != Mode::LatestMpmc)
+{
   return connect_with_schema(name, detail::kRawPayloadSchema);
 }
 

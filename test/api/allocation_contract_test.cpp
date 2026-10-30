@@ -174,7 +174,6 @@ int main() {
           create_failure_config) ||
       !check_create_allocations<salias::Channel<salias::Mode::OrderedMpmc>>(
           create_failure_config) ||
-      !check_create_allocations<salias::Channel<salias::Mode::LatestMpmc>>(create_failure_config) ||
       !check_create_allocations<salias::LatestMpmcChannel<4096>>(create_failure_config)) {
     return 7;
   }

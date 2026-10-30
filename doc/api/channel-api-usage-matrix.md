@@ -2,9 +2,8 @@
 
 日期：2026-10-30（Asia/Singapore）
 
-本文记录收敛前仓库内对 Channel 产品入口及外围能力的引用。它是 Phase 0 的审计基线，
-不是下游使用证明；仓库外消费者见
-[外部证据审计](channel-api-downstream-evidence.md)。
+本文记录仓库内对 Channel 产品入口及外围能力的引用。它是 Phase 0 的审计基线，只覆盖
+salias 自身的代码、测试、工具、安装包和 module；仓库外消费者不在本次接口收敛的审计范围内。
 
 ## 1. 审计方法与边界
 
@@ -20,8 +19,8 @@ README 或单个示例。当前工作区没有 `AGENTS.md`；本文不把仓库�
 | 四个 raw 便捷别名 `FifoMpscChannel`、`FifoMpmcChannel`、`OrderedMpscChannel`、`OrderedMpmcChannel` | 仅 `test/api/channel_alias_compat_test.cpp` 保留同型与弃用窗口回归 | 无；已迁移到 `Channel<Mode>` | 无；已迁移到 `Channel<Mode>` | 未使用 | `src/salias.cppm` 仍导出；`test/mcpp` 使用规范入口 | **compat**；4.1 编译期弃用，最早 5.0 删除 |
 | 显式 `Schema<T, Id, Version>` 辅助模板 | `test/api/schema_helper_test.cpp`；typed latest/Channel 既有测试仍覆盖手写 schema | 通过 typed Channel 参数间接使用 | 暂无 | 经聚合头可见 | `test/mcpp/typed_schema.hpp`、`import.cpp`、`src/salias.cppm` | **core**；无运行时成本，版本保持显式 |
 | 固定快速流 `FixedChannel`、`FixedPublisher`、`FixedSubscriber`、`FixedPublishClaim` | `test/api/fixed_channel_test.cpp` 及固定 Ring 测试 | `bench/fixed_channel_poll_compare.cpp` | 暂无 | `test/install/main.cpp` 创建并收发 | `salias.hpp` 与 `import salias;` 导出 | **core**；独立数据面，不与通用 Channel 合并 |
-| 规范 latest fanout `LatestMpmcChannel` | `test/api/latest_subscription_test.cpp`、`channel_api_test.cpp`、`priority_channel_test.cpp`、`allocation_contract_test.cpp` | `bench/channel_stress.cpp`、`bench/round2.cpp`、`bench/round2_probe.cpp` | 暂无 | 由 CMake 聚合头间接可见 | `test/mcpp/import.cpp`、`src/salias.cppm` | **core**；唯一推荐 latest wrapper |
-| 直接 `Channel<Mode::LatestMpmc>` | `test/api/channel_api_test.cpp` 的 typed latest/非法配置测试段、`allocation_contract_test.cpp` | 通用 `Channel<Mode>` 模板实例化路径 | 暂无 | 未直接实例化 | `header_probe.cpp` 的五模式分派包含该实例化 | **compat**；停止主推，typed latest 迁移待 Phase 2 |
+| 规范 latest fanout `LatestMpmcChannel<Capacity, Watermark[, Schema]>` | `test/api/latest_subscription_test.cpp`、`channel_api_test.cpp`、`priority_channel_test.cpp`、`allocation_contract_test.cpp` | `bench/channel_stress.cpp`、`bench/round2.cpp`、`bench/round2_probe.cpp` | 暂无 | `test/install/main.cpp` 创建并收发 typed latest | `test/mcpp/import.cpp`、`test/mcpp/header_probe.cpp`、`src/salias.cppm` | **core**；raw/typed 共用的唯一最新窗口入口 |
+| 直接 `Channel<Mode::LatestMpmc>` | `test/api/channel_api_test.cpp` 用编译期 concept 断言工厂不可调用 | 已迁移到 `LatestMpmcChannel` | 已迁移到 `LatestMpmcChannel` | 未使用 | `header_probe.cpp` 通过 wrapper 分派 | **removed**；不提供直接 `create()`/`connect()` |
 | `LatestByKeyChannel` 及消息/端点 | `test/api/latest_by_key_test.cpp`、`allocation_contract_test.cpp` | `bench/latest_by_key.cpp`、`bench/channel_stress.cpp` | 暂无 | 未使用 | `header_probe.cpp`、`import.cpp`、`src/salias.cppm` | **extras 候选**；外部使用未确认，不删除 |
 | `PriorityPublisher`、`PrioritySubscriber`、`PriorityMessage`、`PriorityWaitPolicy` | `test/api/priority_channel_test.cpp` | `bench/round2.cpp`、`bench/round2_probe.cpp`、`bench/channel_stress.cpp` | 暂无 | `test/install/main.cpp` 直接依赖 | `header_probe.cpp`、`import.cpp`、`src/salias.cppm` | **extras 候选**；安装消费仍耦合，Phase 3 处理 |
 | `Ringbuffer` | `test/ring/ringbuffer_test.cpp` | 暂无 | 暂无 | 未使用 | `salias.hpp` 与 `import salias;` 导出 | **extras 候选**；外部使用未确认，不删除 |
@@ -32,14 +31,10 @@ README 或单个示例。当前工作区没有 `AGENTS.md`；本文不把仓库�
   `PriorityWaitPolicy`，证明核心安装归档尚未与 extras 候选解耦；该问题留给 Phase 3。
 - mcpp 的 header probe 和 import test 同时覆盖规范核心路径、旧别名、Latest、LatestByKey
   和 Priority。Phase 1 只迁移旧别名并保留独立兼容测试，不在本阶段拆分 mcpp extras。
-- `LatestMpmcChannel` 只支持 raw payload；直接 `Channel<Mode::LatestMpmc, Schema>` 仍提供
-  typed latest 能力。不能在没有 typed latest 契约前把后者标为可删除或迁移到 raw wrapper。
-- 同工作区可检索的 `gts-quote`、`gts-signal`、`gts-signal-gateway`、`gts-strategy`
-  都以固定绝对路径依赖 salias，并在 11 个源码文件中引用四个 raw 别名；详细 commit、文件
-  和检索命令见 [下游证据审计](channel-api-downstream-evidence.md)。这四个仓库没有使用
-  `LatestByKey`、Priority 或 Ringbuffer，但仍不能代表发布包或未纳入本工作区的消费者。
-- 可供审计的本地下游快照不包含发布的包消费遥测、完整外部用户清单或负责人签署，因此
-  Phase 0 的外部使用门禁仍不能关闭。
+- `LatestMpmcChannel` 同时支持 raw 和 typed payload；第三个模板参数省略时是 raw，显式传入时
+  保留原有 schema ID、版本与 payload 大小校验。直接 `Channel<Mode::LatestMpmc>` 工厂已关闭。
+- 仓库外使用证据没有采集，也不作为本次接口收敛的门禁；`LatestByKey`、Priority 和 Ringbuffer
+  保持当前导出，Phase 3 前不删除、不移动。
 
 ## 4. 证据命令
 
@@ -53,8 +48,4 @@ rg -n 'PriorityPublisher|PrioritySubscriber|PriorityMessage|PriorityWaitPolicy' 
   test bench example test/install test/mcpp
 rg -n 'Ringbuffer' test bench example test/install test/mcpp
 rg -n 'using ::salias::' src/salias.cppm
-rg -n --hidden --glob '!salias/**' --glob '!.git/**' \
-  --glob '!**/build/**' --glob '!**/target/**' \
-  '\b(FifoMpscChannel|FifoMpmcChannel|OrderedMpscChannel|OrderedMpmcChannel)\b' \
-  /data/disk1/projects/gts-{quote,signal,signal-gateway,strategy}
 ```

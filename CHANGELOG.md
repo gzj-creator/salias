@@ -16,6 +16,22 @@ are released.
 
 ## [Unreleased]
 
+### Changed
+
+- latest fanout 收敛为唯一入口 `LatestMpmcChannel<Capacity, HighWatermarkPercent[, Schema]>`：直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()` 由编译期约束关闭，底层 Channel 数据面继续由 wrapper 使用，不修改共享内存协议或通道版本。
+- `LatestMpmcChannel` 增加可选 schema 参数，typed latest 继续校验 schema ID、版本和 payload 大小；raw/typed 两种 payload 模式共享相同的静态容量、水位、背压、订阅策略和故障语义。
+- 四个 raw `*Channel` 兼容别名继续保留并标记弃用；本版不删除 `LatestByKey`、Priority、Ringbuffer，也不执行 `Fast*Ring` 最终重命名。
+
+### Tests
+
+- API、poll、allocation、安装消费者和 mcpp module/header 消费迁移到唯一 latest 入口，新增直接 Channel 工厂不可调用、typed wrapper 静态配置/schema 校验和 raw/typed 跨消费面验证。
+- Release CTest 25/25、ASan/UBSan CTest 24/24、`salias_install_consumer`、mcpp 离线 Release 构建、`test_mcpp_import` 与两个独立 shared-path consumer 均通过。
+
+### Docs
+
+- README、L7 API、仓库内使用矩阵、迁移表和机器可读 API manifest 同步 latest raw/typed 唯一入口；manifest 当前记录 30 core、4 compat、9 extras、1 removed。
+- 按本轮接口收敛边界，不检查仓库外源码消费方，也不将其使用量或迁移成本作为当前门禁；Phase 3-5 仍未执行。
+
 ## [v4.1.0] - 2026-10-30
 
 ### Added

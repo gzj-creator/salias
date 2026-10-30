@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <new>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 #include "salias/channel.hpp"
@@ -18,6 +19,7 @@ namespace salias {
  * @brief 保留每个 producer 最新窗口的 IPC fanout 通道。
  * @tparam Capacity 每个 producer ring 的字节容量，须符合 Channel 容量约束。
  * @tparam HighWatermarkPercent 环内保留窗口占容量的百分比，默认 90%。
+ * @tparam Schema 固定消息 schema；默认 RawPayloadSchema 表示变长 raw payload。
  *
  * 默认订阅者可跳过已移出保留窗口的旧消息；也可为指定订阅者选择 Reliable，
  * 此时其未读消息不会被覆盖，慢订阅者会对生产者施加背压。消费者正在借用的 Message
@@ -27,13 +29,18 @@ namespace salias {
  * Config::publication_window 必须为 0，因为 LatestMpmc 使用保留水位而非消费者游标背压；
  * 可用 Config::publication_window_messages 进一步限制保留帧数。
  */
-template <std::size_t Capacity, std::uint32_t HighWatermarkPercent = 90>
+template <std::size_t Capacity, std::uint32_t HighWatermarkPercent = 90,
+          class Schema = RawPayloadSchema>
 class LatestMpmcChannel {
   static_assert(Capacity > 0, "LatestMpmcChannel capacity must be greater than zero");
   static_assert(HighWatermarkPercent > 0 && HighWatermarkPercent <= 100,
                 "LatestMpmcChannel watermark must be in [1, 100]");
+  static_assert(std::is_same_v<Schema, RawPayloadSchema> || detail::WireSchema<Schema>,
+                "LatestMpmcChannel Schema must be RawPayloadSchema or a valid WireSchema");
 
  public:
+  /// @brief Latest 通道底层的 schema-bound 或 raw Channel 类型。
+  using ChannelType = Channel<Mode::LatestMpmc, Schema>;
   /// @brief 创建结果类型。
   using CreateResult = Result<LatestMpmcChannel>;
 
@@ -48,7 +55,7 @@ class LatestMpmcChannel {
       typed_config.mode = Mode::LatestMpmc;
       typed_config.capacity = Capacity;
       typed_config.high_watermark_percent = HighWatermarkPercent;
-      auto channel = Channel<Mode::LatestMpmc>::create(typed_config);
+      auto channel = create_channel(typed_config);
       if (!channel) {
         return std::unexpected(channel.error());
       }
@@ -62,7 +69,7 @@ class LatestMpmcChannel {
    * @brief 连接通道，并校验共享容量与本类型模板参数一致。
    */
   static CreateResult connect(std::string_view name) {
-    auto channel = Channel<Mode::LatestMpmc>::connect(name);
+    auto channel = connect_channel(name);
     if (!channel) {
       return std::unexpected(channel.error());
     }
@@ -84,21 +91,19 @@ class LatestMpmcChannel {
   }
 
   /// @return 创建绑定到该通道的丢旧发布端。
-  LatestMpmcPublisher publisher() { return channel_.publisher(); }
+  auto publisher() { return channel_.publisher(); }
 
   /// @return 创建绑定到该通道的丢旧订阅端。
-  LatestMpmcSubscriber subscriber() { return channel_.subscriber(); }
+  auto subscriber() { return channel_.subscriber(); }
 
   /// @return 创建丢旧订阅端；槽位耗尽或端点分配失败时返回明确错误。
-  Result<LatestMpmcSubscriber> try_subscriber() { return channel_.try_subscriber(); }
+  auto try_subscriber() { return channel_.try_subscriber(); }
 
   /// @return 按指定交付策略创建订阅端。
-  LatestMpmcSubscriber subscriber(SubscriptionPolicy policy) { return channel_.subscriber(policy); }
+  auto subscriber(SubscriptionPolicy policy) { return channel_.subscriber(policy); }
 
   /// @return 按指定交付策略创建订阅端；槽位耗尽或端点分配失败时返回明确错误。
-  Result<LatestMpmcSubscriber> try_subscriber(SubscriptionPolicy policy) {
-    return channel_.try_subscriber(policy);
-  }
+  auto try_subscriber(SubscriptionPolicy policy) { return channel_.try_subscriber(policy); }
 
   /// @return 编译期固定的 ring 容量。
   static constexpr std::size_t capacity() noexcept { return Capacity; }
@@ -107,10 +112,25 @@ class LatestMpmcChannel {
   static constexpr std::uint32_t high_watermark_percent() noexcept { return HighWatermarkPercent; }
 
  private:
-  explicit LatestMpmcChannel(Channel<Mode::LatestMpmc> channel) noexcept
-      : channel_(std::move(channel)) {}
+  static Result<ChannelType> create_channel(const Config& config) {
+    if constexpr (std::is_same_v<Schema, RawPayloadSchema>) {
+      return ChannelType::create_with_schema(config, detail::kRawPayloadSchema);
+    } else {
+      return ChannelType::create_with_schema(config);
+    }
+  }
 
-  Channel<Mode::LatestMpmc> channel_;
+  static Result<ChannelType> connect_channel(std::string_view name) {
+    if constexpr (std::is_same_v<Schema, RawPayloadSchema>) {
+      return ChannelType::connect_with_schema(name, detail::kRawPayloadSchema);
+    } else {
+      return ChannelType::connect_with_schema(name);
+    }
+  }
+
+  explicit LatestMpmcChannel(ChannelType channel) noexcept : channel_(std::move(channel)) {}
+
+  ChannelType channel_;
 };
 
 }  // namespace salias

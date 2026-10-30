@@ -145,7 +145,7 @@
       "name": "salias::Channel",
       "kind": "class_template",
       "status": "core",
-      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 40, "declaration": "class Channel<M, RawPayloadSchema> {"},
+      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 44, "declaration": "class Channel<M, RawPayloadSchema> {"},
       "replacement": "salias::Channel<Mode> or salias::Channel<Mode, Schema> (canonical generic entry)",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
       "notes": "Canonical dynamic reliable stream; raw and typed payload modes share the same ordering, topology, backpressure and subscription semantics."
@@ -153,14 +153,15 @@
     {
       "name": "salias::Channel<Mode::LatestMpmc>",
       "kind": "specialization_path",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/config.hpp", "line": 33, "declaration": "LatestMpmc = 4,"},
+      "status": "removed",
+      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 57, "declaration": "static Result<Channel> create(const Config& config)"},
       "secondary_locations": [
-        {"file": "src/salias/include/salias/latest_channel.hpp", "line": 51, "declaration": "auto channel = Channel<Mode::LatestMpmc>::create(typed_config);"}
+        {"file": "src/salias/include/salias/channel.hpp", "line": 70, "declaration": "static Result<Channel> connect(std::string_view name)"},
+        {"file": "src/salias/include/salias/latest_channel.hpp", "line": 34, "declaration": "class LatestMpmcChannel {"}
       ],
-      "replacement": "salias::LatestMpmcChannel<Capacity, HighWatermarkPercent> for raw payload; typed latest replacement pending Phase 2",
-      "exports": {"header": true, "umbrella": true, "module": false, "cmake": true, "mcpp": true},
-      "notes": "Compatibility path retained. Typed Channel<Mode::LatestMpmc, Schema> must not be silently reduced to the raw-only wrapper."
+      "replacement": "salias::LatestMpmcChannel<Capacity, HighWatermarkPercent, Schema> (omit Schema for raw payload)",
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Direct create/connect factories are disabled for Mode::LatestMpmc. The wrapper owns static capacity, watermark and optional schema validation."
     },
     {
       "name": "salias::Publisher",
@@ -246,16 +247,16 @@
       "name": "salias::LatestMpmcChannel",
       "kind": "class_template",
       "status": "core",
-      "location": {"file": "src/salias/include/salias/latest_channel.hpp", "line": 31, "declaration": "class LatestMpmcChannel {"},
-      "replacement": "salias::LatestMpmcChannel<Capacity, HighWatermarkPercent> (self)",
+      "location": {"file": "src/salias/include/salias/latest_channel.hpp", "line": 34, "declaration": "class LatestMpmcChannel {"},
+      "replacement": "salias::LatestMpmcChannel<Capacity, HighWatermarkPercent, Schema> (omit Schema for raw payload)",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
-      "notes": "Canonical raw latest fanout wrapper with static capacity/watermark checks."
+      "notes": "Canonical latest fanout wrapper with static capacity/watermark checks and optional schema-bound payloads."
     },
     {
       "name": "salias::FifoMpscChannel",
       "kind": "alias",
       "status": "compat",
-      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 205, "declaration": "using FifoMpscChannel [[deprecated(\"use Channel<Mode::FifoMpsc>\")]] ="},
+      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 236, "declaration": "using FifoMpscChannel [[deprecated(\"use Channel<Mode::FifoMpsc>\")]] ="},
       "replacement": "salias::Channel<salias::Mode::FifoMpsc>",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
       "notes": "Deprecated in 4.1.0; removal no earlier than 5.0.0."
@@ -264,7 +265,7 @@
       "name": "salias::FifoMpmcChannel",
       "kind": "alias",
       "status": "compat",
-      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 207, "declaration": "using FifoMpmcChannel [[deprecated(\"use Channel<Mode::FifoMpmc>\")]] ="},
+      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 238, "declaration": "using FifoMpmcChannel [[deprecated(\"use Channel<Mode::FifoMpmc>\")]] ="},
       "replacement": "salias::Channel<salias::Mode::FifoMpmc>",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
       "notes": "Deprecated in 4.1.0; removal no earlier than 5.0.0."
@@ -273,7 +274,7 @@
       "name": "salias::OrderedMpscChannel",
       "kind": "alias",
       "status": "compat",
-      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 209, "declaration": "using OrderedMpscChannel [[deprecated(\"use Channel<Mode::OrderedMpsc>\")]] ="},
+      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 240, "declaration": "using OrderedMpscChannel [[deprecated(\"use Channel<Mode::OrderedMpsc>\")]] ="},
       "replacement": "salias::Channel<salias::Mode::OrderedMpsc>",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
       "notes": "Deprecated in 4.1.0; removal no earlier than 5.0.0."
@@ -282,7 +283,7 @@
       "name": "salias::OrderedMpmcChannel",
       "kind": "alias",
       "status": "compat",
-      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 211, "declaration": "using OrderedMpmcChannel [[deprecated(\"use Channel<Mode::OrderedMpmc>\")]] ="},
+      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 242, "declaration": "using OrderedMpmcChannel [[deprecated(\"use Channel<Mode::OrderedMpmc>\")]] ="},
       "replacement": "salias::Channel<salias::Mode::OrderedMpmc>",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
       "notes": "Deprecated in 4.1.0; removal no earlier than 5.0.0."

@@ -12,6 +12,8 @@
  */
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string_view>
 #include <utility>
@@ -29,6 +31,8 @@ template <Mode M>
 struct ChannelState;
 template <Mode M, class Schema>
 class Channel;
+template <std::size_t Capacity, std::uint32_t HighWatermarkPercent, class Schema>
+class LatestMpmcChannel;
 
 /**
  * @brief 具名 IPC 通道句柄，连接生产者与消费者的核心抽象。
@@ -50,7 +54,8 @@ class Channel<M, RawPayloadSchema> {
    * @note 模板参数 M 决定通道协议，Config::mode 会被外观层覆盖为 M。
    *       创建成功后该进程成为通道 owner，负责初始化共享元数据。
    */
-  static Result<Channel> create(const Config& config);
+  static Result<Channel> create(const Config& config)
+    requires(M != Mode::LatestMpmc);
 
   /**
    * @brief 连接已有或即将创建的具名 IPC 通道。
@@ -62,7 +67,8 @@ class Channel<M, RawPayloadSchema> {
    * @note 会有限等待 owner 发布 ready 标记，并在映射环形区前校验共享元数据。
    *       连接者不拥有共享段，仅映射并附加为生产者/消费者。
    */
-  static Result<Channel> connect(std::string_view name);
+  static Result<Channel> connect(std::string_view name)
+    requires(M != Mode::LatestMpmc);
 
   /// @brief 移动构造通道句柄；底层共享状态保持有效。
   Channel(Channel&&) noexcept = default;
@@ -131,6 +137,8 @@ class Channel<M, RawPayloadSchema> {
 
   template <Mode, class>
   friend class Channel;
+  template <std::size_t, std::uint32_t, class>
+  friend class LatestMpmcChannel;
 };
 
 /** @brief 固定消息 schema 的通道外观，只暴露类型化 publisher/subscriber。 */
@@ -139,18 +147,20 @@ class Channel<M, Schema> {
  public:
   using T = typename Schema::message_type;
 
-  static Result<Channel> create(const Config& config) {
-    auto raw = Channel<M, RawPayloadSchema>::create_with_schema(
-        config, detail::schema_descriptor<Schema>());
+  static Result<Channel> create(const Config& config)
+    requires(M != Mode::LatestMpmc)
+  {
+    auto raw = create_with_schema(config);
     if (!raw) {
       return std::unexpected(raw.error());
     }
     return Channel(std::move(*raw));
   }
 
-  static Result<Channel> connect(std::string_view name) {
-    auto raw = Channel<M, RawPayloadSchema>::connect_with_schema(
-        name, detail::schema_descriptor<Schema>());
+  static Result<Channel> connect(std::string_view name)
+    requires(M != Mode::LatestMpmc)
+  {
+    auto raw = connect_with_schema(name);
     if (!raw) {
       return std::unexpected(raw.error());
     }
@@ -197,9 +207,30 @@ class Channel<M, Schema> {
   }
 
  private:
+  static Result<Channel> create_with_schema(const Config& config) {
+    auto raw = Channel<M, RawPayloadSchema>::create_with_schema(
+        config, detail::schema_descriptor<Schema>());
+    if (!raw) {
+      return std::unexpected(raw.error());
+    }
+    return Channel(std::move(*raw));
+  }
+
+  static Result<Channel> connect_with_schema(std::string_view name) {
+    auto raw = Channel<M, RawPayloadSchema>::connect_with_schema(
+        name, detail::schema_descriptor<Schema>());
+    if (!raw) {
+      return std::unexpected(raw.error());
+    }
+    return Channel(std::move(*raw));
+  }
+
   explicit Channel(Channel<M, RawPayloadSchema> channel) noexcept : channel_(std::move(channel)) {}
 
   Channel<M, RawPayloadSchema> channel_;
+
+  template <std::size_t, std::uint32_t, class>
+  friend class LatestMpmcChannel;
 };
 
 using FifoMpscChannel [[deprecated("use Channel<Mode::FifoMpsc>")]] =

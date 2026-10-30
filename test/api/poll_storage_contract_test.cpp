@@ -2,6 +2,7 @@
  * @brief 小型独立契约测试，便于在受限内存下执行 ASan/UBSan。
  */
 #include <salias/channel.hpp>
+#include <salias/latest_channel.hpp>
 #include <unistd.h>
 
 #include <array>
@@ -19,14 +20,14 @@ void require(bool condition) {
   }
 }
 
-template <salias::Mode Mode>
+template <salias::Mode Mode, class ChannelType>
 void roundtrip() {
   salias::Config config;
   config.name = "poll-storage-" + std::to_string(::getpid()) + "-" +
                 std::to_string(static_cast<unsigned>(Mode));
   config.mode = Mode;
   config.capacity = 4096;
-  auto created = salias::Channel<Mode>::create(config);
+  auto created = ChannelType::create(config);
   require(created.has_value());
   auto publisher = created->publisher();
   auto subscriber = created->subscriber();
@@ -67,9 +68,9 @@ void roundtrip() {
 }  // namespace
 
 int main() {
-  roundtrip<salias::Mode::FifoMpsc>();
-  roundtrip<salias::Mode::FifoMpmc>();
-  roundtrip<salias::Mode::OrderedMpsc>();
-  roundtrip<salias::Mode::OrderedMpmc>();
-  roundtrip<salias::Mode::LatestMpmc>();
+  roundtrip<salias::Mode::FifoMpsc, salias::Channel<salias::Mode::FifoMpsc>>();
+  roundtrip<salias::Mode::FifoMpmc, salias::Channel<salias::Mode::FifoMpmc>>();
+  roundtrip<salias::Mode::OrderedMpsc, salias::Channel<salias::Mode::OrderedMpsc>>();
+  roundtrip<salias::Mode::OrderedMpmc, salias::Channel<salias::Mode::OrderedMpmc>>();
+  roundtrip<salias::Mode::LatestMpmc, salias::LatestMpmcChannel<4096>>();
 }

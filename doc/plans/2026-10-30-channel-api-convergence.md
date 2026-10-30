@@ -2,7 +2,7 @@
 
 日期：2026-10-30（Asia/Singapore）
 
-状态：**Phase 1 规范入口与文档冻结完成；Phase 0 已采集本地下游快照但完整外部证据和负责人签署仍阻塞；Phase 2-5 未执行**
+状态：**Phase 1 完成；latest 直接工厂与 schema-bound wrapper 已收敛；Phase 0 仓库外证据按用户决定不采集；Phase 3-5 未执行**
 
 ## 1. 目标
 
@@ -43,7 +43,7 @@ Channel 产品”收敛到少量稳定入口，同时保留当前性能路径和
 | 通用便捷别名 | `FifoMpscChannel` 等四个别名 | 与 `Channel<Mode>` 完全同型 | **兼容后删除** |
 | 固定快速流 | `FixedChannel<Topology, Schema, Capacity, ...>` | 固定 slot、固定参与者、可靠 FIFO | **核心保留** |
 | 最新窗口 | `LatestMpmcChannel<Capacity, Watermark>` | 有界 latest fanout、可丢旧或 Reliable | **核心主入口** |
-| 直接 latest 模式 | `Channel<Mode::LatestMpmc>` | 与上一行同引擎，但绕过静态配置门禁 | **保留兼容，停止主推** |
+| 直接 latest 模式 | `Channel<Mode::LatestMpmc>` | 与上一行同引擎，但绕过静态配置门禁 | **移除公开工厂；仅保留内部数据面** |
 | 按 key 最新值 | `LatestByKeyChannel<Key, Value, Capacity, Version>` | 进程共享锁、key 表、快照和事件日志 | **extras 候选** |
 | 优先级组合 | `PriorityPublisher<Mode...>` / `PrioritySubscriber<Mode...>` | 多通道路由和加权轮询 | **extras 候选** |
 | 本地队列 | `Ringbuffer<T, Capacity, Watermark>` | 进程内单线程有界丢旧队列 | **extras 候选** |
@@ -57,7 +57,7 @@ Channel 产品”收敛到少量稳定入口，同时保留当前性能路径和
   `LatestMpmc`。
 - `FixedChannel` 公开 4 个 topology：`Spsc`、`Mpsc`、`Spmc`、`Mpmc`。
 - 同时存在 4 个 raw `*Channel` 别名和 `Channel<Mode>` 规范形式。
-- `LatestMpmc` 同时存在 wrapper 和直接 `Channel<Mode::LatestMpmc>` 两条公开路径。
+- 收敛前 `LatestMpmc` 同时存在 wrapper 和直接 `Channel<Mode::LatestMpmc>` 两条公开创建路径。
 - `LatestByKeyChannel` 的公开头与实现约 1,220 行，专项测试约 1,067 行。
 - Priority 的公开头约 511 行，专项测试约 564 行。
 - 统一伞头文件 `salias/salias.hpp` 当前同时导出核心通道、Latest、LatestByKey、Priority 和 Ringbuffer。
@@ -90,12 +90,12 @@ using Fast = salias::FixedChannel<
 ### 4.2 核心 latest fanout
 
 ```cpp
-using Quotes = salias::LatestMpmcChannel<1u << 20, 90>;
+using Quotes = salias::LatestMpmcChannel<1u << 20, 90, QuoteSchema>;
 ```
 
-`LatestMpmcChannel` 保持为推荐主入口，因为它把容量和水位放在模板中，并在 `connect()` 时校验配置。
-直接 `Channel<Mode::LatestMpmc>` 暂保留兼容，但不再作为 README 和示例的推荐形式；是否在主版本中
-移出公开面，取决于 typed latest 是否成为正式需求。
+`LatestMpmcChannel` 把容量、水位和可选 schema 放在类型中，并在 `connect()` 时校验共享配置。
+直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()` 已关闭；底层 `Channel` 数据面继续由
+wrapper 使用，因此本决定不修改 wire protocol，也不复制 latest 引擎。
 
 ### 4.3 extras
 
@@ -123,7 +123,8 @@ extras 应满足：
 4. **端点类型不是产品选择。** 用户选择 Channel；Publisher/Subscriber 由 Channel 返回。
 5. **源码兼容与 wire 兼容分开。** API 迁移要求重编译，但不应无故要求重建现有共享内存通道。
 6. **文档只展示推荐路径。** 兼容入口保留在迁移说明和 API 参考中，不占据快速开始和功能矩阵。
-7. **删除必须有证据。** 至少完成仓库引用清零、安装消费、模块消费、专项测试和 release note。
+7. **仓库内闭环。** 接口收敛以 salias 自身的测试、安装、module 和文档为依据；仓库外消费方自行适配，
+   不把源码扫描结果作为当前门禁。
 
 ## 6. 执行清单
 
@@ -139,16 +140,15 @@ extras 应满足：
 
 **Phase 0 退出条件**：所有待删或待移能力都有明确处置，且没有把正式功能误标为兼容层。
 
-本 session 已对仓库内 `test/`、`bench/`、`example/`、安装消费、mcpp 和 module 导出完成
-引用审计，结果见 [仓库内使用矩阵](../api/channel-api-usage-matrix.md)。另对同一工作区可检索的
-四个 salias 下游仓库采集了源码快照：均使用固定绝对路径依赖并引用四个 raw 别名，未检索到
-`LatestByKey`、Priority 或 Ringbuffer 源码引用。由于仍缺发布包消费遥测、完整外部用户清单和
-负责人签署，两个 Phase 0 外部/签署复选框保持未勾选；证据与边界见
-[下游证据审计](../api/channel-api-downstream-evidence.md)，不以仓库内测试代替下游证据。
+本 session 已对 `test/`、`bench/`、`example/`、安装消费、mcpp 和 module 导出完成仓库内引用
+审计，结果见[仓库内使用矩阵](../api/channel-api-usage-matrix.md)。2026-10-30 用户明确决定不再
+检查仓库外源码消费方，下游按其依赖升级窗口自行适配；因此本计划不采集、不推断也不伪造发布包
+遥测、私有仓库使用或迁移成本。两个仓库外/签署复选框继续保持未勾选，但它们不再阻塞后续
+不删除四个兼容别名的本地接口收敛。
 
 ### Phase 1：规范入口与文档冻结
 
-- [x] 新增公开 API 清单，按 core、compat、extras 三个状态记录每个 symbol。
+- [x] 新增公开 API 清单，按 core、compat、extras、removed 四种状态记录每个 symbol。
 - [x] README 快速开始只保留 `Channel<Mode, Schema>`、`FixedChannel` 和
   `LatestMpmcChannel` 三个核心示例。
 - [x] `doc/11-L7-api.md` 将四个 raw 别名降为“兼容入口”，统一推荐 `Channel<Mode>`。
@@ -168,15 +168,19 @@ extras 应满足：
 
 ### Phase 2：Latest 主入口收敛
 
-- [ ] 确认 `LatestMpmcChannel` 是公开 latest fanout 的唯一推荐入口。
-- [ ] 盘点直接使用 `Channel<Mode::LatestMpmc>` 的测试、benchmark、模块导出和安装消费。
-- [ ] 决定 typed latest 是否属于核心需求。
-- [ ] 若需要 typed latest，先提供与 `LatestMpmcChannel` 一致的类型安全和静态配置契约，不暴露第三条路径。
-- [ ] 将直接 `Channel<Mode::LatestMpmc>` 标记为 compat-only，并停止在文档中并列推荐。
-- [ ] 增加测试，确保 wrapper 与底层模式在容量、水位、策略和连接校验上完全一致。
-- [ ] 在主版本前保留底层模式，避免同版本删除造成兼容断裂。
+- [x] 确认 `LatestMpmcChannel` 是公开 latest fanout 的唯一入口。
+- [x] 盘点仓库内直接使用 `Channel<Mode::LatestMpmc>` 的测试、benchmark、模块导出和安装消费。
+- [x] 决定 typed latest 属于核心需求。
+- [x] 为 `LatestMpmcChannel` 增加可选 `Schema` 参数，保留 schema ID、版本、payload 大小和静态配置校验。
+- [x] 关闭直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()`，不再暴露第三条路径。
+- [x] 增加测试，确保 wrapper 与底层模式在容量、水位、策略、schema 和连接校验上完全一致。
+- [x] 保留底层 latest 数据面供 wrapper 使用，不修改共享内存协议或通道版本。
 
 **Phase 2 退出条件**：Latest 只有一个推荐入口，且不存在静态配置校验旁路。
+
+本 session 在用户“下游自行适配”的明确决定下完成该收敛。raw 和 typed latest 都使用
+`LatestMpmcChannel<Capacity, HighWatermarkPercent[, Schema]>`；直接 Channel 工厂由编译期约束关闭，
+而不是删除底层引擎或升级 wire protocol。
 
 ### Phase 3：extras 边界
 
@@ -200,7 +204,7 @@ extras 应满足：
 - [ ] 在弃用窗口至少一个 minor 后，确认构建警告、release note 和迁移示例已发布。
 - [ ] 删除 `FifoMpscChannel`、`FifoMpmcChannel`、`OrderedMpscChannel` 和
   `OrderedMpmcChannel` 别名，或由负责人明确批准永久保留并更新本计划。
-- [ ] 按 Phase 2 决策删除或隐藏直接 `Channel<Mode::LatestMpmc>` 公开路径。
+- [x] 按 Phase 2 决策关闭直接 `Channel<Mode::LatestMpmc>` 的公开创建/连接工厂。
 - [ ] 删除 extras 转发头；兼容窗口结束前不得提前删除。
 - [ ] 将 `salias/salias.hpp` 收敛为核心聚合头，不再默认包含 extras。
 - [ ] 更新 C++23 module export，移除核心 module 中的 extras 符号。
@@ -227,7 +231,7 @@ extras 应满足：
 
 | 版本 | 允许的变更 |
 |---|---|
-| 当前 `4.x` minor | 增加弃用标记、规范文档、兼容转发头、extras 试验 target；不删除公开符号 |
+| 当前 `4.x` minor | 增加弃用标记、规范文档和兼容转发头；关闭被 wrapper 完全替代的直接 latest 工厂，不删除四个 `*Channel` 别名 |
 | 下一个 `5.0.0` | 删除兼容别名、拆分 extras target、收敛伞头文件和 module export；要求重新编译 |
 | 未来 major | 只有出现明确替代能力且经过一个 minor 弃用窗口后，才允许删除 extras 中的能力 |
 
@@ -272,6 +276,10 @@ wire protocol 与源码 API 版本分别判断。仅移动 include 或删除别�
 
 ## 10. 执行记录
 
+2026-10-30 用户将仓库外源码消费方明确移出本收敛任务。下列提及 `gts-*`、GitHub、发行包或部署
+ELF 的历史记录只保留为当时已产生的审计痕迹，不再作为接口取舍、Phase 1 或 Phase 2 的验收门禁；
+本 session 不再执行或扩展此类检查。
+
 | 日期 | Phase | 结果 | 证据 |
 |---|---|---|---|
 | 2026-10-30 | 0 | 计划落盘；确认当前无正式 API 收敛计划 | 本文件 |
@@ -280,25 +288,49 @@ wire protocol 与源码 API 版本分别判断。仅移动 include 或删除别�
 | 2026-10-30 | 0 | 完成 test/bench/example/install/mcpp 引用矩阵；确认安装消费仍直接依赖 Priority，mcpp 仍聚合导出 extras 候选，留待 Phase 3 | `doc/api/channel-api-usage-matrix.md`；`test/install/main.cpp`、`test/mcpp/{header_probe,import}.cpp`、`src/salias.cppm` |
 | 2026-10-30 | 0 | 采集同工作区四个 salias 下游仓库源码快照：`gts-quote`、`gts-signal`、`gts-signal-gateway`、`gts-strategy` 均在 11 个文件中共 48 行引用 `FifoMpscChannel`/`FifoMpmcChannel`；未检索到 `LatestByKey`、Priority 或 Ringbuffer 引用，但不能据此断言全局零使用 | `/data/disk1/projects/{gts-quote,gts-signal,gts-signal-gateway,gts-strategy}`；commit 快照与复核命令见 `doc/api/channel-api-downstream-evidence.md` |
 | 2026-10-30 | 0 | 四个下游仓库的 `mcpp.toml` 均启用 `-Werror`；代表性 `FifoMpscChannel` 消费在同等告警配置下因 `-Werror=deprecated-declarations` 编译失败，确认迁移是采用 4.1 的前置条件，不是零成本重编译 | `rg -n 'cxxflags|Werror' /data/disk1/projects/{gts-quote,gts-signal,gts-signal-gateway,gts-strategy}/mcpp.toml`；代表性 `c++ -std=c++23 ... -Werror -fsyntax-only`，exit 1 |
+| 2026-10-30 | 0 | 将四个已知本地下游仓库的 48 行、11 个 raw `*Channel` 源码引用全部迁移到 `Channel<Mode>`；当前 C++ 源码命中为 0，保留 publisher/subscriber 端点、MPSC/MPMC 分支、背压、订阅槽位和 wire v15 语义 | `/data/disk1/projects/{gts-quote,gts-signal,gts-signal-gateway,gts-strategy}`；迁移矩阵与复核命令见 `doc/api/channel-api-downstream-evidence.md` |
+| 2026-10-30 | 0 | 已知下游验证分层完成：gts-signal Release workspace 与 `tools/check.py --skip-e2e` 通过，重建 `.so` 的 strip 后内容与旧产物一致；gts-quote transport 与 consumer 模块、gts-strategy SHM/测试对象单编通过；另外三个仓库完整构建均被相邻 Galay HTTP task API 既有错误阻塞，未伪报为通过 | `mcpp build --offline --release --jobs 4 --workspace`（gts-signal）；`PYTHONPATH="$PWD/src/python:$PWD" python3 tools/check.py --skip-e2e`；`ninja -C target/x86_64-linux-gnu/111162597052f8a3 obj/gts-quote-tools/consumer/consumer.m.o`；strip 前后 SHA-256 与目标级 `-Werror` object compile；gts-quote salias lock 专项检查 |
+| 2026-10-30 | 0 | 已同步 `gts-quote`、`gts-signal`、`gts-signal-gateway` 的中央 RAG 镜像；`gts-strategy` 按文档门禁继续保持未建镜像 | `python3 tools/check_rag_corpus.py`：58 个 Markdown、927 个链接或来源引用，隔离检查通过；镜像位于 `/data/disk1/projects/gts-ai/docs/projects/` |
+| 2026-10-30 | 0 | 复核本地发行面和部署产物：发行报告确认四个直接 salias 消费者；九个相关部署 ELF 均含 `LatestByKeyStorage` 实现符号，另两个 `gts-inner-api` ELF 不含。该符号只证明默认静态链接，不证明 API 使用 | `/data/disk1/quote/reports/release-20261025-01/`；`sha256sum`、`nm -C --defined-only` 全量结果见 `doc/api/channel-api-phase0-evidence.json` |
+| 2026-10-30 | 0 | 补充公开外部渠道可达性：完整扫描 GitHub 公开账户中除 salias 外的 17 个可下载仓库，未发现 salias API 引用；Galay 的 `Ringbuffer` 命中属于其自身 `B10-Ringbuffer` benchmark。另外定向检查 `agents-manager` 的 Cargo/package manifests 和 `galay-http` 的 CMake/README，均无 salias 依赖，但完整源码因归档/连接超时未扫完。GitHub code search/traffic 仍需认证，私有仓库与包遥测不可得 | GitHub `gzj-creator` 公开仓库列表、`codeload.github.com` 默认分支归档、GitHub 文件页定向检查；限制记录于 `doc/api/channel-api-phase0-evidence.json` |
+| 2026-10-30 | 0 | 将已采集证据整理为机器可读 JSON 并生成逐项签署草案；复选框按证据状态保持未完成，不把草案、静态符号或本地快照冒充已签或全局使用数据 | `doc/api/channel-api-phase0-evidence.json`；`doc/api/channel-api-phase0-signoff.md` |
 | 2026-10-30 | 0 | 仓库外完整用户清单、发布包消费遥测和迁移成本确认仍不可获得；负责人签署待办，Phase 0 两个对应复选框保持未完成 | `doc/api/channel-api-downstream-evidence.md` |
-| 2026-10-30 | 1 | 建立机器可读公开 API 清单：30 core、5 compat、9 extras、0 removed；每项含代码位置、状态、替代入口、header/module/install/mcpp 导出状态 | `doc/api/channel-api-manifest.json`；`python3 tools/check_channel_api.py` 输出 `Channel API manifest OK` |
+| 2026-10-30 | 1 | 建立并更新机器可读公开 API 清单：30 core、4 compat、9 extras、1 removed；每项含代码位置、状态、替代入口、header/module/install/mcpp 导出状态 | `doc/api/channel-api-manifest.json`；`python3 tools/check_channel_api.py` 输出 `Channel API manifest OK: 30 core, 4 compat, 9 extras, 1 removed` |
 | 2026-10-30 | 1 | README 快速开始冻结为 `Channel<Mode, Schema>`、`FixedChannel`、`LatestMpmcChannel` 三个核心入口；四个别名与直接 latest 模式移入兼容说明；raw/typed 明示为同一 Channel 的 payload 模式 | `README.md`、`doc/11-L7-api.md` |
 | 2026-10-30 | 1 | 示例、benchmark、mcpp 和非兼容专项测试迁移到 `Channel<Mode>`；四别名只保留在 `channel_alias_compat_test.cpp`；别名标 `[[deprecated]]`，本版本不删除 | `rg -n 'FifoMpscChannel|FifoMpmcChannel|OrderedMpscChannel|OrderedMpmcChannel' test bench example test/mcpp`；兼容测试、`doc/migration/channel-api-convergence.md` |
 | 2026-10-30 | 1 | 评估并采用 `Schema<T, Id, Version>`：静态断言非零显式 ID/version，空对象、无运行时成本；typed Channel 与 mcpp 头/模块消费均覆盖 | `src/salias/include/salias/message.hpp`、`test/api/schema_helper_test.cpp`、`test/mcpp/typed_schema.hpp` |
 | 2026-10-30 | 1 | 新增文档门禁：校验 symbol 状态唯一性、代码位置、module/cpp 导出一致性、四别名兼容文档、README 快速开始禁入项与版本一致性 | `tools/check_channel_api.py`、`test/CMakeLists.txt` 的 `salias_channel_api_documentation_check` |
 | 2026-10-30 | 1 | Release 构建与 25/25 CTest 通过，其中安装消费、文档检查、别名兼容和 Schema helper 用例均通过；ASan/UBSan 24/24 通过；mcpp 模块/头文件混合消费通过 | `cmake --build --preset release -j 4`；`ctest --test-dir build/release --output-on-failure -j 2`；`cmake --build --preset debug-asan-ubsan -j 4`；`ctest --preset debug-asan-ubsan --output-on-failure -j 2`；`mcpp build --offline --release --jobs 4`；`mcpp run test_mcpp_import --offline --release --locked --features mcpp-tests`；`python3 tools/check_mcpp.py`；`git diff --check` |
+| 2026-10-30 | 2 | 关闭直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()`；raw 与 typed latest 统一为 `LatestMpmcChannel<Capacity, Watermark[, Schema]>`，wrapper 继续驱动同一底层 Channel 数据面 | `src/salias/include/salias/{channel,latest_channel}.hpp`、`src/salias/src/channel.cpp`、`test/api/channel_api_test.cpp` |
+| 2026-10-30 | 2 | 补齐 wrapper 的类型/配置契约：创建覆盖容量和水位，连接校验容量、水位、schema ID、版本和 payload 大小；编译期断言直接 Channel 工厂不可调用，并覆盖 subscription policy、TTL、lag、poll、背压和跨进程 lease 测试 | `test/api/channel_api_test.cpp`、`test/api/poll_storage_contract_test.cpp`、`test/api/allocation_contract_test.cpp` |
+| 2026-10-30 | 1-2 | README、API 参考、迁移表、仓库内使用矩阵和 manifest 同步为唯一 latest 入口；安装消费和 mcpp 模块/头文件消费均改为 typed wrapper | `README.md`、`doc/11-L7-api.md`、`doc/migration/channel-api-convergence.md`、`doc/api/channel-api-usage-matrix.md`、`test/install/main.cpp`、`test/mcpp/{header_probe,import}.cpp` |
+| 2026-10-30 | 2 | Release 25/25、ASan/UBSan 24/24、安装消费和 mcpp header/import 通过；本轮只改公开模板/mcpp 测试和文档，未改共享内存 wire protocol、通道版本、固定槽热路径或 `Fast*Ring` 名称，因此未执行性能 ABBA | `cmake --build --preset release -j 4`；`ctest --test-dir build/release --output-on-failure -j 2`；`cmake --build --preset debug-asan-ubsan -j 4`；`ctest --preset debug-asan-ubsan --output-on-failure -j 2`；`mcpp build --offline --release --jobs 4`；`mcpp run test_mcpp_import --offline --release --locked --features mcpp-tests`；`python3 tools/check_mcpp.py`；`python3 tools/check_channel_api.py`；`git diff --check` |
 
 ## 11. 本 session 门禁结论
 
-已完成：Phase 1 的规范入口、兼容标记、迁移说明、机器可读清单、仓库内迁移、文档检查、Release
-构建、安装消费和 mcpp header/import 验证。
+### 已验证
 
-未完成：Phase 0 的完整仓库外用户清单、包消费遥测、迁移成本确认和负责人签署；当前已采集
-四个本地下游源码快照，但不能用它们替代完整外部证据或签署。两项 Phase 0 复选框保持未完成。
-Phase 2-5 按本次 session 目标未执行；四个 `*Channel` 别名、`LatestByKey`、Priority、Ringbuffer
-和直接 latest 模式均保留。本阶段没有修改共享内存 wire protocol、通道版本、固定槽热路径或
-`Fast*Ring` 名称，因此没有执行性能 ABBA；Release 二进制仅包含模板/文档/测试层变化。
+- Release 构建成功，25/25 CTest 通过；ASan/UBSan 24/24 通过。
+- `salias_install_consumer` 通过，并在安装后的公开头文件上实际创建、发送和接收 typed
+  `LatestMpmcChannel<4096, 75, Schema>`。
+- `mcpp build --offline --release --jobs 4`、`mcpp run test_mcpp_import ...` 和
+  `python3 tools/check_mcpp.py` 通过；module/header 双消费覆盖 raw 与 typed latest。
+- `python3 tools/check_channel_api.py` 通过，当前清单为 30 core、4 compat、9 extras、1 removed；
+  `git diff --check` 通过。
 
-下一步门禁：先收集下游使用证据并完成负责人签署；随后 Phase 2 才能处理 typed latest 和直接
-`Channel<Mode::LatestMpmc>` 的兼容边界，Phase 3 才能规划 extras target。任何删除前都必须重新运行
-安装、module、兼容性和数据面性能门禁。
+### 据代码检查
+
+- `Channel<Mode::LatestMpmc>::create()`/`connect()` 受 `requires` 约束关闭，wrapper 通过私有
+  schema-aware 工厂继续使用同一底层 Channel 状态机。
+- raw 和 typed latest 都固定容量与水位；typed 路径继续校验 schema ID、版本和 payload 大小，
+  没有以类型缩减为由弱化 schema、背压、动态订阅或故障语义。
+- 四个 `*Channel` 兼容别名仍存在；`LatestByKey`、Priority、Ringbuffer 和四个 `Fast*Ring` 名称
+  均未删除。未修改共享内存 wire protocol、通道版本或固定槽热路径。
+- 本轮改动没有改变库链接边界，因此没有执行性能 ABBA；其风险由 Release、安装消费、ASan/UBSan
+  和 mcpp header/import 验证覆盖。
+
+### 仍待外部确认
+
+- 按用户决定，没有检查仓库外源码消费方，也不声称其调用量、迁移成本或私有仓库使用情况。
+- 两个 Phase 0 外部证据/签署复选框保持未完成；它们不阻塞当前本地接口收敛。
+- Phase 3 extras 边界、Phase 4 四个别名删除和 Phase 5 最终发布门禁仍未执行；下游需按迁移表自行适配。

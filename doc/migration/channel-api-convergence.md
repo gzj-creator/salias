@@ -24,8 +24,8 @@
 | `salias::FifoMpmcChannel` | `salias::Channel<salias::Mode::FifoMpmc>` | `perl -pi -e 's/\\bsalias::FifoMpmcChannel\\b/salias::Channel<salias::Mode::FifoMpmc>/g' FILES` | fanout 语义不变 |
 | `salias::OrderedMpscChannel` | `salias::Channel<salias::Mode::OrderedMpsc>` | `perl -pi -e 's/\\bsalias::OrderedMpscChannel\\b/salias::Channel<salias::Mode::OrderedMpsc>/g' FILES` | 全局顺序语义不变 |
 | `salias::OrderedMpmcChannel` | `salias::Channel<salias::Mode::OrderedMpmc>` | `perl -pi -e 's/\\bsalias::OrderedMpmcChannel\\b/salias::Channel<salias::Mode::OrderedMpmc>/g' FILES` | 全局顺序与 fanout 语义不变 |
-| `salias::Channel<salias::Mode::LatestMpmc>`（raw） | `salias::LatestMpmcChannel<Capacity, HighWatermarkPercent>` | 手工迁移，先固定容量和水位模板参数 | `connect()` 会校验静态配置 |
-| `salias::Channel<salias::Mode::LatestMpmc, Schema>`（typed） | **待 Phase 2 决策** | 不得自动替换为 raw wrapper | wrapper 当前无 Schema 参数，不能弱化类型/版本校验 |
+| `salias::Channel<salias::Mode::LatestMpmc>`（raw） | `salias::LatestMpmcChannel<Capacity, HighWatermarkPercent>` | 手工迁移，先固定容量和水位模板参数 | 直接 `Channel` 工厂已关闭；`connect()` 会校验静态配置 |
+| `salias::Channel<salias::Mode::LatestMpmc, Schema>`（typed） | `salias::LatestMpmcChannel<Capacity, HighWatermarkPercent, Schema>` | 手工迁移，同时固定容量、水位和原 schema | 保留 schema ID、版本和 payload 大小校验 |
 
 `LatestMpmcPublisher`、`LatestMpmcSubscriber` 和其他模式端点的显式别名是端点拼写，不是 Channel
 产品选择入口；本版本没有删除计划。新代码可统一写 `Publisher<Mode, Schema>` /
@@ -36,8 +36,8 @@
 1. 先替换仓库内 primary path，不把兼容测试、迁移说明和 release note 作为待迁移代码。
 2. 使用编译器的弃用警告定位下游残留；`-Werror` 消费者应一次性完成 codemod，而不是关闭警告。
 3. 删除注释、README、示例或 benchmark 中的旧名称时，保留迁移表和兼容测试，以证明窗口仍开放。
-4. typed latest 在 Phase 2 补齐静态配置和 schema 契约前保持原样；不得为了消除 compat 入口而
-   把 typed 通道降级为 raw payload。
+4. latest 的 raw 和 typed 写法都迁移到 `LatestMpmcChannel`，typed 用户必须保留第三个 `Schema`
+   模板参数；不得为了缩短类型而退化为 raw payload。
 
 ## 4. 仓库内 codemod 示例
 
@@ -51,19 +51,17 @@ rg -n '\\bsalias::(FifoMpsc|FifoMpmc|OrderedMpsc|OrderedMpmc)Channel\\b' \
 本次已对 `example/`、`bench/` 和非兼容专项测试迁移；兼容覆盖由
 `test/api/channel_alias_compat_test.cpp` 独立保留。迁移后的主代码不再使用旧别名。
 
-同一工作区可检索的四个下游仓库（`gts-quote`、`gts-signal`、`gts-signal-gateway`、
-`gts-strategy`）仍使用 `FifoMpscChannel` / `FifoMpmcChannel`。它们不在本仓库迁移范围内，
-但必须在 v5 删除前完成 codemod 并重编译；清单和 commit 快照见
-[下游证据审计](../api/channel-api-downstream-evidence.md)。
+仓库外源码消费方不在本次收敛审计范围内；下游按其依赖升级窗口执行上述迁移。本文只验证 salias
+自身的头文件、安装包和 module 消费面，不以仓库外源码扫描结果作为接口取舍依据。
 
 ## 5. 删除门禁
 
 - 至少一个 minor 的公开弃用窗口；
-- 下游使用清单、安装消费和 module 消费证据闭环；
-- `LatestByKey`、Priority、Ringbuffer 的仓库外证据与负责人签署完成；
-- typed latest 的唯一入口决策完成；
+- 四个兼容别名的公开弃用窗口和安装/module 消费证据闭环；
+- `LatestByKey`、Priority、Ringbuffer 不删除、不移动，等待 Phase 3 单独处理；
+- latest raw/typed 两个 payload 模式都只经 `LatestMpmcChannel` 创建和连接；
 - release note 给出 codemod 和回滚说明；
 - 只允许在 `5.0.0` 主版本删除，不借 patch/minor 静默破坏源码兼容。
 
-当前阻塞项见 [下游证据审计](../api/channel-api-downstream-evidence.md)，完整 symbol 状态见
-[公开 API 清单](../api/channel-api-manifest.json)。
+完整 symbol 状态见[公开 API 清单](../api/channel-api-manifest.json)。本次不删除四个兼容别名，
+也不移动 extras；Phase 3-5 的删除和边界调整不在当前变更范围内。

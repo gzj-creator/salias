@@ -103,7 +103,6 @@ int main() {
     roundtrip<salias::Mode::FifoMpmc>();
     roundtrip<salias::Mode::OrderedMpsc>();
     roundtrip<salias::Mode::OrderedMpmc>();
-    roundtrip<salias::Mode::LatestMpmc>();
 
     using TypedChannel = salias::Channel<salias::Mode::FifoMpsc, salias_mcpp::TypedPayloadSchema>;
     salias::Config typed_config;
@@ -181,6 +180,26 @@ int main() {
     auto checked_latest = latest_subscriber.try_recv_checked();
     require(checked_latest && *checked_latest && (**checked_latest).sequence == 300);
     latest_subscriber.release(**checked_latest);
+
+    salias::Config typed_latest_config;
+    typed_latest_config.name =
+        "salias-mcpp-latest-schema-" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    typed_latest_config.mode = salias::Mode::LatestMpmc;
+    typed_latest_config.capacity = 8192;
+    using TypedLatestChannel = salias::LatestMpmcChannel<4096, 75, salias_mcpp::TypedPayloadSchema>;
+    auto typed_latest = TypedLatestChannel::create(typed_latest_config);
+    require(typed_latest.has_value());
+    auto typed_latest_publisher = typed_latest->publisher();
+    auto typed_latest_subscriber = typed_latest->subscriber();
+    const salias_mcpp::TypedPayload typed_latest_payload{.id = 21, .sequence = 44};
+    require(typed_latest_publisher.send(typed_latest_payload).has_value());
+    auto typed_latest_received = typed_latest_subscriber.try_recv_copy();
+    require(typed_latest_received && *typed_latest_received &&
+            **typed_latest_received == typed_latest_payload);
+    auto raw_latest_connect =
+        salias::LatestMpmcChannel<4096, 75>::connect(typed_latest_config.name);
+    require(!raw_latest_connect && raw_latest_connect.error() == salias::Error::SchemaMismatch);
 
     using LatestByKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 4>;
     static_assert(std::is_same_v<LatestByKey::Publisher,

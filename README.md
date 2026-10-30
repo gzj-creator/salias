@@ -19,7 +19,7 @@ struct Quote {
 using QuoteSchema = salias::Schema<Quote, 0x51554F5445000001, 1>;
 ```
 
-通用、动态、变长或需要 Ordered/Latest 的场景使用 `Channel<Mode, Schema>`：
+通用、动态、变长或需要 Ordered 的场景使用 `Channel<Mode, Schema>`：
 
 ```cpp
 using QuoteChannel = salias::Channel<salias::Mode::FifoMpsc, QuoteSchema>;
@@ -53,10 +53,11 @@ subscriber 对 producer 形成背压。该类型当前仍使用 `Fast*Ring` 候�
 边界见 [固定槽 Ring 开发验收](doc/benchmarks/2026-10-29-fast-ring/README.md)，与 Aeron
 的设计差异和继续优化路线见 [固定槽 Ring 架构分析](doc/fast-ring-architecture.md)。
 
-有界 latest fanout 使用 `LatestMpmcChannel<Capacity, Watermark>`：
+有界 latest fanout 使用 `LatestMpmcChannel<Capacity, Watermark, Schema>`；省略 `Schema` 时使用
+raw payload：
 
 ```cpp
-using QuoteLatest = salias::LatestMpmcChannel<1u << 20, 90>;
+using QuoteLatest = salias::LatestMpmcChannel<1u << 20, 90, QuoteSchema>;
 auto latest = QuoteLatest::create(config);
 auto latest_publisher = latest->publisher();
 auto lossy = latest->subscriber();
@@ -87,9 +88,9 @@ typed channel 在 create 时记录 schema，在 connect 时校验 schema ID、�
 不可信边界或携带敏感数据时应使用显式序列化。schema 是兼容性声明，不是对恶意或错误进程的认证机制。
 需要最低延迟时可继续使用 raw 通道的借用 `Message` 和 `release()`。
 
-`LatestMpmcChannel<Capacity, HighWatermarkPercent>` 将每个 producer ring 的字节容量和
+`LatestMpmcChannel<Capacity, HighWatermarkPercent, Schema>` 将每个 producer ring 的字节容量和
 保留水位固定为模板参数，水位默认是容量的 90%。达到水位后淘汰最旧消息；每个订阅者独立
-追赶保留窗口。`connect()` 会校验共享通道与模板参数一致。尚未 `release()` 的借用消息会
+追赶保留窗口。`connect()` 会校验共享通道与容量、水位及可选 schema 一致。尚未 `release()` 的借用消息会
 pin 住对应 payload；若写入会覆盖仍借用的字节，发布暂时返回 `BackPressured`，释放后即可继续。
 若订阅进程在持有借用时退出，生产者会在需要复用该槽位时校验进程身份并清除失效 lease。
 LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者选择
@@ -107,10 +108,9 @@ LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者
 | `OrderedMpscChannel` | `Channel<Mode::OrderedMpsc>` |
 | `OrderedMpmcChannel` | `Channel<Mode::OrderedMpmc>` |
 
-直接 `Channel<Mode::LatestMpmc>` 也是兼容入口；公开 latest fanout 统一推荐
-`LatestMpmcChannel<Capacity, HighWatermarkPercent>`。typed latest 仍保留直接 `Channel` 路径，
-其唯一推荐入口和静态配置契约由 Phase 2 决定，不能未经契约替换成只支持 raw payload 的 wrapper。
-四个 `*Channel` 别名本版本不删除，最早在 `5.0.0` 且下游证据和负责人签署齐备后移除。迁移表、
+公开 latest fanout 只有 `LatestMpmcChannel<Capacity, HighWatermarkPercent, Schema>` 一个入口；
+直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()` 已关闭，避免绕过静态容量、水位和 schema
+校验。四个 `*Channel` 别名本版本不删除，最早在 `5.0.0` 移除。迁移表、
 警告策略和 codemod 命令见 [Channel API 迁移说明](doc/migration/channel-api-convergence.md)；
 逐 symbol 的 core/compat/extras 状态见
 [机器可读 API 清单](doc/api/channel-api-manifest.json)。
@@ -119,8 +119,7 @@ LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者
 
 `LatestByKeyChannel`、`PriorityPublisher` / `PrioritySubscriber` 和进程内 `Ringbuffer` 当前仍可
 经由 `<salias/salias.hpp>` 与 `import salias;` 使用，但已列为 extras 候选，不进入核心快速开始，
-也不进入 `FixedChannel` 热路径。Phase 3 只有在仓库外使用证据、负责人签署和独立安装/module
-消费验证齐备后才会转移或调整这些能力；本版本不删除。
+也不进入 `FixedChannel` 热路径。Phase 3 负责设计独立安装和 module 边界；本版本不删除。
 
 `LatestByKeyChannel<Key, Value, Capacity, SchemaVersion>` 是独立的有界 latest-value IPC 表，按 key
 保存最新值，重复 key 更新覆盖同一槽位；订阅者各自接收当前快照，未读期间的中间更新会合并，返回的是

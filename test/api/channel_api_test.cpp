@@ -120,6 +120,12 @@ template <class PublisherType, class Value>
 concept CanSendValue =
     requires(PublisherType& publisher, const Value& value) { publisher.send(value); };
 
+template <class ChannelType>
+concept CanCreateChannel = requires(const salias::Config& config) { ChannelType::create(config); };
+
+template <class ChannelType>
+concept CanConnectChannel = requires(std::string_view name) { ChannelType::connect(name); };
+
 static_assert(CanSendTyped<Payload>);
 static_assert(!CanSendTyped<NonTrivialPayload>);
 static_assert(!salias::detail::WireMessage<int&>);
@@ -140,6 +146,14 @@ static_assert(!HasDynamicClaim<TypedFifoPublisher>);
 static_assert(CanSendValue<TypedFifoPublisher, Payload>);
 static_assert(!CanSendValue<TypedFifoPublisher, WiderPayload>);
 static_assert(requires(TypedFifoSubscriber& subscriber) { subscriber.try_recv_copy(); });
+static_assert(!CanCreateChannel<salias::Channel<salias::Mode::LatestMpmc>>);
+static_assert(!CanConnectChannel<salias::Channel<salias::Mode::LatestMpmc>>);
+static_assert(!CanCreateChannel<salias::Channel<salias::Mode::LatestMpmc, PayloadSchema>>);
+static_assert(!CanConnectChannel<salias::Channel<salias::Mode::LatestMpmc, PayloadSchema>>);
+static_assert(CanCreateChannel<salias::LatestMpmcChannel<4096>>);
+static_assert(CanConnectChannel<salias::LatestMpmcChannel<4096>>);
+static_assert(CanCreateChannel<salias::LatestMpmcChannel<4096, 90, PayloadSchema>>);
+static_assert(CanConnectChannel<salias::LatestMpmcChannel<4096, 90, PayloadSchema>>);
 
 /// @brief 生成进程内唯一的共享内存名称。
 /// @param suffix 附加在名称末尾的可读后缀，便于区分不同用例。
@@ -429,7 +443,6 @@ TEST(ChannelApiTest, SchemaBoundParserWorksForEveryChannelMode) {
   check_schema_bound_roundtrip<salias::Mode::FifoMpmc>("schema-fifo-mpmc");
   check_schema_bound_roundtrip<salias::Mode::OrderedMpsc>("schema-ordered-mpsc");
   check_schema_bound_roundtrip<salias::Mode::OrderedMpmc>("schema-ordered-mpmc");
-  check_schema_bound_roundtrip<salias::Mode::LatestMpmc>("schema-latest-mpmc");
 }
 
 TEST(ChannelApiTest, SchemaBoundFanoutCopiesIndependently) {
@@ -456,7 +469,7 @@ TEST(ChannelApiTest, SchemaBoundFanoutCopiesIndependently) {
 }
 
 TEST(ChannelApiTest, SchemaBoundLatestReportsLagAndSkipsExpiredFrames) {
-  using Channel = salias::Channel<salias::Mode::LatestMpmc, PayloadSchema>;
+  using Channel = salias::LatestMpmcChannel<4096, 50, PayloadSchema>;
   auto config = config_for(salias::Mode::LatestMpmc, "schema-latest-lag-ttl");
   config.high_watermark_percent = 50;
   auto created = Channel::create(config);
@@ -610,7 +623,26 @@ TEST(ChannelApiTest, OrderedMpmcTypedCopyIsIndependentPerSubscriber) {
 }
 
 TEST(ChannelApiTest, LatestMpmcTypedCopyIsIndependentPerSubscriber) {
-  check_typed_fanout_copy<salias::Mode::LatestMpmc>("typed-latest-mpmc");
+  using Channel = salias::LatestMpmcChannel<4096, 90, PayloadSchema>;
+  auto config = config_for(salias::Mode::LatestMpmc, "typed-latest-mpmc");
+  config.num_consumers = 2;
+  auto created = Channel::create(config);
+  ASSERT_TRUE(created);
+  auto channel = std::move(*created);
+  auto publisher = channel.publisher();
+  auto first = channel.subscriber();
+  auto second = channel.subscriber();
+  const Payload expected{.producer = 2, .sequence = 17};
+
+  ASSERT_TRUE(publisher.send(expected));
+  auto first_copy = first.try_recv_copy();
+  auto second_copy = second.try_recv_copy();
+  ASSERT_TRUE(first_copy);
+  ASSERT_TRUE(second_copy);
+  ASSERT_TRUE(*first_copy);
+  ASSERT_TRUE(*second_copy);
+  EXPECT_EQ(**first_copy, expected);
+  EXPECT_EQ(**second_copy, expected);
 }
 
 TEST(ChannelApiTest, FifoThreeProducerScanWrapsAndRemainsFair) {
@@ -759,11 +791,11 @@ TEST(ChannelApiTest, FifoPollKeepsPayloadUntilCallbacksAndSlowFanoutFinish) {
 }
 
 /// @brief 空批次不读未写描述符；递归调用不覆盖外层尚未处理的描述符。
-template <salias::Mode M>
-void check_poll_local_storage() {
-  auto config = config_for(M, "poll-local-storage");
+template <class ChannelType>
+void check_poll_local_storage(salias::Mode mode) {
+  auto config = config_for(mode, "poll-local-storage");
   config.num_producers = 2;
-  auto created = salias::Channel<M>::create(config);
+  auto created = ChannelType::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto first = channel.publisher();
@@ -809,9 +841,9 @@ void check_poll_local_storage() {
 }
 
 TEST(ChannelApiTest, PollDescriptorsAreCallLocalAcrossModes) {
-  check_poll_local_storage<salias::Mode::FifoMpsc>();
-  check_poll_local_storage<salias::Mode::OrderedMpsc>();
-  check_poll_local_storage<salias::Mode::LatestMpmc>();
+  check_poll_local_storage<salias::Channel<salias::Mode::FifoMpsc>>(salias::Mode::FifoMpsc);
+  check_poll_local_storage<salias::Channel<salias::Mode::OrderedMpsc>>(salias::Mode::OrderedMpsc);
+  check_poll_local_storage<salias::LatestMpmcChannel<4096>>(salias::Mode::LatestMpmc);
 }
 
 TEST(ChannelApiTest, PublicMessageDefaultInitializationRemainsUnchanged) {
@@ -1688,6 +1720,31 @@ TEST(ChannelApiTest, LatestMpmcUsesStaticCapacityAndWatermark) {
   EXPECT_EQ(wrong_watermark.error(), salias::Error::BadConfig);
 }
 
+TEST(ChannelApiTest, LatestMpmcTypedWrapperChecksSchemaAndStaticConfiguration) {
+  using TypedChannel = salias::LatestMpmcChannel<4096, 50, PayloadSchema>;
+  auto config = config_for(salias::Mode::LatestMpmc, "latest-typed-static-config");
+  config.capacity = 8192;
+  config.high_watermark_percent = 90;
+
+  auto created = TypedChannel::create(config);
+  ASSERT_TRUE(created);
+  EXPECT_EQ(created->capacity(), 4096u);
+  EXPECT_EQ(created->high_watermark_percent(), 50u);
+  EXPECT_TRUE(TypedChannel::connect(config.name));
+  auto wrong_capacity = salias::LatestMpmcChannel<8192, 50, PayloadSchema>::connect(config.name);
+  ASSERT_FALSE(wrong_capacity);
+  EXPECT_EQ(wrong_capacity.error(), salias::Error::BadConfig);
+  auto wrong_watermark = salias::LatestMpmcChannel<4096, 90, PayloadSchema>::connect(config.name);
+  ASSERT_FALSE(wrong_watermark);
+  EXPECT_EQ(wrong_watermark.error(), salias::Error::BadConfig);
+  auto wrong_schema = salias::LatestMpmcChannel<4096, 50, PayloadSchemaV2>::connect(config.name);
+  ASSERT_FALSE(wrong_schema);
+  EXPECT_EQ(wrong_schema.error(), salias::Error::SchemaMismatch);
+  auto raw = salias::LatestMpmcChannel<4096, 50>::connect(config.name);
+  ASSERT_FALSE(raw);
+  EXPECT_EQ(raw.error(), salias::Error::SchemaMismatch);
+}
+
 TEST(ChannelApiTest, LatestMpmcSupportsDefaultMinimumAndFullWatermarks) {
   using DefaultWatermark = salias::LatestMpmcChannel<4096>;
   using MinimumWatermark = salias::LatestMpmcChannel<4096, 1>;
@@ -1713,21 +1770,22 @@ TEST(ChannelApiTest, LatestMpmcSupportsDefaultMinimumAndFullWatermarks) {
 }
 
 TEST(ChannelApiTest, LatestMpmcRejectsIncompatibleFlowControlConfig) {
+  using Channel = salias::LatestMpmcChannel<4096, 50>;
   auto invalid_watermark = config_for(salias::Mode::LatestMpmc, "latest-invalid-watermark");
   invalid_watermark.high_watermark_percent = 101;
-  auto bad_watermark = salias::Channel<salias::Mode::LatestMpmc>::create(invalid_watermark);
-  ASSERT_FALSE(bad_watermark);
-  EXPECT_EQ(bad_watermark.error(), salias::Error::BadConfig);
+  auto overridden_watermark = Channel::create(invalid_watermark);
+  ASSERT_TRUE(overridden_watermark);
+  EXPECT_EQ(overridden_watermark->high_watermark_percent(), 50u);
 
   auto zero_watermark = config_for(salias::Mode::LatestMpmc, "latest-zero-watermark");
   zero_watermark.high_watermark_percent = 0;
-  auto bad_zero_watermark = salias::Channel<salias::Mode::LatestMpmc>::create(zero_watermark);
-  ASSERT_FALSE(bad_zero_watermark);
-  EXPECT_EQ(bad_zero_watermark.error(), salias::Error::BadConfig);
+  auto overridden_zero = Channel::create(zero_watermark);
+  ASSERT_TRUE(overridden_zero);
+  EXPECT_EQ(overridden_zero->high_watermark_percent(), 50u);
 
   auto publication_window = config_for(salias::Mode::LatestMpmc, "latest-publication-window");
   publication_window.publication_window = publication_window.capacity;
-  auto bad_window = salias::Channel<salias::Mode::LatestMpmc>::create(publication_window);
+  auto bad_window = Channel::create(publication_window);
   ASSERT_FALSE(bad_window);
   EXPECT_EQ(bad_window.error(), salias::Error::BadConfig);
 }

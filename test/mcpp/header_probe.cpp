@@ -15,6 +15,18 @@ bool publish_from_header(const salias::Config& config) {
   return offered && *offered;
 }
 
+bool publish_latest_from_header(const salias::Config& config) {
+  using Channel = salias::LatestMpmcChannel<4096, 75>;
+  auto connected = Channel::connect(config.name);
+  if (!connected) {
+    return false;
+  }
+  auto publisher = connected->publisher();
+  const std::array payload{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}};
+  const auto offered = publisher.offer(payload);
+  return offered && *offered;
+}
+
 bool header_publish(const salias::Config& config) {
   switch (config.mode) {
     case salias::Mode::FifoMpsc:
@@ -26,7 +38,7 @@ bool header_publish(const salias::Config& config) {
     case salias::Mode::OrderedMpmc:
       return publish_from_header<salias::Mode::OrderedMpmc>(config);
     case salias::Mode::LatestMpmc:
-      return publish_from_header<salias::Mode::LatestMpmc>(config);
+      return publish_latest_from_header(config);
   }
   return false;
 }
