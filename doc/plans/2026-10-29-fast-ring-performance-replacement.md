@@ -2,7 +2,7 @@
 
 日期：2026-10-29（Asia/Singapore）
 
-状态：**执行中，Phase 6 全文校验开发门禁通过，最终门禁未通过**
+状态：**执行中，Phase 6 全文校验开发门禁通过；批量 consumer cursor 已接入产品 API，最终门禁未通过**
 
 ## 1. 目标
 
@@ -94,6 +94,7 @@
 - [x] 在 benchmark client 中加入可用命令行选择的 Fast Ring 引擎。
 - [x] 验证发布、交付、payload、序号和重复消息完整性。
 - [x] 保持通用 Channel 的默认行为、ABI 版本检查和失败回退边界清晰。
+- [x] 将 `FixedSubscriber::poll()` 改为批末 consumer cursor 发布，保持单条接收的立即可见语义。
 
 ### Phase 6：性能验收
 
@@ -107,6 +108,7 @@
 - [x] Fast Ring 相对 Aeron 在四个拓扑、两种 Payload 的吞吐中位数均达到至少 1.10x（1.31x–5.02x）。
 - [x] Fast Ring 的 attempt p50 不高于 Aeron；p99 不高于 Aeron 的 1.10x（8/8）。
 - [x] 1×5 开发矩阵的所有 240 次正式性能轮完整发布和交付，且 payload、producer 身份、每 producer 序号、顺序、重复检查通过。
+- [x] SPSC 64 B 产品 API 完成 10 组 ABBA：批量 cursor 使饱和吞吐提升 4.84x，但未证明 p50/p99 延迟改善；不据此触发最终重命名。
 - [ ] 最终 6×20 矩阵的所有性能轮完成同样的全文校验。
 
 开发证据为 1 轮预热、5 轮正式 ABBA、每套 240 次正式测量；Fast 与 FIFO 两套矩阵的每次
@@ -209,3 +211,4 @@ SPSC/MPSC/SPMC 的 worker 与 Aeron driver 不共享核；MPMC 在本机无法�
 | 2026-10-29 | 6 | 8/8 拓扑/Payload 完整正确性矩阵通过；每个 producer 1000 万条，逐字节、producer 身份、每 producer 序号、顺序和重复校验 | `doc/benchmarks/2026-10-29-fast-ring/correctness-full-10m/` |
 | 2026-10-29 | 6 | Release 22/22、ASan/UBSan 21/21、TSan 21/21 通过；安装后下游 consumer 编译并运行 `FixedChannel`；门禁脚本 5/5 通过 | `doc/benchmarks/2026-10-29-fast-ring/validation/` |
 | 2026-10-29 | 6 | MPMC attempt p99.9 未全面领先（64 B 3.178/1.671 ms，256 B 1.589/1.163 ms）；最终验收仍缺 6 组 × 20 轮 ABBA 和 5+ 独占 vCPU（当前 MPMC driver 与 subscriber0 共核），Phase 7 阻塞 | 本计划 §5.3；不执行 `Fast*` 到最终名称的替换 |
+| 2026-10-30 | 5-6 | `FixedChannel::poll()` 批末发布 consumer cursor；SPSC 64 B 产品 API 10 组 ABBA 吞吐 8.20→40.03 Mmsg/s（配对中位数 4.84x），attempt p50/p99 配对中位数 1.06x/1.03x，未证明延迟改善 | `doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/` |

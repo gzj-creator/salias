@@ -51,9 +51,17 @@
 候选代码的 Release 22/22、ASan/UBSan 21/21、TSan 21/21、Python 测试 28/28 和门禁脚本
 5/5 均通过。planned p50/p99 原始结果及共享核调度造成的异常波动见表目录，不能把
 Aeron 在 MPMC planned 中出现的 128.97 ms 至 209.72 ms 分位数解释为其固有延迟。
-性能客户端直接驱动 `Fast*Ring`；`FixedChannel` 已完成集成正确性验证，但
-`FixedSubscriber::poll()` 仍逐条发布 cursor，尚未把 ring 的 64 条批量释放带入产品 API。
-因此本节的吞吐延迟是 ring 热路径结果，不是 `FixedChannel::poll()` 的最终 SLA。
+
+`FixedSubscriber::poll()` 已接入 ring 的批量 consumer cursor 发布：每条消息先在本地
+完整复制，`release(false)` 只推进进程内位置，handler 返回后在批次结束或 ring 暂时为空时
+统一 `flush_release()`；单条 `try_recv_copy()` 仍立即发布，语义不变。SPSC 64 B 产品 API
+的 10 组 ABBA、每模式 20 次运行中，饱和吞吐从 **8.20 Mmsg/s** 提升到 **40.03 Mmsg/s**，
+配对中位数 **4.84x**（4.26x 至 5.06x），10/10 组同向。延迟没有同步改善：attempt
+p50/p99/p99.9 的配对中位数分别为 **1.06x/1.03x/1.00x**，planned 为
+**1.06x/1.27x/1.05x**。因此该改动的主要收益是摊薄饱和路径的跨核 cursor 发布成本，
+不能宣称 p99 改善。其证据见
+[FixedChannel 批量 cursor 对比](benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/README.md)。
+该产品 API 组只覆盖 SPSC 64 B；上面的四拓扑表仍是 `Fast*Ring` 热路径结果。
 
 ### 1.2 v4.0.1 通用 FIFO 四拓扑 count-only 基线（2026-10-29）
 

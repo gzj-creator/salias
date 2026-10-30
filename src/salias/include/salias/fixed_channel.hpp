@@ -184,8 +184,9 @@ class FixedPublisher {
 
 /**
  * @brief 绑定固定 consumer index 的 schema-only 订阅端。
- * @details 只返回本地值，不暴露可越界借用的共享 span。每次成功接收都会立即推进该
- *          consumer 的独立 cursor；fanout 背压由最慢 consumer 决定。
+ * @details 只返回本地值，不暴露可越界借用的共享 span。单条接收会立即推进该 consumer
+ *          的独立 cursor；poll() 在批次末尾统一刷新，减少跨进程 cache line 往返。
+ *          fanout 背压由最慢 consumer 决定。
  */
 template <class Ring, detail::WireSchema Schema>
 class FixedSubscriber {
@@ -219,18 +220,29 @@ class FixedSubscriber {
    * @param max_messages 本次最多接收条数。
    * @param handler noexcept callable，签名等价于 void(const T&)。
    * @return 实际交付条数；遇到空 ring 即返回，不等待。
+   * @note 消息在本地复制后只更新进程内 consumed 位置，批次结束时才通过
+   *       flush_release() 发布共享 cursor；handler 仍会看到完整的本地值。
    */
   template <class Handler>
     requires std::is_nothrow_invocable_v<Handler&, const T&>
   std::size_t poll(std::uint32_t max_messages, Handler&& handler) noexcept {
     std::size_t received = 0;
     while (received < max_messages) {
-      auto value = try_recv_copy();
-      if (!value || !*value) {
+      auto read = consumer_->try_read();
+      if (!read) {
         break;
       }
-      handler(**value);
+
+      const T value = detail::copy_from_bytes<T>(*read);
+      auto released = consumer_->release(false);
+      if (!released) {
+        break;
+      }
+      handler(value);
       ++received;
+    }
+    if (received > 0) {
+      static_cast<void>(consumer_->flush_release());
     }
     return received;
   }

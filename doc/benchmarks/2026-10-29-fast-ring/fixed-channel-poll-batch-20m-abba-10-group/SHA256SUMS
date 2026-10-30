@@ -1,0 +1,12 @@
+0d4e5f4c331e146f75aec908582e588f130b622f6bf9c47f39e10ce4abc43b43  doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/README.md
+b906e54d53fc7fd1e8b98fcbf38c19b85713cafd60c28b22e4da36f4ea823f13  doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/environment.txt
+b68d71dbe2a002233b40d94933a3f995a23f44e2fdd2b0dd114dec7c6e627317  doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/latency-attempt/results.txt
+65432d866412ba785962a6e7f0b05bfb38199f4bbc6b5e0298646af5b1e28c4f  doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/latency-planned/results.txt
+8eaf778b461f522e2cafd8a93ff306c773436ba02b4bf8ecad1a1353e4684ad2  doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/source-state.txt
+7f943b1ab4c3f1539c6dab1e8e3483ec692412b91741f0f66023dba586cee4b3  doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/summary.json
+261bae0ffaa2353b7a9514d7e39b86f750e374275563dd13533d2c5372d94615  doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/throughput/results.txt
+89a51c359aad8d1c68883206f3a2e5423695216940256bfd75aff9da87efa900  doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/validation/aeron-tools-unittest.txt
+8f822bcec468d7c263db3f8a34c8beaf5b05f75134a98208d3eea3632eecfa48  doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/validation/asan-ubsan-ctest.txt
+5e00cc5a584ae0729f29c05d33bb0ad230302453d90c9c570caa3583dd48ddba  doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/validation/fixed-channel-repeat20.txt
+5d0ef1dca1693c2865899789613c5bdb4214763ecd1fd95894780ced4b805416  doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/validation/release-ctest.txt
+a770a2086628dd0e00cfba188884c4c094db8ed8eec378b93269dde27f21c014  doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/validation/tsan-ctest.txt

@@ -126,6 +126,140 @@ TEST(FixedChannelTest, SpscNamedCreateConnectSchemaAndClaimPaths) {
   EXPECT_EQ(created->subscriber(1).error(), salias::Error::BadConfig);
 }
 
+TEST(FixedChannelTest, PollFlushesConsumerCursorAtBatchBoundary) {
+  const std::string name = unique_name("poll-batch");
+  using Channel = Fixed<salias::FixedTopology::Spsc, PayloadSchema, 8>;
+
+  auto creator = Channel::create(name);
+  ASSERT_TRUE(creator);
+  auto publisher = creator->publisher(0);
+  auto subscriber = creator->subscriber(0);
+  ASSERT_TRUE(publisher);
+  ASSERT_TRUE(subscriber);
+
+  for (std::uint32_t sequence = 0; sequence < Channel::capacity_slots(); ++sequence) {
+    ASSERT_TRUE(publisher->send(make_payload(0, sequence)));
+  }
+  EXPECT_EQ(publisher->send(make_payload(0, 8)).error(), salias::Error::BackPressured);
+
+  std::array<std::uint32_t, 4> first_batch{};
+  std::size_t first_count = 0;
+  const std::size_t first_received = subscriber->poll(4, [&](const Payload& payload) noexcept {
+    if (first_count >= first_batch.size()) {
+      return;
+    }
+    first_batch[first_count++] = payload.sequence;
+  });
+  ASSERT_EQ(first_received, 4u);
+  ASSERT_EQ(first_count, 4u);
+  for (std::uint32_t sequence = 0; sequence < first_received; ++sequence) {
+    EXPECT_EQ(first_batch[sequence], sequence);
+  }
+
+  // The batch-end flush must return the first four slots to the producer.
+  for (std::uint32_t sequence = 8; sequence < 12; ++sequence) {
+    ASSERT_TRUE(publisher->send(make_payload(0, sequence)));
+  }
+  EXPECT_EQ(publisher->send(make_payload(0, 12)).error(), salias::Error::BackPressured);
+
+  std::array<std::uint32_t, 8> second_batch{};
+  std::size_t second_count = 0;
+  const std::size_t second_received = subscriber->poll(8, [&](const Payload& payload) noexcept {
+    if (second_count >= second_batch.size()) {
+      return;
+    }
+    second_batch[second_count++] = payload.sequence;
+  });
+  ASSERT_EQ(second_received, 8u);
+  ASSERT_EQ(second_count, 8u);
+  for (std::uint32_t sequence = 0; sequence < second_received; ++sequence) {
+    EXPECT_EQ(second_batch[sequence], sequence + 4);
+  }
+
+  // A later poll observes the second batch-end flush and frees another slot.
+  EXPECT_TRUE(publisher->send(make_payload(0, 12)));
+  std::uint32_t last_sequence = 0;
+  ASSERT_EQ(subscriber->poll(
+                1, [&](const Payload& payload) noexcept { last_sequence = payload.sequence; }),
+            1u);
+  EXPECT_EQ(last_sequence, 12u);
+  EXPECT_EQ(subscriber->poll(1, [](const Payload&) noexcept {}), 0u);
+}
+
+TEST(FixedChannelTest, PollFlushesDirtyLanesAndFanoutCursors) {
+  using Mpsc = Fixed<salias::FixedTopology::Mpsc, PayloadSchema, 4, 2, 1>;
+  auto mpsc = Mpsc::create(unique_name("poll-mpsc"));
+  ASSERT_TRUE(mpsc);
+  auto mpsc_first = mpsc->publisher(0);
+  auto mpsc_second = mpsc->publisher(1);
+  auto mpsc_consumer = mpsc->subscriber(0);
+  ASSERT_TRUE(mpsc_first);
+  ASSERT_TRUE(mpsc_second);
+  ASSERT_TRUE(mpsc_consumer);
+
+  for (std::uint32_t sequence = 0; sequence < Mpsc::capacity_slots(); ++sequence) {
+    ASSERT_TRUE(mpsc_first->send(make_payload(0, sequence)));
+    ASSERT_TRUE(mpsc_second->send(make_payload(1, sequence)));
+  }
+  std::array<Payload, 2 * Mpsc::capacity_slots()> mpsc_received{};
+  std::size_t mpsc_count = 0;
+  ASSERT_EQ(mpsc_consumer->poll(static_cast<std::uint32_t>(mpsc_received.size()),
+                                [&](const Payload& payload) noexcept {
+                                  if (mpsc_count < mpsc_received.size()) {
+                                    mpsc_received[mpsc_count++] = payload;
+                                  }
+                                }),
+            mpsc_received.size());
+  std::array<std::uint32_t, 2> expected{};
+  for (std::size_t index = 0; index < mpsc_count; ++index) {
+    const auto producer = mpsc_received[index].producer;
+    ASSERT_LT(producer, expected.size());
+    EXPECT_EQ(mpsc_received[index], make_payload(producer, expected[producer]++));
+  }
+  EXPECT_EQ(expected, (std::array<std::uint32_t, 2>{4, 4}));
+  EXPECT_TRUE(mpsc_first->send(make_payload(0, 4)));
+  EXPECT_TRUE(mpsc_second->send(make_payload(1, 4)));
+
+  using Spmc = Fixed<salias::FixedTopology::Spmc, PayloadSchema, 4, 1, 2>;
+  auto spmc = Spmc::create(unique_name("poll-spmc"));
+  ASSERT_TRUE(spmc);
+  auto spmc_publisher = spmc->publisher(0);
+  auto spmc_first = spmc->subscriber(0);
+  auto spmc_second = spmc->subscriber(1);
+  ASSERT_TRUE(spmc_publisher);
+  ASSERT_TRUE(spmc_first);
+  ASSERT_TRUE(spmc_second);
+  for (std::uint32_t sequence = 0; sequence < Spmc::capacity_slots(); ++sequence) {
+    ASSERT_TRUE(spmc_publisher->send(make_payload(0, sequence)));
+  }
+  ASSERT_EQ(spmc_first->poll(4, [](const Payload&) noexcept {}), 4u);
+  EXPECT_EQ(spmc_publisher->send(make_payload(0, 4)).error(), salias::Error::BackPressured);
+  ASSERT_EQ(spmc_second->poll(4, [](const Payload&) noexcept {}), 4u);
+  EXPECT_TRUE(spmc_publisher->send(make_payload(0, 4)));
+
+  using Mpmc = Fixed<salias::FixedTopology::Mpmc, PayloadSchema, 4, 2, 2>;
+  auto mpmc = Mpmc::create(unique_name("poll-mpmc"));
+  ASSERT_TRUE(mpmc);
+  auto mpmc_first = mpmc->publisher(0);
+  auto mpmc_second = mpmc->publisher(1);
+  auto mpmc_left = mpmc->subscriber(0);
+  auto mpmc_right = mpmc->subscriber(1);
+  ASSERT_TRUE(mpmc_first);
+  ASSERT_TRUE(mpmc_second);
+  ASSERT_TRUE(mpmc_left);
+  ASSERT_TRUE(mpmc_right);
+  for (std::uint32_t sequence = 0; sequence < Mpmc::capacity_slots(); ++sequence) {
+    ASSERT_TRUE(mpmc_first->send(make_payload(0, sequence)));
+    ASSERT_TRUE(mpmc_second->send(make_payload(1, sequence)));
+  }
+  ASSERT_EQ(mpmc_left->poll(8, [](const Payload&) noexcept {}), 8u);
+  EXPECT_EQ(mpmc_first->send(make_payload(0, 4)).error(), salias::Error::BackPressured);
+  EXPECT_EQ(mpmc_second->send(make_payload(1, 4)).error(), salias::Error::BackPressured);
+  ASSERT_EQ(mpmc_right->poll(8, [](const Payload&) noexcept {}), 8u);
+  EXPECT_TRUE(mpmc_first->send(make_payload(0, 4)));
+  EXPECT_TRUE(mpmc_second->send(make_payload(1, 4)));
+}
+
 TEST(FixedChannelTest, SpmcFanoutUsesSlowestConsumerForBackpressure) {
   const std::string name = unique_name("spmc");
   using Channel = Fixed<salias::FixedTopology::Spmc, PayloadSchema, 4>;

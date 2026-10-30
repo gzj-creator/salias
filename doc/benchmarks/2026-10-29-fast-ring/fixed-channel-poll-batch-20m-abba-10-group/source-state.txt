@@ -1,0 +1,21 @@
+source_parent_commit=25bced098c2324abb6e60c717c1e936d61eaf5e1
+worktree_state=dirty_optimization_patch
+
+## git status --short
+ M CHANGELOG.md
+ M README.md
+ M bench/CMakeLists.txt
+ M doc/benchmarks/2026-10-29-fast-ring/README.md
+ M doc/fast-ring-architecture.md
+ M doc/performance-report.md
+ M doc/plans/2026-10-29-fast-ring-performance-replacement.md
+ M src/salias/include/salias/fixed_channel.hpp
+ M test/api/fixed_channel_test.cpp
+?? bench/fixed_channel_poll_compare.cpp
+?? doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/
+
+## source and binary sha256
+f7017177d9525a0b51284c7fc2eef181372d2ad26e9d74e9218994d9f1c6438c  bench/fixed_channel_poll_compare.cpp
+926048cf2060a45251793b80eef07234fe1bec04781ac31ca0daf7bb25c42fc2  src/salias/include/salias/fixed_channel.hpp
+a1b805503d39b737c7877ced075ac2e0b5cb704503e7205529708c2c916c5012  test/api/fixed_channel_test.cpp
+c723db1b1935d7eaef4f637585a572b5fc87f7724773e38cc98ba8baeacd4945  build/release/bench/salias_fixed_channel_poll_compare

@@ -345,6 +345,11 @@ attempt 和 planned 延迟；Fast 与同协议 FIFO 各 240 次正式性能轮�
 [Fast Ring 全文校验开发验收](doc/benchmarks/2026-10-29-fast-ring/README.md)，结论与优化
 路线见 [性能交接报告](doc/performance-report.md)。
 
+`FixedChannel::poll()` 已有 10 组 SPSC 64 B ABBA 产品 API 对比：批量 consumer cursor
+发布把饱和吞吐从 8.20 Mmsg/s 提升到 40.03 Mmsg/s，配对中位数 4.84x；attempt p50/p99
+没有证明改善，配对中位数分别为 1.06x/1.03x。详细证据和尾分位见
+[批量 cursor 对比](doc/benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/README.md)。
+
 吞吐为所有 producer 合计 Mmsg/s，每 producer 1000 万条：
 
 | 拓扑 | 64 B Fast / Aeron | Fast/Aeron | 256 B Fast / Aeron | Fast/Aeron |

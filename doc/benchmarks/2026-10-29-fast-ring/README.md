@@ -43,10 +43,12 @@ SPSC、MPSC、SPMC 的应用 worker 位于 CPU1-3，Aeron driver 与 coordinator
 CPU0，因此 MPMC 结果包含真实的 4 vCPU 部署约束，但不是独占核证书。
 Aeron 使用多 term 日志，总映射容量与本组固定槽容量不同；该差异未被解释成库本身的差异。
 
-性能客户端直接驱动 `Fast*Ring`。`FixedChannel` 的创建、连接、schema 校验和收发正确性
-已经覆盖，但 `FixedSubscriber::poll()` 目前仍逐条发布 consumer cursor；ring 支持的
-64 条批量 `release(false)` + `flush_release()` 还没有完全接入该产品 API。因此本表是
-ring 热路径结果，不能直接等同于 `FixedChannel::poll()` 的最终 SLA。
+性能客户端直接驱动 `Fast*Ring`，所以下面的四拓扑表是 ring 热路径结果。
+`FixedSubscriber::poll()` 后续已接入批量 `release(false)` + `flush_release()`，并用
+独立 SPSC 64 B 产品 API ABBA 对比验证：饱和吞吐由 8.20 Mmsg/s 提升到 40.03 Mmsg/s，
+配对中位数 4.84x；attempt p50/p99 没有证明改善。该产品 API 证据见
+[FixedChannel 批量 cursor 对比](fixed-channel-poll-batch-20m-abba-10-group/README.md)，
+但它仍不能替代四拓扑产品 API 矩阵或最终 SLA。
 
 ## 吞吐
 

@@ -1,0 +1,68 @@
+{
+  "scope": {
+    "api": "FixedChannel",
+    "topology": "spsc",
+    "payload_bytes": 64,
+    "capacity_slots": 4096,
+    "producer_cpu": 1,
+    "consumer_cpu": 2,
+    "groups": 10,
+    "order": ["copy", "poll", "poll", "copy"]
+  },
+  "throughput": {
+    "runs_per_mode": 20,
+    "mmsg_s": {
+      "copy": {"median": 8.197355, "min": 7.90444, "max": 9.50031},
+      "poll": {"median": 40.03025, "min": 34.6086, "max": 40.6174},
+      "paired_poll_over_copy": {"median": 4.841020431599267, "min": 4.260379941305076, "max": 5.062530128951914}
+    }
+  },
+  "latency_attempt": {
+    "runs_per_mode": 20,
+    "p50_ns": {
+      "copy": {"median": 192.0, "min": 175, "max": 225},
+      "poll": {"median": 198.0, "min": 157, "max": 219},
+      "paired_poll_over_copy": {"median": 1.0579922972486215, "min": 0.933649289099526, "max": 1.1297297297297297}
+    },
+    "p99_ns": {
+      "copy": {"median": 369.0, "min": 327, "max": 3775},
+      "poll": {"median": 371.0, "min": 327, "max": 3391},
+      "paired_poll_over_copy": {"median": 1.0332665238325616, "min": 0.11164036915748735, "max": 1.1277020285999335}
+    },
+    "p999_ns": {
+      "copy": {"median": 3903.0, "min": 1103, "max": 10751},
+      "poll": {"median": 3711.0, "min": 2559, "max": 10367},
+      "paired_poll_over_copy": {"median": 1.001703864176447, "min": 0.33922425820853874, "max": 3.3934723481414326}
+    },
+    "max_ns": {
+      "copy": {"median": 53389.5, "min": 44721, "max": 130414},
+      "poll": {"median": 46279.5, "min": 39334, "max": 108947},
+      "paired_poll_over_copy": {"median": 0.8943906619775479, "min": 0.6394015473689604, "max": 1.1301699658422157}
+    }
+  },
+  "latency_planned": {
+    "runs_per_mode": 20,
+    "p50_ns": {
+      "copy": {"median": 246.0, "min": 231, "max": 279},
+      "poll": {"median": 251.0, "min": 143, "max": 271},
+      "paired_poll_over_copy": {"median": 1.0583797155225727, "min": 0.9026217228464419, "max": 1.1244813278008298}
+    },
+    "p99_ns": {
+      "copy": {"median": 3071.0, "min": 1583, "max": 7295},
+      "poll": {"median": 2495.0, "min": 663, "max": 2588671},
+      "paired_poll_over_copy": {"median": 1.2705510395070614, "min": 0.3735396274076413, "max": 2.68947551233067}
+    },
+    "p999_ns": {
+      "copy": {"median": 10879.0, "min": 8319, "max": 18431},
+      "poll": {"median": 11199.0, "min": 8319, "max": 14024703},
+      "paired_poll_over_copy": {"median": 1.0485958172166865, "min": 0.7099773419798422, "max": 1.6941814505009651}
+    },
+    "max_ns": {
+      "copy": {"median": 62743.0, "min": 48599, "max": 358207},
+      "poll": {"median": 67190.0, "min": 47677, "max": 15224448},
+      "paired_poll_over_copy": {"median": 1.1899956317593778, "min": 0.6820557132864256, "max": 13.844228424332746}
+    }
+  },
+  "verified_messages": 960000000,
+  "verdict": "throughput_improved_latency_not_proven_improved"
+}

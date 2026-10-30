@@ -25,6 +25,11 @@ target_link_libraries(salias_fast_ring_latency PRIVATE salias_core Threads::Thre
 salias_enable_warnings(salias_fast_ring_latency)
 salias_enable_sanitizers(salias_fast_ring_latency)
 
+add_executable(salias_fixed_channel_poll_compare fixed_channel_poll_compare.cpp)
+target_link_libraries(salias_fixed_channel_poll_compare PRIVATE salias Threads::Threads)
+salias_enable_warnings(salias_fixed_channel_poll_compare)
+salias_enable_sanitizers(salias_fixed_channel_poll_compare)
+
 find_package(benchmark CONFIG QUIET)
 
 if(benchmark_FOUND)

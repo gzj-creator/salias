@@ -125,9 +125,12 @@ producer 复用。消费者进程退出也不会推进 cursor，安全结果是�
 同时它没有放弃可靠背压，attempt p50/p99 也守住了门禁；但 MPMC p99.9 证明“吞吐优先”
 仍会留下与调度和共享核相关的尾延迟问题，不能简单称为全面低延迟领先。
 
-这里的性能数据直接来自 `Fast*Ring` 热路径；`FixedChannel` 的集成正确性已验证，但
-`FixedSubscriber::poll()` 仍逐条发布 consumer cursor，尚未接入 ring 的 64 条批量
-`release(false)` + `flush_release()`。因此这些数字是 ring 结果，不是完整产品 API 的 SLA。
+上面的四拓扑性能数据直接来自 `Fast*Ring` 热路径。生产 API 的
+`FixedSubscriber::poll()` 已接入 `release(false)` + `flush_release()`：消息复制给本地
+handler，批次结束或 ring 暂时为空时统一发布 cursor。SPSC 64 B 产品 API 的 10 组 ABBA
+中，饱和吞吐由 8.20 Mmsg/s 提升到 40.03 Mmsg/s（配对中位数 4.84x），但 attempt
+p50/p99 的配对中位数分别为 1.06x/1.03x，没有证明延迟改善。产品 API 目前只完成了
+SPSC 64 B 对比，不能替代四拓扑热路径矩阵或最终 SLA。
 
 1 轮预热、5 轮正式 ABBA 的开发矩阵中，8/8 单元的发布吞吐均至少达到 Aeron 的 1.10x，
 attempt p50/p99 也均低于 Aeron。SPSC 64 B 对 Aeron 为 2.51x，MPSC 64 B 为 1.70x，
@@ -159,9 +162,9 @@ p99/p99.9 也未领先。因此当前实现首先是一个吞吐优先、同时�
 1. **先解决 MPMC 的 p99.9。** 在至少 5 个独占 vCPU 上把 driver、coordinator、2 个
    producer 和 2 个 consumer 分离，再复跑 p99/p99.9。若尾延迟随核隔离消失，产品部署
    应给出明确的隔离要求；若仍存在，再分析 lane 轮询和 cache migration。
-2. **把 consumer release 批量化带到生产 API。** ring 已支持 `release(false)` 后
-   `flush_release()`，但 `FixedSubscriber::poll()` 当前仍逐条发布 cursor。可按
-   `max_messages` 在批末刷新，并用 ABBA 测试 8/16/32/64 条窗口，兼顾背压时延。
+2. **扩大产品 API 批量 cursor 验收。** `FixedSubscriber::poll()` 已在批末刷新，SPSC
+   64 B 饱和吞吐提升 4.84x，但没有证明延迟改善。下一步应对 MPSC/SPMC/MPMC 和
+   64/256 B 做产品 API ABBA，并比较 8/16/32/64 条窗口下的背压等待与 p99/p99.9。
 3. **提供批量 claim。** 同一 producer lane 可一次 claim 连续的多个固定 slot，每批只推进
    producer 本地位置并在最后一个 completion 前维持批量可见性。该设计必须保留按消息
    completion 或引入批次 completion 的崩溃安全证明，不能只靠放宽原子序来提数字。
