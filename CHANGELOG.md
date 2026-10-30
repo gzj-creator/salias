@@ -36,7 +36,7 @@ are released.
 ### Docs
 
 - README、L7/L1 API、仓库内使用矩阵、迁移表和机器可读 API manifest 同步 latest 唯一入口与 extras 边界；manifest 当前记录 30 core、13 compat、9 extras、1 removed。
-- 按本轮接口收敛边界，不检查仓库外源码消费方，也不将其使用量或迁移成本作为当前门禁；Phase 1-3 已完成，Phase 4-5 未执行。
+- 按本轮接口收敛边界，不检查仓库外源码消费方，也不将其使用量或迁移成本作为当前门禁；Phase 1-3 已完成，Phase 4 预检完成但删除仍被 release minor、发布说明和负责人批准门禁阻塞，Phase 5 未开始。
 
 ## [v4.1.0] - 2026-10-30
 

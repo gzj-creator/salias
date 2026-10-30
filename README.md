@@ -2,7 +2,8 @@
 
 `salias` 是支持 Linux 与 macOS 的 C++23 低延迟具名 IPC 消息通道。面向新用户的核心入口只有
 三个：通用可靠流 `Channel<Mode, Schema>`、固定布局快速流 `FixedChannel`，以及 latest fanout
-`LatestMpmcChannel`。`LatestByKey`、Priority 和 Ringbuffer 是非核心 extras 候选，不属于快速开始。
+`LatestMpmcChannel`。`LatestByKey`、Priority 和 Ringbuffer 是独立的 `salias::extras` 可选能力，
+不属于快速开始。
 
 ## 快速开始
 

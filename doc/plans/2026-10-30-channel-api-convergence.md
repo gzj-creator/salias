@@ -2,7 +2,7 @@
 
 日期：2026-10-30（Asia/Singapore）
 
-状态：**Phase 0 本地审计与 Phase 1-3 完成；Phase 0 两个外部/签署门禁待确认；Phase 4-5 未执行**
+状态：**Phase 0 本地审计与 Phase 1-3 完成；Phase 4 预检部分完成，删除门禁阻塞；Phase 5 未开始**
 
 ## 1. 目标
 
@@ -208,16 +208,27 @@ Phase 3 已完成。核心 umbrella、`import salias;`、`salias::salias` 和 in
 ### Phase 4：兼容别名与重复入口删除
 
 - [ ] 在弃用窗口至少一个 minor 后，确认构建警告、release note 和迁移示例已发布。
+  - [x] `v4.1.0` 已发布四个 raw 别名的弃用标记、同型兼容测试和迁移/codemod 示例。
+  - [x] 当前源码在 GCC 下实际产生四个 raw 别名和九个 extras 顶层别名的
+    `-Wdeprecated-declarations` 警告；规范入口在同一 `-Werror` 编译参数下通过。
+  - [ ] `v4.1.0` 之后尚无新的 release minor；Phase 3 extras 变更仍是未打 tag 的 `[Unreleased]`。
+  - [ ] 包含 extras 边界、警告样例和删除/回滚说明的 release note 尚未发布。
 - [ ] 删除 `FifoMpscChannel`、`FifoMpmcChannel`、`OrderedMpscChannel` 和
   `OrderedMpmcChannel` 别名，或由负责人明确批准永久保留并更新本计划。
 - [x] 按 Phase 2 决策关闭直接 `Channel<Mode::LatestMpmc>` 的公开创建/连接工厂。
 - [ ] 删除 extras 转发头；兼容窗口结束前不得提前删除。
 - [x] 将 `salias/salias.hpp` 收敛为核心聚合头，不再默认包含 extras。（作为 Phase 3 边界调整提前完成）
 - [x] 更新 C++23 module export，移除核心 module 中的 extras 符号。（作为 Phase 3 边界调整提前完成）
-- [ ] 清理文档中的重复入口、废弃命名和双份示例。
-- [ ] 确认没有内部代码通过 compat 别名遮蔽规范路径。
+- [x] 清理文档中的重复入口、废弃命名和双份示例。快速开始与主路径只展示规范入口；旧名称仅保留在
+  API 参考、迁移说明、兼容测试和明确的弃用表中。
+- [x] 确认没有内部代码通过 compat 别名遮蔽规范路径。`tools/check_channel_api.py` 扫描
+  `test/`、`bench/`、`example/`，除两个专项兼容测试外无命中。
 
 **Phase 4 退出条件**：核心公开面中不存在同语义双入口；所有删除项在下游/模块/安装测试中清零。
+
+Phase 4 删除仍未执行。最后发布 tag 是 `v4.1.0`，Phase 3 之后的提交尚未形成新的 release minor；
+负责人删除批准也未闭合。按本 session 的硬约束，四个 `*Channel` 别名、三个 extras 转发头和九个
+顶层 extras 别名继续保持可用，不在当前 minor 中删除。
 
 ### Phase 5：最终验证与发布
 
@@ -318,6 +329,9 @@ ELF 的历史记录只保留为当时已产生的审计痕迹，不再作为接�
 | 2026-10-30 | 3 | README、L7 API、L1 ring 文档、迁移表、仓库内使用矩阵和机器可读 manifest 同步 extras 边界；manifest 校验为 30 core、13 compat、9 extras、1 removed，core module 33、extras module 9 | `README.md`、`doc/{5-L1-ring,11-L7-api}.md`、`doc/migration/channel-api-convergence.md`、`doc/api/channel-api-{manifest,usage-matrix}.*`、`python3 tools/check_channel_api.py` |
 | 2026-10-30 | 3 | Release 27/27 与 ASan/UBSan 26/26 通过；core-only 安装消费、extras 安装/跨进程、mcpp core-only import、core+extras import 和两个独立 mcpp 消费者均通过 | `cmake --build --preset release -j 4`；`ctest --test-dir build/release --output-on-failure -j 2`；`cmake --build --preset debug-asan-ubsan -j 4`；`ctest --preset debug-asan-ubsan --output-on-failure -j 2`；`mcpp run test_mcpp_core_import ...`；`mcpp run test_mcpp_import ...`；`python3 tools/check_mcpp.py` |
 | 2026-10-30 | 3 | 数据面 TU 相对 HEAD 零差异；固定槽对象哈希保持 `45e6affb...`，通用 Channel 对象因公开头输入变化重采集为 `c8dcffd9...`；smoke 为 FixedChannel 1,000,000 条校验、`7.73244 Mmsg/s`，latest p50 `186 ns`，LatestByKey p50 `300 ns`。Google Benchmark 依赖库为 DEBUG，数值只作冒烟证据，完整 ABBA 留 Phase 5 | `git diff --quiet HEAD -- src/salias/src/channel.cpp src/salias/src/fixed_channel.cpp`（exit 0）；`sha256sum`；`build/release/bench/{salias_fixed_channel_poll_compare,salias_bench_round2,salias_bench_latest_by_key}` |
+| 2026-10-30 | 4 | 删除门禁预检确认尚未满足兼容窗口：最后 tag 为 `v4.1.0`，Phase 3 extras 边界提交 `efcfc8c` 尚未形成新的 release minor；同时存在待签署和 release note 缺口，且本 session 明确禁止主版本删除 | `git log --oneline --decorate`；`git tag --sort=-version:refname`；`doc/migration/channel-api-convergence.md` §5 |
+| 2026-10-30 | 4 | 实际验证弃用警告：四个 raw 别名和九个 extras 顶层别名在 GCC `-Wdeprecated-declarations` 下均产生警告；同一 `-Werror` 参数下规范 `Channel<Mode>`、`LatestMpmcChannel` 和 `salias::extras::*` 路径通过 | `c++ -std=c++23 -Isrc/salias/include -Isrc -x c++ -fsyntax-only -Wdeprecated-declarations -`；规范路径另加 `-Werror`（exit 0） |
+| 2026-10-30 | 4 | 文档重复入口检查和仓库内 compat 使用审计完成；非兼容 `test/bench/example` 不再使用旧 Channel/extras 顶层名称，清单门禁继续通过 | `python3 tools/check_channel_api.py`；`rg -n 'salias::(FifoMpscChannel|FifoMpmcChannel|OrderedMpscChannel|OrderedMpmcChannel|LatestByKey|Priority|Ringbuffer)' test bench example` |
 
 ## 11. 本 session 门禁结论
 
@@ -332,6 +346,8 @@ ELF 的历史记录只保留为当时已产生的审计痕迹，不再作为接�
   消费覆盖 LatestByKey 与 Priority。
 - `python3 tools/check_channel_api.py` 通过：30 core、13 compat、9 extras、1 removed；core module
   33 个符号、extras module 9 个符号。`git diff --check` 在最终文档编辑后重跑。
+- Phase 4 预检实际编译确认全部兼容类型仍产生弃用警告；规范入口在
+  `-Wdeprecated-declarations -Werror` 下通过。
 
 ### 据代码检查
 
@@ -343,6 +359,8 @@ ELF 的历史记录只保留为当时已产生的审计痕迹，不再作为接�
   没有以类型缩减为由弱化 schema、背压、动态订阅或故障语义。
 - 四个 `*Channel` 兼容别名、九个顶层 extras 兼容类型和三个转发头仍存在；
   `LatestByKey`、Priority、Ringbuffer 和四个 `Fast*Ring` 名称均未删除。
+- 文档主路径只展示规范入口；旧名称仅存在于 API 参考、迁移表、明确弃用表和专项兼容测试。
+  `tools/check_channel_api.py` 对 `test/`、`bench/`、`example/` 的 compat 扫描无额外命中。
 - 通用 Channel 与 FixedChannel 的数据面源码相对提交 `7baf8c0` 零差异；未修改共享内存 wire
   protocol、通道版本或固定槽热路径，也未合并两个数据面。
 - include/link 边界变化后的固定槽对象 SHA-256 保持 `45e6affb77d55fc2c995f32b1d748c4d9f641bd819844ad5df4e89f72907c00f`；
@@ -358,5 +376,6 @@ ELF 的历史记录只保留为当时已产生的审计痕迹，不再作为接�
 
 - 按用户决定，没有检查仓库外源码消费方，也不声称其调用量、迁移成本或私有仓库使用情况。
 - 两个 Phase 0 外部证据/签署复选框保持未完成；它们不阻塞当前本地接口收敛。
-- Phase 4 四个别名及 extras 转发头删除、Phase 5 全套 ABBA/TSan/发布门禁未执行；本 session 不打
-  主版本 tag。下游按迁移表自行适配。
+- Phase 4 删除仍被“`v4.1.0` 之后至少一个 released minor”、待发布 release note 和负责人批准阻塞；
+  本 session 不删除兼容入口、不打主版本 tag。
+- Phase 5 全套 ABBA、TSan、最终 manifest/hash 冻结和发布门禁尚未开始。下游按迁移表自行适配。
