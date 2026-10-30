@@ -1,0 +1,91 @@
+{
+  "date": "2026-10-29T23:12:12+0800",
+  "commit": "3b21f00464acb91947cd610d6dbc641cd8b518e9",
+  "tag": "v4.0.1-1-g3b21f00-dirty",
+  "hostname": "VM-8-5-ubuntu",
+  "kernel": "6.8.0-101-generic",
+  "machine": "x86_64",
+  "cpu_model": "Intel(R) Xeon(R) Platinum 8255C CPU @ 2.50GHz",
+  "online_cpus": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "cpu_capacity": {
+    "allowed_cpus": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "max_application_workers": 4,
+    "dedicated_driver_available": false,
+    "require_dedicated_driver": false
+  },
+  "aeron_version": "1.52.0",
+  "workload": {
+    "topologies": [
+      "spsc",
+      "mpsc",
+      "spmc",
+      "mpmc"
+    ],
+    "payloads": [
+      64,
+      256
+    ],
+    "kinds": [
+      "latency",
+      "throughput"
+    ],
+    "throughput_messages_per_producer": 10000000,
+    "latency_total_rate_msg_s": 1000000,
+    "latency_seconds": 2,
+    "latency_origins": [
+      "attempt",
+      "planned"
+    ],
+    "latency_sample_rate": 16,
+    "warmup_rounds": 1,
+    "warmup_rounds_per_group": 1,
+    "groups": 1,
+    "measured_rounds": 5,
+    "measured_rounds_per_engine_per_group": 5,
+    "engine_order": "ABBA paired rounds",
+    "verification": "full"
+  },
+  "semantics": "Salias fast engine and Aeron exclusive publications; multiple subscribers receive every published message (fanout), not competing consumers",
+  "salias_engine": "fast",
+  "capacity": "Salias fast ring stores 1 MiB of payload data per producer for SPSC/SPMC and 256 KiB for MPSC/MPMC producers, plus fixed-slot metadata; Aeron uses 1 MiB terms in a multi-term log, so total mapped capacities differ",
+  "aggregation": "Median and range across measured run values; latency uses each run's worst subscriber, never pooled histograms",
+  "payload_limit": "Full verification checks every payload byte, producer identity, per-producer sequence, ordering, and duplicates",
+  "cgroup": {
+    "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/run-u29.service",
+    "memory.high": "738197504",
+    "memory.max": "738197504",
+    "memory.swap.max": "0",
+    "cpu.max": null
+  },
+  "files": {
+    "build/release/bench/salias_ipc_compare": "bf285620b9bbf0b3d69424bb03d691a834a01336dbfacdbd891e20264055949c",
+    "build/release/bench/salias_fast_ring_compare": "1f085d6f9943e30886322c496c50eaee18d5577cfb81870ffb76c67314afb99b",
+    "build/release/bench/salias_fast_ring_latency": "6befa6de7146ec4d59394b96329d935e5ae5574a3676244081a97c94e3bb8b57",
+    "build/benchmarks/verification-clients/aeron_ipc_compare": "b6ac1c433b23bd36b7c4ca8ed5854fffc8fe7899acc1d96e533308814d676e53",
+    "build/benchmarks/topology-v4.0.1-20261029-115020/bin/aeronmd": "9bd356315b87e6f7b87ce7dca454ee79637c635bda04d85d01384e543d955d72",
+    "/data/disk1/projects/salias/tools/aeron_compare/run_topology_suite.py": "d80c375d392c3a690ee46e379f8975a8054d2e170d61756a8697ac353db6ea0a",
+    "/data/disk1/projects/salias/third_party/aeron-1.52.0.tar.gz": "10795fec3245a0b0a28cc7897fa05c0ff537197351ada293969f31cb2491c8df"
+  },
+  "limits_start": {
+    "memory.current": "9981952",
+    "memory.peak": "14036992",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+    "cpu.stat": "usage_usec 81534\nuser_usec 67614\nsystem_usec 13920\ncore_sched.force_idle_usec 0"
+  },
+  "limits_end": {
+    "memory.current": "17453056",
+    "memory.peak": "615665664",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+    "cpu.stat": "usage_usec 1515318525\nuser_usec 1435733350\nsystem_usec 79585175\ncore_sched.force_idle_usec 0"
+  }
+}

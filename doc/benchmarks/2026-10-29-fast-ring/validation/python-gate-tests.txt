@@ -1,0 +1,10 @@
+test_all_cells_pass_at_inclusive_thresholds (test_verify_fixed_ring_gates.FixedRingGateTests.test_all_cells_pass_at_inclusive_thresholds) ... ok
+test_attempt_p50_failure_is_reported (test_verify_fixed_ring_gates.FixedRingGateTests.test_attempt_p50_failure_is_reported) ... ok
+test_attempt_p99_failure_is_reported (test_verify_fixed_ring_gates.FixedRingGateTests.test_attempt_p99_failure_is_reported) ... ok
+test_fifo_baseline_regression_is_reported (test_verify_fixed_ring_gates.FixedRingGateTests.test_fifo_baseline_regression_is_reported) ... ok
+test_short_runs_cannot_be_signed_off (test_verify_fixed_ring_gates.FixedRingGateTests.test_short_runs_cannot_be_signed_off) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.001s
+
+OK

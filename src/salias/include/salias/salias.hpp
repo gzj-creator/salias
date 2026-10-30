@@ -12,6 +12,7 @@
 #include "salias/channel.hpp"
 #include "salias/config.hpp"
 #include "salias/error.hpp"
+#include "salias/fixed_channel.hpp"
 #include "salias/latest_by_key_channel.hpp"
 #include "salias/latest_channel.hpp"
 #include "salias/message.hpp"

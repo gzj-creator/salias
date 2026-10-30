@@ -15,6 +15,16 @@ target_link_libraries(salias_round2_probe PRIVATE salias Threads::Threads)
 salias_enable_warnings(salias_round2_probe)
 salias_enable_sanitizers(salias_round2_probe)
 
+add_executable(salias_fast_ring_compare fast_ring_compare.cpp)
+target_link_libraries(salias_fast_ring_compare PRIVATE salias_core Threads::Threads)
+salias_enable_warnings(salias_fast_ring_compare)
+salias_enable_sanitizers(salias_fast_ring_compare)
+
+add_executable(salias_fast_ring_latency fast_ring_latency.cpp)
+target_link_libraries(salias_fast_ring_latency PRIVATE salias_core Threads::Threads)
+salias_enable_warnings(salias_fast_ring_latency)
+salias_enable_sanitizers(salias_fast_ring_latency)
+
 find_package(benchmark CONFIG QUIET)
 
 if(benchmark_FOUND)

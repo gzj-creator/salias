@@ -6,11 +6,12 @@ import unittest
 import run_topology_suite as runner
 
 
-def latency_row(engine, value, round_number=1):
+def latency_row(engine, value, round_number=1, group=0):
     published = "2000000"
     delivered = "2000000"
     return {
         "phase": "measured",
+        "group": group,
         "round": round_number,
         "engine": engine,
         "topology": "spsc",
@@ -51,12 +52,24 @@ class TopologySuiteTests(unittest.TestCase):
         })
 
     def test_cpu_layout_reserves_cpu_zero_only_when_possible(self):
-        self.assertEqual(runner.cpu_layout(1, 1)["worker_cpu_base"], 1)
-        self.assertEqual(runner.cpu_layout(2, 1)["worker_cpu_base"], 1)
-        self.assertEqual(runner.cpu_layout(1, 2)["worker_cpu_base"], 1)
-        mpmc = runner.cpu_layout(2, 2)
+        four_cpus = [0, 1, 2, 3]
+        self.assertEqual(runner.cpu_layout(1, 1, four_cpus)["worker_cpu_base"], 1)
+        self.assertEqual(runner.cpu_layout(2, 1, four_cpus)["worker_cpu_base"], 1)
+        self.assertEqual(runner.cpu_layout(1, 2, four_cpus)["worker_cpu_base"], 1)
+        mpmc = runner.cpu_layout(2, 2, four_cpus)
         self.assertEqual(mpmc["worker_cpu_base"], 0)
         self.assertEqual(mpmc["driver_cpu"], 0)
+        self.assertFalse(mpmc["dedicated_driver"])
+
+    def test_five_cpu_layout_gives_mpmc_driver_its_own_cpu(self):
+        layout = runner.cpu_layout(2, 2, [0, 1, 2, 3, 4], require_dedicated_driver=True)
+        self.assertEqual(layout["worker_cpus"], [1, 2, 3, 4])
+        self.assertEqual(layout["driver_cpu"], 0)
+        self.assertTrue(layout["dedicated_driver"])
+
+    def test_dedicated_driver_is_rejected_with_four_cpus(self):
+        with self.assertRaisesRegex(RuntimeError, "needs 5 CPUs"):
+            runner.cpu_layout(2, 2, [0, 1, 2, 3], require_dedicated_driver=True)
 
     def test_worker_roles_place_consumers_before_producers(self):
         roles = runner.worker_roles(2, 2, 0)
@@ -71,6 +84,29 @@ class TopologySuiteTests(unittest.TestCase):
                          (2000000, 4000000, 250000))
         self.assertEqual(runner.expected_counts("throughput", 1, 2, 10000000, 0),
                          (10000000, 20000000, 0))
+
+    def test_paired_rounds_follow_abba_order(self):
+        self.assertEqual(
+            [runner.engine_order(round_number, 0) for round_number in range(1, 5)],
+            [("salias", "aeron"), ("aeron", "salias"),
+             ("aeron", "salias"), ("salias", "aeron")],
+        )
+        self.assertEqual(
+            [runner.engine_order(round_number, 0)[0] for round_number in range(1, 9)],
+            ["salias", "aeron", "aeron", "salias"] * 2,
+        )
+
+    def test_group_count_and_rounds_are_retained_in_summary(self):
+        rows = [
+            latency_row("salias", 300, group=0),
+            latency_row("aeron", 200, group=0),
+            latency_row("salias", 300, round_number=2, group=1),
+            latency_row("aeron", 200, round_number=2, group=1),
+        ]
+        summary = runner.summarize(rows, {"workload": {"verification": "full"}})
+        self.assertTrue(all(group["groups"] == 2 for group in summary["groups"]))
+        self.assertTrue(all(group["rounds"] == 2 for group in summary["groups"]))
+        self.assertEqual(summary["verification"], "full")
 
     def test_summary_separates_engines_and_uses_worst_subscriber(self):
         rows = [latency_row("salias", 300), latency_row("aeron", 200)]

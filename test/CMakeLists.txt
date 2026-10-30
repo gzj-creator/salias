@@ -95,6 +95,8 @@ salias_register_test(salias_platform_tests "$<TARGET_FILE:salias_platform_tests>
 
 add_executable(salias_ring_tests
   ring/atomic_cell_test.cpp
+  ring/fast_spsc_ring_test.cpp
+  ring/fast_ring_topologies_test.cpp
   ring/magic_ring_test.cpp
   ring/ringbuffer_test.cpp
 )
@@ -141,6 +143,7 @@ salias_register_test(salias_channel_tests "$<TARGET_FILE:salias_channel_tests>")
 add_executable(salias_api_tests
   api/channel_api_test.cpp
   api/claim_api_v4_test.cpp
+  api/fixed_channel_test.cpp
   api/latest_subscription_test.cpp
 )
 target_link_libraries(salias_api_tests PRIVATE salias GTest::gtest_main)

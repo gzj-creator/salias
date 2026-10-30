@@ -88,6 +88,7 @@ struct Options {
   std::uint64_t latency_sample_rate = 0;  ///< 延迟采样周期，0 表示关闭采样
   std::uint64_t rate = 0;  ///< Per-producer open-loop rate; zero retains saturation mode.
   std::string latency_origin = "claim";  ///< claim / attempt / planned.
+  std::string verify = "none";  ///< none 只核计数；full 校验全部 payload、顺序和重复。
   std::string diagnostic = "off";  ///< off / counters / timed；仅供单发布者吞吐诊断。
   std::string publish_path = "claim";  ///< claim / offer；实验回退路径，默认 claim。
   bool producers_set = false;             ///< 标记 producers 是否由用户显式指定
@@ -156,6 +157,8 @@ struct alignas(64) SharedRunState {
   /// 每个 consumer 的延迟直方图桶数组，用于分位数计算与跨 consumer 合并。
   alignas(64)
       std::array<std::array<std::uint64_t, latency::kBucketCount>, kMaxWorkers> latency_buckets{};
+  /// 每个 consumer 完成全文校验的消息数；关闭 full 校验时保持为 0。
+  alignas(64) std::array<std::uint64_t, kMaxWorkers> verified_messages{};
   /// 诊断计数随 sizeof(SharedRunState) 一并映射到匿名共享内存。
   DiagnosticCounters diagnostic{};
 };
@@ -225,6 +228,8 @@ Options parse_options(int argc, char** argv) {
       options.rate = std::stoull(require_value("--rate"));
     } else if (arg == "--latency-origin") {
       options.latency_origin = require_value("--latency-origin");
+    } else if (arg == "--verify") {
+      options.verify = require_value("--verify");
     } else if (arg == "--diagnostic") {
       options.diagnostic = require_value("--diagnostic");
     } else if (arg == "--publish-path") {
@@ -238,6 +243,7 @@ Options parse_options(int argc, char** argv) {
                    "[--name NAME] [--cpu-base N] [--cpu-stride N] "
                    "[--latency-sample-rate N] [--rate N] "
                    "[--latency-origin claim|attempt|planned] "
+                   "[--verify none|full] "
                    "[--diagnostic off|counters|timed] [--publish-path claim|offer]\n";
       std::exit(0);
     } else {
@@ -262,6 +268,10 @@ Options parse_options(int argc, char** argv) {
     std::cerr << "unknown page: " << options.page << '\n';
     std::exit(2);
   }
+  if (options.verify != "none" && options.verify != "full") {
+    std::cerr << "unknown verify mode: " << options.verify << '\n';
+    std::exit(2);
+  }
   // huge1g 页要求容量按 1 GiB 对齐，未显式指定 capacity 时取整为 1 GiB。
   if (!options.capacity_set && options.page == "huge1g") {
     options.capacity = kHuge1GiB;
@@ -271,6 +281,10 @@ Options parse_options(int argc, char** argv) {
       options.producers + options.consumers > kMaxWorkers || options.payload == 0 ||
       options.batch_size == 0 || options.poll_limit == 0 || options.cpu_stride == 0) {
     std::cerr << "invalid producers/consumers/payload/batch-size/poll-limit/cpu-stride\n";
+    std::exit(2);
+  }
+  if (options.verify == "full" && (options.payload < 16 || options.payload % 8 != 0)) {
+    std::cerr << "full verification requires payload >= 16 and divisible by 8 bytes\n";
     std::exit(2);
   }
   if (options.publish_path != "claim" && options.publish_path != "offer") {
@@ -441,16 +455,33 @@ bool should_sample(const Options& options, std::uint64_t sequence) noexcept {
 }
 
 /**
- * @brief 将发送时间戳与 marker 写入 payload。
+ * @brief 将发送时间戳、producer/sequence 与可选全文模式写入 payload。
  * @param payload 目标负载 span。
- * @param marker 生产者标识与本地序列号编码的标记值。
+ * @param producer_index producer 下标。
+ * @param sequence producer 内单调序号。
  * @param send_time_ns 发送时刻的单调时间戳（纳秒），0 表示不采样。
  * @param latency_enabled 是否启用延迟采样（决定是否写时间戳）。
- * @details 布局：启用采样时前 8 字节为时间戳，其后为 marker；否则仅写
- *   marker。该布局必须与 consumer 端读取逻辑严格一致。
+ * @param verify_full_payload 是否填写可逐字节校验的确定性模式。
+ * @details 兼容模式保持原有布局：采样时前 8 字节为时间戳，其后为 marker；
+ *   否则 marker 位于起始位置。全文模式固定前 16 字节为时间戳和 marker，
+ *   其余 64-bit word 由 producer/sequence 确定，供 consumer 全量复核。
  */
-void write_payload(std::span<std::byte> payload, std::uint64_t marker, std::uint64_t send_time_ns,
-                   bool latency_enabled) noexcept {
+void write_payload(std::span<std::byte> payload, std::uint32_t producer_index,
+                   std::uint64_t sequence, std::uint64_t send_time_ns, bool latency_enabled,
+                   bool verify_full_payload) noexcept {
+  const std::uint64_t marker =
+      (static_cast<std::uint64_t>(producer_index) << 48) | sequence;
+  if (verify_full_payload) {
+    auto* words = reinterpret_cast<std::uint64_t*>(payload.data());
+    words[0] = send_time_ns;
+    words[1] = marker;
+    const auto pattern =
+        sequence ^ (static_cast<std::uint64_t>(producer_index) * 0x9E3779B97F4A7C15ull);
+    for (std::size_t index = 2; index < payload.size() / sizeof(std::uint64_t); ++index) {
+      words[index] = pattern + index;
+    }
+    return;
+  }
   // 启用采样时 marker 偏移在时间戳之后，否则置于 payload 起始。
   const std::size_t marker_offset = latency_enabled ? sizeof(send_time_ns) : 0;
   if (latency_enabled && payload.size() >= sizeof(send_time_ns)) {
@@ -459,6 +490,36 @@ void write_payload(std::span<std::byte> payload, std::uint64_t marker, std::uint
   if (payload.size() >= marker_offset + sizeof(marker)) {
     std::memcpy(payload.data() + marker_offset, &marker, sizeof(marker));
   }
+}
+
+/**
+ * @brief 校验全文模式 payload 的字节、身份、序号和重复。
+ * @return 内容与期望的 producer/sequence 完全一致时返回 true。
+ */
+bool validate_full_payload(std::span<const std::byte> payload, std::uint32_t expected_producer,
+                           std::uint64_t expected_sequence, std::uint64_t sample_rate) noexcept {
+  if (payload.size() < 16 || payload.size() % sizeof(std::uint64_t) != 0) {
+    return false;
+  }
+  const auto* words = reinterpret_cast<const std::uint64_t*>(payload.data());
+  const std::uint64_t marker = words[1];
+  const auto producer = static_cast<std::uint32_t>(marker >> 48);
+  const std::uint64_t sequence = marker & ((std::uint64_t{1} << 48) - 1);
+  if (producer != expected_producer || sequence != expected_sequence) {
+    return false;
+  }
+  const bool sampled = sample_rate != 0 && sequence % sample_rate == 0;
+  if ((words[0] != 0) != sampled) {
+    return false;
+  }
+  const auto pattern =
+      sequence ^ (static_cast<std::uint64_t>(producer) * 0x9E3779B97F4A7C15ull);
+  for (std::size_t index = 2; index < payload.size() / sizeof(std::uint64_t); ++index) {
+    if (words[index] != pattern + index) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -487,14 +548,15 @@ void ready_and_wait_for_start(SharedRunState& state) noexcept {
  */
 template <salias::Mode M>
 bool offer_until_committed(salias::Publisher<M>& publisher, std::size_t payload_len,
-                           std::uint64_t marker, std::uint64_t send_time_ns,
+                           std::uint32_t producer_index, std::uint64_t sequence,
+                           std::uint64_t send_time_ns,
                            bool latency_enabled, SharedRunState& state,
                            std::vector<std::byte>& storage) noexcept {
   if (storage.size() < payload_len) {
     storage.resize(payload_len);
   }
-  write_payload(std::span<std::byte>(storage.data(), payload_len), marker, send_time_ns,
-                latency_enabled);
+  write_payload(std::span<std::byte>(storage.data(), payload_len), producer_index, sequence,
+                send_time_ns, latency_enabled, false);
   for (;;) {
     if (has_failed(state)) {
       return false;
@@ -527,7 +589,8 @@ bool offer_until_committed(salias::Publisher<M>& publisher, std::size_t payload_
  */
 template <salias::Mode M, bool Timed>
 bool claim_once_timed(salias::Publisher<M>& publisher, std::size_t payload_len,
-                      std::uint64_t marker, std::uint64_t sequence, const Options& options,
+                      std::uint32_t producer_index, std::uint64_t sequence,
+                      const Options& options,
                       SharedRunState& state, std::uint64_t planned_ns) noexcept {
   const bool sampled = should_sample(options, sequence);
   const std::uint64_t origin_ns = !sampled || options.latency_origin == "claim" ? 0 :
@@ -556,7 +619,8 @@ bool claim_once_timed(salias::Publisher<M>& publisher, std::size_t payload_len,
       auto claim = std::move(claim_result).value();
       const std::uint64_t send_time_ns =
           sampled ? (origin_ns != 0 ? origin_ns : latency::monotonic_now_ns()) : 0;
-      write_payload(claim.payload(), marker, send_time_ns, options.latency_sample_rate != 0);
+      write_payload(claim.payload(), producer_index, sequence, send_time_ns,
+                    options.latency_sample_rate != 0, options.verify == "full");
       publisher.commit(std::move(claim));
       return true;
     }
@@ -576,11 +640,12 @@ bool claim_once_timed(salias::Publisher<M>& publisher, std::size_t payload_len,
 template <salias::Mode M, bool Diagnostic = false, bool Timed = false,
           bool LayoutControl = false>
 bool claim_until_committed(salias::Publisher<M>& publisher, std::size_t payload_len,
-                           std::uint64_t marker, std::uint64_t sequence, const Options& options,
+                           std::uint32_t producer_index, std::uint64_t sequence,
+                           const Options& options,
                            SharedRunState& state, std::uint64_t planned_ns) noexcept {
   if constexpr (!Diagnostic && !LayoutControl) {
     // L0 保留原 benchmark 的静态发布方法签名和循环结构，避免诊断实参影响调用点布局。
-    return claim_once_timed<M, false>(publisher, payload_len, marker, sequence, options, state,
+    return claim_once_timed<M, false>(publisher, payload_len, producer_index, sequence, options, state,
                                       planned_ns);
   } else {
     const bool sampled = should_sample(options, sequence);
@@ -629,7 +694,8 @@ bool claim_until_committed(salias::Publisher<M>& publisher, std::size_t payload_
         auto claim = std::move(claim_result).value();
         const std::uint64_t send_time_ns =
             sampled ? (origin_ns != 0 ? origin_ns : latency::monotonic_now_ns()) : 0;
-        write_payload(claim.payload(), marker, send_time_ns, options.latency_sample_rate != 0);
+        write_payload(claim.payload(), producer_index, sequence, send_time_ns,
+                      options.latency_sample_rate != 0, options.verify == "full");
         publisher.commit(std::move(claim));
         return true;
       }
@@ -681,13 +747,12 @@ bool offer_batch_until_committed(salias::Publisher<M>& publisher, const Options&
         static_cast<std::uint64_t>(options.batch_size), options.messages - published));
     for (std::size_t i = 0; i < requested; ++i) {
       const std::uint64_t sequence = published + i;
-      // marker 高 16 位编码 producer_index，低 48 位编码本地序列号。
-      const std::uint64_t marker = (static_cast<std::uint64_t>(producer_index) << 48) | sequence;
       const std::uint64_t send_time_ns =
           should_sample(options, sequence) ? latency::monotonic_now_ns() : 0;
       write_payload(
           std::span<std::byte>(payload_storage.data() + i * options.payload, options.payload),
-          marker, send_time_ns, options.latency_sample_rate != 0);
+          producer_index, sequence, send_time_ns, options.latency_sample_rate != 0,
+          options.verify == "full");
     }
 
     auto offered = publisher.offer_batch(
@@ -737,11 +802,31 @@ template <salias::Mode M, bool Diagnostic = false>
     // 本 consumer 应消费的消息总数 = producer 数 × 每 producer 消息数。
     const std::uint64_t expected = static_cast<std::uint64_t>(options.producers) * options.messages;
     std::uint64_t consumed = 0;
+    std::uint64_t verified = 0;
     std::uint64_t sample_count = 0;
     std::uint64_t max_latency_ns = 0;
+    std::array<std::uint64_t, kMaxWorkers> expected_sequences{};
     auto* const latency_buckets = state.latency_buckets[consumer_index].data();
-    /// poll 回调：计消费数，并在启用采样时从 payload 提取时间戳计算延迟。
+    /// poll 回调：全文模式逐字节校验；启用采样时从 payload 提取时间戳计算延迟。
     auto handler = [&](const salias::Message& message) noexcept {
+      if (options.verify == "full") {
+        const std::uint64_t marker = [&]() {
+          std::uint64_t value = 0;
+          if (message.payload.size() >= 16) {
+            std::memcpy(&value, message.payload.data() + 8, sizeof(value));
+          }
+          return value;
+        }();
+        const auto producer = static_cast<std::uint32_t>(marker >> 48);
+        if (producer >= options.producers ||
+            !validate_full_payload(message.payload, producer, expected_sequences[producer],
+                                   options.latency_sample_rate)) {
+          mark_failed(state);
+          _exit(24);
+        }
+        ++expected_sequences[producer];
+        ++verified;
+      }
       ++consumed;
 #if INSTRUMENTATION_LEVEL >= 1
       if constexpr (Diagnostic && instrumentation::kCountSuccess) {
@@ -798,6 +883,7 @@ template <salias::Mode M, bool Diagnostic = false>
         .store(consumed, std::memory_order_release);
     state.latency_samples[consumer_index] = sample_count;
     state.latency_max_ns[consumer_index] = max_latency_ns;
+    state.verified_messages[consumer_index] = verified;
     _exit(0);
   } catch (...) {
     mark_failed(state);
@@ -840,11 +926,10 @@ template <salias::Mode M, bool Diagnostic = false, bool Timed = false>
         if (options.rate != 0) {
           latency::wait_for_arrival(planned_ns);
         }
-        const std::uint64_t marker = (static_cast<std::uint64_t>(producer_index) << 48) | i;
         const bool claim_path = options.publish_path == "claim";
         if (claim_path) {
           if (!claim_until_committed<M, Diagnostic, Timed>(
-                  publisher, options.payload, marker, i, options, state, planned_ns)) {
+                  publisher, options.payload, producer_index, i, options, state, planned_ns)) {
             _exit(32);
           }
         } else {
@@ -853,7 +938,8 @@ template <salias::Mode M, bool Diagnostic = false, bool Timed = false>
               sampled ? (options.latency_origin == "planned" ? planned_ns
                                                               : latency::monotonic_now_ns())
                       : 0;
-          if (!offer_until_committed<M>(publisher, options.payload, marker, send_time_ns,
+          if (!offer_until_committed<M>(publisher, options.payload, producer_index, i,
+                                        send_time_ns,
                                         options.latency_sample_rate != 0, state, storage)) {
             _exit(32);
           }
@@ -947,6 +1033,7 @@ struct Result {
   std::uint32_t consumers = 0;                  ///< 本次运行的 consumer 数
   std::uint64_t published = 0;  ///< 应发布消息总数（producer 数 × messages）
   std::uint64_t delivered = 0;                  ///< 实际投递消息总数
+  std::uint64_t verified = 0;                   ///< 全文校验通过的消息总数
   std::size_t payload = 0;                      ///< 单条 payload 字节数
   std::size_t capacity = 0;                     ///< ring 容量
   std::uint32_t poll_limit = 0;                 ///< consumer 单次 poll 上限
@@ -1043,6 +1130,7 @@ Result run_case_typed(const Options& options) {
     const std::uint64_t expected_per_consumer =
         static_cast<std::uint64_t>(options.producers) * options.messages;
     std::uint64_t delivered = 0;
+    std::uint64_t verified = 0;
     std::vector<Result::LatencySummary> consumer_latency;
     consumer_latency.reserve(options.consumers);
     std::array<std::uint64_t, latency::kBucketCount> aggregate_buckets{};
@@ -1057,6 +1145,11 @@ Result run_case_typed(const Options& options) {
         throw std::runtime_error("salias IPC delivery mismatch");
       }
       delivered += value;
+      const std::uint64_t verified_value = state.verified_messages[consumer];
+      if (options.verify == "full" && verified_value != expected_per_consumer) {
+        throw std::runtime_error("salias IPC full-payload verification mismatch");
+      }
+      verified += verified_value;
       const std::uint64_t samples = state.latency_samples[consumer];
       const std::uint64_t max_ns = state.latency_max_ns[consumer];
       consumer_latency.push_back(
@@ -1076,6 +1169,7 @@ Result run_case_typed(const Options& options) {
                   .consumers = options.consumers,
                   .published = static_cast<std::uint64_t>(options.producers) * options.messages,
                   .delivered = delivered,
+                  .verified = verified,
                   .payload = options.payload,
                   .capacity = options.capacity,
                   .poll_limit = options.poll_limit,
@@ -1143,6 +1237,7 @@ void print_result(const Options& options, const Result& result) {
             << " publication_window=" << options.publication_window
             << " poll_limit=" << result.poll_limit
             << " published=" << result.published << " delivered=" << result.delivered
+            << " verification=" << options.verify << " verified=" << result.verified
             << " seconds=" << result.seconds << " publish_msg_per_sec=" << publish_rate
             << " delivery_msg_per_sec=" << delivery_rate
             << " delivery_mib_per_sec=" << mib_per_second

@@ -16,6 +16,21 @@ are released.
 
 ## [Unreleased]
 
+### Added
+
+- 新增 `FastSpscRing`、`FastSpmcRing`、`FastMpscRing`、`FastMpmcRing` 固定槽跨进程候选实现，覆盖固定 payload、固定参与者、可靠背压、独立 producer lane、独立 consumer cursor 和批量消费游标释放。
+- 新增 schema-bound `FixedChannel` 及安装消费验证；固定参与者、固定消息布局和共享段身份/版本校验不改变通用 `Channel` 的 Ordered、Latest、TTL、动态订阅和恢复语义。
+- 新增 Fast Ring 四拓扑吞吐/延迟客户端与开发门禁脚本，支持 ABBA 配对、分组、全文校验、协议一致性和独占 Aeron driver 检查。
+
+### Changed
+
+- 扩展 Salias/Aeron 四拓扑 runner 与三个 benchmark 客户端，统一支持 `--groups`、`--rounds`、`--verify full` 和专用 driver 门禁；性能轮现在逐字节校验 payload、producer 身份、每 producer 序号、顺序和重复。
+- 新增 1 轮预热 + 5 轮正式全文校验开发矩阵：Fast 对 Aeron 吞吐为 1.31x–5.02x，对同协议 FIFO 为 1.48x–16.31x，attempt p50/p99 在 8/8 单元通过；MPMC p99.9 仍未全面领先，最终 6×20 ABBA 重命名门禁保持未通过。
+
+### Tests
+
+- 新增 Fast Ring 单环、跨进程四拓扑、慢订阅者背压、回绕和完整 payload 测试，以及固定 Ring 门禁的失败路径单元测试。
+
 ### Tools
 
 - 新增四拓扑 Salias/Aeron 对比 runner，统一覆盖 SPSC、MPSC、SPMC、MPMC 的吞吐及 attempt/planned 延迟测量，校验资源边界、消息计数和订阅者结果，并生成可复核的聚合、环境信息、冻结 runner 与 SHA-256 清单。
@@ -24,6 +39,7 @@ are released.
 ### Docs
 
 - 归档 v4.0.1 四拓扑正式对比证据，更新 README、最终性能报告与 Aeron 工具说明。结果明确 SPSC/SPMC 吞吐差距、MPSC 接近持平、MPMC 核共享边界及延迟尾部限制，不与历史拓扑或版本数据拼接。
+- 新增固定槽 Ring 与 Aeron 架构分析、Fast Ring 性能替换计划和全文校验开发验收证据；明确当前性能数字来自 ring 热路径，`FixedChannel::poll()` 批量游标发布仍是后续优化项。
 
 ## [v4.0.1] - 2026-10-25
 

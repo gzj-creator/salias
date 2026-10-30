@@ -1,0 +1,3 @@
+LATENCY library=aeron-cpp scenario=mpmc consumer=0 samples=125000 p50_ns=267 p99_ns=679935 p999_ns=1015807 max_ns=2623597
+LATENCY library=aeron-cpp scenario=mpmc consumer=1 samples=125000 p50_ns=253 p99_ns=16639 p999_ns=196607 max_ns=2484279
+RESULT library=aeron-cpp scenario=mpmc pinning=on cpu_base=0 cpu_stride=1 term_length=1048576 producers=2 consumers=2 payload=64 published=2000000 delivered=4000000 verification=full verified=4000000 seconds=2.01129 publish_msg_per_sec=994386 delivery_msg_per_sec=1.98877e+06 delivery_mib_per_sec=121.385 latency_sample_rate=16 latency_samples=250000 rate_per_producer=500000 latency_origin=attempt latency_p50_ns=259 latency_p99_ns=638975 latency_p999_ns=729087 latency_max_ns=2623597

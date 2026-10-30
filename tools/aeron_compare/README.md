@@ -1,6 +1,7 @@
 # Resource-Limited IPC Salias / Aeron Comparison
 
-Current four-topology results: [2026-10-29 Salias / Aeron comparison](../../doc/benchmarks/2026-10-29/README.md).
+Current fixed-ring development results: [2026-10-29 Fast Ring comparison](../../doc/benchmarks/2026-10-29-fast-ring/README.md).
+Current stable FIFO baseline (count-only): [2026-10-29 Salias / Aeron comparison](../../doc/benchmarks/2026-10-29/README.md).
 Current conclusions and next-agent handoff: [final performance report](../../doc/performance-report.md).
 Historical single-subscriber matrix: [2026-10-19 report](../../doc/archive/performance/aeron-latency-comparison-2026-10-19.md).
 This harness is Linux/cgroup-v2 specific and uses the user systemd manager.
@@ -22,10 +23,13 @@ current 1P2S datasets, frozen binaries and Aeron dependencies remain in place.
 
 `run_topology_suite.py` is the current paired matrix for SPSC (1P1S), MPSC (2P1S),
 SPMC (1P2S), and MPMC (2P2S). It defaults to 64/256 B, one warmup plus five
-measured rounds, throughput of 10M messages per producer, and 1M msg/s latency
-for two seconds with attempt and planned origins. Every round recreates the
-channel and processes. The summary uses medians and ranges of per-round
-quantiles, and latency takes the slower subscriber before cross-round aggregation.
+measured rounds in one group, throughput of 10M messages per producer, and 1M
+msg/s latency for two seconds with attempt and planned origins. Every round
+recreates the channel and processes. Measured pair rounds follow ABBA engine
+order. `--groups N` repeats independent warmup + measured blocks; the final
+protocol is six groups of twenty paired rounds. The summary uses medians and
+ranges of per-round quantiles, and latency takes the slower subscriber before
+cross-round aggregation.
 
 ```bash
 OUT="$PWD/build/benchmarks/topology-suite-$(date +%Y%m%d-%H%M%S)"
@@ -57,14 +61,70 @@ Tests are synthetic and do not launch either engine:
 
 ```bash
 cd tools/aeron_compare
-python3 -m unittest test_topology_suite.py test_latency_compare.py
+python3 -m unittest test_topology_suite.py test_latency_compare.py \
+  test_verify_fixed_ring_gates.py
 ```
 
-The suite bundles one Aeron driver per case. For SPSC/MPSC/SPMC, workers use
-CPU1–3 and the coordinator/driver uses CPU0. MPMC needs all four application
-workers on CPU0–3, so the driver and coordinator share CPU0 with subscriber0.
-That MPMC result is a valid deployment comparison for this host, not an
-unconstrained-library or exclusive-core baseline.
+To run the fixed-ring fast engine instead of the generic FIFO path, add these
+options to the four-topology command above. Use matching `--groups`, `--rounds`,
+`--verify`, and CPU capacity for the FIFO and Fast runs:
+
+```bash
+--salias-engine fast \
+--fast-throughput-client build/release/bench/salias_fast_ring_compare \
+--fast-latency-client build/release/bench/salias_fast_ring_latency
+```
+
+After the suite finishes, evaluate the fixed-ring gates against the frozen FIFO
+baseline. This command checks 8 topology/payload cells, the minimum round count,
+relative FIFO gain, relative Aeron throughput, attempt p50, and attempt p99:
+
+```bash
+python3 tools/aeron_compare/verify_fixed_ring_gates.py \
+  --fast-summary "$OUT/summary.json" \
+  --baseline-summary doc/benchmarks/2026-10-29-fast-ring/formal-full-fifo-5-round/summary.json \
+  --minimum-rounds 5 \
+  --output "$OUT/verification.json"
+```
+
+Use `--verify full` to make all three benchmark clients fill a deterministic
+payload, validate every byte, decode the producer identity, enforce a contiguous
+per-producer sequence, and reject duplicates. The measured-run stdout carries
+`verification=full` and `verified=<delivery count>`, and the runner rejects a
+count mismatch. This is the only mode eligible for the final gate.
+
+The final protocol also requires six groups, twenty paired ABBA rounds per
+group, matching FIFO/Fast protocol metadata, full verification, and a dedicated
+Aeron driver CPU. On a host with at least five CPUs (0-4), run each engine with:
+
+```bash
+--groups 6 --rounds 20 --verify full --require-dedicated-driver
+```
+
+Then pass the final gate:
+
+```bash
+python3 tools/aeron_compare/verify_fixed_ring_gates.py \
+  --fast-summary "$FAST_OUT/summary.json" \
+  --baseline-summary "$FIFO_OUT/summary.json" \
+  --minimum-rounds 20 --minimum-groups 6 \
+  --require-abba --require-full-verification \
+  --require-matched-protocol --require-dedicated-driver \
+  --output "$FAST_OUT/final-verification.json"
+```
+
+`--require-dedicated-driver` needs at least five allowed CPUs because MPMC has
+two subscribers and two publishers in addition to the Aeron driver. On the
+current four-vCPU host it must fail rather than silently co-locating the driver
+with an application worker. The gate intentionally does not check p99.9; that
+remains a report-level condition.
+
+The suite bundles one Aeron driver per case. With five or more CPUs, workers use
+CPUs 1 onward and the coordinator/driver uses CPU0. With exactly four CPUs,
+SPSC/MPSC/SPMC still reserve CPU0 for the driver; MPMC uses application CPUs
+0-3, so the driver and coordinator share CPU0 with subscriber0. That MPMC result
+is a valid deployment comparison for the four-vCPU host, not an unconstrained
+or exclusive-core baseline and not final sign-off evidence.
 
 ### Phase 3 E1 Diagnostic
 

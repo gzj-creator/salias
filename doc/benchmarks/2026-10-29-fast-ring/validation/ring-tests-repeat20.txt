@@ -1,0 +1,1343 @@
+Running main() from ./googletest/src/gtest_main.cc
+
+Repeating all tests (iteration 1) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] Global test environment set-up.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (13 ms)
+[----------] 2 tests from FastMpmcRingTest (13 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (19 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 2) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (9 ms)
+[----------] 2 tests from FastMpmcRingTest (9 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (14 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 3) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (10 ms)
+[----------] 2 tests from FastMpmcRingTest (10 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (6 ms)
+[----------] 8 tests from FastSpscRingTest (6 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (17 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 4) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (6 ms)
+[----------] 8 tests from FastSpscRingTest (6 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (13 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 5) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (7 ms)
+[----------] 8 tests from FastSpscRingTest (7 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (14 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 6) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (7 ms)
+[----------] 2 tests from FastMpmcRingTest (7 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (6 ms)
+[----------] 8 tests from FastSpscRingTest (6 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (14 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 7) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (6 ms)
+[----------] 8 tests from FastSpscRingTest (6 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (13 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 8) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (6 ms)
+[----------] 8 tests from FastSpscRingTest (6 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (13 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 9) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (7 ms)
+[----------] 8 tests from FastSpscRingTest (7 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (14 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 10) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (12 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 11) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (7 ms)
+[----------] 2 tests from FastMpmcRingTest (7 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (13 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 12) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (12 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 13) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (11 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 14) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (11 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 15) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (11 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 16) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (11 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 17) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (12 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 18) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (11 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 19) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[==========] 20 tests from 7 test suites ran. (12 ms total)
+[  PASSED  ] 20 tests.
+
+Repeating all tests (iteration 20) . . .
+
+[==========] Running 20 tests from 7 test suites.
+[----------] 3 tests from RingbufferTest
+[ RUN      ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest
+[       OK ] RingbufferTest.DefaultWatermarkDropsOldestAndKeepsNewest (0 ms)
+[ RUN      ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps
+[       OK ] RingbufferTest.ConfiguredWatermarkIsCompileTimeAndWraps (0 ms)
+[ RUN      ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue
+[       OK ] RingbufferTest.SingleSlotAlwaysRetainsLatestValue (0 ms)
+[----------] 3 tests from RingbufferTest (0 ms total)
+
+[----------] 3 tests from MagicRingTest
+[ RUN      ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary
+[       OK ] MagicRingTest.SlicesAreContiguousAcrossCapacityBoundary (0 ms)
+[ RUN      ] MagicRingTest.RejectsEmptyMovedFromMapping
+[       OK ] MagicRingTest.RejectsEmptyMovedFromMapping (0 ms)
+[ RUN      ] MagicRingTest.ReportsFitAgainstSingleCapacity
+[       OK ] MagicRingTest.ReportsFitAgainstSingleCapacity (0 ms)
+[----------] 3 tests from MagicRingTest (0 ms total)
+
+[----------] 1 test from FastSpmcRingTest
+[ RUN      ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures
+[       OK ] FastSpmcRingTest.EveryConsumerReceivesAllMessagesAndSlowestBackpressures (0 ms)
+[----------] 1 test from FastSpmcRingTest (0 ms total)
+
+[----------] 2 tests from FastMpscRingTest
+[ RUN      ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently
+[       OK ] FastMpscRingTest.ConsumerPreservesPerProducerOrderAndReclaimsLanesIndependently (0 ms)
+[ RUN      ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound
+[       OK ] FastMpscRingTest.FullHotLaneCannotStarveAnotherLanePastBatchBound (0 ms)
+[----------] 2 tests from FastMpscRingTest (0 ms total)
+
+[----------] 2 tests from FastMpmcRingTest
+[ RUN      ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder
+[       OK ] FastMpmcRingTest.EachConsumerObservesEveryProducerInPerProducerOrder (0 ms)
+[ RUN      ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer
+[       OK ] FastMpmcRingTest.CrossProcessTwoProducersDeliverAllMessagesToEveryConsumer (6 ms)
+[----------] 2 tests from FastMpmcRingTest (6 ms total)
+
+[----------] 8 tests from FastSpscRingTest
+[ RUN      ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout
+[       OK ] FastSpscRingTest.CreateAttachAndRejectInvalidLayout (0 ms)
+[ RUN      ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing
+[       OK ] FastSpscRingTest.EmptyRingReportsEmptyWithoutAdvancing (0 ms)
+[ RUN      ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap
+[       OK ] FastSpscRingTest.CopyPushPopPreservesPayloadAcrossWrap (0 ms)
+[ RUN      ] FastSpscRingTest.BackpressureWaitsForConsumerRelease
+[       OK ] FastSpscRingTest.BackpressureWaitsForConsumerRelease (0 ms)
+[ RUN      ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush
+[       OK ] FastSpscRingTest.DeferredReleaseKeepsSlotPinnedUntilFlush (0 ms)
+[ RUN      ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease
+[       OK ] FastSpscRingTest.ClaimIsInvisibleUntilCommitAndReadBlocksReuseUntilRelease (0 ms)
+[ RUN      ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly
+[       OK ] FastSpscRingTest.OutstandingOperationsAreRejectedExplicitly (0 ms)
+[ RUN      ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder
+[       OK ] FastSpscRingTest.CrossProcessForkDeliversEveryMessageInOrder (5 ms)
+[----------] 8 tests from FastSpscRingTest (5 ms total)
+
+[----------] 1 test from AtomicCellTest
+[ RUN      ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire
+[       OK ] AtomicCellTest.StoreReleaseIsObservedByLoadAcquire (0 ms)
+[----------] 1 test from AtomicCellTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 20 tests from 7 test suites ran. (12 ms total)
+[  PASSED  ] 20 tests.

@@ -56,6 +56,7 @@ struct Options {
   std::uint64_t latency_sample_rate = 0;  ///< 延迟采样间隔，0 表示不采样。
   std::uint64_t rate = 0;
   std::string latency_origin = "claim";
+  std::string verify = "none";  ///< none 只核计数；full 校验全部 payload、顺序和重复。
   bool producers_set = false;  ///< 标记 producers 是否由用户显式指定（影响场景默认值）。
   bool consumers_set = false;  ///< 标记 consumers 是否由用户显式指定（影响场景默认值）。
 };
@@ -75,6 +76,7 @@ struct SharedRunState {
   std::array<std::atomic<std::uint64_t>, kMaxWorkers> consumed{};  ///< 各 consumer 投递计数。
   std::array<std::uint64_t, kMaxWorkers> latency_samples{};  ///< 各 consumer 延迟采样数。
   std::array<std::uint64_t, kMaxWorkers> latency_max_ns{};  ///< 各 consumer 观测到的最大延迟。
+  std::array<std::uint64_t, kMaxWorkers> verified_messages{};  ///< 全文校验通过的消息数。
   alignas(64)  // 按 cache line 对齐，避免多 consumer 并发写相邻桶时伪共享。
       std::array<std::array<std::uint64_t, latency::kBucketCount>, kMaxWorkers> latency_buckets{};
 };
@@ -129,12 +131,14 @@ Options parse_options(int argc, char** argv) {
       options.rate = std::stoull(require_value("--rate"));
     } else if (arg == "--latency-origin") {
       options.latency_origin = require_value("--latency-origin");
+    } else if (arg == "--verify") {
+      options.verify = require_value("--verify");
     } else if (arg == "--help") {
       std::cout << "usage: aeron_ipc_compare --dir DIR --scenario spsc|mpsc|spmc|mpmc "
                    "[--messages N] [--producers N] [--consumers N] [--payload N] "
                    "[--fragment-limit N] [--term-length N] [--cpu-base N] [--cpu-stride N] "
                    "[--latency-sample-rate N] [--rate N] "
-                   "[--latency-origin claim|attempt|planned]\n";
+                   "[--latency-origin claim|attempt|planned] [--verify none|full]\n";
       std::exit(0);
     } else {
       std::cerr << "unknown argument: " << arg << '\n';
@@ -151,6 +155,13 @@ Options parse_options(int argc, char** argv) {
       (options.latency_origin == "planned" && options.rate == 0) ||
       options.rate > 1'000'000'000ull) {
     throw std::invalid_argument("invalid pacing rate/latency origin");
+  }
+  if (options.verify != "none" && options.verify != "full") {
+    throw std::invalid_argument("verify must be none or full");
+  }
+  if (options.verify == "full" && (options.payload < 16 || options.payload % 8 != 0)) {
+    throw std::invalid_argument(
+        "full verification requires payload >= 16 and divisible by 8 bytes");
   }
   return options;
 }
@@ -370,6 +381,7 @@ struct Result {
   std::uint32_t consumers = 0;  ///< 本次场景的 consumer 进程数。
   std::uint64_t published = 0;  ///< 总发布消息数 = producers * messages。
   std::uint64_t delivered = 0;  ///< 总投递消息数（应为 producers*messages*consumers 投递口径）。
+  std::uint64_t verified = 0;   ///< 全文校验通过的消息总数。
   std::int32_t payload = 0;     ///< 单条消息 payload 字节数。
   double seconds = 0.0;         ///< 正式收发阶段总耗时（秒）。
   std::vector<LatencySummary> consumer_latency;  ///< 各 consumer 的延迟摘要。
@@ -392,6 +404,51 @@ Result::LatencySummary summarize_latency(const std::uint64_t* buckets, std::uint
       latency::percentile(buckets, samples, 999, 1000),
       max_ns,
   };
+}
+
+/// 填充全文校验模式：16 B 头之后由 producer/sequence 生成确定性 word 序列。
+void fill_full_payload(aeron::concurrent::AtomicBuffer& buffer, aeron::util::index_t offset,
+                       const Options& options, std::uint32_t producer_index,
+                       std::uint64_t sequence, std::uint64_t send_time_ns) {
+  const std::uint64_t marker =
+      (static_cast<std::uint64_t>(producer_index) << 48) | sequence;
+  buffer.putInt64(offset, static_cast<std::int64_t>(send_time_ns));
+  buffer.putInt64(offset + 8, static_cast<std::int64_t>(marker));
+  const auto pattern =
+      sequence ^ (static_cast<std::uint64_t>(producer_index) * 0x9E3779B97F4A7C15ull);
+  for (std::int32_t index = 2; index < options.payload / 8; ++index) {
+    buffer.putInt64(offset + index * 8, static_cast<std::int64_t>(pattern + index));
+  }
+}
+
+/// 校验全文 payload 的每个 word、producer 身份、每 producer 序号和采样时间戳。
+bool validate_full_payload(aeron::concurrent::AtomicBuffer& buffer,
+                           aeron::util::index_t offset, aeron::util::index_t length,
+                           const Options& options, std::uint32_t expected_producer,
+                           std::uint64_t expected_sequence) noexcept {
+  if (length != options.payload || length < 16 || length % 8 != 0) {
+    return false;
+  }
+  const auto marker = static_cast<std::uint64_t>(buffer.getInt64(offset + 8));
+  const auto producer = static_cast<std::uint32_t>(marker >> 48);
+  const std::uint64_t sequence = marker & ((std::uint64_t{1} << 48) - 1);
+  if (producer != expected_producer || sequence != expected_sequence) {
+    return false;
+  }
+  const std::uint64_t send_time_ns = static_cast<std::uint64_t>(buffer.getInt64(offset));
+  const bool sampled =
+      options.latency_sample_rate != 0 && sequence % options.latency_sample_rate == 0;
+  if ((send_time_ns != 0) != sampled) {
+    return false;
+  }
+  const auto pattern =
+      sequence ^ (static_cast<std::uint64_t>(producer) * 0x9E3779B97F4A7C15ull);
+  for (std::int32_t index = 2; index < options.payload / 8; ++index) {
+    if (static_cast<std::uint64_t>(buffer.getInt64(offset + index * 8)) != pattern + index) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -426,13 +483,31 @@ Result::LatencySummary summarize_latency(const std::uint64_t* buckets, std::uint
     // 每个 consumer 需消费的总量 = producer 数 × 每 producer 消息数。
     const std::uint64_t expected = static_cast<std::uint64_t>(options.producers) * options.messages;
     std::uint64_t consumed = 0;
+    std::uint64_t verified = 0;
     std::uint64_t sample_count = 0;
     std::uint64_t max_latency_ns = 0;
+    std::array<std::uint64_t, kMaxWorkers> expected_sequences{};
     auto* const latency_buckets = state.latency_buckets[consumer_index].data();
     aeron::concurrent::BusySpinIdleStrategy idle;
-    // poll 回调：每收到一个 fragment 累计计数；开启采样时读取发送时间戳计算单向延迟。
+    // poll 回调：全文模式逐 word 校验；开启采样时再计算单向延迟。
     auto handler = [&](aeron::concurrent::AtomicBuffer& buffer, aeron::util::index_t offset,
                        aeron::util::index_t length, aeron::Header&) {
+      if (options.verify == "full") {
+        if (length < 16) {
+          mark_failed(state);
+          _exit(24);
+        }
+        const auto marker = static_cast<std::uint64_t>(buffer.getInt64(offset + 8));
+        const auto producer = static_cast<std::uint32_t>(marker >> 48);
+        if (producer >= options.producers ||
+            !validate_full_payload(buffer, offset, length, options, producer,
+                                   expected_sequences[producer])) {
+          mark_failed(state);
+          _exit(24);
+        }
+        ++expected_sequences[producer];
+        ++verified;
+      }
       ++consumed;
       // 未开启采样或 payload 不足 8 字节（放不下时间戳）则只计数不采样。
       if (options.latency_sample_rate == 0 || length < static_cast<aeron::util::index_t>(8)) {
@@ -463,6 +538,7 @@ Result::LatencySummary summarize_latency(const std::uint64_t* buckets, std::uint
     state.consumed[consumer_index].store(consumed, std::memory_order_release);  // 发布最终计数。
     state.latency_samples[consumer_index] = sample_count;
     state.latency_max_ns[consumer_index] = max_latency_ns;
+    state.verified_messages[consumer_index] = verified;
     _exit(0);  // 正常退出。
   } catch (...) {
     mark_failed(state);
@@ -523,10 +599,13 @@ Result::LatencySummary summarize_latency(const std::uint64_t* buckets, std::uint
           // marker 高 16 位编码 producer_index，低 48 位编码序号 i，便于多 producer 去重。
           const std::int64_t marker =
               static_cast<std::int64_t>((static_cast<std::uint64_t>(producer_index) << 48) | i);
-          if (options.latency_sample_rate != 0) {
+          const std::uint64_t send_time_ns =
+              sampled ? (origin_ns != 0 ? origin_ns : latency::monotonic_now_ns()) : 0;
+          if (options.verify == "full") {
+            fill_full_payload(claim.buffer(), claim.offset(), options, producer_index, i,
+                              send_time_ns);
+          } else if (options.latency_sample_rate != 0) {
             // 仅采样帧写入真实发送时间；非采样帧写 0，consumer 据此跳过。
-            const std::uint64_t send_time_ns =
-                sampled ? (origin_ns != 0 ? origin_ns : latency::monotonic_now_ns()) : 0;
             claim.buffer().putInt64(claim.offset(), static_cast<std::int64_t>(send_time_ns));
             claim.buffer().putInt64(claim.offset() + 8, marker);
           } else {
@@ -640,6 +719,7 @@ Result run_case(const Options& options) {
     const std::uint64_t expected_per_consumer =
         static_cast<std::uint64_t>(options.producers) * options.messages;
     std::uint64_t delivered = 0;
+    std::uint64_t verified = 0;
     std::vector<Result::LatencySummary> consumer_latency;
     consumer_latency.reserve(options.consumers);
     std::array<std::uint64_t, latency::kBucketCount> aggregate_buckets{};
@@ -651,6 +731,11 @@ Result run_case(const Options& options) {
         throw std::runtime_error("Aeron delivery mismatch");  // 投递数不匹配，判定失败。
       }
       delivered += value;
+      const std::uint64_t verified_value = state.verified_messages[consumer];
+      if (options.verify == "full" && verified_value != expected_per_consumer) {
+        throw std::runtime_error("Aeron full-payload verification mismatch");
+      }
+      verified += verified_value;
       const std::uint64_t samples = state.latency_samples[consumer];
       const std::uint64_t max_ns = state.latency_max_ns[consumer];
       consumer_latency.push_back(
@@ -668,6 +753,7 @@ Result run_case(const Options& options) {
                   .consumers = options.consumers,
                   .published = static_cast<std::uint64_t>(options.producers) * options.messages,
                   .delivered = delivered,
+                  .verified = verified,
                   .payload = options.payload,
                   .seconds = std::chrono::duration<double>(end - begin).count(),
                   .consumer_latency = std::move(consumer_latency),
@@ -712,6 +798,7 @@ void print_result(const Options& options, const std::string& scenario, const Res
             << " term_length=" << options.term_length << " producers=" << result.producers
             << " consumers=" << result.consumers << " payload=" << result.payload
             << " published=" << result.published << " delivered=" << result.delivered
+            << " verification=" << options.verify << " verified=" << result.verified
             << " seconds=" << result.seconds << " publish_msg_per_sec=" << publish_rate
             << " delivery_msg_per_sec=" << delivery_rate
             << " delivery_mib_per_sec=" << mib_per_second

@@ -1,0 +1,26 @@
+test_all_four_topologies_are_explicit (test_topology_suite.TopologySuiteTests.test_all_four_topologies_are_explicit) ... ok
+test_cpu_layout_reserves_cpu_zero_only_when_possible (test_topology_suite.TopologySuiteTests.test_cpu_layout_reserves_cpu_zero_only_when_possible) ... ok
+test_expected_counts_cover_fanout_and_sampling (test_topology_suite.TopologySuiteTests.test_expected_counts_cover_fanout_and_sampling) ... ok
+test_summary_excludes_warmup (test_topology_suite.TopologySuiteTests.test_summary_excludes_warmup) ... ok
+test_summary_separates_engines_and_uses_worst_subscriber (test_topology_suite.TopologySuiteTests.test_summary_separates_engines_and_uses_worst_subscriber) ... ok
+test_worker_roles_place_consumers_before_producers (test_topology_suite.TopologySuiteTests.test_worker_roles_place_consumers_before_producers) ... ok
+test_arm_rotation_is_explicit (test_latency_compare.ResourceTests.test_arm_rotation_is_explicit) ... ok
+test_arm_specs_carry_per_arm_environment (test_latency_compare.ResourceTests.test_arm_specs_carry_per_arm_environment) ... ok
+test_arm_specs_reject_bad_input (test_latency_compare.ResourceTests.test_arm_specs_reject_bad_input) ... ok
+test_explicit_arms_do_not_inherit_fence_override (test_latency_compare.ResourceTests.test_explicit_arms_do_not_inherit_fence_override) ... ok
+test_low_memory_never_launches_workers (test_latency_compare.ResourceTests.test_low_memory_never_launches_workers) ... ok
+test_rejects_missing_limits_and_cpu_zero (test_latency_compare.ResourceTests.test_rejects_missing_limits_and_cpu_zero) ... ok
+test_stops_entire_process_group (test_latency_compare.ResourceTests.test_stops_entire_process_group) ... ok
+test_does_not_pool_different_origins (test_latency_compare.SummaryTests.test_does_not_pool_different_origins) ... ok
+test_excludes_warmup_and_reports_round_medians_and_ranges (test_latency_compare.SummaryTests.test_excludes_warmup_and_reports_round_medians_and_ranges) ... ok
+test_rejects_bad_counts_samples_pressure_and_rounds (test_latency_compare.SummaryTests.test_rejects_bad_counts_samples_pressure_and_rounds) ... ok
+test_all_cells_pass_at_inclusive_thresholds (test_verify_fixed_ring_gates.FixedRingGateTests.test_all_cells_pass_at_inclusive_thresholds) ... ok
+test_attempt_p50_failure_is_reported (test_verify_fixed_ring_gates.FixedRingGateTests.test_attempt_p50_failure_is_reported) ... ok
+test_attempt_p99_failure_is_reported (test_verify_fixed_ring_gates.FixedRingGateTests.test_attempt_p99_failure_is_reported) ... ok
+test_fifo_baseline_regression_is_reported (test_verify_fixed_ring_gates.FixedRingGateTests.test_fifo_baseline_regression_is_reported) ... ok
+test_short_runs_cannot_be_signed_off (test_verify_fixed_ring_gates.FixedRingGateTests.test_short_runs_cannot_be_signed_off) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 0.014s
+
+OK

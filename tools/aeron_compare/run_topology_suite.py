@@ -34,6 +34,7 @@ TOPOLOGIES = {
 }
 SALIAS_SCENARIO = "fifo"
 LATENCY_PERCENTILES = ("p50", "p99", "p999", "max")
+ABBA_ORDER = ("salias", "aeron", "aeron", "salias")
 
 
 def digest(path):
@@ -44,35 +45,45 @@ def interrupted(signum, frame):
     raise KeyboardInterrupt(f"Interrupted by signal {signum}")
 
 
-def verify_limits():
+def verify_limits(required_workers=1, require_dedicated_driver=False):
     directory = cgroup_directory()
     limit = (directory / "memory.max").read_text().strip()
-    affinity = os.sched_getaffinity(0)
-    if (os.environ.get("SALIAS_RESOURCE_CAPPED") != "1" or affinity != {0, 1, 2, 3} or
+    affinity = sorted(os.sched_getaffinity(0))
+    required_cpus = required_workers + (1 if require_dedicated_driver else 0)
+    if (os.environ.get("SALIAS_RESOURCE_CAPPED") != "1" or len(affinity) < required_cpus or
             limit == "max" or int(limit) > 704 * 1024 * 1024 or
             (directory / "memory.swap.max").read_text().strip() != "0"):
         raise RuntimeError(
-            "Require CPUs 0-3, MemoryMax<=704M, MemorySwapMax=0, and "
-            "SALIAS_RESOURCE_CAPPED=1"
+            f"Require at least {required_cpus} allowed CPUs, MemoryMax<=704M, "
+            "MemorySwapMax=0, and SALIAS_RESOURCE_CAPPED=1"
         )
 
 
-def cpu_layout(producers, consumers):
+def cpu_layout(producers, consumers, allowed_cpus=None, require_dedicated_driver=False):
+    cpus = sorted(os.sched_getaffinity(0) if allowed_cpus is None else allowed_cpus)
     worker_count = producers + consumers
-    if worker_count <= 3:
-        return {
-            "worker_cpu_base": 1,
-            "driver_cpu": 0,
-            "coordinator_cpu": 0,
-            "layout": "workers on CPUs 1-3; coordinator and Aeron driver on CPU0",
-        }
+    if len(cpus) < worker_count:
+        raise RuntimeError(f"Need {worker_count} application CPUs, found {len(cpus)}")
+    driver_cpu = cpus[0]
+    can_reserve_driver = len(cpus) >= worker_count + 1
+    if require_dedicated_driver and not can_reserve_driver:
+        raise RuntimeError(
+            f"Dedicated Aeron driver needs {worker_count + 1} CPUs, found {len(cpus)}"
+        )
+    worker_cpus = (cpus[1:worker_count + 1] if can_reserve_driver else cpus[:worker_count])
+    if any(right != left + 1 for left, right in zip(worker_cpus, worker_cpus[1:])):
+        raise RuntimeError(f"Application CPUs must be contiguous, got {worker_cpus}")
+    dedicated = driver_cpu not in worker_cpus
     return {
-        "worker_cpu_base": 0,
-        "driver_cpu": 0,
-        "coordinator_cpu": 0,
+        "worker_cpu_base": worker_cpus[0],
+        "worker_cpus": worker_cpus,
+        "driver_cpu": driver_cpu,
+        "coordinator_cpu": driver_cpu,
+        "dedicated_driver": dedicated,
         "layout": (
-            "workers on CPUs 0-3; coordinator and Aeron driver share CPU0 "
-            "with subscriber0"
+            f"workers on CPUs {worker_cpus[0]}-{worker_cpus[-1]}; coordinator and Aeron "
+            f"driver on CPU{driver_cpu}"
+            + ("" if dedicated else "; driver shares an application CPU")
         ),
     }
 
@@ -99,18 +110,29 @@ def expected_counts(kind, producers, consumers, messages, sample_rate):
     return published, delivered, producers * samples_per_producer * consumers
 
 
+def engine_order(round_number, cell_index, group_index=0):
+    """Return the paired engine order for one measured ABBA round."""
+    if round_number == 0:
+        first = "salias" if (cell_index + group_index) % 2 == 0 else "aeron"
+    else:
+        offset = (round_number - 1 + cell_index + group_index) % len(ABBA_ORDER)
+        first = ABBA_ORDER[offset]
+    second = "aeron" if first == "salias" else "salias"
+    return first, second
+
+
 def run_case(args, case, number, output):
     if available_kib() < 1024 * 1024:
         raise RuntimeError("Less than 1 GiB MemAvailable; refusing the next case")
 
     producers = case["producers"]
     consumers = case["consumers"]
-    layout = cpu_layout(producers, consumers)
+    layout = cpu_layout(producers, consumers, require_dedicated_driver=args.require_dedicated_driver)
     name = f"topology-{os.getpid()}-{number}"
     driver_dir = Path("/dev/shm") / name
     prefix = output / (
         f"{number:03d}-{case['engine']}-{case['topology']}-{case['kind']}-"
-        f"{case['payload']}b-{case['origin']}-r{case['round']}"
+        f"{case['payload']}b-{case['origin']}-g{case['group']}-r{case['round']}"
     )
     if case["kind"] == "latency":
         messages_per_producer = args.latency_total_rate * args.latency_seconds // producers
@@ -131,6 +153,7 @@ def run_case(args, case, number, output):
         "--rate", str(rate_per_producer),
         "--latency-origin", case["origin"],
         "--latency-sample-rate", str(sample_rate),
+        "--verify", args.verify,
     ]
     driver = worker = driver_log = None
     driver_log_path = None
@@ -175,6 +198,30 @@ def run_case(args, case, number, output):
                 "--fragment-limit", "64",
                 *common,
             ]
+        elif args.salias_engine == "fast":
+            if case["kind"] == "latency":
+                command = [
+                    str(args.fast_latency_client),
+                    "--topology", case["topology"],
+                    "--origin", case["origin"],
+                    "--rate", str(args.latency_total_rate),
+                    "--seconds", str(args.latency_seconds),
+                    "--sample-rate", str(sample_rate),
+                    "--payload", str(case["payload"]),
+                    "--verify", args.verify,
+                    "--cpu-base", str(layout["worker_cpu_base"]),
+                    "--cpu-stride", "1",
+                ]
+            else:
+                command = [
+                    str(args.fast_throughput_client),
+                    "--topology", case["topology"],
+                    "--messages", str(messages_per_producer),
+                    "--payload", str(case["payload"]),
+                    "--verify", args.verify,
+                    "--cpu-base", str(layout["worker_cpu_base"]),
+                    "--cpu-stride", "1",
+                ]
         else:
             command = [
                 str(args.salias_client),
@@ -233,7 +280,11 @@ def run_case(args, case, number, output):
             raise RuntimeError(f"Delivered count mismatch: {prefix}")
         if int(result["latency_samples"]) != expected_samples:
             raise RuntimeError(f"Latency sample count mismatch: {prefix}")
-        if [int(item["consumer"]) for item in consumers_detail] != list(range(consumers)):
+        if case["kind"] == "latency":
+            if [int(item["consumer"]) for item in consumers_detail] != list(range(consumers)):
+                raise RuntimeError(f"Subscriber result mismatch: {prefix}")
+        elif consumers_detail and [int(item["consumer"]) for item in consumers_detail] != list(
+                range(consumers)):
             raise RuntimeError(f"Subscriber result mismatch: {prefix}")
         if int(result["producers"]) != producers or int(result["consumers"]) != consumers:
             raise RuntimeError(f"Topology result mismatch: {prefix}")
@@ -241,19 +292,25 @@ def run_case(args, case, number, output):
             raise RuntimeError(f"Rate mismatch: {prefix}")
         if result["latency_origin"] != case["origin"]:
             raise RuntimeError(f"Latency origin mismatch: {prefix}")
+        if result.get("verification") != args.verify:
+            raise RuntimeError(f"Verification mode mismatch: {prefix}")
+        if args.verify == "full" and int(result.get("verified", -1)) != int(result["delivered"]):
+            raise RuntimeError(f"Full verification count mismatch: {prefix}")
 
         resources_after = resource_counters()
         events = dict(line.split() for line in resources_after["memory.events"].splitlines())
         if any(int(events[key]) != 0 for key in ("max", "oom", "oom_kill")):
             raise RuntimeError(f"Memory max/OOM event observed: {prefix}")
 
-        worst = {
+        worst = ({
             key: max(int(item[key + "_ns"]) for item in consumers_detail)
             for key in LATENCY_PERCENTILES
-        }
+        } if case["kind"] == "latency" else None)
         record = {
             "number": number,
             "phase": "warmup" if case["round"] == 0 else "measured",
+            "group": case["group"],
+            "order_index": case["order_index"],
             "round": case["round"],
             "engine": case["engine"],
             "topology": case["topology"],
@@ -265,6 +322,8 @@ def run_case(args, case, number, output):
             "messages_per_producer": messages_per_producer,
             "rate_per_producer": rate_per_producer,
             "latency_sample_rate": sample_rate,
+            "verification": args.verify,
+            "remote_payload_bytes": messages_per_producer * case["payload"] * producers,
             "cpu_layout": {**layout, "roles": worker_roles(producers, consumers,
                                                             layout["worker_cpu_base"])},
             "command": command,
@@ -286,12 +345,15 @@ def run_case(args, case, number, output):
         with (output / "results.jsonl").open("a") as stream:
             stream.write(json.dumps(record) + "\n")
         if case["kind"] == "latency":
+            latency_p50 = result.get("latency_p50_ns") or result["p50_ns"]
+            latency_p99 = result.get("latency_p99_ns") or result["p99_ns"]
+            latency_p999 = result.get("latency_p999_ns") or result["p999_ns"]
             print(
                 f"case={number:03d} {case['engine']:5s} {case['topology']} "
                 f"{case['kind']} {case['payload']}B {case['origin']} "
-                f"p50={int(result['latency_p50_ns'])/1000:.3f}us "
-                f"p99={int(result['latency_p99_ns'])/1000:.3f}us "
-                f"p999={int(result['latency_p999_ns'])/1000:.3f}us",
+                f"p50={int(latency_p50)/1000:.3f}us "
+                f"p99={int(latency_p99)/1000:.3f}us "
+                f"p999={int(latency_p999)/1000:.3f}us",
                 flush=True,
             )
         else:
@@ -331,6 +393,7 @@ def summarize(rows, environment):
             if (row["topology"], row["kind"], row["payload"], row["origin"], row["engine"]) ==
             (topology, kind, payload, origin, engine)
         ]
+        group_count = len({row.get("group", 0) for row in cell})
         group = {
             "topology": topology,
             "kind": kind,
@@ -338,6 +401,7 @@ def summarize(rows, environment):
             "origin": origin,
             "engine": engine,
             "rounds": len(cell),
+            "groups": group_count,
             "publish_mmsg_s": median_range(
                 [float(row["result"]["publish_msg_per_sec"]) / 1e6 for row in cell]
             ),
@@ -408,19 +472,28 @@ def summarize(rows, environment):
         "paired": paired,
         "measured_runs": len(measured),
         "warmup_runs": len(rows) - len(measured),
+        "verification": environment.get("workload", {}).get("verification", "none"),
         "measured_published": sum(int(row["result"]["published"]) for row in measured),
         "measured_delivered": sum(int(row["result"]["delivered"]) for row in measured),
         "measured_latency_samples": sum(
             int(row["result"]["latency_samples"]) for row in measured
         ),
+        "verified_messages": sum(int(row["result"].get("verified", 0)) for row in measured),
         "min_mem_available_kib": min(row["min_mem_available_kib"] for row in rows),
     }
 
 
 def write_environment(args, output):
     directory = cgroup_directory()
+    allowed_cpus = sorted(os.sched_getaffinity(0))
+    max_workers = max(
+        TOPOLOGIES[topology]["producers"] + TOPOLOGIES[topology]["consumers"]
+        for topology in args.topologies
+    )
     files = [
         args.salias_client,
+        *([args.fast_throughput_client, args.fast_latency_client]
+          if args.salias_engine == "fast" else []),
         args.aeron_client,
         args.aeron_driver,
         Path(__file__),
@@ -442,25 +515,42 @@ def write_environment(args, output):
             for line in Path("/proc/cpuinfo").read_text().splitlines()
             if line.startswith("model name")
         ),
-        "online_cpus": sorted(os.sched_getaffinity(0)),
+        "online_cpus": allowed_cpus,
+        "cpu_capacity": {
+            "allowed_cpus": allowed_cpus,
+            "max_application_workers": max_workers,
+            "dedicated_driver_available": len(allowed_cpus) >= max_workers + 1,
+            "require_dedicated_driver": args.require_dedicated_driver,
+        },
         "aeron_version": "1.52.0",
         "workload": {
             "topologies": [name for name in args.topologies],
             "payloads": list(args.payloads),
+            "kinds": list(args.kinds),
             "throughput_messages_per_producer": args.throughput_messages_per_producer,
             "latency_total_rate_msg_s": args.latency_total_rate,
             "latency_seconds": args.latency_seconds,
             "latency_origins": list(args.origins),
             "latency_sample_rate": args.latency_sample_rate,
             "warmup_rounds": 1,
+            "warmup_rounds_per_group": 1,
+            "groups": args.groups,
             "measured_rounds": args.rounds,
+            "measured_rounds_per_engine_per_group": args.rounds,
+            "engine_order": "ABBA paired rounds",
+            "verification": args.verify,
         },
         "semantics": (
-            "Salias FIFO per-publisher rings and Aeron exclusive publications; "
+            f"Salias {args.salias_engine} engine and Aeron exclusive publications; "
             "multiple subscribers receive every published message (fanout), not "
             "competing consumers"
         ),
+        "salias_engine": args.salias_engine,
         "capacity": (
+            "Salias fast ring stores 1 MiB of payload data per producer for SPSC/SPMC and "
+            "256 KiB for MPSC/MPMC producers, plus fixed-slot metadata; Aeron uses 1 MiB "
+            "terms in a multi-term log, so total mapped capacities differ"
+            if args.salias_engine == "fast" else
             "Salias 1 MiB per-producer ring versus Aeron 1 MiB term in a multi-term "
             "log; total mapped capacities differ"
         ),
@@ -469,8 +559,11 @@ def write_environment(args, output):
             "worst subscriber, never pooled histograms"
         ),
         "payload_limit": (
-            "Logical payloads are 64/256 B; latency writes 16 B and throughput 8 B. "
-            "Counts and samples are checked, not full content, sequence, or duplicate logic"
+            "Full verification checks every payload byte, producer identity, per-producer "
+            "sequence, ordering, and duplicates"
+            if args.verify == "full" else
+            "Counts and samples are checked; payload content, sequence, and duplicate "
+            "logic are not verified"
         ),
         "cgroup": {
             "path": str(directory),
@@ -488,8 +581,10 @@ def write_environment(args, output):
 
 
 def validate_args(parser, args):
-    if not 1 <= args.rounds <= 10:
-        parser.error("--rounds must be in [1, 10]")
+    if not 1 <= args.rounds <= 20:
+        parser.error("--rounds must be in [1, 20]")
+    if not 1 <= args.groups <= 6:
+        parser.error("--groups must be in [1, 6]")
     if not 1 <= args.latency_seconds <= 10:
         parser.error("--latency-seconds must be in [1, 10]")
     if not 2000 <= args.latency_total_rate <= 1_000_000:
@@ -504,10 +599,13 @@ def validate_args(parser, args):
         parser.error("payloads must be in [16, 1024]")
     if args.cooldown < 0.25:
         parser.error("--cooldown must be at least 0.25 seconds")
-    for path in (args.salias_client, args.aeron_client, args.aeron_driver):
+    paths = [args.salias_client, args.aeron_client, args.aeron_driver]
+    if args.salias_engine == "fast":
+        paths.extend([args.fast_throughput_client, args.fast_latency_client])
+    for path in paths:
         if not path.is_file():
             parser.error(f"missing executable: {path}")
-    if not os.access(args.salias_client, os.X_OK) or not os.access(args.aeron_client, os.X_OK):
+    if any(not os.access(path, os.X_OK) for path in paths):
         parser.error("comparison clients must be executable")
     if args.output.exists() and any(args.output.iterdir()):
         parser.error("--output must be absent or empty")
@@ -520,12 +618,26 @@ def main():
         "--salias-client", type=Path,
         default=ROOT / "build/release/bench/salias_ipc_compare",
     )
+    parser.add_argument("--salias-engine", choices=["fifo", "fast"], default="fifo")
+    parser.add_argument(
+        "--fast-throughput-client", type=Path,
+        default=ROOT / "build/release/bench/salias_fast_ring_compare",
+    )
+    parser.add_argument(
+        "--fast-latency-client", type=Path,
+        default=ROOT / "build/release/bench/salias_fast_ring_latency",
+    )
     parser.add_argument("--aeron-client", type=Path, required=True)
     parser.add_argument("--aeron-driver", type=Path, required=True)
     parser.add_argument("--rounds", type=int, default=5)
+    parser.add_argument("--groups", type=int, default=1)
     parser.add_argument("--cooldown", type=float, default=0.5)
+    parser.add_argument("--verify", choices=["none", "full"], default="none")
+    parser.add_argument("--require-dedicated-driver", action="store_true")
     parser.add_argument("--topologies", nargs="+", choices=TOPOLOGIES.keys(),
                         default=list(TOPOLOGIES))
+    parser.add_argument("--kinds", nargs="+", choices=["latency", "throughput"],
+                        default=["latency", "throughput"])
     parser.add_argument("--payloads", nargs="+", type=int, default=[64, 256])
     parser.add_argument("--throughput-messages-per-producer", type=int, default=10_000_000)
     parser.add_argument("--latency-total-rate", type=int, default=1_000_000)
@@ -535,7 +647,11 @@ def main():
                         default=["attempt", "planned"])
     args = parser.parse_args()
     validate_args(parser, args)
-    verify_limits()
+    max_workers = max(
+        TOPOLOGIES[topology]["producers"] + TOPOLOGIES[topology]["consumers"]
+        for topology in args.topologies
+    )
+    verify_limits(max_workers, args.require_dedicated_driver)
 
     args.output.mkdir(parents=True, exist_ok=True)
     environment = write_environment(args, args.output)
@@ -544,31 +660,34 @@ def main():
     cells = []
     for topology in args.topologies:
         for payload in args.payloads:
-            for origin in args.origins:
-                cells.append((topology, "latency", payload, origin))
+            if "latency" in args.kinds:
+                for origin in args.origins:
+                    cells.append((topology, "latency", payload, origin))
     for topology in args.topologies:
-        for payload in args.payloads:
-            cells.append((topology, "throughput", payload, "claim"))
+        if "throughput" in args.kinds:
+            for payload in args.payloads:
+                cells.append((topology, "throughput", payload, "claim"))
 
-    for round_number in range(args.rounds + 1):
-        offset = round_number % len(cells)
-        for cell_index, (topology, kind, payload, origin) in enumerate(
-                cells[offset:] + cells[:offset]):
-            engines = ("salias", "aeron") if (round_number + cell_index) % 2 == 0 else (
-                "aeron", "salias"
-            )
-            for engine in engines:
-                number += 1
-                case = {
-                    "engine": engine,
-                    "topology": topology,
-                    "kind": kind,
-                    "payload": payload,
-                    "origin": origin,
-                    "round": round_number,
-                    **TOPOLOGIES[topology],
-                }
-                rows.append(run_case(args, case, number, args.output))
+    for group_number in range(args.groups):
+        for round_number in range(args.rounds + 1):
+            offset = round_number % len(cells)
+            for cell_index, (topology, kind, payload, origin) in enumerate(
+                    cells[offset:] + cells[:offset]):
+                engines = engine_order(round_number, cell_index, group_number)
+                for order_index, engine in enumerate(engines):
+                    number += 1
+                    case = {
+                        "engine": engine,
+                        "topology": topology,
+                        "kind": kind,
+                        "payload": payload,
+                        "origin": origin,
+                        "group": group_number,
+                        "order_index": order_index,
+                        "round": round_number,
+                        **TOPOLOGIES[topology],
+                    }
+                    rows.append(run_case(args, case, number, args.output))
 
     environment["limits_end"] = resource_counters()
     summary = summarize(rows, environment)
