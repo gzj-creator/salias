@@ -41,6 +41,7 @@ are released.
 
 ### Docs
 
+- 建立 Channel API 收敛 Phase 0 基线：新增仓库内 test/bench/example/install/mcpp 使用矩阵，并明确 `LatestByKey`、Priority、Ringbuffer 的仓库外使用证据无法获得，相关删除门禁保持未完成。
 - 归档 v4.0.1 四拓扑正式对比证据，更新 README、最终性能报告与 Aeron 工具说明。结果明确 SPSC/SPMC 吞吐差距、MPSC 接近持平、MPMC 核共享边界及延迟尾部限制，不与历史拓扑或版本数据拼接。
 - 新增固定槽 Ring 与 Aeron 架构分析、Fast Ring 性能替换计划和全文校验开发验收证据；区分四拓扑 ring 热路径结果与 SPSC 产品 API 批量 cursor 结果。
 - 归档 SPSC 64 B 产品 API 的 10 组 ABBA：批量 cursor 吞吐提升 4.84x，attempt p50/p99 配对中位数为 1.06x/1.03x，明确不把吞吐收益扩大为延迟改善。

@@ -67,6 +67,10 @@ subscriber 对 producer 形成背压。该类型当前仍使用 `Fast*Ring` 候�
 边界见 [固定槽 Ring 开发验收](doc/benchmarks/2026-10-29-fast-ring/README.md)，与 Aeron
 的设计差异和继续优化路线见 [固定槽 Ring 架构分析](doc/fast-ring-architecture.md)。
 
+公开 Channel 入口的保留、冻结、extras 化和主版本删除门禁见
+[Channel API 收敛计划](doc/plans/2026-10-30-channel-api-convergence.md)；该计划当前不改变
+既有 API 行为，也不与固定槽性能重命名合并执行。
+
 FIFO 模式的生产者热路径不执行共享 RMW；ordered 模式通过单个全局 sequence
 `fetch_add` 建立跨生产者全序。每个生产者拥有独立 ring，每个 fanout 消费者拥有独立的
 per-producer 游标。
