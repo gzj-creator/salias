@@ -16,7 +16,10 @@ API_DOC = ROOT / "doc/11-L7-api.md"
 MIGRATION = ROOT / "doc/migration/channel-api-convergence.md"
 UMBRELLA = ROOT / "src/salias/include/salias/salias.hpp"
 MODULE = ROOT / "src/salias.cppm"
+EXTRAS_UMBRELLA = ROOT / "src/salias/include/salias/extras/extras.hpp"
+EXTRAS_MODULE = ROOT / "src/salias_extras.cppm"
 COMPAT_TEST = ROOT / "test/api/channel_alias_compat_test.cpp"
+EXTRAS_COMPAT_TEST = ROOT / "test/api/extras_compat_test.cpp"
 
 ALIASES = (
     "FifoMpscChannel",
@@ -35,6 +38,17 @@ EXTRAS = (
     "PriorityWaitPolicy",
     "Ringbuffer",
 )
+EXTRAS_FORWARDING_HEADERS = {
+    "LatestByKeyChannel": "latest_by_key_channel.hpp",
+    "LatestByKeyPublisher": "latest_by_key_channel.hpp",
+    "LatestByKeySubscriber": "latest_by_key_channel.hpp",
+    "LatestByKeyMessage": "latest_by_key_channel.hpp",
+    "PriorityPublisher": "priority_channel.hpp",
+    "PrioritySubscriber": "priority_channel.hpp",
+    "PriorityMessage": "priority_channel.hpp",
+    "PriorityWaitPolicy": "priority_channel.hpp",
+    "Ringbuffer": "ringbuffer.hpp",
+}
 CODE_ROOTS = ("test", "bench", "example")
 
 
@@ -128,10 +142,27 @@ def validate_module_and_umbrella(data: dict, symbols: list[dict]) -> None:
             f"module-only={sorted(module_exports - declared_exports)}"
         )
 
+    extras_module_text = read(EXTRAS_MODULE)
+    extras_module_exports = set(
+        re.findall(r"using ::salias::extras::([A-Za-z_][A-Za-z0-9_]*);", extras_module_text)
+    )
+    declared_extras_exports = set(data.get("extras_module_exports", []))
+    if extras_module_exports != declared_extras_exports:
+        fail(
+            "extras_module_exports do not match src/salias_extras.cppm: "
+            f"manifest-only={sorted(declared_extras_exports - extras_module_exports)}, "
+            f"module-only={sorted(extras_module_exports - declared_extras_exports)}"
+        )
+
     for symbol in symbols:
-        base_name = symbol["name"].removeprefix("salias::").split("<", 1)[0]
-        if symbol["exports"]["module"] and base_name not in module_exports:
-            fail(f"module export is missing {base_name}")
+        qualified_name = symbol["name"].removeprefix("salias::")
+        base_name = qualified_name.rsplit("::", 1)[-1].split("<", 1)[0]
+        if not symbol["exports"]["module"]:
+            continue
+        exports = extras_module_exports if qualified_name.startswith("extras::") else module_exports
+        module_name = "salias.extras" if qualified_name.startswith("extras::") else "salias"
+        if base_name not in exports:
+            fail(f"{module_name} module export is missing {base_name}")
 
     umbrella_text = read(UMBRELLA)
     included = set(re.findall(r'(?m)^#include "salias/([^"]+\.hpp)"', umbrella_text))
@@ -140,16 +171,21 @@ def validate_module_and_umbrella(data: dict, symbols: list[dict]) -> None:
         "config.hpp",
         "error.hpp",
         "fixed_channel.hpp",
-        "latest_by_key_channel.hpp",
         "latest_channel.hpp",
         "message.hpp",
-        "priority_channel.hpp",
         "publisher.hpp",
-        "ringbuffer.hpp",
         "subscriber.hpp",
     }
     if included != required:
         fail(f"unexpected umbrella header set: {sorted(included ^ required)}")
+
+    extras_umbrella_text = read(EXTRAS_UMBRELLA)
+    extras_included = set(
+        re.findall(r'(?m)^#include "salias/extras/([^"]+\.hpp)"', extras_umbrella_text)
+    )
+    required_extras = {"latest_by_key_channel.hpp", "priority_channel.hpp", "ringbuffer.hpp"}
+    if extras_included != required_extras:
+        fail(f"unexpected extras umbrella header set: {sorted(extras_included ^ required_extras)}")
 
 
 def validate_compat_code(by_name: dict[str, dict]) -> None:
@@ -166,12 +202,25 @@ def validate_compat_code(by_name: dict[str, dict]) -> None:
         if alias not in compat_test:
             fail(f"compatibility test does not cover {alias}")
 
-    alias_pattern = re.compile(r"\b(?:salias::)?(" + "|".join(ALIASES) + r")\b")
+    extras_compat_test = read(EXTRAS_COMPAT_TEST)
+    for alias in EXTRAS:
+        symbol = by_name.get(f"salias::{alias}")
+        if symbol is None or symbol["status"] != "compat":
+            fail(f"{alias} top-level forwarding name must be listed as compat")
+        header = read(ROOT / "src/salias/include/salias" / EXTRAS_FORWARDING_HEADERS[alias])
+        if alias not in header or "[[deprecated(" not in header:
+            fail(f"{alias} is not source-compatible and deprecated")
+        if alias not in extras_compat_test:
+            fail(f"extras compatibility test does not cover {alias}")
+
+    alias_pattern = re.compile(
+        r"\bsalias::(" + "|".join((*ALIASES, *EXTRAS)) + r")\b"
+    )
     for root_name in CODE_ROOTS:
         for path in (ROOT / root_name).rglob("*"):
             if not path.is_file() or path.suffix not in {".hpp", ".cpp", ".cc", ".cxx"}:
                 continue
-            if path == COMPAT_TEST:
+            if path in {COMPAT_TEST, EXTRAS_COMPAT_TEST}:
                 continue
             match = alias_pattern.search(read(path))
             if match:
@@ -207,6 +256,11 @@ def validate_docs(by_name: dict[str, dict]) -> None:
         fail("compatibility docs do not mark direct Channel<Mode::LatestMpmc>")
     if "5.0.0" not in migration or "deprecated" not in read(ROOT / "src/salias/include/salias/channel.hpp"):
         fail("migration policy does not state the major-version removal window")
+    if "salias::extras::" not in api_doc or "import salias.extras;" not in api_doc:
+        fail("API doc does not describe the canonical extras namespace and module")
+    for alias in EXTRAS:
+        if f"salias::{alias}" not in migration:
+            fail(f"migration table does not map the deprecated extras alias {alias}")
 
     for symbol in by_name.values():
         if symbol["status"] != "compat":
@@ -238,7 +292,9 @@ def main() -> None:
     print(
         "Channel API manifest OK: "
         f"{counts['core']} core, {counts['compat']} compat, "
-        f"{counts['extras']} extras, {counts['removed']} removed"
+        f"{counts['extras']} extras, {counts['removed']} removed; "
+        f"core module {len(data['module_exports'])}, "
+        f"extras module {len(data['extras_module_exports'])}"
     )
 
 

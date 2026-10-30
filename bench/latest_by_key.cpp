@@ -29,7 +29,7 @@
 #include <utility>
 #include <vector>
 
-#include "salias/latest_by_key_channel.hpp"
+#include "salias/extras/latest_by_key_channel.hpp"
 
 namespace {
 
@@ -273,7 +273,7 @@ struct RunMetrics {
 template <std::size_t Readers, RetryMode Mode>
 class ConcurrentKeyedRunner {
   static_assert(Readers > 0);
-  using Channel = salias::LatestByKeyChannel<std::uint64_t, Payload, 64>;
+  using Channel = salias::extras::LatestByKeyChannel<std::uint64_t, Payload, 64>;
   using Publisher = typename Channel::Publisher;
   using Subscriber = typename Channel::Subscriber;
 
@@ -579,7 +579,7 @@ class ConcurrentKeyedRunner {
 
 template <std::size_t Readers, RetryMode Mode>
 void BM_keyed_concurrent_64b(benchmark::State& state) {
-  using Channel = salias::LatestByKeyChannel<std::uint64_t, Payload, 64>;
+  using Channel = salias::extras::LatestByKeyChannel<std::uint64_t, Payload, 64>;
   std::unique_ptr<ConcurrentKeyedRunner<Readers, Mode>> runner;
   std::uint64_t run_index = 0;
   std::uint64_t successful_runs = 0;
@@ -665,7 +665,7 @@ bool publish_single(Publisher& publisher, std::uint64_t key, const Payload& payl
 
 template <std::size_t Capacity, std::size_t Keys>
 void BM_keyed_roundtrip_64b(benchmark::State& state) {
-  using Channel = salias::LatestByKeyChannel<std::uint64_t, Payload, Capacity>;
+  using Channel = salias::extras::LatestByKeyChannel<std::uint64_t, Payload, Capacity>;
   auto channel = Channel::create(unique_name());
   if (!channel) {
     state.SkipWithError("create failed");
@@ -697,7 +697,7 @@ void BM_keyed_roundtrip_64b(benchmark::State& state) {
 
 template <std::size_t Capacity>
 void BM_keyed_empty_poll(benchmark::State& state) {
-  using Channel = salias::LatestByKeyChannel<std::uint64_t, Payload, Capacity>;
+  using Channel = salias::extras::LatestByKeyChannel<std::uint64_t, Payload, Capacity>;
   auto channel = Channel::create(unique_name());
   if (!channel) {
     state.SkipWithError("create failed");
@@ -718,7 +718,7 @@ void BM_keyed_empty_poll(benchmark::State& state) {
 }
 
 void BM_keyed_ipc_roundtrip_64b(benchmark::State& state) {
-  using Channel = salias::LatestByKeyChannel<std::uint64_t, Payload, 16>;
+  using Channel = salias::extras::LatestByKeyChannel<std::uint64_t, Payload, 16>;
   auto channel = Channel::create(unique_name());
   if (!channel) {
     state.SkipWithError("create failed");

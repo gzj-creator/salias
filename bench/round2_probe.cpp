@@ -27,6 +27,7 @@
 #endif
 
 #include "salias/salias.hpp"
+#include "salias/extras/extras.hpp"
 
 namespace {
 
@@ -254,9 +255,9 @@ int priority(double seconds, int policy, std::uint64_t interval_microseconds,
              std::size_t payload_size, std::string_view topology, std::index_sequence<Indices...>) {
   constexpr std::size_t streams = sizeof...(Indices);
   using Reader =
-      salias::PrioritySubscriber<(static_cast<void>(Indices), salias::Mode::FifoMpsc)...>;
+      salias::extras::PrioritySubscriber<(static_cast<void>(Indices), salias::Mode::FifoMpsc)...>;
   using Publisher =
-      salias::PriorityPublisher<(static_cast<void>(Indices), salias::Mode::FifoMpsc)...>;
+      salias::extras::PriorityPublisher<(static_cast<void>(Indices), salias::Mode::FifoMpsc)...>;
   std::vector<salias::Channel<salias::Mode::FifoMpsc>> channels;
   for (std::size_t index = 0; index < streams; ++index) {
     auto channel = salias::Channel<salias::Mode::FifoMpsc>::create(
@@ -340,7 +341,7 @@ int priority(double seconds, int policy, std::uint64_t interval_microseconds,
     auto message = reader.recv();
     static_cast<void>(policy);
 #else
-    auto message = reader.recv(static_cast<salias::PriorityWaitPolicy>(policy));
+    auto message = reader.recv(static_cast<salias::extras::PriorityWaitPolicy>(policy));
 #endif
     const auto received_at = now_ns();
     if (!message || message->message.payload.size() != payload_size) {
@@ -416,9 +417,9 @@ int priority_saturated(double seconds, int policy) {
   if (!high || !low) {
     return 2;
   }
-  salias::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> reader(
+  salias::extras::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> reader(
       high->subscriber(), low->subscriber());
-  salias::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> publisher(
+  salias::extras::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> publisher(
       high->publisher(), low->publisher());
   std::atomic<bool> ready{false};
   std::atomic<bool> failed{false};
@@ -470,7 +471,7 @@ int priority_saturated(double seconds, int policy) {
     auto message = reader.recv();
     static_cast<void>(policy);
 #else
-    auto message = reader.recv(static_cast<salias::PriorityWaitPolicy>(policy));
+    auto message = reader.recv(static_cast<salias::extras::PriorityWaitPolicy>(policy));
 #endif
     if (!message || message->priority >= received.size() || message->message.payload.size() != 64) {
       failed.store(true, std::memory_order_relaxed);

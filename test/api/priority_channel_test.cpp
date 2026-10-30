@@ -20,26 +20,27 @@
 #include <utility>
 
 #include "salias/salias.hpp"
+#include "salias/extras/extras.hpp"
 
 namespace {
 
 using Mode = salias::Mode;
 using Fifo = salias::Channel<Mode::FifoMpsc>;
-using PriorityPub = salias::PriorityPublisher<Mode::FifoMpsc, Mode::FifoMpsc>;
-using PrioritySub = salias::PrioritySubscriber<Mode::FifoMpsc, Mode::FifoMpsc>;
-using ThreePriorityPub = salias::PriorityPublisher<Mode::FifoMpsc, Mode::FifoMpsc, Mode::FifoMpsc>;
-using ThreePrioritySub = salias::PrioritySubscriber<Mode::FifoMpsc, Mode::FifoMpsc, Mode::FifoMpsc>;
+using PriorityPub = salias::extras::PriorityPublisher<Mode::FifoMpsc, Mode::FifoMpsc>;
+using PrioritySub = salias::extras::PrioritySubscriber<Mode::FifoMpsc, Mode::FifoMpsc>;
+using ThreePriorityPub = salias::extras::PriorityPublisher<Mode::FifoMpsc, Mode::FifoMpsc, Mode::FifoMpsc>;
+using ThreePrioritySub = salias::extras::PrioritySubscriber<Mode::FifoMpsc, Mode::FifoMpsc, Mode::FifoMpsc>;
 
-class PriorityWaitTest : public ::testing::TestWithParam<salias::PriorityWaitPolicy> {
+class PriorityWaitTest : public ::testing::TestWithParam<salias::extras::PriorityWaitPolicy> {
  protected:
   void SetUp() override { ::alarm(10); }
   void TearDown() override { ::alarm(0); }
 };
 
 INSTANTIATE_TEST_SUITE_P(Policies, PriorityWaitTest,
-                         ::testing::Values(salias::PriorityWaitPolicy::Yield,
-                                           salias::PriorityWaitPolicy::Spin,
-                                           salias::PriorityWaitPolicy::Adaptive));
+                         ::testing::Values(salias::extras::PriorityWaitPolicy::Yield,
+                                           salias::extras::PriorityWaitPolicy::Spin,
+                                           salias::extras::PriorityWaitPolicy::Adaptive));
 
 std::string unique_name(std::string_view suffix) {
   static std::atomic<std::uint64_t> next{0};
@@ -59,7 +60,7 @@ std::span<const std::byte> bytes_of(const std::uint64_t& value) {
   return std::as_bytes(std::span{&value, 1});
 }
 
-std::uint64_t read_value(const salias::PriorityMessage& message) {
+std::uint64_t read_value(const salias::extras::PriorityMessage& message) {
   EXPECT_EQ(message.message.payload.size(), sizeof(std::uint64_t));
   std::uint64_t value = 0;
   if (message.message.payload.size() == sizeof(value)) {
@@ -263,7 +264,7 @@ TEST(PriorityChannelTest, OutstandingBorrowIsNotReturnedTwiceAndPollReleasesIt) 
   ASSERT_TRUE(publisher.offer(1, bytes_of(low_value)));
   std::array<std::uint32_t, 2> seen{};
   const auto consumed = reader.poll(
-      2, [&seen](const salias::PriorityMessage& message) noexcept { ++seen[message.priority]; });
+      2, [&seen](const salias::extras::PriorityMessage& message) noexcept { ++seen[message.priority]; });
   EXPECT_EQ(consumed, 2u);
   EXPECT_EQ(seen[0], 1u);
   EXPECT_EQ(seen[1], 1u);
@@ -334,8 +335,8 @@ TEST(PriorityChannelTest, IndependentProcessPublishesToSeparatePriorityStreams) 
 
 TEST(PriorityChannelTest, LaggedHighPriorityStreamDoesNotBlockLowerPriorityData) {
   using Latest = salias::LatestMpmcChannel<4096>;
-  using MixedPublisher = salias::PriorityPublisher<Mode::LatestMpmc, Mode::FifoMpsc>;
-  using MixedReader = salias::PrioritySubscriber<Mode::LatestMpmc, Mode::FifoMpsc>;
+  using MixedPublisher = salias::extras::PriorityPublisher<Mode::LatestMpmc, Mode::FifoMpsc>;
+  using MixedReader = salias::extras::PrioritySubscriber<Mode::LatestMpmc, Mode::FifoMpsc>;
   auto high_config = config(unique_name("lagged-high"));
   high_config.mode = Mode::LatestMpmc;
   auto high_created = Latest::create(high_config);
@@ -488,7 +489,7 @@ TEST_P(PriorityWaitTest, ExpiredLatestFramesDoNotBlockDelayedFifoMessage) {
   auto low = Fifo::create(config(unique_name("wait-ttl-low")));
   ASSERT_TRUE(high);
   ASSERT_TRUE(low);
-  salias::PrioritySubscriber<Mode::LatestMpmc, Mode::FifoMpsc> reader(high->subscriber(),
+  salias::extras::PrioritySubscriber<Mode::LatestMpmc, Mode::FifoMpsc> reader(high->subscriber(),
                                                                       low->subscriber());
   auto high_publisher = high->publisher();
   auto low_publisher = low->publisher();
@@ -552,7 +553,7 @@ TEST(PriorityChannelTest, InvalidWaitPolicyIsRejectedBeforeConsumingReadableMess
   auto publisher = high->publisher();
   const std::uint64_t value = 1;
   ASSERT_TRUE(publisher.offer(bytes_of(value)));
-  auto invalid = reader.recv(static_cast<salias::PriorityWaitPolicy>(999));
+  auto invalid = reader.recv(static_cast<salias::extras::PriorityWaitPolicy>(999));
   ASSERT_FALSE(invalid);
   EXPECT_EQ(invalid.error(), salias::Error::BadConfig);
   auto message = reader.recv();

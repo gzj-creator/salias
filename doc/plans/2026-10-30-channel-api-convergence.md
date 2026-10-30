@@ -2,7 +2,7 @@
 
 日期：2026-10-30（Asia/Singapore）
 
-状态：**Phase 1 完成；latest 直接工厂与 schema-bound wrapper 已收敛；Phase 0 仓库外证据按用户决定不采集；Phase 3-5 未执行**
+状态：**Phase 0 本地审计与 Phase 1-3 完成；Phase 0 两个外部/签署门禁待确认；Phase 4-5 未执行**
 
 ## 1. 目标
 
@@ -51,7 +51,7 @@ Channel 产品”收敛到少量稳定入口，同时保留当前性能路径和
 `Publisher`、`Subscriber`、`PublishClaim`、`LatestByKeyMessage` 等端点类型由通道返回，不是用户需要
 独立选型的产品；文档应继续保留其契约，但不把它们与 Channel 产品并列宣传。
 
-### 3.2 当前复杂度证据
+### 3.2 收敛前复杂度证据
 
 - 通用引擎公开 5 个 `Mode`：`FifoMpsc`、`FifoMpmc`、`OrderedMpsc`、`OrderedMpmc`、
   `LatestMpmc`。
@@ -60,12 +60,13 @@ Channel 产品”收敛到少量稳定入口，同时保留当前性能路径和
 - 收敛前 `LatestMpmc` 同时存在 wrapper 和直接 `Channel<Mode::LatestMpmc>` 两条公开创建路径。
 - `LatestByKeyChannel` 的公开头与实现约 1,220 行，专项测试约 1,067 行。
 - Priority 的公开头约 511 行，专项测试约 564 行。
-- 统一伞头文件 `salias/salias.hpp` 当前同时导出核心通道、Latest、LatestByKey、Priority 和 Ringbuffer。
+- 收敛前统一伞头文件 `salias/salias.hpp` 同时导出核心通道、Latest、LatestByKey、Priority 和
+  Ringbuffer；Phase 3 已将后三者拆到独立 extras 边界。
 
-### 3.3 现有决策冲突
+### 3.3 与 Fast Ring 计划的边界
 
-当前仓库没有正式的 API 淘汰计划。Fast Ring 计划明确要求通用 `Channel` 继续保留 Ordered、Latest、
-TTL、动态订阅和恢复语义，见
+本计划建立前仓库没有正式的 Channel API 淘汰计划。Fast Ring 计划明确要求通用 `Channel` 继续保留
+Ordered、Latest、TTL、动态订阅和恢复语义，见
 [Fast Ring 性能替换计划 §2](2026-10-29-fast-ring-performance-replacement.md)。因此本计划不能把
 “引入 FixedChannel”理解为“删除通用 Channel”。
 
@@ -164,7 +165,8 @@ extras 应满足：
 本 session 已满足 Phase 1 退出条件。`Schema<T, Id, Version>` 采用为无数据成员、无运行时路径的
 显式声明辅助模板；schema ID/version 仍是模板参数，没有引入默认版本。四个兼容别名使用
 `[[deprecated]]` 保留源码兼容，并由专项测试锁定其同型关系。Phase 0 的两个外部/签署门禁仍未完成，
-因此不得据此进入任何删除或 extras 转移步骤。
+因此不得据此删除兼容入口；后续用户明确要求下游自行适配，允许在不删除任何 API 的前提下继续完成
+本地 extras 边界迁移。
 
 ### Phase 2：Latest 主入口收敛
 
@@ -184,20 +186,24 @@ extras 应满足：
 
 ### Phase 3：extras 边界
 
-- [ ] 设计 `salias::extras` 命名空间、include 根目录和可选 CMake target。
-- [ ] 将 `LatestByKeyChannel`、`LatestByKeyPublisher`、`LatestByKeySubscriber` 和
+- [x] 设计 `salias::extras` 命名空间、include 根目录和可选 CMake target。
+- [x] 将 `LatestByKeyChannel`、`LatestByKeyPublisher`、`LatestByKeySubscriber` 和
   `LatestByKeyMessage` 移入 extras。
-- [ ] 将 `PriorityPublisher`、`PrioritySubscriber`、`PriorityMessage` 和
+- [x] 将 `PriorityPublisher`、`PrioritySubscriber`、`PriorityMessage` 和
   `PriorityWaitPolicy` 移入 extras。
-- [ ] 将 `Ringbuffer` 移入 extras，或作为独立的 header-only utility target 发布。
-- [ ] 将 keyed table 实现从核心 `salias` library 拆出，确保未使用 extras 的消费者不链接相关实现。
-- [ ] 更新 `mcpp.toml`、`src/salias.cppm`、安装规则、package config 和 header probes。
-- [ ] 增加“只链接 core 不包含 extras”的安装消费测试。
-- [ ] 增加“extras 单独安装和跨进程运行”测试。
-- [ ] 更新 README、API 文档、示例、benchmark 和性能报告中的 include/link 路径。
-- [ ] 提供旧 include 到新 include 的迁移表和一版兼容转发头。
+- [x] 将 `Ringbuffer` 移入 extras，或作为独立的 header-only utility target 发布。
+- [x] 将 keyed table 实现从核心 `salias` library 拆出，确保未使用 extras 的消费者不链接相关实现。
+- [x] 更新 `mcpp.toml`、`src/salias.cppm`、安装规则、package config 和 header probes。
+- [x] 增加“只链接 core 不包含 extras”的安装消费测试。
+- [x] 增加“extras 单独安装和跨进程运行”测试。
+- [x] 更新 README、API 文档、示例、benchmark 和性能报告中的 include/link 路径。
+- [x] 提供旧 include 到新 include 的迁移表和一版兼容转发头。
 
 **Phase 3 退出条件**：core 构建不依赖 extras 实现；extras 可独立安装、链接、模块导入并通过测试。
+
+Phase 3 已完成。核心 umbrella、`import salias;`、`salias::salias` 和 install `core` component 不再
+包含 extras；`salias::extras`、`import salias.extras;` 和 install `extras` component 可独立消费。
+旧三个 include 与九个顶层类型仍作为 `[[deprecated]]` 兼容入口发布，本阶段不删除。
 
 ### Phase 4：兼容别名与重复入口删除
 
@@ -206,8 +212,8 @@ extras 应满足：
   `OrderedMpmcChannel` 别名，或由负责人明确批准永久保留并更新本计划。
 - [x] 按 Phase 2 决策关闭直接 `Channel<Mode::LatestMpmc>` 的公开创建/连接工厂。
 - [ ] 删除 extras 转发头；兼容窗口结束前不得提前删除。
-- [ ] 将 `salias/salias.hpp` 收敛为核心聚合头，不再默认包含 extras。
-- [ ] 更新 C++23 module export，移除核心 module 中的 extras 符号。
+- [x] 将 `salias/salias.hpp` 收敛为核心聚合头，不再默认包含 extras。（作为 Phase 3 边界调整提前完成）
+- [x] 更新 C++23 module export，移除核心 module 中的 extras 符号。（作为 Phase 3 边界调整提前完成）
 - [ ] 清理文档中的重复入口、废弃命名和双份示例。
 - [ ] 确认没有内部代码通过 compat 别名遮蔽规范路径。
 
@@ -231,8 +237,8 @@ extras 应满足：
 
 | 版本 | 允许的变更 |
 |---|---|
-| 当前 `4.x` minor | 增加弃用标记、规范文档和兼容转发头；关闭被 wrapper 完全替代的直接 latest 工厂，不删除四个 `*Channel` 别名 |
-| 下一个 `5.0.0` | 删除兼容别名、拆分 extras target、收敛伞头文件和 module export；要求重新编译 |
+| 当前 `4.x` minor | 增加弃用标记、规范文档和兼容转发头；拆分 extras target、install component 和 module；关闭被 wrapper 完全替代的直接 latest 工厂，不删除四个 `*Channel` 别名 |
+| 下一个 `5.0.0` | 删除四个 `*Channel` 别名和 extras 兼容转发头；要求重新编译，但不借机升级 wire protocol |
 | 未来 major | 只有出现明确替代能力且经过一个 minor 弃用窗口后，才允许删除 extras 中的能力 |
 
 wire protocol 与源码 API 版本分别判断。仅移动 include 或删除别名时，不借机修改共享控制段版本；
@@ -305,32 +311,52 @@ ELF 的历史记录只保留为当时已产生的审计痕迹，不再作为接�
 | 2026-10-30 | 2 | 补齐 wrapper 的类型/配置契约：创建覆盖容量和水位，连接校验容量、水位、schema ID、版本和 payload 大小；编译期断言直接 Channel 工厂不可调用，并覆盖 subscription policy、TTL、lag、poll、背压和跨进程 lease 测试 | `test/api/channel_api_test.cpp`、`test/api/poll_storage_contract_test.cpp`、`test/api/allocation_contract_test.cpp` |
 | 2026-10-30 | 1-2 | README、API 参考、迁移表、仓库内使用矩阵和 manifest 同步为唯一 latest 入口；安装消费和 mcpp 模块/头文件消费均改为 typed wrapper | `README.md`、`doc/11-L7-api.md`、`doc/migration/channel-api-convergence.md`、`doc/api/channel-api-usage-matrix.md`、`test/install/main.cpp`、`test/mcpp/{header_probe,import}.cpp` |
 | 2026-10-30 | 2 | Release 25/25、ASan/UBSan 24/24、安装消费和 mcpp header/import 通过；本轮只改公开模板/mcpp 测试和文档，未改共享内存 wire protocol、通道版本、固定槽热路径或 `Fast*Ring` 名称，因此未执行性能 ABBA | `cmake --build --preset release -j 4`；`ctest --test-dir build/release --output-on-failure -j 2`；`cmake --build --preset debug-asan-ubsan -j 4`；`ctest --preset debug-asan-ubsan --output-on-failure -j 2`；`mcpp build --offline --release --jobs 4`；`mcpp run test_mcpp_import --offline --release --locked --features mcpp-tests`；`python3 tools/check_mcpp.py`；`python3 tools/check_channel_api.py`；`git diff --check` |
+| 2026-10-30 | 3 | 建立 `salias::extras` include 根、`salias_extras` / `salias::extras` target、`import salias.extras;` module 和 `core` / `extras` install components；核心 umbrella 与 `import salias;` 不再导出 extras | `src/salias/include/salias/extras/`、`src/salias_extras.cppm`、`src/salias/CMakeLists.txt`、`CMakeLists.txt`、`cmake/saliasConfig.cmake.in` |
+| 2026-10-30 | 3 | LatestByKey 四个类型、Priority 四个类型和 Ringbuffer 迁入 `salias::extras`；三个旧 include 与九个旧顶层类型保留为 `[[deprecated]]` 转发入口，专项兼容测试锁定同型关系 | `src/salias/include/salias/extras/**`、旧三个公开头、`test/api/extras_compat_test.cpp` |
+| 2026-10-30 | 3 | keyed table 私有存储和实现从核心库拆出；core 归档无 `LatestByKeyStorage` 符号，extras 归档保留 `create_latest_by_key_storage` | `src/salias/include/salias/extras/detail/latest_by_key_storage.hpp`、`src/salias/src/latest_by_key.cpp`、`nm -C build/release/src/salias/libsalias{,_extras}.a` |
+| 2026-10-30 | 3 | test、bench、install 与 mcpp 主路径迁移到规范 extras 入口；新增 core-only import、独立 extras 安装/跨进程、core-only 无 extras artifact 检查，并把 Ringbuffer 测试拆到独立 extras target | `test/CMakeLists.txt`、`test/install/extras/`、`cmake/install_consumer_test.cmake`、`test/mcpp/core_import.cpp`、`test/ring/ringbuffer_test.cpp` |
+| 2026-10-30 | 3 | README、L7 API、L1 ring 文档、迁移表、仓库内使用矩阵和机器可读 manifest 同步 extras 边界；manifest 校验为 30 core、13 compat、9 extras、1 removed，core module 33、extras module 9 | `README.md`、`doc/{5-L1-ring,11-L7-api}.md`、`doc/migration/channel-api-convergence.md`、`doc/api/channel-api-{manifest,usage-matrix}.*`、`python3 tools/check_channel_api.py` |
+| 2026-10-30 | 3 | Release 27/27 与 ASan/UBSan 26/26 通过；core-only 安装消费、extras 安装/跨进程、mcpp core-only import、core+extras import 和两个独立 mcpp 消费者均通过 | `cmake --build --preset release -j 4`；`ctest --test-dir build/release --output-on-failure -j 2`；`cmake --build --preset debug-asan-ubsan -j 4`；`ctest --preset debug-asan-ubsan --output-on-failure -j 2`；`mcpp run test_mcpp_core_import ...`；`mcpp run test_mcpp_import ...`；`python3 tools/check_mcpp.py` |
+| 2026-10-30 | 3 | 数据面 TU 相对 HEAD 零差异；固定槽对象哈希保持 `45e6affb...`，通用 Channel 对象因公开头输入变化重采集为 `c8dcffd9...`；smoke 为 FixedChannel 1,000,000 条校验、`7.73244 Mmsg/s`，latest p50 `186 ns`，LatestByKey p50 `300 ns`。Google Benchmark 依赖库为 DEBUG，数值只作冒烟证据，完整 ABBA 留 Phase 5 | `git diff --quiet HEAD -- src/salias/src/channel.cpp src/salias/src/fixed_channel.cpp`（exit 0）；`sha256sum`；`build/release/bench/{salias_fixed_channel_poll_compare,salias_bench_round2,salias_bench_latest_by_key}` |
 
 ## 11. 本 session 门禁结论
 
 ### 已验证
 
-- Release 构建成功，25/25 CTest 通过；ASan/UBSan 24/24 通过。
-- `salias_install_consumer` 通过，并在安装后的公开头文件上实际创建、发送和接收 typed
-  `LatestMpmcChannel<4096, 75, Schema>`。
-- `mcpp build --offline --release --jobs 4`、`mcpp run test_mcpp_import ...` 和
-  `python3 tools/check_mcpp.py` 通过；module/header 双消费覆盖 raw 与 typed latest。
-- `python3 tools/check_channel_api.py` 通过，当前清单为 30 core、4 compat、9 extras、1 removed；
-  `git diff --check` 通过。
+- Release 构建成功，27/27 CTest 通过；ASan/UBSan 26/26 通过。
+- core-only 安装不包含 extras 头、归档或 import target，并实际创建、发送和接收通用 Channel 与 typed
+  `LatestMpmcChannel<4096, 75, Schema>`；随后独立安装 extras，验证 LatestByKey 跨进程收发、Priority
+  失败语义和 Ringbuffer 丢旧行为。
+- `mcpp build --offline --release --jobs 4`、`test_mcpp_core_import`、`test_mcpp_import` 和
+  `python3 tools/check_mcpp.py` 通过；仅 `import salias;` 可独立消费，core+extras module/header
+  消费覆盖 LatestByKey 与 Priority。
+- `python3 tools/check_channel_api.py` 通过：30 core、13 compat、9 extras、1 removed；core module
+  33 个符号、extras module 9 个符号。`git diff --check` 在最终文档编辑后重跑。
 
 ### 据代码检查
 
+- `salias/salias.hpp` 与 `src/salias.cppm` 不包含 extras；keyed table 的私有头、实现和符号只在
+  extras 边界。`libsalias.a` 无 `LatestByKeyStorage`，`libsalias_extras.a` 含 keyed factory。
 - `Channel<Mode::LatestMpmc>::create()`/`connect()` 受 `requires` 约束关闭，wrapper 通过私有
   schema-aware 工厂继续使用同一底层 Channel 状态机。
 - raw 和 typed latest 都固定容量与水位；typed 路径继续校验 schema ID、版本和 payload 大小，
   没有以类型缩减为由弱化 schema、背压、动态订阅或故障语义。
-- 四个 `*Channel` 兼容别名仍存在；`LatestByKey`、Priority、Ringbuffer 和四个 `Fast*Ring` 名称
-  均未删除。未修改共享内存 wire protocol、通道版本或固定槽热路径。
-- 本轮改动没有改变库链接边界，因此没有执行性能 ABBA；其风险由 Release、安装消费、ASan/UBSan
-  和 mcpp header/import 验证覆盖。
+- 四个 `*Channel` 兼容别名、九个顶层 extras 兼容类型和三个转发头仍存在；
+  `LatestByKey`、Priority、Ringbuffer 和四个 `Fast*Ring` 名称均未删除。
+- 通用 Channel 与 FixedChannel 的数据面源码相对提交 `7baf8c0` 零差异；未修改共享内存 wire
+  protocol、通道版本或固定槽热路径，也未合并两个数据面。
+- include/link 边界变化后的固定槽对象 SHA-256 保持 `45e6affb77d55fc2c995f32b1d748c4d9f641bd819844ad5df4e89f72907c00f`；
+  通用 Channel 对象因公开头输入变化从 `e90886f5...` 变为
+  `c8dcffd938cabb2473935ff9686d02fef0182ddd6f23d31eb08f483460425ed8`。核心与 extras 最终归档
+  SHA-256 分别为 `ffc2e7ae6f50de63b613d6b7cf20a541a02f8866e3ac38f41462fc804077a213` 和
+  `faa5809a7ca79224f8bc48a456c50901b7ad033eaaeb4b03d8a68fd6b0c575b0`。
+- FixedChannel copy smoke 校验 1,000,000 条、`7.73244 Mmsg/s`；latest 与 LatestByKey 单次往返 p50
+  分别为 `186 ns`、`300 ns`。Google Benchmark 标记依赖库为 DEBUG，因此只当功能/性能冒烟，不作
+  Phase 5 性能结论。
 
 ### 仍待外部确认
 
 - 按用户决定，没有检查仓库外源码消费方，也不声称其调用量、迁移成本或私有仓库使用情况。
 - 两个 Phase 0 外部证据/签署复选框保持未完成；它们不阻塞当前本地接口收敛。
-- Phase 3 extras 边界、Phase 4 四个别名删除和 Phase 5 最终发布门禁仍未执行；下游需按迁移表自行适配。
+- Phase 4 四个别名及 extras 转发头删除、Phase 5 全套 ABBA/TSan/发布门禁未执行；本 session 不打
+  主版本 tag。下游按迁移表自行适配。

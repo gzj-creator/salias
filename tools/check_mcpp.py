@@ -26,6 +26,10 @@ cxxflags = ["-Wall", "-Wextra", "-Wpedantic", "-Werror"]
 [targets.consumer]
 kind = "bin"
 main = "import.cpp"
+
+[targets.core]
+kind = "bin"
+main = "core_import.cpp"
 '''
 
 
@@ -37,15 +41,18 @@ def main():
             consumer = pathlib.Path(directory) / name
             consumer.mkdir(parents=True)
             (consumer / "mcpp.toml").write_text(MANIFEST)
-            for source in ("import.cpp", "header_probe.cpp", "typed_schema.hpp"):
+            for source in ("import.cpp", "core_import.cpp", "header_probe.cpp", "typed_schema.hpp"):
                 shutil.copyfile(ROOT / "test/mcpp" / source, consumer / source)
             command = ["mcpp", "build", "--offline", "--release", "--jobs", "4"]
             subprocess.run(command, cwd=consumer, check=True)
             subprocess.run(command + ["--locked"], cwd=consumer, check=True)
-            binaries = list((consumer / "target").glob("**/bin/consumer"))
-            if len(binaries) != 1:
-                raise RuntimeError(f"Expected one consumer executable, found {binaries}")
-            subprocess.run([str(binaries[0])], cwd=consumer, check=True, timeout=15)
+            for target in ("consumer", "core"):
+                binaries = list((consumer / "target").glob(f"**/bin/{target}"))
+                if len(binaries) != 1:
+                    raise RuntimeError(
+                        f"Expected one {target} executable, found {binaries}"
+                    )
+                subprocess.run([str(binaries[0])], cwd=consumer, check=True, timeout=15)
     print("Two independent shared-path consumers passed with offline/locked builds")
 
 

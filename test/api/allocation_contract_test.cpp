@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <new>
 #include <salias/channel.hpp>
-#include <salias/latest_by_key_channel.hpp>
+#include <salias/extras/latest_by_key_channel.hpp>
 #include <salias/latest_channel.hpp>
 #include <string>
 
@@ -223,7 +223,7 @@ int main() {
     return 17;
   }
 
-  using LatestByKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 1>;
+  using LatestByKey = salias::extras::LatestByKeyChannel<std::uint64_t, std::uint64_t, 1>;
   const std::string latest_by_key_name = "allocations-latest-by-key-" + std::to_string(::getpid());
   auto latest_by_key = LatestByKey::create(latest_by_key_name);
   if (!latest_by_key) {

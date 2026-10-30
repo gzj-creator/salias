@@ -5,7 +5,7 @@ project(salias_install_consumer LANGUAGES CXX)
 include(CTest)
 enable_testing()
 
-find_package(salias CONFIG REQUIRED)
+find_package(salias CONFIG REQUIRED COMPONENTS core)
 
 add_executable(salias_install_consumer main.cpp)
 target_compile_features(salias_install_consumer PRIVATE cxx_std_23)

@@ -13,7 +13,8 @@ default = "llvm@22.1.8"
 path = "src/salias.cppm"
 
 [build]
-sources = ["src/salias.cppm", "src/salias/src/channel.cpp", "src/salias/src/latest_by_key.cpp",
+sources = ["src/salias.cppm", "src/salias_extras.cppm", "src/salias/src/channel.cpp",
+           "src/salias/src/latest_by_key.cpp",
            "src/core/platform/mapping.cpp",
            "src/core/flow/consumer.cpp", "src/core/flow/producer.cpp",
            "src/core/ring/magic_ring.cpp"]
@@ -30,4 +31,9 @@ sources = ["test/mcpp/header_probe.cpp"]
 [targets.test_mcpp_import]
 kind = "bin"
 main = "test/mcpp/import.cpp"
+required_features = ["mcpp-tests"]
+
+[targets.test_mcpp_core_import]
+kind = "bin"
+main = "test/mcpp/core_import.cpp"
 required_features = ["mcpp-tests"]

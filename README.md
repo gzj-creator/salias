@@ -117,11 +117,15 @@ LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者
 
 ## 附加能力
 
-`LatestByKeyChannel`、`PriorityPublisher` / `PrioritySubscriber` 和进程内 `Ringbuffer` 当前仍可
-经由 `<salias/salias.hpp>` 与 `import salias;` 使用，但已列为 extras 候选，不进入核心快速开始，
-也不进入 `FixedChannel` 热路径。Phase 3 负责设计独立安装和 module 边界；本版本不删除。
+`LatestByKey`、Priority 和进程内 `Ringbuffer` 位于独立的 `salias::extras` 命名空间，不由
+`<salias/salias.hpp>` 或 `import salias;` 隐式引入。头文件消费者包含
+`<salias/extras/extras.hpp>`（或三个专项头之一），CMake 消费者链接 `salias::extras`，模块消费者
+使用 `import salias.extras;`。这些能力不进入核心快速开始，也不进入 `FixedChannel` 热路径。
 
-`LatestByKeyChannel<Key, Value, Capacity, SchemaVersion>` 是独立的有界 latest-value IPC 表，按 key
+旧顶层类型和旧 include 仍作为 `4.x` 兼容入口保留，并产生弃用警告；规范迁移目标是
+`salias::extras::*` 和 `<salias/extras/*.hpp>`。本版本不删除旧入口。
+
+`extras::LatestByKeyChannel<Key, Value, Capacity, SchemaVersion>` 是独立的有界 latest-value IPC 表，按 key
 保存最新值，重复 key 更新覆盖同一槽位；订阅者各自接收当前快照，未读期间的中间更新会合并，返回的是
 本地拷贝而非共享内存借用。`Capacity` 表示最大不同 key 数，`SchemaVersion` 默认为 0；该默认值
 仅使用编译器类型签名，不能可靠发现同名同尺寸类型的布局或语义变化。应用应在 key/value 布局或
@@ -129,26 +133,28 @@ LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者
 `Error::CapacityExceeded`，已存在 key 仍可更新。Key 必须可平凡拷贝、具有唯一对象表示且不是指针；Value
 必须可平凡拷贝且自身及其成员都不能包含进程内指针。不同 key 之间不承诺全局顺序，锁竞争通过
 `try_recv_checked()` / `Publisher::offer()` 的 `Error::BackPressured` 报告；简化的
-`try_recv()` 将错误折叠为空结果，`recv()` 返回 `Result<LatestByKeyMessage<...>>` 并只重试临时背压；
+`try_recv()` 将错误折叠为空结果，`recv()` 返回 `Result<extras::LatestByKeyMessage<...>>` 并只重试临时背压；
 `conflated_updates()` 统计端点尚未读取前被合并掉的更新数。fork 前必须暂停所有使用该 channel 的
 线程和操作；静置 fork 后子进程可使用继承端点，fork 时有线程持有内部锁不受支持。
 Linux 的表操作使用进程共享 robust mutex，macOS 使用故障自动释放的文件锁，发布和有数据的
 接收仍按整个表串行；完成初始扫描后的空轮询仅检查原子通知状态。内部共享布局版本为 2，
 旧版本共享段的连接返回 `Error::VersionMismatch`，升级时须重新创建通道。
 
-独立头文件为 `<salias/latest_by_key_channel.hpp>`，对应端点和消息类型为
-`LatestByKeyPublisher`、`LatestByKeySubscriber` 和 `LatestByKeyMessage`。
+专项头文件为 `<salias/extras/latest_by_key_channel.hpp>`，对应端点和消息类型为
+`extras::LatestByKeyPublisher`、`extras::LatestByKeySubscriber` 和
+`extras::LatestByKeyMessage`。
 
 Pub/Sub 端点不提供内建 CPU 绑核接口，应用可在调用端点的线程上使用操作系统 affinity API。
 当前内存映射实现不支持 NUMA 放置，指定 NUMA 节点会返回 `NumaUnavailable`。
 
-`PriorityPublisher<Mode...>` 和 `PrioritySubscriber<Mode...>` 把多条独立 IPC 通道组合成按优先级
+`extras::PriorityPublisher<Mode...>` 和 `extras::PrioritySubscriber<Mode...>` 把多条独立 IPC 通道组合成按优先级
 路由与读取的端点组，模板参数从高到低排列。发布操作只触及指定通道，因此某一路背压不会
 占用其他通道的容量。订阅端以权重 `N, N-1, ..., 1` 做 work-conserving 加权轮询，保证持续
 有数据的低优先级通道不会饥饿；各通道内部仍保持原顺序，通道之间不承诺全局顺序。返回消息
 带有 priority 索引并借用原通道内存，必须通过组合订阅端 `release()`，或使用会自动释放的
-`poll()`。例如两级 FIFO 通道可用 `PriorityPublisher<Mode::FifoMpsc, Mode::FifoMpsc>` 创建路由端。
-阻塞读取直接使用 `recv(PriorityWaitPolicy policy = PriorityWaitPolicy::Yield)`：默认 `Yield`
+`poll()`。例如两级 FIFO 通道可用
+`extras::PriorityPublisher<Mode::FifoMpsc, Mode::FifoMpsc>` 创建路由端。阻塞读取直接使用
+`recv(extras::PriorityWaitPolicy policy = extras::PriorityWaitPolicy::Yield)`：默认 `Yield`
 维持原行为，空扫描后让出调度；`Spin` 使用 CPU pause 持续轮询以偏向低延迟（不保证所有
 拓扑更快）。`Adaptive` 先执行 64 次短自旋，然后在 Linux 支持时使用共享 epoch 的
 `futex_waitv`，每次等待以 1ms 单调时钟绝对截止时间兜底；不支持该后端或在 macOS 上退回
@@ -156,7 +162,7 @@ Pub/Sub 端点不提供内建 CPU 绑核接口，应用可在调用端点的线�
 每次调用独立开始等待；非法策略返回 `BadConfig`，不会消费消息。`try_recv*()` 与 `poll()`
 仍为非阻塞。默认参数保留普通无参调用兼容，但成员函数指针类型随新签名改变。
 
-`Ringbuffer<T, Capacity, HighWatermarkPercent>` 是进程内单线程有界队列，默认高水位为 90%，
+`extras::Ringbuffer<T, Capacity, HighWatermarkPercent>` 是进程内单线程有界队列，默认高水位为 90%，
 淘汰最旧项并保留最新项；它不提供跨进程、线程安全或 Channel 背压语义。
 
 公开 Channel 入口的保留、冻结、extras 化和主版本删除门禁见
@@ -191,25 +197,40 @@ cmake --install build --prefix /path/to/salias
 ```
 
 ```cmake
-find_package(salias CONFIG REQUIRED)
+find_package(salias CONFIG REQUIRED COMPONENTS core)
 target_link_libraries(my_app PRIVATE salias::salias)
 ```
+
+只有使用 LatestByKey、Priority 或 Ringbuffer 的独立消费工程才请求 extras；`salias::extras`
+会传递核心依赖：
+
+```cmake
+find_package(salias CONFIG REQUIRED COMPONENTS extras)
+target_link_libraries(my_extras_app PRIVATE salias::extras)
+```
+
+CMake 安装按 component 拆分：不传 `--component` 时安装全部；分别执行
+`cmake --install build --component core` 和 `cmake --install build --component extras` 可验证
+core-only 与 extras 增量安装。extras 的旧转发头随 extras component 安装，不进入 core-only 前缀。
 
 配置下游工程时，将安装前缀加入 `CMAKE_PREFIX_PATH`。
 
 ## mcpp 与 C++23 模块
 
 原生包身份为 `gzj-creator.salias`，版本 `4.1.0` 与 CMake 一致。`mcpp.toml`
-编译公共库和必要的 core 实现，`src/salias.cppm` 提供 `import salias;`；默认构建不需要
+编译公共库和必要的 core 实现，`src/salias.cppm` 提供 `import salias;`，
+`src/salias_extras.cppm` 提供 `import salias.extras;`；默认构建不需要
 GTest、Google Benchmark 或 Aeron。模块导出公共配置、枚举、错误和结果类型、Message、
 `Schema<T, Id, Version>`、Channel/Publisher/Subscriber/PublishClaim 模板、五种模式的端点别名、
-静态配置的 `LatestMpmcChannel`，以及当前仍为兼容聚合面的 `LatestByKeyChannel`、Priority 和
-`Ringbuffer`。应用专用别名由消费者维护。
+静态配置的 `LatestMpmcChannel`。`import salias;` 不导出 extras；使用
+`salias::extras::LatestByKeyChannel`、Priority 或 Ringbuffer 时必须单独
+`import salias.extras;`。应用专用别名由消费者维护。
 
 安装 mcpp 和 LLVM 工具链后，在仓库中构建和验证：
 
 ```bash
 mcpp build --offline --release --jobs 4
+mcpp run test_mcpp_core_import --offline --release --locked --features mcpp-tests
 mcpp run test_mcpp_import --offline --release --locked --features mcpp-tests
 python3 tools/check_mcpp.py
 ```
@@ -217,8 +238,9 @@ python3 tools/check_mcpp.py
 本次验证环境为 Linux x86_64、mcpp `2026.10.11.1`、LLVM `22.1.8`。
 代码保留 Linux/macOS 平台实现；macOS 的 mcpp 构建尚未在本机验证。
 `mcpp-tests` 是显式启用的测试 feature，默认不编译测试。
-测试覆盖五种模式的模块与头文件混合消费、实际收发、claim/commit、非对齐 payload 的 offer_batch、
-TTL 发送/过期跳过、模板 poll 和共享内存清理。`check_mcpp.py` 在两个临时消费者目录进行离线构建，
+测试覆盖 core-only `import salias;`、五种模式的模块与头文件混合消费、extras module、实际收发、
+claim/commit、非对齐 payload 的 offer_batch、TTL 发送/过期跳过、模板 poll 和共享内存清理。
+`check_mcpp.py` 在两个临时消费者目录进行离线构建，分别运行 core-only 与 core+extras consumer，
 并在生成锁文件后复验 `--locked`。
 
 等长 `offer_batch` 保留每条消息的原始 payload 长度，接收视图不包含 ring 对齐填充。

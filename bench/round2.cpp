@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "salias/salias.hpp"
+#include "salias/extras/extras.hpp"
 
 namespace {
 
@@ -92,14 +93,14 @@ void latest_arguments(benchmark::internal::Benchmark* target) {
   }
 }
 
-using PrioritySub = salias::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>;
+using PrioritySub = salias::extras::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>;
 
-salias::Result<salias::PriorityMessage> receive(PrioritySub& reader, std::int64_t policy) {
+salias::Result<salias::extras::PriorityMessage> receive(PrioritySub& reader, std::int64_t policy) {
 #ifdef SALIAS_ROUND2_BASELINE
   static_cast<void>(policy);
   return reader.recv();
 #else
-  return reader.recv(static_cast<salias::PriorityWaitPolicy>(policy));
+  return reader.recv(static_cast<salias::extras::PriorityWaitPolicy>(policy));
 #endif
 }
 
@@ -111,7 +112,7 @@ void BM_priority_roundtrip(benchmark::State& state) {
     return;
   }
   PrioritySub reader(high->subscriber(), low->subscriber());
-  salias::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> publisher(
+  salias::extras::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> publisher(
       high->publisher(), low->publisher());
   std::array<std::byte, 1024> payload{};
   payload.fill(std::byte{0xa5});

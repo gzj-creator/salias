@@ -7,12 +7,12 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
-#include "salias/ringbuffer.hpp"
+#include "salias/extras/ringbuffer.hpp"
 
 namespace {
 
 TEST(RingbufferTest, DefaultWatermarkDropsOldestAndKeepsNewest) {
-  salias::Ringbuffer<int, 10> queue;
+  salias::extras::Ringbuffer<int, 10> queue;
   EXPECT_EQ(queue.max_size(), 9u);
 
   for (int value = 1; value <= 9; ++value) {
@@ -30,7 +30,7 @@ TEST(RingbufferTest, DefaultWatermarkDropsOldestAndKeepsNewest) {
 }
 
 TEST(RingbufferTest, ConfiguredWatermarkIsCompileTimeAndWraps) {
-  salias::Ringbuffer<int, 8, 50> queue;
+  salias::extras::Ringbuffer<int, 8, 50> queue;
   static_assert(decltype(queue)::capacity() == 8);
   static_assert(decltype(queue)::max_size() == 4);
 
@@ -51,7 +51,7 @@ TEST(RingbufferTest, ConfiguredWatermarkIsCompileTimeAndWraps) {
 }
 
 TEST(RingbufferTest, SingleSlotAlwaysRetainsLatestValue) {
-  salias::Ringbuffer<int, 1> queue;
+  salias::extras::Ringbuffer<int, 1> queue;
   EXPECT_EQ(queue.max_size(), 1u);
   EXPECT_FALSE(queue.push(1));
   EXPECT_TRUE(queue.push(2));

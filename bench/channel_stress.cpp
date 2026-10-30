@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "salias/salias.hpp"
+#include "salias/extras/extras.hpp"
 
 /// 匿名命名空间，仅本编译单元可见的 stress benchmark 辅助类型与函数。
 namespace {
@@ -697,7 +698,7 @@ void BM_latest_seek_64b(benchmark::State& state) {
 }
 
 void BM_latest_by_key_roundtrip_64b(benchmark::State& state) {
-  using LatestByKey = salias::LatestByKeyChannel<std::uint64_t, LatestByKeyPayload, 1024>;
+  using LatestByKey = salias::extras::LatestByKeyChannel<std::uint64_t, LatestByKeyPayload, 1024>;
   const auto name = "salias-bench-latest-by-key-" + std::to_string(::getpid()) + "-" +
                     std::to_string(state.thread_index());
   auto created = LatestByKey::create(name);
@@ -851,9 +852,9 @@ void BM_fanout_copy_64b(benchmark::State& state) {
 
 void BM_priority_weighted_roundtrip_64b(benchmark::State& state) {
   using PriorityPublisher =
-      salias::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>;
+      salias::extras::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>;
   using PrioritySubscriber =
-      salias::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>;
+      salias::extras::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>;
   auto high_config = config_for(salias::Mode::FifoMpsc, 1u << 16);
   high_config.name += "-priority-high";
   auto low_config = config_for(salias::Mode::FifoMpsc, 1u << 16);

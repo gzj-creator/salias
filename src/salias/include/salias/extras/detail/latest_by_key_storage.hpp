@@ -1,5 +1,5 @@
 /**
- * @file src/salias/include/salias/detail/latest_by_key_storage.hpp
+ * @file src/salias/include/salias/extras/detail/latest_by_key_storage.hpp
  * @brief Internal type-erased shared-memory storage for LatestByKeyChannel and its endpoints.
  */
 #pragma once

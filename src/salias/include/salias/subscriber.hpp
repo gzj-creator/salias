@@ -39,8 +39,10 @@ template <Mode M>
 struct SubscriberEndpoint;
 template <Mode M, class Schema = RawPayloadSchema>
 class Subscriber;
-template <Mode... Modes>
-class PrioritySubscriber;
+namespace detail {
+enum class SubscriberAdaptiveTicketState : std::uint8_t { Armed, Consumed, Invalid };
+struct SubscriberAdaptiveWaitAccess;
+}  // namespace detail
 
 /**
  * @brief 订阅端，从通道读取消息的消费者接口。
@@ -202,7 +204,7 @@ class Subscriber<M, RawPayloadSchema> {
  private:
   // Internal ticket hooks used only by PrioritySubscriber's Adaptive policy.  Keeping them
   // private leaves the public subscriber API and installed consumer surface unchanged.
-  enum class AdaptiveTicketState : std::uint8_t { Armed, Consumed, Invalid };
+  using AdaptiveTicketState = detail::SubscriberAdaptiveTicketState;
   std::optional<bool> try_arm_adaptive_wait() noexcept;
   wait::FutexWaitToken adaptive_wait_token() const noexcept;
   AdaptiveTicketState adaptive_wait_ticket_state() const noexcept;
@@ -243,8 +245,7 @@ class Subscriber<M, RawPayloadSchema> {
   friend class Channel;  ///< Channel 通过私有构造创建 Subscriber。
   template <Mode, class>
   friend class Subscriber;  ///< Schema-bound facade 使用固定 schema 的解析路径。
-  template <Mode...>
-  friend class PrioritySubscriber;
+  friend struct detail::SubscriberAdaptiveWaitAccess;
 };
 
 /** @brief Schema-bound subscriber that returns owned values and exposes no borrowed payload API. */
@@ -296,6 +297,33 @@ class Subscriber<M, Schema> {
   template <Mode, class>
   friend class Channel;
 };
+
+namespace detail {
+
+/// @brief Narrow private bridge used by the separately compiled Priority extras.
+struct SubscriberAdaptiveWaitAccess {
+  template <Mode M>
+  static std::optional<bool> try_arm(Subscriber<M>& subscriber) noexcept {
+    return subscriber.try_arm_adaptive_wait();
+  }
+
+  template <Mode M>
+  static wait::FutexWaitToken token(const Subscriber<M>& subscriber) noexcept {
+    return subscriber.adaptive_wait_token();
+  }
+
+  template <Mode M>
+  static SubscriberAdaptiveTicketState ticket_state(const Subscriber<M>& subscriber) noexcept {
+    return subscriber.adaptive_wait_ticket_state();
+  }
+
+  template <Mode M>
+  static void clear_ticket(Subscriber<M>& subscriber) noexcept {
+    subscriber.clear_adaptive_wait_ticket();
+  }
+};
+
+}  // namespace detail
 
 using FifoMpscSubscriber = Subscriber<Mode::FifoMpsc>;        ///< FIFO MPSC 订阅端别名。
 using FifoMpmcSubscriber = Subscriber<Mode::FifoMpmc>;  ///< FIFO 多生产者多消费者广播订阅端别名。

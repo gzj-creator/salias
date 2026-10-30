@@ -1,5 +1,6 @@
 import std;
 import salias;
+import salias.extras;
 
 #include "typed_schema.hpp"
 
@@ -201,13 +202,13 @@ int main() {
         salias::LatestMpmcChannel<4096, 75>::connect(typed_latest_config.name);
     require(!raw_latest_connect && raw_latest_connect.error() == salias::Error::SchemaMismatch);
 
-    using LatestByKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 4>;
+    using LatestByKey = salias::extras::LatestByKeyChannel<std::uint64_t, std::uint64_t, 4>;
     static_assert(std::is_same_v<LatestByKey::Publisher,
-                                 salias::LatestByKeyPublisher<std::uint64_t, std::uint64_t>>);
+                                 salias::extras::LatestByKeyPublisher<std::uint64_t, std::uint64_t>>);
     static_assert(std::is_same_v<LatestByKey::Subscriber,
-                                 salias::LatestByKeySubscriber<std::uint64_t, std::uint64_t, 4>>);
+                                 salias::extras::LatestByKeySubscriber<std::uint64_t, std::uint64_t, 4>>);
     static_assert(std::is_same_v<LatestByKey::Message,
-                                 salias::LatestByKeyMessage<std::uint64_t, std::uint64_t>>);
+                                 salias::extras::LatestByKeyMessage<std::uint64_t, std::uint64_t>>);
     const auto latest_by_key_name =
         "salias-mcpp-latest-by-key-" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
@@ -229,15 +230,15 @@ int main() {
     auto latest_by_key_connected = LatestByKey::connect(latest_by_key_name);
     require(latest_by_key_connected.has_value());
 
-    using VersionedLatestByKey = salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 4, 1>;
+    using VersionedLatestByKey = salias::extras::LatestByKeyChannel<std::uint64_t, std::uint64_t, 4, 1>;
     const auto versioned_latest_by_key_name = latest_by_key_name + "-v1";
     auto versioned_latest_by_key = VersionedLatestByKey::create(versioned_latest_by_key_name);
     require(versioned_latest_by_key.has_value());
     require(VersionedLatestByKey::connect(versioned_latest_by_key_name).has_value());
 
-    static_assert(salias::PriorityPublisher<salias::Mode::FifoMpsc,
+    static_assert(salias::extras::PriorityPublisher<salias::Mode::FifoMpsc,
                                             salias::Mode::FifoMpsc>::priority_count() == 2);
-    static_assert(salias::PrioritySubscriber<salias::Mode::FifoMpsc,
+    static_assert(salias::extras::PrioritySubscriber<salias::Mode::FifoMpsc,
                                              salias::Mode::FifoMpsc>::priority_count() == 2);
     const auto priority_suffix =
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
@@ -252,17 +253,17 @@ int main() {
     auto high_priority = salias::Channel<salias::Mode::FifoMpsc>::create(high_priority_config);
     auto low_priority = salias::Channel<salias::Mode::FifoMpsc>::create(low_priority_config);
     require(high_priority && low_priority);
-    salias::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> priority_subscriber(
+    salias::extras::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> priority_subscriber(
         high_priority->subscriber(), low_priority->subscriber());
-    salias::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> priority_publisher(
+    salias::extras::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> priority_publisher(
         high_priority->publisher(), low_priority->publisher());
     const std::array high_priority_payload{std::byte{1}, std::byte{2}};
     require(priority_publisher.offer<0>(high_priority_payload).has_value());
-    auto high_priority_message = priority_subscriber.recv(salias::PriorityWaitPolicy::Spin);
+    auto high_priority_message = priority_subscriber.recv(salias::extras::PriorityWaitPolicy::Spin);
     require(high_priority_message && high_priority_message->priority == 0);
     require(priority_subscriber.release(*high_priority_message).has_value());
     require(header_priority_publish(high_priority_config.name, low_priority_config.name));
-    auto low_priority_message = priority_subscriber.recv(salias::PriorityWaitPolicy::Adaptive);
+    auto low_priority_message = priority_subscriber.recv(salias::extras::PriorityWaitPolicy::Adaptive);
     require(low_priority_message && low_priority_message->priority == 1 &&
             std::ranges::equal(low_priority_message->message.payload,
                                std::array{std::byte{9}, std::byte{8}}));

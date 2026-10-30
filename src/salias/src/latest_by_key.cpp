@@ -30,7 +30,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include "salias/detail/latest_by_key_storage.hpp"
+#include "salias/extras/detail/latest_by_key_storage.hpp"
 
 namespace salias::detail {
 namespace {

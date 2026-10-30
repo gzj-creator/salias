@@ -193,15 +193,17 @@ publisher.commit(std::move(*claim));
 不会把可见水位推进到空洞之后，补齐后才连续发布。
 不支持放弃未提交 claim，也不支持发布进程异常退出后的自动恢复；这类故障需要重建通道。
 
-## 附加能力（extras 候选）
+## 附加能力（extras）
 
-以下能力当前仍从 `<salias/salias.hpp>` 和 `import salias;` 导出，但属于 extras 候选，不是核心
-快速入口。仓库外使用证据和负责人签署未完成前不删除，也不进入 `FixedChannel` 热路径。
+以下能力位于独立的 `salias::extras` 命名空间，不属于核心 umbrella 或核心 module，也不进入
+`FixedChannel` 热路径。头文件消费者包含 `<salias/extras/extras.hpp>` 或对应专项头，CMake 消费者
+链接 `salias::extras`，模块消费者使用 `import salias.extras;`。CMake 安装的 `core` 与 `extras`
+component 分离；extras 的 keyed-table 实现不进入核心 `libsalias.a`。
 
-`LatestByKeyChannel<Key, Value, Capacity, SchemaVersion>` 提供跨进程的有界 key-value 最新值表。
-可直接包含 `<salias/latest_by_key_channel.hpp>`；发布、订阅和消息类型分别为
-`LatestByKeyPublisher<Key, Value>`、`LatestByKeySubscriber<Key, Value, Capacity>` 和
-`LatestByKeyMessage<Key, Value>`，也通过 `salias.hpp` 与 `import salias;` 导出。
+`extras::LatestByKeyChannel<Key, Value, Capacity, SchemaVersion>` 提供跨进程的有界 key-value 最新值表。
+可直接包含 `<salias/extras/latest_by_key_channel.hpp>`；发布、订阅和消息类型分别为
+`extras::LatestByKeyPublisher<Key, Value>`、`extras::LatestByKeySubscriber<Key, Value, Capacity>` 和
+`extras::LatestByKeyMessage<Key, Value>`。
 `SchemaVersion` 默认为 0 以兼容三参数实例，此时只有编译器类型签名校验，不能可靠发现同名同尺寸类型的
 布局或语义变化。应用若修改 key/value 的布局或语义，应显式递增版本；不同版本之间的 `connect()` 返回
 `Error::BadConfig`。`try_recv_checked()` 保留错误信息；`try_recv()`
@@ -234,8 +236,8 @@ endpoint 中缓存描述符，不引入热路径 heap 分配，也不改变公�
 
 ## Priority 等待策略
 
-`PrioritySubscriber::recv(PriorityWaitPolicy policy = PriorityWaitPolicy::Yield)` 直接接受
-`enum class PriorityWaitPolicy : std::uint32_t { Yield, Spin, Adaptive }`，无独立无参重载。
+`extras::PrioritySubscriber::recv(extras::PriorityWaitPolicy policy = extras::PriorityWaitPolicy::Yield)`
+直接接受 `enum class PriorityWaitPolicy : std::uint32_t { Yield, Spin, Adaptive }`，无独立无参重载。
 默认 `Yield` 在每次失败扫描后让出调度，保持原行为，空闲时仍可能占满一个核心。
 `Spin` 使用 CPU pause 持续轮询，偏向低延迟但不保证所有拓扑更快。`Adaptive` 先执行
 64 次失败扫描，然后在 Linux 支持时使用共享 epoch 的 `futex_waitv`，每次停车采用 1ms
@@ -246,7 +248,15 @@ endpoint 中缓存描述符，不引入热路径 heap 分配，也不改变公�
 仍然非阻塞，WRR、借用与 TTL 语义不变。默认参数兼容普通无参调用，但成员函数指针
 类型随新签名变化。
 
-进程内有界队列可使用 `salias::Ringbuffer<T, Capacity, HighWatermarkPercent>`。默认
+进程内有界队列可使用 `salias::extras::Ringbuffer<T, Capacity, HighWatermarkPercent>`。默认
 `HighWatermarkPercent = 90`，即最多保留 `floor(Capacity * 0.9)` 项（最少一项）；入队超出
 高水位时淘汰最旧项、保留最新项。`push()` 返回本次是否发生淘汰，`dropped_count()` 提供
 累计数。它是单线程容器，不改变 IPC Channel 的背压、借用消息或 fanout 语义。
+
+旧顶层类型 `salias::LatestByKeyChannel`、`salias::LatestByKeyPublisher`、
+`salias::LatestByKeySubscriber`、`salias::LatestByKeyMessage`、`salias::PriorityPublisher`、
+`salias::PrioritySubscriber`、`salias::PriorityMessage`、`salias::PriorityWaitPolicy` 和
+`salias::Ringbuffer` 和旧 include `<salias/latest_by_key_channel.hpp>`、
+`<salias/priority_channel.hpp>`、`<salias/ringbuffer.hpp>` 是 **compat** 转发入口，会产生弃用警告；
+它们不再由核心 umbrella/module 默认导出。迁移目标为上述 `salias::extras` 类型和
+`<salias/extras/*.hpp>`，删除窗口与其他源码兼容入口一致。

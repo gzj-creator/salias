@@ -8,7 +8,7 @@ salias 自身的代码、测试、工具、安装包和 module；仓库外消费
 ## 1. 审计方法与边界
 
 审计范围包括 `test/`、`bench/`、`example/`、`test/install/`、`test/mcpp/`、CMake
-安装规则、`src/salias.cppm` 和 `mcpp.toml`。检索命令使用符号名全量搜索，而不是只看
+安装规则、`src/salias.cppm`、`src/salias_extras.cppm` 和 `mcpp.toml`。检索命令使用符号名全量搜索，而不是只看
 README 或单个示例。当前工作区没有 `AGENTS.md`；本文不把仓库内引用外推为下游使用。
 
 ## 2. 使用矩阵
@@ -21,20 +21,20 @@ README 或单个示例。当前工作区没有 `AGENTS.md`；本文不把仓库�
 | 固定快速流 `FixedChannel`、`FixedPublisher`、`FixedSubscriber`、`FixedPublishClaim` | `test/api/fixed_channel_test.cpp` 及固定 Ring 测试 | `bench/fixed_channel_poll_compare.cpp` | 暂无 | `test/install/main.cpp` 创建并收发 | `salias.hpp` 与 `import salias;` 导出 | **core**；独立数据面，不与通用 Channel 合并 |
 | 规范 latest fanout `LatestMpmcChannel<Capacity, Watermark[, Schema]>` | `test/api/latest_subscription_test.cpp`、`channel_api_test.cpp`、`priority_channel_test.cpp`、`allocation_contract_test.cpp` | `bench/channel_stress.cpp`、`bench/round2.cpp`、`bench/round2_probe.cpp` | 暂无 | `test/install/main.cpp` 创建并收发 typed latest | `test/mcpp/import.cpp`、`test/mcpp/header_probe.cpp`、`src/salias.cppm` | **core**；raw/typed 共用的唯一最新窗口入口 |
 | 直接 `Channel<Mode::LatestMpmc>` | `test/api/channel_api_test.cpp` 用编译期 concept 断言工厂不可调用 | 已迁移到 `LatestMpmcChannel` | 已迁移到 `LatestMpmcChannel` | 未使用 | `header_probe.cpp` 通过 wrapper 分派 | **removed**；不提供直接 `create()`/`connect()` |
-| `LatestByKeyChannel` 及消息/端点 | `test/api/latest_by_key_test.cpp`、`allocation_contract_test.cpp` | `bench/latest_by_key.cpp`、`bench/channel_stress.cpp` | 暂无 | 未使用 | `header_probe.cpp`、`import.cpp`、`src/salias.cppm` | **extras 候选**；外部使用未确认，不删除 |
-| `PriorityPublisher`、`PrioritySubscriber`、`PriorityMessage`、`PriorityWaitPolicy` | `test/api/priority_channel_test.cpp` | `bench/round2.cpp`、`bench/round2_probe.cpp`、`bench/channel_stress.cpp` | 暂无 | `test/install/main.cpp` 直接依赖 | `header_probe.cpp`、`import.cpp`、`src/salias.cppm` | **extras 候选**；安装消费仍耦合，Phase 3 处理 |
-| `Ringbuffer` | `test/ring/ringbuffer_test.cpp` | 暂无 | 暂无 | 未使用 | `salias.hpp` 与 `import salias;` 导出 | **extras 候选**；外部使用未确认，不删除 |
+| `salias::extras::LatestByKeyChannel` 及消息/端点 | `test/api/latest_by_key_test.cpp`、`allocation_contract_test.cpp` | `bench/latest_by_key.cpp`、`bench/channel_stress.cpp` | 暂无 | `test/install/extras/main.cpp` 跨进程收发 | `<salias/extras/extras.hpp>`、`import salias.extras;`、`salias::extras` | **extras**；实现位于独立 `salias_extras` |
+| `salias::extras::Priority*` | `test/api/priority_channel_test.cpp` | `bench/round2.cpp`、`bench/round2_probe.cpp`、`bench/channel_stress.cpp` | 暂无 | `test/install/extras/main.cpp` 编译并验证失败语义 | `<salias/extras/extras.hpp>`、`import salias.extras;`、`salias::extras` | **extras**；不再进入核心安装消费者 |
+| `salias::extras::Ringbuffer` | `test/ring/ringbuffer_test.cpp` | 暂无 | 暂无 | `test/install/extras/main.cpp` 验证丢旧 | `<salias/extras/extras.hpp>`、`import salias.extras;`、`salias::extras` | **extras**；header-only，随 extras include 根发布 |
+| 旧顶层 extras 名称与三个旧 include | 仅 `test/api/extras_compat_test.cpp` 验证同型与弃用窗口 | 无；已迁移 | 无；已迁移 | 无；extras 安装消费者使用规范名称 | 核心 umbrella/module 不再导出；旧转发头随 extras component | **compat**；本版本不删除 |
 
 ## 3. 关键缺口
 
-- 安装消费 `test/install/main.cpp` 当前直接使用 `PrioritySubscriber` 和
-  `PriorityWaitPolicy`，证明核心安装归档尚未与 extras 候选解耦；该问题留给 Phase 3。
-- mcpp 的 header probe 和 import test 同时覆盖规范核心路径、旧别名、Latest、LatestByKey
-  和 Priority。Phase 1 只迁移旧别名并保留独立兼容测试，不在本阶段拆分 mcpp extras。
+- 核心安装消费者与 mcpp 核心 module 只使用核心路径；extras 安装消费者链接
+  `salias::extras`，mcpp import 单元显式 `import salias.extras;`。
+- 旧 extras 名称只由 `test/api/extras_compat_test.cpp` 和三个转发头保留；主测试、benchmark、
+  install consumer 和 mcpp consumer 均使用 `salias::extras::*`。
 - `LatestMpmcChannel` 同时支持 raw 和 typed payload；第三个模板参数省略时是 raw，显式传入时
   保留原有 schema ID、版本与 payload 大小校验。直接 `Channel<Mode::LatestMpmc>` 工厂已关闭。
-- 仓库外使用证据没有采集，也不作为本次接口收敛的门禁；`LatestByKey`、Priority 和 Ringbuffer
-  保持当前导出，Phase 3 前不删除、不移动。
+- 仓库外使用证据没有采集，也不作为本次接口收敛的门禁；extras 只迁移边界，不删除旧名称。
 
 ## 4. 证据命令
 
@@ -48,4 +48,6 @@ rg -n 'PriorityPublisher|PrioritySubscriber|PriorityMessage|PriorityWaitPolicy' 
   test bench example test/install test/mcpp
 rg -n 'Ringbuffer' test bench example test/install test/mcpp
 rg -n 'using ::salias::' src/salias.cppm
+rg -n 'using ::salias::extras::' src/salias_extras.cppm
+rg -n 'salias::extras|salias/extras/' test bench example test/install test/mcpp
 ```

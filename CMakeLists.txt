@@ -67,23 +67,57 @@ endif()
 
 install(
   TARGETS salias salias_core
-  EXPORT saliasTargets
+  EXPORT saliasCoreTargets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  COMPONENT core
 )
 install(
-  DIRECTORY "${PROJECT_SOURCE_DIR}/src/salias/include/salias"
-  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+  TARGETS salias_extras
+  EXPORT saliasExtrasTargets
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+  COMPONENT extras
+)
+install(
+  DIRECTORY "${PROJECT_SOURCE_DIR}/src/salias/include/salias/"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/salias"
+  COMPONENT core
+  PATTERN "extras" EXCLUDE
+  PATTERN "latest_by_key_channel.hpp" EXCLUDE
+  PATTERN "priority_channel.hpp" EXCLUDE
+  PATTERN "ringbuffer.hpp" EXCLUDE
+)
+install(
+  DIRECTORY "${PROJECT_SOURCE_DIR}/src/salias/include/salias/extras"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/salias"
+  COMPONENT extras
+)
+install(
+  FILES
+    "${PROJECT_SOURCE_DIR}/src/salias/include/salias/latest_by_key_channel.hpp"
+    "${PROJECT_SOURCE_DIR}/src/salias/include/salias/priority_channel.hpp"
+    "${PROJECT_SOURCE_DIR}/src/salias/include/salias/ringbuffer.hpp"
+  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/salias"
+  COMPONENT extras
 )
 install(
   DIRECTORY "${PROJECT_SOURCE_DIR}/src/core/"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/salias/core"
+  COMPONENT core
   FILES_MATCHING PATTERN "*.hpp"
 )
 install(
-  EXPORT saliasTargets
-  FILE saliasTargets.cmake
+  EXPORT saliasCoreTargets
+  FILE saliasCoreTargets.cmake
   NAMESPACE salias::
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/salias"
+  COMPONENT core
+)
+install(
+  EXPORT saliasExtrasTargets
+  FILE saliasExtrasTargets.cmake
+  NAMESPACE salias::
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/salias"
+  COMPONENT extras
 )
 
 configure_package_config_file(
@@ -101,6 +135,7 @@ install(
     "${PROJECT_BINARY_DIR}/saliasConfig.cmake"
     "${PROJECT_BINARY_DIR}/saliasConfigVersion.cmake"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/salias"
+  COMPONENT core
 )
 
 if(BUILD_TESTING)
@@ -113,6 +148,7 @@ if(BUILD_TESTING)
     "-DSALIAS_CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
     "-DSALIAS_CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
     "-DSALIAS_CMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
+    "-DSALIAS_INSTALL_LIBDIR=${CMAKE_INSTALL_LIBDIR}"
     "-DSALIAS_TEST_LAUNCHER=${PROJECT_SOURCE_DIR}/cmake/salias_test_launcher.sh"
   )
   if(DEFINED CMAKE_C_COMPILER AND NOT CMAKE_C_COMPILER STREQUAL "")
