@@ -141,10 +141,14 @@ salias_build_and_test_consumer(core-only "${core_consumer_build}")
 
 salias_install_component(extras "extras")
 if(NOT EXISTS "${install_prefix}/include/salias/extras/latest_by_key_channel.hpp"
-   OR NOT EXISTS "${install_prefix}/include/salias/latest_by_key_channel.hpp"
    OR NOT EXISTS "${extras_archive}"
    OR NOT EXISTS "${install_prefix}/${SALIAS_INSTALL_LIBDIR}/cmake/salias/saliasExtrasTargets.cmake")
   message(FATAL_ERROR "extras component did not install its headers, archive, and import target")
+endif()
+if(EXISTS "${install_prefix}/include/salias/latest_by_key_channel.hpp"
+   OR EXISTS "${install_prefix}/include/salias/priority_channel.hpp"
+   OR EXISTS "${install_prefix}/include/salias/ringbuffer.hpp")
+  message(FATAL_ERROR "extras component unexpectedly installed removed forwarding headers")
 endif()
 
 execute_process(

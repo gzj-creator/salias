@@ -82,20 +82,9 @@ install(
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/salias"
   COMPONENT core
   PATTERN "extras" EXCLUDE
-  PATTERN "latest_by_key_channel.hpp" EXCLUDE
-  PATTERN "priority_channel.hpp" EXCLUDE
-  PATTERN "ringbuffer.hpp" EXCLUDE
 )
 install(
   DIRECTORY "${PROJECT_SOURCE_DIR}/src/salias/include/salias/extras"
-  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/salias"
-  COMPONENT extras
-)
-install(
-  FILES
-    "${PROJECT_SOURCE_DIR}/src/salias/include/salias/latest_by_key_channel.hpp"
-    "${PROJECT_SOURCE_DIR}/src/salias/include/salias/priority_channel.hpp"
-    "${PROJECT_SOURCE_DIR}/src/salias/include/salias/ringbuffer.hpp"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/salias"
   COMPONENT extras
 )

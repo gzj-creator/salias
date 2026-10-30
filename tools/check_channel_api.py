@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Validate the frozen Channel API manifest, compatibility docs, and quick start."""
+"""Validate the Channel API manifest, removed-entry contracts, and docs."""
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import pathlib
 import re
+import subprocess
 import sys
 
 
@@ -18,8 +21,11 @@ UMBRELLA = ROOT / "src/salias/include/salias/salias.hpp"
 MODULE = ROOT / "src/salias.cppm"
 EXTRAS_UMBRELLA = ROOT / "src/salias/include/salias/extras/extras.hpp"
 EXTRAS_MODULE = ROOT / "src/salias_extras.cppm"
-COMPAT_TEST = ROOT / "test/api/channel_alias_compat_test.cpp"
-EXTRAS_COMPAT_TEST = ROOT / "test/api/extras_compat_test.cpp"
+INSTALL_TEST = ROOT / "cmake/install_consumer_test.cmake"
+TEST_CMAKE = ROOT / "test/CMakeLists.txt"
+REMOVED_TEST = ROOT / "test/api/removed_api_contract_test.cpp"
+CORE_IMPORT_TEST = ROOT / "test/mcpp/core_import.cpp"
+EXTRAS_IMPORT_TEST = ROOT / "test/mcpp/import.cpp"
 
 ALIASES = (
     "FifoMpscChannel",
@@ -38,18 +44,35 @@ EXTRAS = (
     "PriorityWaitPolicy",
     "Ringbuffer",
 )
-EXTRAS_FORWARDING_HEADERS = {
-    "LatestByKeyChannel": "latest_by_key_channel.hpp",
-    "LatestByKeyPublisher": "latest_by_key_channel.hpp",
-    "LatestByKeySubscriber": "latest_by_key_channel.hpp",
-    "LatestByKeyMessage": "latest_by_key_channel.hpp",
-    "PriorityPublisher": "priority_channel.hpp",
-    "PrioritySubscriber": "priority_channel.hpp",
-    "PriorityMessage": "priority_channel.hpp",
-    "PriorityWaitPolicy": "priority_channel.hpp",
-    "Ringbuffer": "ringbuffer.hpp",
+REMOVED_HEADERS = (
+    "latest_by_key_channel.hpp",
+    "priority_channel.hpp",
+    "ringbuffer.hpp",
+)
+REMOVED_ALIAS_NAMES = tuple(f"salias::{name}" for name in (*ALIASES, *EXTRAS))
+REMOVED_TYPE_EXPRESSIONS = {
+    "FifoMpscChannel": "salias::FifoMpscChannel",
+    "FifoMpmcChannel": "salias::FifoMpmcChannel",
+    "OrderedMpscChannel": "salias::OrderedMpscChannel",
+    "OrderedMpmcChannel": "salias::OrderedMpmcChannel",
+    "LatestByKeyChannel": "salias::LatestByKeyChannel<std::uint64_t, std::uint64_t, 4>",
+    "LatestByKeyPublisher": "salias::LatestByKeyPublisher<std::uint64_t, std::uint64_t>",
+    "LatestByKeySubscriber": "salias::LatestByKeySubscriber<std::uint64_t, std::uint64_t, 4>",
+    "LatestByKeyMessage": "salias::LatestByKeyMessage<std::uint64_t, std::uint64_t>",
+    "PriorityPublisher": "salias::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>",
+    "PrioritySubscriber": "salias::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>",
+    "PriorityMessage": "salias::PriorityMessage",
+    "PriorityWaitPolicy": "salias::PriorityWaitPolicy",
+    "Ringbuffer": "salias::Ringbuffer<int, 4>",
 }
+NEGATIVE_CONTRACT_TESTS = {REMOVED_TEST, CORE_IMPORT_TEST, EXTRAS_IMPORT_TEST}
 CODE_ROOTS = ("test", "bench", "example")
+EXPECTED_COUNTS = {"core": 30, "compat": 0, "extras": 9, "removed": 14}
+EXPECTED_MODULE_COUNTS = {"core": 29, "extras": 9}
+README_REMOVED_HEADING = "## \u5df2\u79fb\u9664\u5feb\u6377\u5165\u53e3"
+DIRECT_LATEST_RE = re.compile(
+    r"(?:salias::)?Channel<(?:salias::)?Mode::LatestMpmc(?=[,>])"
+)
 
 
 def fail(message: str) -> None:
@@ -74,23 +97,45 @@ def load_manifest() -> dict:
     return data
 
 
+def validate_location(location: dict, label: str, require_file: bool) -> None:
+    for field in ("file", "line", "declaration"):
+        if field not in location:
+            fail(f"{label} is missing {field}")
+    if not isinstance(location["line"], int) or location["line"] < 1:
+        fail(f"{label} has an invalid line number")
+    if not isinstance(location["declaration"], str) or not location["declaration"]:
+        fail(f"{label} has an invalid declaration")
+    if not require_file:
+        return
+    path = ROOT / location["file"]
+    if not path.is_file():
+        fail(f"{label} points to missing file {location['file']}")
+    lines = read(path).splitlines()
+    line_number = location["line"]
+    if line_number > len(lines):
+        fail(f"{label} line {line_number} is outside {location['file']}")
+    if location["declaration"] not in lines[line_number - 1]:
+        fail(
+            f"{label} declaration mismatch at "
+            f"{location['file']}:{line_number}: {lines[line_number - 1]!r}"
+        )
+
+
 def validate_locations(symbols: list[dict]) -> None:
     for symbol in symbols:
-        locations = [symbol["location"]]
-        locations.extend(symbol.get("secondary_locations", []))
-        for location in locations:
-            path = ROOT / location["file"]
-            if not path.is_file():
-                fail(f"{symbol['name']} points to missing file {location['file']}")
-            lines = read(path).splitlines()
-            line_number = location["line"]
-            if line_number < 1 or line_number > len(lines):
-                fail(f"{symbol['name']} line {line_number} is outside {location['file']}")
-            if location["declaration"] not in lines[line_number - 1]:
-                fail(
-                    f"{symbol['name']} declaration mismatch at "
-                    f"{location['file']}:{line_number}: {lines[line_number - 1]!r}"
-                )
+        name = symbol["name"]
+        location = symbol.get("location")
+        previous_location = symbol.get("previous_location")
+        if location is not None:
+            validate_location(location, f"{name} location", require_file=True)
+        if previous_location is not None:
+            validate_location(previous_location, f"{name} previous_location", require_file=False)
+        if symbol["status"] != "removed" and location is None:
+            fail(f"{name} must have a current location")
+        if name in REMOVED_ALIAS_NAMES and location is not None:
+            fail(f"{name} is removed but still declares a current location")
+        if name in REMOVED_ALIAS_NAMES and previous_location is None:
+            fail(f"{name} is removed but has no previous_location")
 
 
 def validate_symbols(data: dict) -> tuple[list[dict], dict[str, dict]]:
@@ -112,20 +157,31 @@ def validate_symbols(data: dict) -> tuple[list[dict], dict[str, dict]]:
         for field in ("header", "umbrella", "module", "cmake", "mcpp"):
             if not isinstance(exports.get(field), bool):
                 fail(f"{name} has invalid exports.{field}")
+        if symbol["status"] == "removed" and any(exports.values()):
+            fail(f"{name} is removed but still declares an exported surface")
         for member in symbol.get("members", []):
             if member.get("status") not in statuses:
                 fail(f"{name}::{member.get('name')} has invalid status")
         by_name[name] = symbol
 
-    if not any(symbol["status"] == "core" for symbol in symbols):
-        fail("manifest has no core symbols")
-    if not any(symbol["status"] == "compat" for symbol in symbols):
-        fail("manifest has no compat symbols")
-    if not any(symbol["status"] == "extras" for symbol in symbols):
-        fail("manifest has no extras symbols")
-    for symbol in symbols:
-        if symbol["status"] == "compat" and symbol["replacement"].endswith("(self)"):
-            fail(f"{symbol['name']} is compat but points only to itself")
+    counts = {status: sum(s["status"] == status for s in symbols) for status in statuses}
+    if counts != EXPECTED_COUNTS:
+        fail(f"manifest counts {counts} != expected {EXPECTED_COUNTS}")
+    if by_name.get("salias::Channel<Mode::LatestMpmc>", {}).get("status") != "removed":
+        fail("direct Channel<Mode::LatestMpmc> creation must remain removed")
+    if data.get("current_api_state") != "post_phase4_source_removal_unreleased":
+        fail("manifest does not record the post-Phase-4 unreleased state")
+    removal_metadata = data.get("removal_metadata", {})
+    if removal_metadata.get("state") != "source_removed_unreleased":
+        fail("removal metadata must keep the removal unreleased")
+    if removal_metadata.get("release_tag") is not None:
+        fail("removal metadata must not claim a release tag")
+    if removal_metadata.get("wire_protocol_changed") is not False:
+        fail("removal metadata must state that the wire protocol did not change")
+
+    removed_names = {symbol["name"] for symbol in symbols if symbol["status"] == "removed"}
+    if set(data.get("removed_symbols", [])) != removed_names:
+        fail("removed_symbols must match all symbols with removed status")
 
     validate_locations(symbols)
     return symbols, by_name
@@ -141,6 +197,8 @@ def validate_module_and_umbrella(data: dict, symbols: list[dict]) -> None:
             f"manifest-only={sorted(declared_exports - module_exports)}, "
             f"module-only={sorted(module_exports - declared_exports)}"
         )
+    if len(module_exports) != EXPECTED_MODULE_COUNTS["core"]:
+        fail(f"core module exports {len(module_exports)} symbols, expected 29")
 
     extras_module_text = read(EXTRAS_MODULE)
     extras_module_exports = set(
@@ -153,6 +211,8 @@ def validate_module_and_umbrella(data: dict, symbols: list[dict]) -> None:
             f"manifest-only={sorted(declared_extras_exports - extras_module_exports)}, "
             f"module-only={sorted(extras_module_exports - declared_extras_exports)}"
         )
+    if len(extras_module_exports) != EXPECTED_MODULE_COUNTS["extras"]:
+        fail(f"extras module exports {len(extras_module_exports)} symbols, expected 9")
 
     for symbol in symbols:
         qualified_name = symbol["name"].removeprefix("salias::")
@@ -188,51 +248,126 @@ def validate_module_and_umbrella(data: dict, symbols: list[dict]) -> None:
         fail(f"unexpected extras umbrella header set: {sorted(extras_included ^ required_extras)}")
 
 
-def validate_compat_code(by_name: dict[str, dict]) -> None:
+def require_absent(text: str, pattern: str, label: str) -> None:
+    if re.search(pattern, text):
+        fail(label)
+
+
+def validate_removed_code(by_name: dict[str, dict]) -> None:
     channel_header = read(ROOT / "src/salias/include/salias/channel.hpp")
+    module_text = read(MODULE)
     for alias in ALIASES:
         symbol = by_name.get(f"salias::{alias}")
-        if symbol is None or symbol["status"] != "compat":
-            fail(f"{alias} must be listed as compat")
-        if alias not in channel_header or "[[deprecated(" not in channel_header:
-            fail(f"{alias} is not source-compatible and deprecated")
+        if symbol is None or symbol["status"] != "removed":
+            fail(f"{alias} must be listed as removed")
+        require_absent(
+            channel_header,
+            rf"\busing\s+{re.escape(alias)}\b",
+            f"{alias} still has a channel.hpp declaration",
+        )
+        require_absent(module_text, rf"\b{re.escape(alias)}\b", f"salias module still exports {alias}")
 
-    compat_test = read(COMPAT_TEST)
-    for alias in ALIASES:
-        if alias not in compat_test:
-            fail(f"compatibility test does not cover {alias}")
+    forwarding_root = ROOT / "src/salias/include/salias"
+    for header in REMOVED_HEADERS:
+        if (forwarding_root / header).exists():
+            fail(f"removed forwarding header still exists: salias/{header}")
 
-    extras_compat_test = read(EXTRAS_COMPAT_TEST)
-    for alias in EXTRAS:
+    removed_test = read(REMOVED_TEST)
+    for alias in (*ALIASES, *EXTRAS):
         symbol = by_name.get(f"salias::{alias}")
-        if symbol is None or symbol["status"] != "compat":
-            fail(f"{alias} top-level forwarding name must be listed as compat")
-        header = read(ROOT / "src/salias/include/salias" / EXTRAS_FORWARDING_HEADERS[alias])
-        if alias not in header or "[[deprecated(" not in header:
-            fail(f"{alias} is not source-compatible and deprecated")
-        if alias not in extras_compat_test:
-            fail(f"extras compatibility test does not cover {alias}")
+        if symbol is None or symbol["status"] != "removed":
+            fail(f"top-level legacy name {alias} must be listed as removed")
+    for header in REMOVED_HEADERS:
+        include = f"#if __has_include(<salias/{header}>)"
+        if include not in removed_test:
+            fail(f"removed contract test does not lock salias/{header}")
 
-    alias_pattern = re.compile(
-        r"\bsalias::(" + "|".join((*ALIASES, *EXTRAS)) + r")\b"
+    test_cmake = read(TEST_CMAKE)
+    if "api/removed_api_contract_test.cpp" not in test_cmake:
+        fail("test/CMakeLists.txt does not build the removed API contract test")
+    for stale_test in ("channel_alias_compat_test.cpp", "extras_compat_test.cpp"):
+        if stale_test in test_cmake:
+            fail(f"test/CMakeLists.txt still builds removed compat test {stale_test}")
+
+    install_test = read(INSTALL_TEST)
+    if "unexpectedly installed removed forwarding headers" not in install_test:
+        fail("install consumer test does not reject removed forwarding headers")
+
+    core_import = read(CORE_IMPORT_TEST)
+    extras_import = read(EXTRAS_IMPORT_TEST)
+    if "import salias;" not in core_import:
+        fail("core module import test does not import salias")
+    if "import salias.extras;" not in extras_import:
+        fail("extras module import test does not import salias.extras")
+
+    alias_pattern = re.compile(r"\bsalias::(" + "|".join((*ALIASES, *EXTRAS)) + r")\b")
+    header_pattern = re.compile(
+        r"<salias/(" + "|".join(re.escape(header) for header in REMOVED_HEADERS) + r")>"
     )
     for root_name in CODE_ROOTS:
         for path in (ROOT / root_name).rglob("*"):
             if not path.is_file() or path.suffix not in {".hpp", ".cpp", ".cc", ".cxx"}:
                 continue
-            if path in {COMPAT_TEST, EXTRAS_COMPAT_TEST}:
+            if path in NEGATIVE_CONTRACT_TESTS:
                 continue
-            match = alias_pattern.search(read(path))
+            text = read(path)
+            match = alias_pattern.search(text)
             if match:
-                fail(f"non-compat code still uses {match.group(1)}: {path.relative_to(ROOT)}")
+                fail(f"non-contract code still uses removed API {match.group(1)}: {path.relative_to(ROOT)}")
+            header_match = header_pattern.search(text)
+            if header_match:
+                fail(f"non-contract code still includes removed header {header_match.group(1)}: {path.relative_to(ROOT)}")
+
+
+def compile_must_fail(compiler: str, source: str, expected_token: str, label: str) -> None:
+    command = [
+        compiler,
+        "-std=c++23",
+        "-fsyntax-only",
+        f"-I{ROOT / 'src/salias/include'}",
+        f"-I{ROOT / 'src'}",
+        "-x",
+        "c++",
+        "-",
+    ]
+    try:
+        result = subprocess.run(
+            command,
+            input=source,
+            text=True,
+            capture_output=True,
+            cwd=ROOT,
+            check=False,
+        )
+    except OSError as error:
+        fail(f"cannot run compiler {compiler!r}: {error}")
+    if result.returncode == 0:
+        fail(f"removed API unexpectedly compiles: {label}")
+    diagnostic = result.stdout + result.stderr
+    if expected_token not in diagnostic:
+        fail(f"negative compile for {label} failed for an unexpected reason: {diagnostic.strip()}")
+
+
+def validate_removed_compile_contract(compiler: str) -> None:
+    preamble = (
+        "#include <cstdint>\n"
+        "#include <salias/salias.hpp>\n"
+        "#include <salias/extras/extras.hpp>\n"
+    )
+    for name, expression in REMOVED_TYPE_EXPRESSIONS.items():
+        source = preamble + f"using Removed = {expression};\nint main() {{ return 0; }}\n"
+        compile_must_fail(compiler, source, name, name)
+    for header in REMOVED_HEADERS:
+        source = f"#include <salias/{header}>\nint main() {{ return 0; }}\n"
+        compile_must_fail(compiler, source, header, f"salias/{header}")
 
 
 def validate_docs(by_name: dict[str, dict]) -> None:
     readme = read(README)
-    start = readme.find("## 快速开始")
+    start = readme.find("## \u5feb\u901f\u5f00\u59cb")
     end = readme.find("\n## ", start + 1)
     if start < 0 or end < 0:
-        fail("README is missing a bounded 快速开始 section")
+        fail("README is missing a bounded quick-start section")
     quick_start = readme[start:end]
     required_snippets = (
         "salias::Channel<salias::Mode::FifoMpsc, QuoteSchema>",
@@ -244,32 +379,46 @@ def validate_docs(by_name: dict[str, dict]) -> None:
             fail(f"README quick start is missing {snippet}")
     for forbidden in (*ALIASES, *EXTRAS, "Channel<salias::Mode::LatestMpmc>"):
         if forbidden in quick_start:
-            fail(f"README quick start promotes non-core entry {forbidden}")
+            fail(f"README quick start promotes removed or non-core entry {forbidden}")
+
+    removed_start = readme.find(README_REMOVED_HEADING)
+    removed_end = readme.find("\n## ", removed_start + 1) if removed_start >= 0 else -1
+    if removed_start < 0 or removed_end < 0:
+        fail("README is missing a bounded removed-entry section")
+    removed_section = readme[removed_start:removed_end]
+    for alias in ALIASES:
+        if alias not in removed_section:
+            fail(f"README removed-entry section does not map {alias}")
+    if "2026-10-30" not in removed_section or "5.0.0" not in removed_section:
+        fail("README removed-entry section must record owner approval date and pending 5.0.0 release")
+    if "compat" in removed_section.lower() or "still retained" in removed_section.lower():
+        fail("README removed-entry section still describes compatibility exports")
 
     api_doc = read(API_DOC)
     migration = read(MIGRATION)
-    for alias in ALIASES:
-        if alias not in api_doc or alias not in migration:
-            fail(f"compatibility docs do not mention {alias}")
-    direct_latest = re.compile(r"(?:salias::)?Channel<(?:salias::)?Mode::LatestMpmc(?=[,>])")
-    if not direct_latest.search(api_doc) or not direct_latest.search(migration):
-        fail("compatibility docs do not mark direct Channel<Mode::LatestMpmc>")
-    if "5.0.0" not in migration or "deprecated" not in read(ROOT / "src/salias/include/salias/channel.hpp"):
-        fail("migration policy does not state the major-version removal window")
+    if "removed" not in api_doc.lower() or "removed" not in migration.lower():
+        fail("API and migration docs must explicitly mark removed entries")
+    for alias in (*ALIASES, *EXTRAS):
+        if f"salias::{alias}" not in api_doc:
+            fail(f"API doc does not mark removed symbol salias::{alias}")
+        if f"salias::{alias}" not in migration:
+            fail(f"migration doc does not map removed symbol salias::{alias}")
+    for header in REMOVED_HEADERS:
+        if f"salias/{header}" not in api_doc or f"salias/{header}" not in migration:
+            fail(f"docs do not map removed include salias/{header}")
+    if not DIRECT_LATEST_RE.search(api_doc) or not DIRECT_LATEST_RE.search(migration):
+        fail("docs do not mark direct Channel<Mode::LatestMpmc> as removed")
     if "salias::extras::" not in api_doc or "import salias.extras;" not in api_doc:
         fail("API doc does not describe the canonical extras namespace and module")
-    for alias in EXTRAS:
-        if f"salias::{alias}" not in migration:
-            fail(f"migration table does not map the deprecated extras alias {alias}")
+    for required in ("2026-10-30", "5.0.0", "Phase 5", "wire protocol"):
+        if required not in migration:
+            fail(f"migration doc is missing required removal/release detail: {required}")
+    if "仍作为 `4.x` 兼容入口保留" in readme or "本版本不删除旧入口" in readme:
+        fail("README still claims old entries remain source-compatible")
 
     for symbol in by_name.values():
-        if symbol["status"] != "compat":
-            continue
-        short_name = symbol["name"].removeprefix("salias::").split("<", 1)[0]
-        if symbol["name"] == "salias::Channel<Mode::LatestMpmc>":
-            continue
-        if short_name not in api_doc:
-            fail(f"API doc does not mark compat symbol {symbol['name']}")
+        if symbol["status"] == "compat":
+            fail(f"manifest still contains compat symbol {symbol['name']}")
 
 
 def validate_versions(data: dict) -> None:
@@ -282,10 +431,19 @@ def validate_versions(data: dict) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--compiler",
+        default=os.environ.get("CXX", "c++"),
+        help="C++ compiler used for removed-header and removed-symbol compile checks",
+    )
+    args = parser.parse_args()
+
     data = load_manifest()
     symbols, by_name = validate_symbols(data)
     validate_module_and_umbrella(data, symbols)
-    validate_compat_code(by_name)
+    validate_removed_code(by_name)
+    validate_removed_compile_contract(args.compiler)
     validate_docs(by_name)
     validate_versions(data)
     counts = {status: sum(s["status"] == status for s in symbols) for status in data["statuses"]}
@@ -294,7 +452,8 @@ def main() -> None:
         f"{counts['core']} core, {counts['compat']} compat, "
         f"{counts['extras']} extras, {counts['removed']} removed; "
         f"core module {len(data['module_exports'])}, "
-        f"extras module {len(data['extras_module_exports'])}"
+        f"extras module {len(data['extras_module_exports'])}; "
+        f"negative compile checks {len(REMOVED_TYPE_EXPRESSIONS) + len(REMOVED_HEADERS)}"
     )
 
 

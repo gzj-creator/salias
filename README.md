@@ -98,11 +98,12 @@ LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者
 `SubscriptionPolicy::Reliable`，让其未读游标参与保留边界并在慢读时对生产者施加背压。
 其他模式仅支持 Reliable 策略。
 
-## 兼容入口与弃用
+## 已移除快捷入口
 
-以下四个 raw 便捷别名在 4.x 兼容窗口内继续导出，但已标记为编译器弃用并从主教程移除：
+以下四个 raw 便捷别名已在未打 tag 的 `[Unreleased]` 源码中删除。仓库负责人于 2026-10-30 明确
+批准本次删除；旧代码必须迁移到规范入口后重新编译：
 
-| 兼容别名 | 规范入口 |
+| 已删除入口 | 规范入口 |
 |---|---|
 | `FifoMpscChannel` | `Channel<Mode::FifoMpsc>` |
 | `FifoMpmcChannel` | `Channel<Mode::FifoMpmc>` |
@@ -111,9 +112,9 @@ LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者
 
 公开 latest fanout 只有 `LatestMpmcChannel<Capacity, HighWatermarkPercent, Schema>` 一个入口；
 直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()` 已关闭，避免绕过静态容量、水位和 schema
-校验。四个 `*Channel` 别名本版本不删除，最早在 `5.0.0` 移除。迁移表、
-警告策略和 codemod 命令见 [Channel API 迁移说明](doc/migration/channel-api-convergence.md)；
-逐 symbol 的 core/compat/extras 状态见
+校验。当前只完成源码删除，尚未打 `5.0.0` tag，Phase 5 发布门禁仍待完成。迁移表、版本策略和
+codemod 命令见 [Channel API 迁移说明](doc/migration/channel-api-convergence.md)；逐 symbol 的
+core/extras/removed 状态见
 [机器可读 API 清单](doc/api/channel-api-manifest.json)。
 
 ## 附加能力
@@ -123,8 +124,8 @@ LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者
 `<salias/extras/extras.hpp>`（或三个专项头之一），CMake 消费者链接 `salias::extras`，模块消费者
 使用 `import salias.extras;`。这些能力不进入核心快速开始，也不进入 `FixedChannel` 热路径。
 
-旧顶层类型和旧 include 仍作为 `4.x` 兼容入口保留，并产生弃用警告；规范迁移目标是
-`salias::extras::*` 和 `<salias/extras/*.hpp>`。本版本不删除旧入口。
+九个旧顶层类型和三个旧 include 已删除；规范入口是 `salias::extras::*` 和
+`<salias/extras/*.hpp>`。LatestByKey、Priority 和 Ringbuffer 能力本身仍完整保留。
 
 `extras::LatestByKeyChannel<Key, Value, Capacity, SchemaVersion>` 是独立的有界 latest-value IPC 表，按 key
 保存最新值，重复 key 更新覆盖同一槽位；订阅者各自接收当前快照，未读期间的中间更新会合并，返回的是
@@ -212,7 +213,7 @@ target_link_libraries(my_extras_app PRIVATE salias::extras)
 
 CMake 安装按 component 拆分：不传 `--component` 时安装全部；分别执行
 `cmake --install build --component core` 和 `cmake --install build --component extras` 可验证
-core-only 与 extras 增量安装。extras 的旧转发头随 extras component 安装，不进入 core-only 前缀。
+core-only 与 extras 增量安装。三个旧转发头不再安装；消费方应直接包含 `<salias/extras/*.hpp>`。
 
 配置下游工程时，将安装前缀加入 `CMAKE_PREFIX_PATH`。
 

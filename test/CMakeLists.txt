@@ -62,12 +62,12 @@ salias_enable_sanitizers(salias_poll_storage_contract_test)
 salias_register_test(salias_poll_storage_contract_test
   "$<TARGET_FILE:salias_poll_storage_contract_test>")
 
-add_executable(salias_channel_alias_compat_test api/channel_alias_compat_test.cpp)
-target_link_libraries(salias_channel_alias_compat_test PRIVATE salias)
-salias_enable_warnings(salias_channel_alias_compat_test)
-salias_enable_sanitizers(salias_channel_alias_compat_test)
-salias_register_test(salias_channel_alias_compat_test
-  "$<TARGET_FILE:salias_channel_alias_compat_test>")
+add_executable(salias_removed_api_contract_test api/removed_api_contract_test.cpp)
+target_link_libraries(salias_removed_api_contract_test PRIVATE salias_extras)
+salias_enable_warnings(salias_removed_api_contract_test)
+salias_enable_sanitizers(salias_removed_api_contract_test)
+salias_register_test(salias_removed_api_contract_test
+  "$<TARGET_FILE:salias_removed_api_contract_test>")
 
 add_executable(salias_schema_helper_test api/schema_helper_test.cpp)
 target_link_libraries(salias_schema_helper_test PRIVATE salias)
@@ -79,6 +79,7 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 add_test(
   NAME salias_channel_api_documentation_check
   COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tools/check_channel_api.py"
+          --compiler "${CMAKE_CXX_COMPILER}"
 )
 set_tests_properties(salias_channel_api_documentation_check PROPERTIES TIMEOUT 120)
 
@@ -228,12 +229,3 @@ salias_enable_warnings(salias_priority_tests)
 salias_enable_sanitizers(salias_priority_tests)
 
 salias_register_test(salias_priority_tests "$<TARGET_FILE:salias_priority_tests>")
-
-add_executable(salias_extras_compat_test
-  api/extras_compat_test.cpp
-)
-target_link_libraries(salias_extras_compat_test PRIVATE salias_extras)
-salias_enable_warnings(salias_extras_compat_test)
-salias_enable_sanitizers(salias_extras_compat_test)
-
-salias_register_test(salias_extras_compat_test "$<TARGET_FILE:salias_extras_compat_test>")

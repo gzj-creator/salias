@@ -3,6 +3,14 @@
   "api": "salias-channel",
   "baseline_date": "2026-10-30",
   "baseline_version": "4.1.0",
+  "current_api_state": "post_phase4_source_removal_unreleased",
+  "removal_metadata": {
+    "approved_by": "repository owner",
+    "approved_on": "2026-10-30",
+    "state": "source_removed_unreleased",
+    "release_tag": null,
+    "wire_protocol_changed": false
+  },
   "statuses": {
     "core": "Primary supported entry; keep and document as canonical.",
     "compat": "Still exported for source compatibility; not a primary entry; removal requires the documented major-version gate.",
@@ -19,10 +27,8 @@
     "Channel",
     "Config",
     "Error",
-    "FifoMpmcChannel",
     "FifoMpmcPublisher",
     "FifoMpmcSubscriber",
-    "FifoMpscChannel",
     "FifoMpscPublisher",
     "FifoMpscSubscriber",
     "FixedChannel",
@@ -37,10 +43,8 @@
     "LatestMpmcSubscriber",
     "Message",
     "Mode",
-    "OrderedMpmcChannel",
     "OrderedMpmcPublisher",
     "OrderedMpmcSubscriber",
-    "OrderedMpscChannel",
     "OrderedMpscPublisher",
     "OrderedMpscSubscriber",
     "PublishClaim",
@@ -257,39 +261,39 @@
     },
     {
       "name": "salias::FifoMpscChannel",
-      "kind": "alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 236, "declaration": "using FifoMpscChannel [[deprecated(\"use Channel<Mode::FifoMpsc>\")]] ="},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/channel.hpp", "line": 236, "declaration": "using FifoMpscChannel [[deprecated(\"use Channel<Mode::FifoMpsc>\")]] ="},
       "replacement": "salias::Channel<salias::Mode::FifoMpsc>",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
-      "notes": "Deprecated in 4.1.0; removal no earlier than 5.0.0."
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Deprecated in v4.1.0; source entry removed in the unreleased post-Phase-4 tree with owner approval."
     },
     {
       "name": "salias::FifoMpmcChannel",
-      "kind": "alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 238, "declaration": "using FifoMpmcChannel [[deprecated(\"use Channel<Mode::FifoMpmc>\")]] ="},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/channel.hpp", "line": 238, "declaration": "using FifoMpmcChannel [[deprecated(\"use Channel<Mode::FifoMpmc>\")]] ="},
       "replacement": "salias::Channel<salias::Mode::FifoMpmc>",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
-      "notes": "Deprecated in 4.1.0; removal no earlier than 5.0.0."
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Deprecated in v4.1.0; source entry removed in the unreleased post-Phase-4 tree with owner approval."
     },
     {
       "name": "salias::OrderedMpscChannel",
-      "kind": "alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 240, "declaration": "using OrderedMpscChannel [[deprecated(\"use Channel<Mode::OrderedMpsc>\")]] ="},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/channel.hpp", "line": 240, "declaration": "using OrderedMpscChannel [[deprecated(\"use Channel<Mode::OrderedMpsc>\")]] ="},
       "replacement": "salias::Channel<salias::Mode::OrderedMpsc>",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
-      "notes": "Deprecated in 4.1.0; removal no earlier than 5.0.0."
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Deprecated in v4.1.0; source entry removed in the unreleased post-Phase-4 tree with owner approval."
     },
     {
       "name": "salias::OrderedMpmcChannel",
-      "kind": "alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 242, "declaration": "using OrderedMpmcChannel [[deprecated(\"use Channel<Mode::OrderedMpmc>\")]] ="},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/channel.hpp", "line": 242, "declaration": "using OrderedMpmcChannel [[deprecated(\"use Channel<Mode::OrderedMpmc>\")]] ="},
       "replacement": "salias::Channel<salias::Mode::OrderedMpmc>",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
-      "notes": "Deprecated in 4.1.0; removal no earlier than 5.0.0."
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Deprecated in v4.1.0; source entry removed in the unreleased post-Phase-4 tree with owner approval."
     },
     {
       "name": "salias::FifoMpscPublisher",
@@ -445,81 +449,106 @@
     },
     {
       "name": "salias::LatestByKeyChannel",
-      "kind": "compat_alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 24, "declaration": "using LatestByKeyChannel"},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 24, "declaration": "using LatestByKeyChannel"},
       "replacement": "salias::extras::LatestByKeyChannel",
-      "exports": {"header": true, "umbrella": false, "module": false, "cmake": true, "mcpp": true}
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
     {
       "name": "salias::LatestByKeyMessage",
-      "kind": "compat_alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 12, "declaration": "using LatestByKeyMessage"},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 12, "declaration": "using LatestByKeyMessage"},
       "replacement": "salias::extras::LatestByKeyMessage",
-      "exports": {"header": true, "umbrella": false, "module": false, "cmake": true, "mcpp": true}
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
     {
       "name": "salias::LatestByKeyPublisher",
-      "kind": "compat_alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 16, "declaration": "using LatestByKeyPublisher"},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 16, "declaration": "using LatestByKeyPublisher"},
       "replacement": "salias::extras::LatestByKeyPublisher",
-      "exports": {"header": true, "umbrella": false, "module": false, "cmake": true, "mcpp": true}
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
     {
       "name": "salias::LatestByKeySubscriber",
-      "kind": "compat_alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 20, "declaration": "using LatestByKeySubscriber"},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 20, "declaration": "using LatestByKeySubscriber"},
       "replacement": "salias::extras::LatestByKeySubscriber",
-      "exports": {"header": true, "umbrella": false, "module": false, "cmake": true, "mcpp": true}
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
     {
       "name": "salias::PriorityPublisher",
-      "kind": "compat_alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 17, "declaration": "using PriorityPublisher"},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 17, "declaration": "using PriorityPublisher"},
       "replacement": "salias::extras::PriorityPublisher",
-      "exports": {"header": true, "umbrella": false, "module": false, "cmake": true, "mcpp": true}
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
     {
       "name": "salias::PrioritySubscriber",
-      "kind": "compat_alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 21, "declaration": "using PrioritySubscriber"},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 21, "declaration": "using PrioritySubscriber"},
       "replacement": "salias::extras::PrioritySubscriber",
-      "exports": {"header": true, "umbrella": false, "module": false, "cmake": true, "mcpp": true}
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
     {
       "name": "salias::PriorityMessage",
-      "kind": "compat_alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 13, "declaration": "using PriorityMessage"},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 13, "declaration": "using PriorityMessage"},
       "replacement": "salias::extras::PriorityMessage",
-      "exports": {"header": true, "umbrella": false, "module": false, "cmake": true, "mcpp": true}
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
     {
       "name": "salias::PriorityWaitPolicy",
-      "kind": "compat_alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 11, "declaration": "using PriorityWaitPolicy"},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 11, "declaration": "using PriorityWaitPolicy"},
       "replacement": "salias::extras::PriorityWaitPolicy",
-      "exports": {"header": true, "umbrella": false, "module": false, "cmake": true, "mcpp": true}
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
     {
       "name": "salias::Ringbuffer",
-      "kind": "compat_alias",
-      "status": "compat",
-      "location": {"file": "src/salias/include/salias/ringbuffer.hpp", "line": 12, "declaration": "using Ringbuffer"},
+      "kind": "removed_alias",
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/ringbuffer.hpp", "line": 12, "declaration": "using Ringbuffer"},
       "replacement": "salias::extras::Ringbuffer",
-      "exports": {"header": true, "umbrella": false, "module": false, "cmake": true, "mcpp": true}
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     }
   ],
-  "removed_symbols": [],
+  "removed_symbols": [
+    "salias::Channel<Mode::LatestMpmc>",
+    "salias::FifoMpmcChannel",
+    "salias::FifoMpscChannel",
+    "salias::LatestByKeyChannel",
+    "salias::LatestByKeyMessage",
+    "salias::LatestByKeyPublisher",
+    "salias::LatestByKeySubscriber",
+    "salias::OrderedMpmcChannel",
+    "salias::OrderedMpscChannel",
+    "salias::PriorityMessage",
+    "salias::PriorityPublisher",
+    "salias::PrioritySubscriber",
+    "salias::PriorityWaitPolicy",
+    "salias::Ringbuffer"
+  ],
   "external_evidence": {
     "status": "blocked",
-    "scope": ["LatestByKeyChannel", "PriorityPublisher", "PrioritySubscriber", "Ringbuffer", "typed LatestMpmc demand", "owner sign-off"],
+    "scope": ["LatestByKeyChannel", "PriorityPublisher", "PrioritySubscriber", "Ringbuffer", "typed LatestMpmc demand"],
+    "note": "Downstream source usage was not collected by decision; no external usage or migration-cost claim is made. Owner approval for removal is recorded separately in removal_metadata.",
     "evidence": "doc/api/channel-api-downstream-evidence.md"
   }
 }

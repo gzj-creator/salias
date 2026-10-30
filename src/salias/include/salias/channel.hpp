@@ -233,13 +233,4 @@ class Channel<M, Schema> {
   friend class LatestMpmcChannel;
 };
 
-using FifoMpscChannel [[deprecated("use Channel<Mode::FifoMpsc>")]] =
-    Channel<Mode::FifoMpsc>;  ///< 兼容别名；新代码使用 Channel<Mode::FifoMpsc>。
-using FifoMpmcChannel [[deprecated("use Channel<Mode::FifoMpmc>")]] =
-    Channel<Mode::FifoMpmc>;  ///< 兼容别名；新代码使用 Channel<Mode::FifoMpmc>。
-using OrderedMpscChannel [[deprecated("use Channel<Mode::OrderedMpsc>")]] =
-    Channel<Mode::OrderedMpsc>;  ///< 兼容别名；新代码使用 Channel<Mode::OrderedMpsc>。
-using OrderedMpmcChannel [[deprecated("use Channel<Mode::OrderedMpmc>")]] =
-    Channel<Mode::OrderedMpmc>;  ///< 兼容别名；新代码使用 Channel<Mode::OrderedMpmc>。
-
 }  // namespace salias

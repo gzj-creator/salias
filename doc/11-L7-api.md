@@ -14,18 +14,20 @@
 模式，不是两套产品；两者不能互连。`FixedChannel` 是独立数据面，不经过通用 Channel 的变长 frame、
 动态订阅、TTL 或 Latest 语义，也不能与通用 `Channel` 互相替代。
 
-以下四个 raw 入口是 **compat** 兼容别名，仍保留但不属于主教程：
+以下四个 raw 快捷入口已在未打 tag 的 `[Unreleased]` 源码中标记为 **removed**。仓库负责人于
+2026-10-30 批准删除；它们不再由头文件或 `import salias;` 导出：
 
-| 兼容别名 | 规范入口 | 当前状态 |
+| 已删除入口 | 规范入口 | 当前状态 |
 |---|---|---|
-| `FifoMpscChannel` | `Channel<Mode::FifoMpsc>` | 4.x 导出并产生弃用警告；5.0 门禁后删除 |
-| `FifoMpmcChannel` | `Channel<Mode::FifoMpmc>` | 同上 |
-| `OrderedMpscChannel` | `Channel<Mode::OrderedMpsc>` | 同上 |
-| `OrderedMpmcChannel` | `Channel<Mode::OrderedMpmc>` | 同上 |
+| `salias::FifoMpscChannel` | `Channel<Mode::FifoMpsc>` | removed；源码已删除，尚未打 5.0 tag |
+| `salias::FifoMpmcChannel` | `Channel<Mode::FifoMpmc>` | 同上 |
+| `salias::OrderedMpscChannel` | `Channel<Mode::OrderedMpsc>` | 同上 |
+| `salias::OrderedMpmcChannel` | `Channel<Mode::OrderedMpmc>` | 同上 |
 
-直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()` 不再公开。latest fanout 的 raw 和 typed
-payload 都使用 `LatestMpmcChannel`：省略 `Schema` 时是 raw payload，显式传入 `Schema` 时保持
-schema ID、版本和 payload 大小校验。这样 latest 入口不会绕过静态容量与水位检查。
+直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()` 已作为 **removed** 路径关闭。latest
+fanout 的 raw 和 typed payload 都使用 `LatestMpmcChannel`：省略 `Schema` 时是 raw payload，
+显式传入 `Schema` 时保持 schema ID、版本和 payload 大小校验。这样 latest 入口不会绕过静态容量与
+水位检查。
 完整迁移表见 [Channel API 迁移说明](migration/channel-api-convergence.md)。
 
 公共 API 暴露单一 per-producer-ring 引擎的四种排序/拓扑组合，并增加 `LatestMpmc` 保留窗口模式：
@@ -257,6 +259,7 @@ endpoint 中缓存描述符，不引入热路径 heap 分配，也不改变公�
 `salias::LatestByKeySubscriber`、`salias::LatestByKeyMessage`、`salias::PriorityPublisher`、
 `salias::PrioritySubscriber`、`salias::PriorityMessage`、`salias::PriorityWaitPolicy` 和
 `salias::Ringbuffer` 和旧 include `<salias/latest_by_key_channel.hpp>`、
-`<salias/priority_channel.hpp>`、`<salias/ringbuffer.hpp>` 是 **compat** 转发入口，会产生弃用警告；
-它们不再由核心 umbrella/module 默认导出。迁移目标为上述 `salias::extras` 类型和
-`<salias/extras/*.hpp>`，删除窗口与其他源码兼容入口一致。
+`<salias/priority_channel.hpp>`、`<salias/ringbuffer.hpp>` 已标记为 **removed** 并从当前源码删除。
+LatestByKey、Priority 和 Ringbuffer 能力本身继续保留；唯一规范入口是上述 `salias::extras` 类型、
+`<salias/extras/*.hpp>`、`salias::extras` CMake target 和 `import salias.extras;`。迁移和回滚说明见
+[Channel API 迁移说明](migration/channel-api-convergence.md)。
