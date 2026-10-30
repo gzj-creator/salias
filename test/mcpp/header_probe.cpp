@@ -54,8 +54,8 @@ bool header_latest_by_key_publish(std::string_view name) {
 }
 
 bool header_priority_publish(std::string_view high_name, std::string_view low_name) {
-  auto high = salias::FifoMpscChannel::connect(high_name);
-  auto low = salias::FifoMpscChannel::connect(low_name);
+  auto high = salias::Channel<salias::Mode::FifoMpsc>::connect(high_name);
+  auto low = salias::Channel<salias::Mode::FifoMpsc>::connect(low_name);
   if (!high || !low) {
     return false;
   }

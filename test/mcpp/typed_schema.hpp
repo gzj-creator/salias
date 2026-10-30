@@ -10,10 +10,6 @@ struct TypedPayload {
   bool operator==(const TypedPayload&) const = default;
 };
 
-struct TypedPayloadSchema {
-  using message_type = TypedPayload;
-  static constexpr std::uint64_t schema_id = 0x53414C4941534D43ull;
-  static constexpr std::uint32_t version = 1;
-};
+using TypedPayloadSchema = salias::Schema<TypedPayload, 0x53414C4941534D43ull, 1>;
 
 }  // namespace salias_mcpp

@@ -9,8 +9,8 @@
  *   通过 fork 子进程 connect 同名共享内存区域实现。
  */
 
-#include <gtest/gtest.h>
 #include <fcntl.h>
+#include <gtest/gtest.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -40,8 +40,10 @@ namespace {  // 匿名命名空间：测试内部辅助类型与函数，仅本�
 // 编译期断言：PublishClaim 不可拷贝（独占 claim 的所有权只能移动，防止误用）。
 static_assert(!std::is_copy_constructible_v<salias::PublishClaim<salias::Mode::FifoMpsc>>);
 // 编译期断言：FIFO 与 Ordered 是两种独立 channel 类型，不可互换。
-static_assert(!std::is_same_v<salias::FifoMpscChannel, salias::OrderedMpscChannel>);
-static_assert(!std::is_same_v<salias::FifoMpmcChannel, salias::OrderedMpmcChannel>);
+static_assert(!std::is_same_v<salias::Channel<salias::Mode::FifoMpsc>,
+                              salias::Channel<salias::Mode::OrderedMpsc>>);
+static_assert(!std::is_same_v<salias::Channel<salias::Mode::FifoMpmc>,
+                              salias::Channel<salias::Mode::OrderedMpmc>>);
 static_assert(static_cast<std::uint32_t>(salias::Mode::FifoMpsc) == 0);
 static_assert(static_cast<std::uint32_t>(salias::Mode::FifoMpmc) == 1);
 static_assert(static_cast<std::uint32_t>(salias::Mode::OrderedMpsc) == 2);
@@ -223,7 +225,7 @@ TEST(ChannelApiTest, ConnectDoesNotMapZeroSizedControlSegment) {
   ASSERT_GE(fd, 0);
   ASSERT_EQ(::close(fd), 0);
 
-  const auto connected = salias::FifoMpscChannel::connect(name);
+  const auto connected = salias::Channel<salias::Mode::FifoMpsc>::connect(name);
   EXPECT_FALSE(connected);
   EXPECT_EQ(connected.error(), salias::Error::NotFound);
   EXPECT_EQ(::shm_unlink(shm_name.c_str()), 0);
@@ -231,7 +233,7 @@ TEST(ChannelApiTest, ConnectDoesNotMapZeroSizedControlSegment) {
 
 TEST(ChannelApiTest, TypedSendAndCopyReceiveRoundTripWithoutBorrowedRelease) {
   auto config = config_for(salias::Mode::FifoMpsc, "typed-roundtrip");
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -263,7 +265,7 @@ TEST(ChannelApiTest, TypedSendAndCopyReceiveRoundTripWithoutBorrowedRelease) {
 
 TEST(ChannelApiTest, BlockingRawReceiveFindsDelayedPublicationBeforeAdaptiveActivation) {
   auto config = config_for(salias::Mode::FifoMpsc, "blocking-raw-unactivated");
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -311,7 +313,7 @@ TEST(ChannelApiTest, BlockingFixedReceiveFindsDelayedPublicationBeforeAdaptiveAc
 
 TEST(ChannelApiTest, BlockingRawReceiveWakesForIndependentProcessPublication) {
   auto config = config_for(salias::Mode::FifoMpsc, "blocking-raw-ipc-wake");
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto subscriber = channel.subscriber();
@@ -321,7 +323,7 @@ TEST(ChannelApiTest, BlockingRawReceiveWakesForIndependentProcessPublication) {
   if (child == 0) {
     ::alarm(5);
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    auto connected = salias::FifoMpscChannel::connect(config.name);
+    auto connected = salias::Channel<salias::Mode::FifoMpsc>::connect(config.name);
     if (!connected) {
       ::_exit(1);
     }
@@ -390,12 +392,12 @@ TEST(ChannelApiTest, SchemaIsCheckedOnceWhenConnecting) {
   auto wrong_size = DifferentSize::connect(config.name);
   ASSERT_FALSE(wrong_size);
   EXPECT_EQ(wrong_size.error(), salias::Error::SchemaMismatch);
-  auto raw = salias::FifoMpscChannel::connect(config.name);
+  auto raw = salias::Channel<salias::Mode::FifoMpsc>::connect(config.name);
   ASSERT_FALSE(raw);
   EXPECT_EQ(raw.error(), salias::Error::SchemaMismatch);
 
   auto raw_config = config_for(salias::Mode::FifoMpsc, "schema-rejects-typed");
-  auto raw_owner = salias::FifoMpscChannel::create(raw_config);
+  auto raw_owner = salias::Channel<salias::Mode::FifoMpsc>::create(raw_config);
   ASSERT_TRUE(raw_owner);
   auto typed = TypedFifoChannel::connect(raw_config.name);
   ASSERT_FALSE(typed);
@@ -556,7 +558,7 @@ TEST(ChannelApiTest, TypedBlockingReceiveContinuesAfterLatestReportsLag) {
 
 TEST(ChannelApiTest, TypedCopyRejectsWrongPayloadSizeAndContinues) {
   auto config = config_for(salias::Mode::FifoMpsc, "typed-size-mismatch");
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -614,7 +616,7 @@ TEST(ChannelApiTest, LatestMpmcTypedCopyIsIndependentPerSubscriber) {
 TEST(ChannelApiTest, FifoThreeProducerScanWrapsAndRemainsFair) {
   auto config = config_for(salias::Mode::FifoMpsc, "three-ring-scan");
   config.num_producers = 3;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   std::array publishers{channel.publisher(), channel.publisher(), channel.publisher()};
@@ -825,7 +827,7 @@ TEST(ChannelApiTest, PublicMessageDefaultInitializationRemainsUnchanged) {
 
 /// @brief 回绕后的旧 payload 即使伪装成匹配序列号的帧头，也不能被当作新消息。
 TEST(ChannelApiTest, StalePayloadCannotImpersonateFutureHeaderAfterVariableWrap) {
-  auto created = salias::FifoMpscChannel::create(
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(
       config_for(salias::Mode::FifoMpsc, "stale-frame-header"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
@@ -931,7 +933,7 @@ TEST(ChannelApiTest, FifoMpmcConcurrentBatchesSurviveBackpressureAndWraparound) 
 TEST(ChannelApiTest, FifoBatchesKeepPerRingCursorsAcrossPartialRuns) {
   auto config = config_for(salias::Mode::FifoMpsc, "fifo-partial-runs");
   config.num_producers = 3;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   std::array publishers{channel.publisher(), channel.publisher(), channel.publisher()};
@@ -970,8 +972,8 @@ TEST(ChannelApiTest, FifoBatchesKeepPerRingCursorsAcrossPartialRuns) {
 /// @brief 验证 FifoMpsc 下 claim/commit 与 offer 两条发布路径，以及
 ///   subscriber 持久游标在 release 后能正确推进的往返闭环。
 TEST(ChannelApiTest, FifoMpscClaimOfferAndPersistentSubscriberRoundTrip) {
-  auto created =
-      salias::FifoMpscChannel::create(config_for(salias::Mode::FifoMpsc, "fifo-roundtrip"));
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(
+      config_for(salias::Mode::FifoMpsc, "fifo-roundtrip"));
   ASSERT_TRUE(created);
   auto channel = std::move(created).value();
   auto publisher = channel.publisher();
@@ -1003,8 +1005,8 @@ TEST(ChannelApiTest, FifoMpscClaimOfferAndPersistentSubscriberRoundTrip) {
 
 /// @brief 验证 poll 在多次分批调用间保持消费者游标连续，不会重复或遗漏消息。
 TEST(ChannelApiTest, PollKeepsReceiverCursorAcrossBatches) {
-  auto created =
-      salias::FifoMpscChannel::create(config_for(salias::Mode::FifoMpsc, "persistent-poll"));
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(
+      config_for(salias::Mode::FifoMpsc, "persistent-poll"));
   ASSERT_TRUE(created);
   auto channel = std::move(created).value();
   auto publisher = channel.publisher();
@@ -1027,7 +1029,7 @@ TEST(ChannelApiTest, PollKeepsReceiverCursorAcrossBatches) {
 TEST(ChannelApiTest, FifoMpscConsumesReadyProducerWithoutGlobalGap) {
   auto config = config_for(salias::Mode::FifoMpsc, "fifo-order");
   config.num_producers = 2;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(created).value();
   auto first_publisher = channel.publisher();
@@ -1059,7 +1061,7 @@ TEST(ChannelApiTest, FifoMpscConsumesReadyProducerWithoutGlobalGap) {
 TEST(ChannelApiTest, OrderedMpscWaitsForEarlierGlobalSequence) {
   auto config = config_for(salias::Mode::OrderedMpsc, "ordered-mpsc");
   config.num_producers = 2;
-  auto created = salias::OrderedMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::OrderedMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(created).value();
   auto first_publisher = channel.publisher();
@@ -1093,7 +1095,7 @@ TEST(ChannelApiTest, OrderedMpscWaitsForEarlierGlobalSequence) {
 TEST(ChannelApiTest, FifoMpmcDeliversEachMessageToEverySubscriber) {
   auto config = config_for(salias::Mode::FifoMpmc, "fifo-fanout");
   config.num_consumers = 2;
-  auto created = salias::FifoMpmcChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpmc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(created).value();
   auto publisher = channel.publisher();
@@ -1117,7 +1119,7 @@ TEST(ChannelApiTest, OrderedMpmcPreservesGlobalOrderForEverySubscriber) {
   auto config = config_for(salias::Mode::OrderedMpmc, "ordered-fanout");
   config.num_producers = 2;
   config.num_consumers = 2;
-  auto created = salias::OrderedMpmcChannel::create(config);
+  auto created = salias::Channel<salias::Mode::OrderedMpmc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(created).value();
   auto first_publisher = channel.publisher();
@@ -1155,7 +1157,8 @@ TEST(ChannelApiTest, OrderedMpmcPreservesGlobalOrderForEverySubscriber) {
 
 /// @brief 验证 offer_batch 一次性发布多条连续消息，消费者可按序逐条接收。
 TEST(ChannelApiTest, OfferBatchPublishesContiguousMessages) {
-  auto created = salias::FifoMpscChannel::create(config_for(salias::Mode::FifoMpsc, "batch"));
+  auto created =
+      salias::Channel<salias::Mode::FifoMpsc>::create(config_for(salias::Mode::FifoMpsc, "batch"));
   ASSERT_TRUE(created);
   auto channel = std::move(created).value();
   auto publisher = channel.publisher();
@@ -1181,9 +1184,9 @@ TEST(ChannelApiTest, OfferBatchPublishesContiguousMessages) {
 ///   已创建的 FifoMpsc 区域不能用 OrderedMpsc 连接。
 TEST(ChannelApiTest, ConnectRejectsDifferentMode) {
   auto config = config_for(salias::Mode::FifoMpsc, "mode-mismatch");
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
-  auto connected = salias::OrderedMpscChannel::connect(config.name);
+  auto connected = salias::Channel<salias::Mode::OrderedMpsc>::connect(config.name);
   ASSERT_FALSE(connected);
   EXPECT_EQ(connected.error(), salias::Error::BadConfig);
 }
@@ -1191,7 +1194,7 @@ TEST(ChannelApiTest, ConnectRejectsDifferentMode) {
 TEST(ChannelApiTest, ExpiredFramesReleaseCapacityWithoutDroppingLiveReliableFrames) {
   auto config = config_for(salias::Mode::FifoMpsc, "ttl-reliable-live-frame");
   config.publication_window = 4096;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1232,7 +1235,7 @@ TEST(ChannelApiTest, ExpiredFramesReleaseCapacityWithoutDroppingLiveReliableFram
 TEST(ChannelApiTest, PollReleasesExpiredPrefixBeforeBorrowedLiveFrame) {
   auto config = config_for(salias::Mode::FifoMpsc, "ttl-poll-prefix-capacity");
   config.publication_window = 4096;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1261,16 +1264,18 @@ TEST(ChannelApiTest, PollReleasesExpiredPrefixBeforeBorrowedLiveFrame) {
   EXPECT_EQ(subscriber.expired_messages(), 1u);
 
   ASSERT_TRUE(publisher.offer(payload));
-  EXPECT_EQ(subscriber.poll(3, [&](const salias::Message& message) noexcept {
-              EXPECT_TRUE(std::equal(message.payload.begin(), message.payload.end(), payload.begin()));
-            }),
+  EXPECT_EQ(subscriber.poll(3,
+                            [&](const salias::Message& message) noexcept {
+                              EXPECT_TRUE(std::equal(message.payload.begin(), message.payload.end(),
+                                                     payload.begin()));
+                            }),
             2u);
 }
 
 TEST(ChannelApiTest, BorrowedTtlMessageRemainsPinnedAfterItsDeadline) {
   auto config = config_for(salias::Mode::FifoMpsc, "ttl-borrowed-deadline");
   config.publication_window = 4096;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1284,8 +1289,7 @@ TEST(ChannelApiTest, BorrowedTtlMessageRemainsPinnedAfterItsDeadline) {
   ASSERT_TRUE(publisher.offer(payload));
   std::this_thread::sleep_for(std::chrono::milliseconds{510});
 
-  EXPECT_LE(borrowed->expires_at_monotonic_ns,
-            salias::platform::monotonic_now_ns().value_or(0));
+  EXPECT_LE(borrowed->expires_at_monotonic_ns, salias::platform::monotonic_now_ns().value_or(0));
   EXPECT_TRUE(std::equal(borrowed->payload.begin(), borrowed->payload.end(), payload.begin()));
   auto blocked = publisher.offer(payload);
   ASSERT_FALSE(blocked);
@@ -1301,7 +1305,7 @@ TEST(ChannelApiTest, BorrowedTtlMessageRemainsPinnedAfterItsDeadline) {
 TEST(ChannelApiTest, TtlClaimBatchPartialPrefixAndWraparoundAreHandled) {
   auto config = config_for(salias::Mode::FifoMpsc, "ttl-batch-wraparound");
   config.publication_window = 4096;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1350,8 +1354,8 @@ TEST(ChannelApiTest, TtlClaimBatchPartialPrefixAndWraparoundAreHandled) {
   EXPECT_GT(shared_deadline, 0u);
 
   std::array<std::byte, 2040> uniform_payload{};
-  const std::array<std::span<const std::byte>, 3> uniform_batch{
-      uniform_payload, uniform_payload, uniform_payload};
+  const std::array<std::span<const std::byte>, 3> uniform_batch{uniform_payload, uniform_payload,
+                                                                uniform_payload};
   const auto uniform_published = publisher.offer_batch_for(uniform_batch, std::chrono::seconds{1});
   ASSERT_TRUE(uniform_published);
   EXPECT_EQ(*uniform_published, 1u);
@@ -1383,7 +1387,7 @@ TEST(ChannelApiTest, TtlClaimBatchPartialPrefixAndWraparoundAreHandled) {
 TEST(ChannelApiTest, OrderedTtlSkipPreservesGlobalSequenceAcrossProducerRings) {
   auto config = config_for(salias::Mode::OrderedMpsc, "ttl-ordered-rings");
   config.num_producers = 2;
-  auto created = salias::OrderedMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::OrderedMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto first_publisher = channel.publisher();
@@ -1438,7 +1442,7 @@ TEST(ChannelApiTest, LatestMpmcTtlFramesAreParsedDuringRetentionAndLagRecovery) 
 
 TEST(ChannelApiTest, TtlDeadlineUsesSharedMonotonicClockAcrossProcesses) {
   auto config = config_for(salias::Mode::FifoMpsc, "ttl-cross-process-clock");
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto owner = std::move(*created);
 
@@ -1448,7 +1452,7 @@ TEST(ChannelApiTest, TtlDeadlineUsesSharedMonotonicClockAcrossProcesses) {
   ASSERT_GE(child, 0);
   if (child == 0) {
     static_cast<void>(::close(ready_pipe[0]));
-    auto connected = salias::FifoMpscChannel::connect(config.name);
+    auto connected = salias::Channel<salias::Mode::FifoMpsc>::connect(config.name);
     if (!connected) {
       ::_exit(10);
     }
@@ -1488,7 +1492,7 @@ TEST(ChannelApiTest, MessageCountWindowLimitsEachOrderedProducerAndResumesAfterR
   auto config = config_for(salias::Mode::OrderedMpsc, "message-window-ordered-producers");
   config.num_producers = 2;
   config.publication_window_messages = 1;
-  auto created = salias::OrderedMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::OrderedMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto first_publisher = channel.publisher();
@@ -1531,7 +1535,7 @@ TEST(ChannelApiTest, ByteAndMessageWindowsApplyIndependently) {
   config.capacity = 8192;
   config.publication_window = 4096;
   config.publication_window_messages = 3;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -1573,10 +1577,10 @@ TEST(ChannelApiTest, ByteAndMessageWindowsApplyIndependently) {
 TEST(ChannelApiTest, MessageCountWindowConstrainsBatchesAndPersistsAcrossConnect) {
   auto config = config_for(salias::Mode::FifoMpsc, "message-window-batch-connect");
   config.publication_window_messages = 3;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto owner = std::move(*created);
-  auto connected = salias::FifoMpscChannel::connect(config.name);
+  auto connected = salias::Channel<salias::Mode::FifoMpsc>::connect(config.name);
   ASSERT_TRUE(connected);
   auto publisher = owner.publisher();
   auto subscriber = connected->subscriber();
@@ -1618,7 +1622,7 @@ TEST(ChannelApiTest, MessageCountWindowWaitsForSlowestFanoutConsumer) {
   auto config = config_for(salias::Mode::FifoMpmc, "message-window-fanout-minimum");
   config.num_consumers = 2;
   config.publication_window_messages = 2;
-  auto created = salias::FifoMpmcChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpmc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -2651,26 +2655,26 @@ TEST(ChannelApiTest, LatestMpmcReclaimsLeaseAfterConsumerIsKilled) {
 TEST(ChannelApiTest, RejectsInvalidProducerAndConsumerCounts) {
   auto producer_config = config_for(salias::Mode::FifoMpsc, "bad-producers");
   producer_config.num_producers = 0;
-  auto no_producers = salias::FifoMpscChannel::create(producer_config);
+  auto no_producers = salias::Channel<salias::Mode::FifoMpsc>::create(producer_config);
   ASSERT_FALSE(no_producers);
   EXPECT_EQ(no_producers.error(), salias::Error::BadConfig);
 
   auto single_config = config_for(salias::Mode::OrderedMpsc, "bad-single-consumers");
   single_config.num_consumers = 2;
-  auto multiple_consumers = salias::OrderedMpscChannel::create(single_config);
+  auto multiple_consumers = salias::Channel<salias::Mode::OrderedMpsc>::create(single_config);
   ASSERT_FALSE(multiple_consumers);
   EXPECT_EQ(multiple_consumers.error(), salias::Error::BadConfig);
 
   auto fanout_config = config_for(salias::Mode::FifoMpmc, "bad-fanout-consumers");
   fanout_config.num_consumers = 9;
-  auto too_many_consumers = salias::FifoMpmcChannel::create(fanout_config);
+  auto too_many_consumers = salias::Channel<salias::Mode::FifoMpmc>::create(fanout_config);
   ASSERT_FALSE(too_many_consumers);
   EXPECT_EQ(too_many_consumers.error(), salias::Error::BadConfig);
 }
 
 TEST(ChannelApiTest, DropOldestSubscriberPolicyIsRestrictedToLatestMpmc) {
   auto config = config_for(salias::Mode::FifoMpmc, "drop-oldest-policy-invalid-mode");
-  auto created = salias::FifoMpmcChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpmc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
 
@@ -2694,7 +2698,7 @@ TEST(ChannelApiTest, SubscriberSlotsReportExhaustionAndAreReusedAfterLastCopyDie
   auto config = config_for(salias::Mode::FifoMpmc, "slot-exhaustion");
   config.num_producers = 1;
   config.num_consumers = 1;
-  auto created = salias::FifoMpmcChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpmc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(created).value();
   auto first_publisher = channel.publisher();
@@ -2737,7 +2741,7 @@ TEST(ChannelApiTest, SubscriberSlotsReportExhaustionAndAreReusedAfterLastCopyDie
 TEST(ChannelApiTest, ForkedCopyDoesNotDeregisterParentSubscriber) {
   auto config = config_for(salias::Mode::FifoMpmc, "forked-subscriber-copy");
   config.num_consumers = 1;
-  auto created = salias::FifoMpmcChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpmc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -2776,7 +2780,7 @@ TEST(ChannelApiTest, ForkedCopyDoesNotDeregisterParentSubscriber) {
 /// @brief 注册新订阅者时从稳定 reservation 尾开始，不重放加入前的数据。
 TEST(ChannelApiTest, FanoutLateJoinStartsAtReservationBoundary) {
   auto config = config_for(salias::Mode::FifoMpmc, "fanout-late-join");
-  auto created = salias::FifoMpmcChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpmc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -2798,7 +2802,7 @@ TEST(ChannelApiTest, OrderedMpmcLateJoinStartsAtStableGlobalSequence) {
   auto config = config_for(salias::Mode::OrderedMpmc, "ordered-fanout-late-join");
   config.num_producers = 2;
   config.num_consumers = 2;
-  auto created = salias::OrderedMpmcChannel::create(config);
+  auto created = salias::Channel<salias::Mode::OrderedMpmc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   std::array publishers{channel.publisher(), channel.publisher()};
@@ -2825,7 +2829,7 @@ TEST(ChannelApiTest, OrderedMpmcLateJoinStartsAtStableGlobalSequence) {
 TEST(ChannelApiTest, ReusedSlotRejectsEndpointInheritedByOlderProcess) {
   auto config = config_for(salias::Mode::FifoMpmc, "stale-subscriber-generation");
   config.num_consumers = 1;
-  auto created = salias::FifoMpmcChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpmc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -2880,7 +2884,7 @@ TEST(ChannelApiTest, ConcurrentSubscriberChurnAndPublishingRemainConsistent) {
   auto config = config_for(salias::Mode::FifoMpmc, "subscriber-churn-publish");
   config.num_producers = 2;
   config.num_consumers = 2;
-  auto created = salias::FifoMpmcChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpmc>::create(config);
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   std::array publishers{channel.publisher(), channel.publisher()};
@@ -2970,7 +2974,7 @@ TEST(ChannelApiTest, ConcurrentSubscriberChurnAndPublishingRemainConsistent) {
 TEST(ChannelApiTest, ConnectedConsumerCountTracksRegisteredProcessLiveness) {
   auto config = config_for(salias::Mode::FifoMpmc, "consumer-liveness");
   config.num_consumers = 2;
-  auto created = salias::FifoMpmcChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpmc>::create(config);
   ASSERT_TRUE(created);
   auto owner = std::move(*created);
   EXPECT_EQ(owner.connected_consumer_count(), 0u);
@@ -2987,7 +2991,7 @@ TEST(ChannelApiTest, ConnectedConsumerCountTracksRegisteredProcessLiveness) {
   if (child == 0) {
     static_cast<void>(::close(ready_pipe[0]));
     static_cast<void>(::close(release_pipe[1]));
-    auto connected = salias::FifoMpmcChannel::connect(config.name);
+    auto connected = salias::Channel<salias::Mode::FifoMpmc>::connect(config.name);
     if (!connected) {
       ::_exit(10);
     }
@@ -3035,7 +3039,7 @@ TEST(ChannelApiTest, ConnectedConsumerCountTracksRegisteredProcessLiveness) {
 TEST(ChannelApiTest, HugePageCapacityMustBeAligned) {
   auto config = config_for(salias::Mode::FifoMpsc, "huge-alignment");
   config.huge = salias::HugePage::Size2MB;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_FALSE(created);
   EXPECT_EQ(created.error(), salias::Error::BadConfig);
 }
@@ -3048,7 +3052,7 @@ TEST(ChannelApiTest, HugePageCapacityMustBeAligned) {
 TEST(ChannelApiTest, MultiplePublisherProcessesShareProducerSlots) {
   auto config = config_for(salias::Mode::FifoMpsc, "fork-publishers");
   config.num_producers = 2;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
   auto owner = std::move(created).value();
   auto subscriber = owner.subscriber();
@@ -3059,7 +3063,7 @@ TEST(ChannelApiTest, MultiplePublisherProcessesShareProducerSlots) {
     ASSERT_GE(children[producer], 0);
     if (children[producer] == 0) {
       // 子进程：connect 同名共享内存区域并占据一个 producer 槽位发布消息。
-      auto connected = salias::FifoMpscChannel::connect(config.name);
+      auto connected = salias::Channel<salias::Mode::FifoMpsc>::connect(config.name);
       if (!connected) {
         ::_exit(10);
       }
@@ -3096,10 +3100,10 @@ TEST(ChannelApiTest, LongChannelNameSupportsCreateAndConnect) {
   config.name.assign(128, 'a');
   const std::string process_id = std::to_string(::getpid());
   config.name.replace(config.name.size() - process_id.size(), process_id.size(), process_id);
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created);
 
-  auto connected = salias::FifoMpscChannel::connect(config.name);
+  auto connected = salias::Channel<salias::Mode::FifoMpsc>::connect(config.name);
   ASSERT_TRUE(connected);
 
   auto owner = std::move(created).value();
@@ -3120,7 +3124,7 @@ TEST(ChannelApiTest, ExplicitHugePagesAreUnavailableOnMacOS) {
   auto config = config_for(salias::Mode::FifoMpsc, "macos-huge-pages");
   config.capacity = 2u * 1024u * 1024u;
   config.huge = salias::HugePage::Size2MB;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_FALSE(created);
   EXPECT_EQ(created.error(), salias::Error::PlatformFail);
 }

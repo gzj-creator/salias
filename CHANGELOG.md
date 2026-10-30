@@ -16,32 +16,42 @@ are released.
 
 ## [Unreleased]
 
+## [v4.1.0] - 2026-10-30
+
 ### Added
 
 - 新增 `FastSpscRing`、`FastSpmcRing`、`FastMpscRing`、`FastMpmcRing` 固定槽跨进程候选实现，覆盖固定 payload、固定参与者、可靠背压、独立 producer lane、独立 consumer cursor 和批量消费游标释放。
 - 新增 schema-bound `FixedChannel` 及安装消费验证；固定参与者、固定消息布局和共享段身份/版本校验不改变通用 `Channel` 的 Ordered、Latest、TTL、动态订阅和恢复语义。
 - 新增 Fast Ring 四拓扑吞吐/延迟客户端与开发门禁脚本，支持 ABBA 配对、分组、全文校验、协议一致性和独占 Aeron driver 检查。
+- 新增 `Schema<T, Id, Version>` 编译期辅助模板：schema ID/version 仍是必填显式模板参数，辅助类型无数据成员、无运行时路径，不改变 wire 布局或连接校验。
 
 ### Changed
 
 - 扩展 Salias/Aeron 四拓扑 runner 与三个 benchmark 客户端，统一支持 `--groups`、`--rounds`、`--verify full` 和专用 driver 门禁；性能轮现在逐字节校验 payload、producer 身份、每 producer 序号、顺序和重复。
 - 新增 1 轮预热 + 5 轮正式全文校验开发矩阵：Fast 对 Aeron 吞吐为 1.31x–5.02x，对同协议 FIFO 为 1.48x–16.31x，attempt p50/p99 在 8/8 单元通过；MPMC p99.9 仍未全面领先，最终 6×20 ABBA 重命名门禁保持未通过。
 - `FixedSubscriber::poll()` 改为先复制消息、`release(false)` 推进本地位置、handler 返回后在批次结束或 ring 暂时为空时统一刷新 consumer cursor；单条 `try_recv_copy()` 仍立即发布，SPSC 64 B 饱和吞吐由 8.20 提升到 40.03 Mmsg/s，配对中位数 4.84x，但不宣称延迟改善。
+- Channel API 主教程统一到 `Channel<Mode, Schema>`、`FixedChannel` 和 `LatestMpmcChannel` 三个核心入口；raw/typed 明示为同一通用 Channel 的 payload 模式，示例、benchmark 和主测试迁移到规范写法。
+- `FifoMpscChannel`、`FifoMpmcChannel`、`OrderedMpscChannel`、`OrderedMpmcChannel` 标记为 `[[deprecated]]` 兼容别名，继续保留到至少 5.0；直接 `Channel<Mode::LatestMpmc>` 标为 compat，raw latest 主推 `LatestMpmcChannel`，typed latest 留待 Phase 2 决策。
+- CMake、vcpkg、mcpp 和 README 包版本统一为 `4.1.0`；本版不修改共享内存 wire protocol，不升级通道版本，也不执行 `Fast*Ring` 最终重命名或主版本删除。
 
 ### Tests
 
 - 新增 Fast Ring 单环、跨进程四拓扑、慢订阅者背压、回绕和完整 payload 测试，以及固定 Ring 门禁的失败路径单元测试。
 - 新增批量 poll 的批末 cursor 回收测试，并覆盖 MPSC 多 producer lane、SPMC/MPMC fanout 的脏 cursor 刷新与最慢订阅者背压。
+- 新增四个 raw 别名的同型兼容测试、`Schema<T, Id, Version>` typed Channel roundtrip 测试，以及文档/API 清单一致性检查；兼容测试显式屏蔽弃用告警，规范代码路径不再引用旧别名。
+- Release 构建与 CTest 25/25、ASan/UBSan CTest 24/24 通过，包含 `salias_install_consumer`；mcpp 离线 Release 模块/头文件混合消费、`test_mcpp_import` 和两个独立 shared-path 消费者均通过。
 
 ### Tools
 
 - 新增四拓扑 Salias/Aeron 对比 runner，统一覆盖 SPSC、MPSC、SPMC、MPMC 的吞吐及 attempt/planned 延迟测量，校验资源边界、消息计数和订阅者结果，并生成可复核的聚合、环境信息、冻结 runner 与 SHA-256 清单。
 - 增加 runner 的合成单元测试，覆盖拓扑与 CPU 布局、计数预期、最慢订阅者聚合和预热排除。
 - 新增 `FixedChannel` 逐条接收与批量 poll 的吞吐/开环延迟对比工具，支持 ABBA 复现、attempt/planned 百分位、poll 窗口和全文校验。
+- 新增 `tools/check_channel_api.py` 文档门禁：校验可检索 API manifest 的状态、代码位置、替代入口、header/module 导出集合、README 快速开始禁入项和版本一致性。
 
 ### Docs
 
-- 建立 Channel API 收敛 Phase 0 基线：新增仓库内 test/bench/example/install/mcpp 使用矩阵，并明确 `LatestByKey`、Priority、Ringbuffer 的仓库外使用证据无法获得，相关删除门禁保持未完成。
+- 建立 Channel API 收敛 Phase 0 基线：新增仓库内 test/bench/example/install/mcpp 使用矩阵，并采集四个同工作区下游仓库的源码快照；确认其仍引用 raw 别名，未检索到 `LatestByKey`、Priority 或 Ringbuffer 引用，但完整外部用户清单、包消费遥测、迁移成本和负责人签署仍未闭合，相关删除门禁保持未完成。
+- 建立机器可读 API manifest 与兼容迁移说明，冻结 core/compat/extras 状态、代码位置、替代入口及 4.1/5.0 两阶段弃用策略；README 快速开始和 L7 API 不再并列主推兼容入口。
 - 归档 v4.0.1 四拓扑正式对比证据，更新 README、最终性能报告与 Aeron 工具说明。结果明确 SPSC/SPMC 吞吐差距、MPSC 接近持平、MPMC 核共享边界及延迟尾部限制，不与历史拓扑或版本数据拼接。
 - 新增固定槽 Ring 与 Aeron 架构分析、Fast Ring 性能替换计划和全文校验开发验收证据；区分四拓扑 ring 热路径结果与 SPSC 产品 API 批量 cursor 结果。
 - 归档 SPSC 64 B 产品 API 的 10 组 ABBA：批量 cursor 吞吐提升 4.84x，attempt p50/p99 配对中位数为 1.06x/1.03x，明确不把吞吐收益扩大为延迟改善。

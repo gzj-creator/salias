@@ -1,11 +1,10 @@
-#include <salias/channel.hpp>
+#include <unistd.h>
 
 #include <cstdint>
 #include <cstring>
+#include <salias/channel.hpp>
 #include <string>
 #include <utility>
-
-#include <unistd.h>
 
 namespace {
 
@@ -13,8 +12,7 @@ struct Payload {
   std::uint64_t sequence = 0;
 };
 
-void write_payload(salias::PublishClaim<salias::Mode::FifoMpsc>& claim,
-                   std::uint64_t sequence) {
+void write_payload(salias::PublishClaim<salias::Mode::FifoMpsc>& claim, std::uint64_t sequence) {
   const Payload payload{.sequence = sequence};
   std::memcpy(claim.payload().data(), &payload, sizeof(payload));
 }
@@ -26,7 +24,7 @@ int main() {
   config.name = "commit-visibility-contract-" + std::to_string(::getpid());
   config.capacity = 1u << 20;
 
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   if (!created) {
     return 1;
   }

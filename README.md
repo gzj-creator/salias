@@ -1,23 +1,13 @@
 # salias
 
-`salias` 是支持 Linux 与 macOS 的 C++23 低延迟具名 IPC 消息通道。当前实现收敛为一个
-per-producer magic-ring 引擎，并通过排序模式与消费者拓扑提供四种基础通道，以及
-面向低延迟 fanout 的 `LatestMpmc` 保留窗口策略：
+`salias` 是支持 Linux 与 macOS 的 C++23 低延迟具名 IPC 消息通道。面向新用户的核心入口只有
+三个：通用可靠流 `Channel<Mode, Schema>`、固定布局快速流 `FixedChannel`，以及 latest fanout
+`LatestMpmcChannel`。`LatestByKey`、Priority 和 Ringbuffer 是非核心 extras 候选，不属于快速开始。
 
-| Mode | 排序语义 | 消费者拓扑 |
-|---|---|---|
-| `FifoMpsc` | 每生产者 FIFO，不保证跨生产者顺序 | 单消费者 |
-| `FifoMpmc` | 每生产者 FIFO，不保证跨生产者顺序 | 多消费者 fanout |
-| `OrderedMpsc` | 跨生产者全局全序 | 单消费者 |
-| `OrderedMpmc` | 跨生产者全局全序 | 多消费者 fanout |
-| `LatestMpmc` | 每个生产者内 FIFO；慢消费者跳过保留窗口外的旧消息 | 多消费者 fanout |
+## 快速开始
 
-`FifoMpmc` 和 `OrderedMpmc` 会将每条消息广播给每个订阅者，不是竞争式消费队列。
-
-固定布局的平凡可复制消息可以绑定显式 wire schema。typed channel 在 create 时记录 schema，
-在 connect 时校验 schema ID、版本和 payload 大小；连接成功后按固定长度定位帧，不再逐条比较
-payload 长度。值接口只接受或返回 schema 声明的消息类型；`try_claim()` 仍返回长度固定为
-`sizeof(T)` 的字节 span，调用方须写入完整、有效的 `T` 对象表示：
+固定布局消息使用应用管理的非零 schema ID 和显式版本。`Schema<T, Id, Version>` 只消除样板声明，
+不改变 wire 布局、连接校验或运行时成本：
 
 ```cpp
 struct Quote {
@@ -26,12 +16,12 @@ struct Quote {
   std::uint32_t quantity;
 };
 
-struct QuoteSchema {
-  using message_type = Quote;
-  static constexpr std::uint64_t schema_id = 0x51554F5445000001;
-  static constexpr std::uint32_t version = 1;
-};
+using QuoteSchema = salias::Schema<Quote, 0x51554F5445000001, 1>;
+```
 
+通用、动态、变长或需要 Ordered/Latest 的场景使用 `Channel<Mode, Schema>`：
+
+```cpp
 using QuoteChannel = salias::Channel<salias::Mode::FifoMpsc, QuoteSchema>;
 auto channel = QuoteChannel::create(config);
 auto publisher = channel->publisher();
@@ -40,15 +30,11 @@ publisher.send(Quote{1001, 12345, 10});
 auto quote = subscriber.try_recv_copy();
 ```
 
-`QuoteSchema` 必须使用应用管理的非零 `schema_id` 和 `version`；字段布局或语义不兼容时递增版本。
-`try_recv_copy()` 返回本地 `Quote` 并自动释放 ring 槽位，`recv_copy()` 是阻塞版本。`Quote` 必须是
-平凡可复制类型，且自身及其成员不能包含进程内指针。发送的是对象表示，包含 padding 字节；跨越不可信边界
-或携带敏感数据时应使用显式序列化。raw `Channel<Mode>` 仍支持变长 payload；其
-通用 `try_recv_copy<T>()` 会逐消息检查长度并在不匹配时返回 `Error::PayloadSizeMismatch`。
-typed/raw 混连或 schema 不匹配会在连接时返回 `Error::SchemaMismatch`。schema 是兼容性声明，不是
-对恶意或错误进程的认证机制。需要最低延迟时可继续用 raw 通道的借用 `Message` 和 `release()`。
+`Channel<Mode>` 是同一通用 Channel 产品的 raw payload 模式，不是第二套产品。raw 模式支持变长
+payload、动态订阅和借用 `Message`；`Channel<Mode, Schema>` 是该产品的固定消息模式。两者不可
+混连，schema ID、版本或 payload 大小不一致时返回 `Error::SchemaMismatch`。
 
-固定 payload、固定参与者的热路径可使用候选 `FixedChannel`。它直接映射固定槽 ring，不经过通用
+固定 payload、固定参与者并追求最低热路径开销时使用独立数据面的 `FixedChannel`。它直接映射固定槽 ring，不经过通用
 通道的变长 frame、动态订阅、TTL 或 Latest 语义；参与者数量和每个 producer lane 的 slot 数在
 编译期固定：
 
@@ -67,13 +53,39 @@ subscriber 对 producer 形成背压。该类型当前仍使用 `Fast*Ring` 候�
 边界见 [固定槽 Ring 开发验收](doc/benchmarks/2026-10-29-fast-ring/README.md)，与 Aeron
 的设计差异和继续优化路线见 [固定槽 Ring 架构分析](doc/fast-ring-architecture.md)。
 
-公开 Channel 入口的保留、冻结、extras 化和主版本删除门禁见
-[Channel API 收敛计划](doc/plans/2026-10-30-channel-api-convergence.md)；该计划当前不改变
-既有 API 行为，也不与固定槽性能重命名合并执行。
+有界 latest fanout 使用 `LatestMpmcChannel<Capacity, Watermark>`：
 
-FIFO 模式的生产者热路径不执行共享 RMW；ordered 模式通过单个全局 sequence
-`fetch_add` 建立跨生产者全序。每个生产者拥有独立 ring，每个 fanout 消费者拥有独立的
-per-producer 游标。
+```cpp
+using QuoteLatest = salias::LatestMpmcChannel<1u << 20, 90>;
+auto latest = QuoteLatest::create(config);
+auto latest_publisher = latest->publisher();
+auto lossy = latest->subscriber();
+auto reliable = latest->subscriber(salias::SubscriptionPolicy::Reliable);
+```
+
+## 模式与语义
+
+通用引擎公开以下 `Mode`；typed 与 raw 共用同一排序和拓扑语义：
+
+| Mode | 排序语义 | 消费者拓扑 |
+|---|---|---|
+| `FifoMpsc` | 每生产者 FIFO，不保证跨生产者顺序 | 单消费者 |
+| `FifoMpmc` | 每生产者 FIFO，不保证跨生产者顺序 | 多消费者 fanout |
+| `OrderedMpsc` | 跨生产者全局全序 | 单消费者 |
+| `OrderedMpmc` | 跨生产者全局全序 | 多消费者 fanout |
+| `LatestMpmc` | 每个生产者内 FIFO；慢消费者跳过保留窗口外的旧消息 | 多消费者 fanout |
+
+`FifoMpmc` 和 `OrderedMpmc` 会把每条消息广播给每个订阅者，不是竞争式消费队列。FIFO 模式的
+生产者热路径不执行共享 RMW；ordered 模式通过单个全局 sequence `fetch_add` 建立跨生产者全序。
+每个生产者拥有独立 ring，每个 fanout 消费者拥有独立的 per-producer 游标。
+
+typed channel 在 create 时记录 schema，在 connect 时校验 schema ID、版本和 payload 大小；连接成功
+后按固定长度定位帧，不再逐条比较 payload 长度。值接口只接受或返回 schema 声明的消息类型；
+`try_claim()` 仍返回长度固定为 `sizeof(T)` 的字节 span，调用方须写入完整、有效的 `T` 对象表示。
+`try_recv_copy()` 返回本地 `Quote` 并自动释放 ring 槽位，`recv_copy()` 是阻塞版本。`Quote` 必须是
+平凡可复制类型，且自身及其成员不能包含进程内指针。发送的是对象表示，包含 padding 字节；跨越
+不可信边界或携带敏感数据时应使用显式序列化。schema 是兼容性声明，不是对恶意或错误进程的认证机制。
+需要最低延迟时可继续使用 raw 通道的借用 `Message` 和 `release()`。
 
 `LatestMpmcChannel<Capacity, HighWatermarkPercent>` 将每个 producer ring 的字节容量和
 保留水位固定为模板参数，水位默认是容量的 90%。达到水位后淘汰最旧消息；每个订阅者独立
@@ -83,6 +95,32 @@ pin 住对应 payload；若写入会覆盖仍借用的字节，发布暂时返�
 LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者选择
 `SubscriptionPolicy::Reliable`，让其未读游标参与保留边界并在慢读时对生产者施加背压。
 其他模式仅支持 Reliable 策略。
+
+## 兼容入口与弃用
+
+以下四个 raw 便捷别名在 4.x 兼容窗口内继续导出，但已标记为编译器弃用并从主教程移除：
+
+| 兼容别名 | 规范入口 |
+|---|---|
+| `FifoMpscChannel` | `Channel<Mode::FifoMpsc>` |
+| `FifoMpmcChannel` | `Channel<Mode::FifoMpmc>` |
+| `OrderedMpscChannel` | `Channel<Mode::OrderedMpsc>` |
+| `OrderedMpmcChannel` | `Channel<Mode::OrderedMpmc>` |
+
+直接 `Channel<Mode::LatestMpmc>` 也是兼容入口；公开 latest fanout 统一推荐
+`LatestMpmcChannel<Capacity, HighWatermarkPercent>`。typed latest 仍保留直接 `Channel` 路径，
+其唯一推荐入口和静态配置契约由 Phase 2 决定，不能未经契约替换成只支持 raw payload 的 wrapper。
+四个 `*Channel` 别名本版本不删除，最早在 `5.0.0` 且下游证据和负责人签署齐备后移除。迁移表、
+警告策略和 codemod 命令见 [Channel API 迁移说明](doc/migration/channel-api-convergence.md)；
+逐 symbol 的 core/compat/extras 状态见
+[机器可读 API 清单](doc/api/channel-api-manifest.json)。
+
+## 附加能力
+
+`LatestByKeyChannel`、`PriorityPublisher` / `PrioritySubscriber` 和进程内 `Ringbuffer` 当前仍可
+经由 `<salias/salias.hpp>` 与 `import salias;` 使用，但已列为 extras 候选，不进入核心快速开始，
+也不进入 `FixedChannel` 热路径。Phase 3 只有在仓库外使用证据、负责人签署和独立安装/module
+消费验证齐备后才会转移或调整这些能力；本版本不删除。
 
 `LatestByKeyChannel<Key, Value, Capacity, SchemaVersion>` 是独立的有界 latest-value IPC 表，按 key
 保存最新值，重复 key 更新覆盖同一槽位；订阅者各自接收当前快照，未读期间的中间更新会合并，返回的是
@@ -118,6 +156,13 @@ Pub/Sub 端点不提供内建 CPU 绑核接口，应用可在调用端点的线�
 1ms 全流重扫。等待期间的发布会通过一次性注册票据唤醒，票据失效或超时都会重新完整扫描。
 每次调用独立开始等待；非法策略返回 `BadConfig`，不会消费消息。`try_recv*()` 与 `poll()`
 仍为非阻塞。默认参数保留普通无参调用兼容，但成员函数指针类型随新签名改变。
+
+`Ringbuffer<T, Capacity, HighWatermarkPercent>` 是进程内单线程有界队列，默认高水位为 90%，
+淘汰最旧项并保留最新项；它不提供跨进程、线程安全或 Channel 背压语义。
+
+公开 Channel 入口的保留、冻结、extras 化和主版本删除门禁见
+[Channel API 收敛计划](doc/plans/2026-10-30-channel-api-convergence.md)；本计划不改变固定槽
+性能重命名门禁，也不与 Fast Ring Phase 7 合并执行。
 
 ## 构建
 
@@ -155,12 +200,12 @@ target_link_libraries(my_app PRIVATE salias::salias)
 
 ## mcpp 与 C++23 模块
 
-原生包身份为 `gzj-creator.salias`，版本 `4.0.1` 与 CMake 一致。`mcpp.toml`
+原生包身份为 `gzj-creator.salias`，版本 `4.1.0` 与 CMake 一致。`mcpp.toml`
 编译公共库和必要的 core 实现，`src/salias.cppm` 提供 `import salias;`；默认构建不需要
 GTest、Google Benchmark 或 Aeron。模块导出公共配置、枚举、错误和结果类型、Message、
-Channel/Publisher/Subscriber/PublishClaim 模板、五种模式的端点别名、静态配置的
-`LatestMpmcChannel` 和 `LatestByKeyChannel` 及其消息/发布/订阅端点，以及订阅交付策略
-`SubscriptionPolicy`。应用专用别名由消费者维护。
+`Schema<T, Id, Version>`、Channel/Publisher/Subscriber/PublishClaim 模板、五种模式的端点别名、
+静态配置的 `LatestMpmcChannel`，以及当前仍为兼容聚合面的 `LatestByKeyChannel`、Priority 和
+`Ringbuffer`。应用专用别名由消费者维护。
 
 安装 mcpp 和 LLVM 工具链后，在仓库中构建和验证：
 
@@ -246,7 +291,7 @@ Google Benchmark 依赖，并固定 CPU、负载和测试环境。
 import std;
 import salias;
 
-auto channel = salias::FifoMpscChannel::connect("quotes");
+auto channel = salias::Channel<salias::Mode::FifoMpsc>::connect("quotes");
 ```
 
 模块入口在全局模块片段包含现有头文件，并重新导出原声明；公共类型仍属于头文件 ABI。
@@ -273,7 +318,7 @@ int main() {
   config.capacity = 1u << 20;
   config.num_producers = 2;
 
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   if (!created) {
     return 1;
   }
@@ -298,7 +343,7 @@ int main() {
 连接已有通道：
 
 ```cpp
-auto peer = salias::FifoMpscChannel::connect("quotes");
+auto peer = salias::Channel<salias::Mode::FifoMpsc>::connect("quotes");
 ```
 
 fanout 通道必须配置消费者 slot 数：
@@ -308,7 +353,7 @@ salias::Config config;
 config.name = "market-data";
 config.num_producers = 4;
 config.num_consumers = 2;
-auto owner = salias::FifoMpmcChannel::create(config);
+auto owner = salias::Channel<salias::Mode::FifoMpmc>::create(config);
 ```
 
 `Publisher` 和 `Subscriber` 持有底层 Tx/Rx 端点，因此生产者背压缓存、消费者 ring 游标和

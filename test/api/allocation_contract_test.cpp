@@ -129,7 +129,7 @@ int main() {
   create_failure_config.name = std::string(128, 'a');
 
   fail_next_allocation.store(true, std::memory_order_relaxed);
-  auto failed_create = salias::FifoMpscChannel::create(create_failure_config);
+  auto failed_create = salias::Channel<salias::Mode::FifoMpsc>::create(create_failure_config);
   fail_next_allocation.store(false, std::memory_order_relaxed);
 
   if (failed_create || failed_create.error() != salias::Error::OutOfMemory) {
@@ -151,7 +151,7 @@ int main() {
   const std::string missing_channel_name(64, 'b');
 
   fail_next_allocation.store(true, std::memory_order_relaxed);
-  auto failed_connect = salias::FifoMpscChannel::connect(missing_channel_name);
+  auto failed_connect = salias::Channel<salias::Mode::FifoMpsc>::connect(missing_channel_name);
   fail_next_allocation.store(false, std::memory_order_relaxed);
 
   if (failed_connect || failed_connect.error() != salias::Error::OutOfMemory) {
@@ -168,25 +168,33 @@ int main() {
   create_failure_config.capacity = 4096;
   create_failure_config.num_producers = 2;
   create_failure_config.name = "allocations-" + std::to_string(::getpid()) + std::string(64, 'c');
-  if (!check_create_allocations<salias::FifoMpscChannel>(create_failure_config) ||
-      !check_create_allocations<salias::FifoMpmcChannel>(create_failure_config) ||
-      !check_create_allocations<salias::OrderedMpscChannel>(create_failure_config) ||
-      !check_create_allocations<salias::OrderedMpmcChannel>(create_failure_config) ||
+  if (!check_create_allocations<salias::Channel<salias::Mode::FifoMpsc>>(create_failure_config) ||
+      !check_create_allocations<salias::Channel<salias::Mode::FifoMpmc>>(create_failure_config) ||
+      !check_create_allocations<salias::Channel<salias::Mode::OrderedMpsc>>(
+          create_failure_config) ||
+      !check_create_allocations<salias::Channel<salias::Mode::OrderedMpmc>>(
+          create_failure_config) ||
       !check_create_allocations<salias::Channel<salias::Mode::LatestMpmc>>(create_failure_config) ||
       !check_create_allocations<salias::LatestMpmcChannel<4096>>(create_failure_config)) {
     return 7;
   }
-  if (!check_connect_allocations<salias::FifoMpscChannel>(create_failure_config) ||
-      !check_connect_allocations<salias::FifoMpmcChannel>(create_failure_config) ||
-      !check_connect_allocations<salias::OrderedMpscChannel>(create_failure_config) ||
-      !check_connect_allocations<salias::OrderedMpmcChannel>(create_failure_config) ||
+  if (!check_connect_allocations<salias::Channel<salias::Mode::FifoMpsc>>(create_failure_config) ||
+      !check_connect_allocations<salias::Channel<salias::Mode::FifoMpmc>>(create_failure_config) ||
+      !check_connect_allocations<salias::Channel<salias::Mode::OrderedMpsc>>(
+          create_failure_config) ||
+      !check_connect_allocations<salias::Channel<salias::Mode::OrderedMpmc>>(
+          create_failure_config) ||
       !check_connect_allocations<salias::LatestMpmcChannel<4096>>(create_failure_config)) {
     return 9;
   }
-  if (!check_subscriber_allocations<salias::FifoMpscChannel>(create_failure_config) ||
-      !check_subscriber_allocations<salias::FifoMpmcChannel>(create_failure_config) ||
-      !check_subscriber_allocations<salias::OrderedMpscChannel>(create_failure_config) ||
-      !check_subscriber_allocations<salias::OrderedMpmcChannel>(create_failure_config) ||
+  if (!check_subscriber_allocations<salias::Channel<salias::Mode::FifoMpsc>>(
+          create_failure_config) ||
+      !check_subscriber_allocations<salias::Channel<salias::Mode::FifoMpmc>>(
+          create_failure_config) ||
+      !check_subscriber_allocations<salias::Channel<salias::Mode::OrderedMpsc>>(
+          create_failure_config) ||
+      !check_subscriber_allocations<salias::Channel<salias::Mode::OrderedMpmc>>(
+          create_failure_config) ||
       !check_subscriber_allocations<salias::LatestMpmcChannel<4096>>(create_failure_config)) {
     return 8;
   }
@@ -194,7 +202,7 @@ int main() {
   salias::Config typed_config;
   typed_config.name = "allocations-typed-" + std::to_string(::getpid());
   typed_config.capacity = 4096;
-  auto typed_channel = salias::FifoMpscChannel::create(typed_config);
+  auto typed_channel = salias::Channel<salias::Mode::FifoMpsc>::create(typed_config);
   if (!typed_channel) {
     return 14;
   }

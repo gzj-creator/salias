@@ -147,7 +147,8 @@ SmallPayload decode_small(std::span<const std::byte> payload) {
  */
 // 测量同线程内 64 字节 payload 的 SPSC 发布/接收往返。
 void BM_fifo_roundtrip_64b(benchmark::State& state) {
-  auto channel_result = salias::FifoMpscChannel::create(config_for(salias::Mode::FifoMpsc));
+  auto channel_result =
+      salias::Channel<salias::Mode::FifoMpsc>::create(config_for(salias::Mode::FifoMpsc));
   if (!channel_result) {
     state.SkipWithError("failed to create SPSC channel");
     return;
@@ -180,7 +181,8 @@ void BM_fifo_roundtrip_64b(benchmark::State& state) {
 }
 
 void BM_ttl_expiration_64b(benchmark::State& state) {
-  auto channel_result = salias::FifoMpscChannel::create(config_for(salias::Mode::FifoMpsc));
+  auto channel_result =
+      salias::Channel<salias::Mode::FifoMpsc>::create(config_for(salias::Mode::FifoMpsc));
   if (!channel_result) {
     state.SkipWithError("failed to create TTL channel");
     return;
@@ -356,7 +358,7 @@ void BM_latest_fast_subscriber_64b(benchmark::State& state) {
 template <bool ChurnSubscriber>
 void BM_fanout_registration_roundtrip_64b(benchmark::State& state) {
   auto config = config_for(salias::Mode::FifoMpmc, 4096);
-  auto created = salias::FifoMpmcChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpmc>::create(config);
   if (!created) {
     state.SkipWithError("failed to create fifo fanout channel");
     return;
@@ -732,7 +734,7 @@ void BM_latest_by_key_roundtrip_64b(benchmark::State& state) {
 template <class Payload, bool Typed>
 void BM_typed_roundtrip(benchmark::State& state) {
   using TypedChannel = salias::Channel<salias::Mode::FifoMpsc, TypedRoundtripSchema<Payload>>;
-  using Channel = std::conditional_t<Typed, TypedChannel, salias::FifoMpscChannel>;
+  using Channel = std::conditional_t<Typed, TypedChannel, salias::Channel<salias::Mode::FifoMpsc>>;
   auto config = config_for(salias::Mode::FifoMpsc, 1u << 20);
   config.name += Typed ? "-schema-" : "-raw-";
   config.name += std::to_string(sizeof(Payload));
@@ -787,7 +789,7 @@ template <bool Typed>
 void BM_fanout_copy_64b(benchmark::State& state) {
   using Payload = TypedRoundtripPayload<64>;
   using TypedChannel = salias::Channel<salias::Mode::FifoMpmc, TypedRoundtripSchema<Payload>>;
-  using Channel = std::conditional_t<Typed, TypedChannel, salias::FifoMpmcChannel>;
+  using Channel = std::conditional_t<Typed, TypedChannel, salias::Channel<salias::Mode::FifoMpmc>>;
   auto config = config_for(salias::Mode::FifoMpmc, 1u << 20);
   config.name += Typed ? "-schema-fanout" : "-raw-fanout";
   config.num_consumers = 2;
@@ -856,8 +858,8 @@ void BM_priority_weighted_roundtrip_64b(benchmark::State& state) {
   high_config.name += "-priority-high";
   auto low_config = config_for(salias::Mode::FifoMpsc, 1u << 16);
   low_config.name += "-priority-low";
-  auto high = salias::FifoMpscChannel::create(high_config);
-  auto low = salias::FifoMpscChannel::create(low_config);
+  auto high = salias::Channel<salias::Mode::FifoMpsc>::create(high_config);
+  auto low = salias::Channel<salias::Mode::FifoMpsc>::create(low_config);
   if (!high || !low) {
     state.SkipWithError("failed to create priority roundtrip channels");
     return;

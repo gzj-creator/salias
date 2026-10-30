@@ -1,13 +1,12 @@
+#include <unistd.h>
+
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <salias/salias.hpp>
 #include <span>
 #include <string>
 #include <utility>
-
-#include <unistd.h>
-
-#include <salias/salias.hpp>
 
 int main() {
   salias::Config config;
@@ -15,7 +14,7 @@ int main() {
   config.mode = salias::Mode::FifoMpsc;
   config.num_producers = 2;
 
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   if (!created) {
     return 1;
   }

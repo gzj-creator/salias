@@ -104,8 +104,8 @@ salias::Result<salias::PriorityMessage> receive(PrioritySub& reader, std::int64_
 }
 
 void BM_priority_roundtrip(benchmark::State& state) {
-  auto high = salias::FifoMpscChannel::create(make_config("priority-high"));
-  auto low = salias::FifoMpscChannel::create(make_config("priority-low"));
+  auto high = salias::Channel<salias::Mode::FifoMpsc>::create(make_config("priority-high"));
+  auto low = salias::Channel<salias::Mode::FifoMpsc>::create(make_config("priority-low"));
   if (!high || !low) {
     state.SkipWithError("channel creation failed");
     return;

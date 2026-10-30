@@ -62,6 +62,26 @@ salias_enable_sanitizers(salias_poll_storage_contract_test)
 salias_register_test(salias_poll_storage_contract_test
   "$<TARGET_FILE:salias_poll_storage_contract_test>")
 
+add_executable(salias_channel_alias_compat_test api/channel_alias_compat_test.cpp)
+target_link_libraries(salias_channel_alias_compat_test PRIVATE salias)
+salias_enable_warnings(salias_channel_alias_compat_test)
+salias_enable_sanitizers(salias_channel_alias_compat_test)
+salias_register_test(salias_channel_alias_compat_test
+  "$<TARGET_FILE:salias_channel_alias_compat_test>")
+
+add_executable(salias_schema_helper_test api/schema_helper_test.cpp)
+target_link_libraries(salias_schema_helper_test PRIVATE salias)
+salias_enable_warnings(salias_schema_helper_test)
+salias_enable_sanitizers(salias_schema_helper_test)
+salias_register_test(salias_schema_helper_test "$<TARGET_FILE:salias_schema_helper_test>")
+
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(
+  NAME salias_channel_api_documentation_check
+  COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tools/check_channel_api.py"
+)
+set_tests_properties(salias_channel_api_documentation_check PROPERTIES TIMEOUT 120)
+
 find_package(GTest CONFIG QUIET)
 if(NOT GTest_FOUND)
   message(WARNING

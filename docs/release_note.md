@@ -98,3 +98,19 @@
   - **历史性能证据**：归档已有第三次 v4.0.0 独立三臂 A/B 的 Markdown、分析 JSON 和实验清单，并同步性能报告与迁移计划。64 B S/B=1.245886，仍为 `INCONCLUSIVE`，不合并运行或改写预注册门槛；本次发版不宣称已重跑 v4.0.1 压测、HFT 长尾门禁或满足生产 SLA。
   - **版本元数据**：CMake、mcpp、vcpkg 和 README 当前包版本统一为 4.0.1。
   - **本版验证**：Release CMake 构建与 CTest 22/22 通过，零长度控制段新增用例单独复跑通过；mcpp 离线 Release（jobs=1）构建及模块导入测试通过。原始输出保留于本机 `/data/disk1/quote/reports/salias-v4.0.1-20261025-01/`，本次未重跑长时性能实验。
+
+## v4.1.0 - 2026-10-30
+
+- **版本级别**：次版本（minor），新增显式 Schema 声明辅助能力并冻结 Channel API 规范入口；不删除公开符号，不修改共享内存 wire protocol。
+- **Git 提交消息**：feat: 发布 v4.1.0 并收敛 Channel API
+- **git tag**：v4.1.0
+- **自上次 tag（v4.0.1）以来的变更摘要**：
+  - **规范入口**：README 快速开始收敛为 `Channel<Mode, Schema>`、`FixedChannel` 和 `LatestMpmcChannel` 三个核心入口；raw 与 typed 明示为同一通用 Channel 的 payload 模式，`FixedChannel` 保持独立固定槽数据面。
+  - **兼容 API**：`FifoMpscChannel`、`FifoMpmcChannel`、`OrderedMpscChannel`、`OrderedMpmcChannel` 继续导出并标记 `[[deprecated]]`，提供同型兼容测试和 codemod 迁移表；直接 `Channel<Mode::LatestMpmc>` 标为 compat，typed latest 的替代契约留待 Phase 2。四个别名本版不删除，最早在 5.0 主版本处理。
+  - **新增辅助模板**：`Schema<T, Id, Version>` 用显式非零 schema ID 和版本绑定 fixed-layout 消息；该类型无数据成员、无运行时路径，字段布局或语义变化仍必须由应用递增版本。
+  - **固定槽通道**：新增 schema-bound `FixedChannel` 及 `FastSpscRing`、`FastSpmcRing`、`FastMpscRing`、`FastMpmcRing` 候选实现，覆盖固定参与者、可靠背压、独立 producer lane、独立 consumer cursor 和四拓扑跨进程验证；`FixedSubscriber::poll()` 在批末发布 consumer cursor，单个 SPSC 64 B 饱和吞吐开发对照由 8.20 提升到 40.03 Mmsg/s，不宣称延迟改善。
+  - **API 基线**：新增机器可读 `channel-api-manifest.json`、仓库内使用矩阵和迁移说明，逐 symbol 标记 core/compat/extras/removed 状态、代码位置和替代入口；新增文档门禁防止快速开始重新引入兼容或 extras 入口。
+  - **下游证据**：同工作区四个 salias 下游仓库快照均通过固定绝对 path 依赖并仍引用 raw 别名；未检索到 `LatestByKey`、Priority 或 Ringbuffer 引用。四个仓库均启用 `-Werror`，采用 4.1 前必须先完成别名迁移或显式调整弃用告警策略。由于缺少完整外部用户清单、发布包消费遥测、迁移成本确认和负责人签署，Phase 0 外部门禁仍为阻塞，不能把本快照当作全局零使用证明。
+  - **保留边界**：`LatestByKey`、Priority、Ringbuffer 仍作为 extras 候选完整导出；`Channel` 与 `FixedChannel` 数据面未合并；共享通道版本、slot 布局、completion protocol 和 `Fast*Ring` 名称均未改变。
+  - **验证**：Release 构建与 CTest 25/25、ASan/UBSan CTest 24/24 通过，其中安装消费者、别名兼容、Schema roundtrip 和文档检查通过；mcpp 离线 Release 构建、`test_mcpp_import --locked` 及两个独立 shared-path 消费者通过。本轮为模板/文档/测试层收敛，未改热路径，因此未执行收敛前后性能 ABBA。
+  - **后续门禁**：Phase 0 仍需完整外部证据与负责人签署；Phase 2-5 未执行。Fast Ring 最终重命名仍由既有 6×20 ABBA、独占 CPU 和 p99.9 门禁控制，本版本不打主版本 tag。

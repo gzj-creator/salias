@@ -257,9 +257,10 @@ int priority(double seconds, int policy, std::uint64_t interval_microseconds,
       salias::PrioritySubscriber<(static_cast<void>(Indices), salias::Mode::FifoMpsc)...>;
   using Publisher =
       salias::PriorityPublisher<(static_cast<void>(Indices), salias::Mode::FifoMpsc)...>;
-  std::vector<salias::FifoMpscChannel> channels;
+  std::vector<salias::Channel<salias::Mode::FifoMpsc>> channels;
   for (std::size_t index = 0; index < streams; ++index) {
-    auto channel = salias::FifoMpscChannel::create(config_for("priority-" + std::to_string(index)));
+    auto channel = salias::Channel<salias::Mode::FifoMpsc>::create(
+        config_for("priority-" + std::to_string(index)));
     if (!channel) {
       return 2;
     }
@@ -410,8 +411,8 @@ int priority(double seconds, int policy, std::uint64_t interval_microseconds,
 }
 
 int priority_saturated(double seconds, int policy) {
-  auto high = salias::FifoMpscChannel::create(config_for("saturated-high"));
-  auto low = salias::FifoMpscChannel::create(config_for("saturated-low"));
+  auto high = salias::Channel<salias::Mode::FifoMpsc>::create(config_for("saturated-high"));
+  auto low = salias::Channel<salias::Mode::FifoMpsc>::create(config_for("saturated-low"));
   if (!high || !low) {
     return 2;
   }

@@ -120,4 +120,22 @@ T copy_from_bytes(std::span<const std::byte> bytes) noexcept {
 
 }  // namespace detail
 
+/**
+ * @brief 用显式 schema ID 和版本绑定固定布局消息类型。
+ * @tparam T 平凡可复制、可作为对象表示跨进程传输的消息类型。
+ * @tparam SchemaId 应用管理的非零稳定 schema ID。
+ * @tparam SchemaVersion 应用管理的非零显式布局/语义版本。
+ * @details 该模板只消除重复的样板声明，不改变 wire 布局、连接校验或运行时成本。
+ *          字段布局或语义变化时仍须由应用显式递增版本。
+ */
+template <detail::WireMessage T, std::uint64_t SchemaId, std::uint32_t SchemaVersion>
+struct Schema final {
+  static_assert(SchemaId != 0, "schema ID zero is reserved for raw channels");
+  static_assert(SchemaVersion != 0, "wire schema version must be explicit and non-zero");
+
+  using message_type = T;
+  static constexpr std::uint64_t schema_id = SchemaId;
+  static constexpr std::uint32_t version = SchemaVersion;
+};
+
 }  // namespace salias

@@ -11,11 +11,10 @@
 
 #include <cstdint>
 #include <cstring>
+#include <salias/salias.hpp>
 #include <string>
 #include <string_view>
 #include <utility>
-
-#include <salias/salias.hpp>
 
 namespace {
 
@@ -39,7 +38,7 @@ salias::Config config_for(std::string_view suffix) {
 }  // namespace
 
 TEST(ClaimApiV4Test, RawClaimCommitsThroughPublisher) {
-  auto created = salias::FifoMpscChannel::create(config_for("raw"));
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config_for("raw"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -62,7 +61,7 @@ TEST(ClaimApiV4Test, RawClaimCommitsThroughPublisher) {
 }
 
 TEST(ClaimApiV4Test, MovedClaimRetainsOwnershipAndCanBeCommitted) {
-  auto created = salias::FifoMpscChannel::create(config_for("moved"));
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config_for("moved"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -106,7 +105,7 @@ TEST(ClaimApiV4Test, SchemaBoundClaimCommitsThroughTypedPublisher) {
 }
 
 TEST(ClaimApiV4Test, SamePublisherCopyCanCommitClaim) {
-  auto created = salias::FifoMpscChannel::create(config_for("copy"));
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config_for("copy"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -129,7 +128,7 @@ TEST(ClaimApiV4Test, SamePublisherCopyCanCommitClaim) {
 
 TEST(ClaimApiV4Test, CrossPublisherCommitIsRejectedWithoutPublishing) {
 #if defined(NDEBUG)
-  auto created = salias::FifoMpscChannel::create(config_for("cross"));
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config_for("cross"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto first = channel.publisher();
@@ -149,7 +148,7 @@ TEST(ClaimApiV4Test, CrossPublisherCommitIsRejectedWithoutPublishing) {
 }
 
 TEST(ClaimApiV4Test, DuplicateCommitIsIgnored) {
-  auto created = salias::FifoMpscChannel::create(config_for("duplicate"));
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config_for("duplicate"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();
@@ -172,7 +171,7 @@ TEST(ClaimApiV4Test, DuplicateCommitIsIgnored) {
 }
 
 TEST(ClaimApiV4Test, MovedFromClaimCannotBeCommitted) {
-  auto created = salias::FifoMpscChannel::create(config_for("moved-from"));
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config_for("moved-from"));
   ASSERT_TRUE(created);
   auto channel = std::move(*created);
   auto publisher = channel.publisher();

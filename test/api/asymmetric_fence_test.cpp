@@ -14,6 +14,8 @@
  *          析构并 unlink 父进程仍在使用的共享段。
  */
 
+#include "core/platform/asymmetric_fence.hpp"
+
 #include <fcntl.h>
 #include <gtest/gtest.h>
 #include <sys/mman.h>
@@ -34,7 +36,6 @@
 #include <string_view>
 #include <thread>
 
-#include "core/platform/asymmetric_fence.hpp"
 #include "salias/salias.hpp"
 
 namespace {
@@ -46,13 +47,13 @@ struct CounterMessage {
 
 /// @brief 跨进程控制标志（MAP_SHARED 匿名映射，fork 前建立）。
 struct SharedFlags {
-  std::atomic<std::uint32_t> stop{0};      ///< 父进程置 1 后发布端退出。
-  std::atomic<std::uint32_t> go{0};        ///< 订阅者就绪后放行发布端。
-  std::atomic<std::uint32_t> failure{0};   ///< 任一子进程检测到错误时置 1。
+  std::atomic<std::uint32_t> stop{0};     ///< 父进程置 1 后发布端退出。
+  std::atomic<std::uint32_t> go{0};       ///< 订阅者就绪后放行发布端。
+  std::atomic<std::uint32_t> failure{0};  ///< 任一子进程检测到错误时置 1。
 };
 
-constexpr std::size_t kStressCapacity = 1u << 20;      ///< 1 MiB，容纳约 1.4 万条 8B 帧。
-constexpr std::uint32_t kMessagesPerSession = 8;       ///< 每次订阅至少校验的消息条数。
+constexpr std::size_t kStressCapacity = 1u << 20;  ///< 1 MiB，容纳约 1.4 万条 8B 帧。
+constexpr std::uint32_t kMessagesPerSession = 8;   ///< 每次订阅至少校验的消息条数。
 constexpr std::uint32_t kAcquireReleaseCycles = 10'000;  ///< §5.6 要求的 acquire/release 次数。
 constexpr auto kSessionTimeout = std::chrono::seconds(5);
 
@@ -91,7 +92,9 @@ class DisableAsymmetricFenceScope {
     }
   }
 
-  ~DisableAsymmetricFenceScope() { static_cast<void>(::unsetenv("SALIAS_DISABLE_ASYMMETRIC_FENCE")); }
+  ~DisableAsymmetricFenceScope() {
+    static_cast<void>(::unsetenv("SALIAS_DISABLE_ASYMMETRIC_FENCE"));
+  }
 
   DisableAsymmetricFenceScope(const DisableAsymmetricFenceScope&) = delete;
   DisableAsymmetricFenceScope& operator=(const DisableAsymmetricFenceScope&) = delete;
@@ -145,7 +148,7 @@ bool patch_control_byte(std::string_view channel_name, std::size_t offset, std::
 /// @brief 发布端主体：持续发布自增计数器，直到 stop 置位。
 /// @return 进程退出码（0 表示未观测到异常）。
 int run_producer(std::string_view name, SharedFlags* flags) {
-  auto connected = salias::FifoMpscChannel::connect(name);
+  auto connected = salias::Channel<salias::Mode::FifoMpsc>::connect(name);
   if (!connected) {
     return 2;
   }
@@ -174,7 +177,7 @@ int run_producer(std::string_view name, SharedFlags* flags) {
 /// @brief 订阅端主体：循环 acquire/release，逐个会话校验序号连续性。
 /// @return 进程退出码（0 表示全部会话通过）。
 int run_consumer(std::string_view name, SharedFlags* flags, std::uint32_t cycles) {
-  auto connected = salias::FifoMpscChannel::connect(name);
+  auto connected = salias::Channel<salias::Mode::FifoMpsc>::connect(name);
   if (!connected) {
     return 2;
   }
@@ -236,8 +239,9 @@ TEST_P(AsymmetricFenceStressTest, AcquireReleaseKeepsSequenceContinuity) {
   config.capacity = kStressCapacity;
   config.num_producers = 1;
   config.num_consumers = 1;
-  auto created = salias::FifoMpscChannel::create(config);
-  ASSERT_TRUE(created.has_value()) << "create failed with error " << static_cast<int>(created.error());
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
+  ASSERT_TRUE(created.has_value())
+      << "create failed with error " << static_cast<int>(created.error());
   // 保持 owner 句柄存活：fork 出的子进程通过同名通道 connect。
   auto channel = std::move(*created);
   static_cast<void>(channel);
@@ -293,7 +297,7 @@ TEST(AsymmetricFenceForkTest, ChildPublisherAfterFork) {
   config.capacity = kStressCapacity;
   config.num_producers = 2;  // 父进程先占用 producer 0 触发注册，子进程使用 producer 1。
   config.num_consumers = 1;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created.has_value());
   auto& channel = *created;
 
@@ -309,8 +313,8 @@ TEST(AsymmetricFenceForkTest, ChildPublisherAfterFork) {
   } cleanup{flags};
 
   auto subscribed = channel.try_subscriber();
-  ASSERT_TRUE(subscribed.has_value()) << "subscribe failed with error "
-                                      << static_cast<int>(subscribed.error());
+  ASSERT_TRUE(subscribed.has_value())
+      << "subscribe failed with error " << static_cast<int>(subscribed.error());
   auto subscriber = std::move(*subscribed);
 
   constexpr std::uint32_t kMessages = 64;
@@ -355,7 +359,8 @@ TEST(AsymmetricFenceForkTest, ChildPublisherAfterFork) {
   const auto deadline = std::chrono::steady_clock::now() + kSessionTimeout;
   while (received < kMessages && std::chrono::steady_clock::now() < deadline) {
     auto message = subscriber.try_recv_copy<CounterMessage>();
-    ASSERT_TRUE(message.has_value()) << "recv failed with error " << static_cast<int>(message.error());
+    ASSERT_TRUE(message.has_value())
+        << "recv failed with error " << static_cast<int>(message.error());
     if (!message->has_value()) {
       std::this_thread::yield();
       continue;
@@ -382,7 +387,7 @@ TEST(AsymmetricFenceFaultTest, HeavyFenceFailureFailsClosed) {
   config.capacity = kStressCapacity;
   config.num_producers = 1;
   config.num_consumers = 1;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created.has_value());
   auto& channel = *created;
 
@@ -396,8 +401,8 @@ TEST(AsymmetricFenceFaultTest, HeavyFenceFailureFailsClosed) {
 
   // 故障注入期间没有产生任何半初始化槽位：清空后订阅成功，且消息内容完整。
   auto subscribed = channel.try_subscriber();
-  ASSERT_TRUE(subscribed.has_value()) << "subscribe failed with error "
-                                      << static_cast<int>(subscribed.error());
+  ASSERT_TRUE(subscribed.has_value())
+      << "subscribe failed with error " << static_cast<int>(subscribed.error());
   auto subscriber = std::move(*subscribed);
 
   constexpr std::uint32_t kMessages = 32;
@@ -428,7 +433,7 @@ TEST(AsymmetricFenceFaultTest, RegistrationFailureFallsBackToSeqCst) {
   config.capacity = kStressCapacity;
   config.num_producers = 1;
   config.num_consumers = 1;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created.has_value());
   auto& channel = *created;
 
@@ -473,7 +478,7 @@ TEST(AsymmetricFenceFaultTest, ReleaseFailureKeepsRegistration) {
   config.capacity = kStressCapacity;
   config.num_producers = 1;
   config.num_consumers = 1;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created.has_value());
   auto& channel = *created;
   ASSERT_EQ(channel.connected_consumer_count(), 0u);
@@ -501,23 +506,23 @@ TEST(AsymmetricFenceProtocolTest, RejectsLegacyVersionAndUnknownProtocol) {
   config.capacity = 64u * 1024u;
   config.num_producers = 1;
   config.num_consumers = 1;
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   ASSERT_TRUE(created.has_value());
 
   const std::string name = config.name;
   ASSERT_TRUE(patch_control_byte(name, kVersionOffset, 14));
-  auto legacy = salias::FifoMpscChannel::connect(name);
+  auto legacy = salias::Channel<salias::Mode::FifoMpsc>::connect(name);
   ASSERT_FALSE(legacy.has_value());
   EXPECT_EQ(legacy.error(), salias::Error::VersionMismatch);
   ASSERT_TRUE(patch_control_byte(name, kVersionOffset, 15));
 
   ASSERT_TRUE(patch_control_byte(name, kClaimFenceProtocolOffset, 2));
-  auto unknown = salias::FifoMpscChannel::connect(name);
+  auto unknown = salias::Channel<salias::Mode::FifoMpsc>::connect(name);
   ASSERT_FALSE(unknown.has_value());
   EXPECT_EQ(unknown.error(), salias::Error::BadConfig);
   ASSERT_TRUE(patch_control_byte(name, kClaimFenceProtocolOffset, 0));
 
-  auto restored = salias::FifoMpscChannel::connect(name);
+  auto restored = salias::Channel<salias::Mode::FifoMpsc>::connect(name);
   ASSERT_TRUE(restored.has_value());
 }
 

@@ -94,7 +94,9 @@ void roundtrip() {
 
 int main() {
   try {
-    static_assert(std::is_same_v<salias::FifoMpscChannel, salias::Channel<salias::Mode::FifoMpsc>>);
+    static_assert(
+        std::is_same_v<salias_mcpp::TypedPayloadSchema,
+                       salias::Schema<salias_mcpp::TypedPayload, 0x53414C4941534D43ull, 1>>);
     static_assert(std::is_same_v<salias::OrderedMpmcSubscriber,
                                  salias::Subscriber<salias::Mode::OrderedMpmc>>);
     roundtrip<salias::Mode::FifoMpsc>();
@@ -116,7 +118,7 @@ int main() {
     auto schema_received = typed_subscriber.try_recv_copy();
     require(schema_received && *schema_received && **schema_received == schema_payload);
     require(TypedChannel::connect(typed_config.name).has_value());
-    require(!salias::FifoMpscChannel::connect(typed_config.name).has_value());
+    require(!salias::Channel<salias::Mode::FifoMpsc>::connect(typed_config.name).has_value());
 
     salias::Config window_config;
     window_config.name =
@@ -125,7 +127,7 @@ int main() {
     window_config.mode = salias::Mode::FifoMpsc;
     window_config.capacity = 4096;
     window_config.publication_window_messages = 1;
-    auto window_channel = salias::FifoMpscChannel::create(window_config);
+    auto window_channel = salias::Channel<salias::Mode::FifoMpsc>::create(window_config);
     require(window_channel.has_value());
     auto window_publisher = window_channel->publisher();
     auto window_subscriber = window_channel->subscriber();
@@ -228,8 +230,8 @@ int main() {
     low_priority_config.name = "salias-mcpp-priority-low-" + priority_suffix;
     low_priority_config.capacity = 4096;
     low_priority_config.num_producers = 2;
-    auto high_priority = salias::FifoMpscChannel::create(high_priority_config);
-    auto low_priority = salias::FifoMpscChannel::create(low_priority_config);
+    auto high_priority = salias::Channel<salias::Mode::FifoMpsc>::create(high_priority_config);
+    auto low_priority = salias::Channel<salias::Mode::FifoMpsc>::create(low_priority_config);
     require(high_priority && low_priority);
     salias::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> priority_subscriber(
         high_priority->subscriber(), low_priority->subscriber());

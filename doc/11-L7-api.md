@@ -1,18 +1,32 @@
 # L7 公共 API
 
-## Priority 等待策略
+## 公开入口分层
 
-`PrioritySubscriber::recv(PriorityWaitPolicy policy = PriorityWaitPolicy::Yield)` 直接接受
-`enum class PriorityWaitPolicy : std::uint32_t { Yield, Spin, Adaptive }`，无独立无参重载。
-默认 `Yield` 在每次失败扫描后让出调度，保持原行为，空闲时仍可能占满一个核心。
-`Spin` 使用 CPU pause 持续轮询，偏向低延迟但不保证所有拓扑更快。`Adaptive` 先执行
-64 次失败扫描，然后在 Linux 支持时使用共享 epoch 的 `futex_waitv`，每次停车采用 1ms
-单调时钟绝对截止时间；不支持的 Linux 内核和 macOS 使用 1ms 全流重扫回退。发布者只有
-在通道曾激活 Adaptive 后才执行通知 epoch 更新；一次性注册票据保证槽位代际不会误唤醒。
-每次调用重新开始等待，空结果与 `BackPressured` 都推进等待。
-非法枚举在读取前返回 `BadConfig`，不可恢复错误立即返回。`try_recv*()` 和 `poll()`
-仍然非阻塞，WRR、借用与 TTL 语义不变。默认参数兼容普通无参调用，但成员函数指针
-类型随新签名变化。
+公开 Channel API 只有一个通用入口、一个固定槽入口和一个 latest wrapper 主入口：
+
+| 场景 | 推荐入口 | 数据面 |
+|---|---|---|
+| 动态、变长、Ordered、TTL 或 schema-bound 通用流 | `Channel<Mode, Schema>` | per-producer magic-ring |
+| 固定 payload、固定参与者、可靠 FIFO 快速流 | `FixedChannel<Topology, Schema, Capacity, ...>` | 固定槽 Ring |
+| 有界 latest fanout | `LatestMpmcChannel<Capacity, HighWatermarkPercent>` | latest 保留窗口 |
+
+`Channel<Mode>` 与 `Channel<Mode, Schema>` 是同一通用 Channel 产品的 raw 和 fixed-message payload
+模式，不是两套产品；两者不能互连。`FixedChannel` 是独立数据面，不经过通用 Channel 的变长 frame、
+动态订阅、TTL 或 Latest 语义，也不能与通用 `Channel` 互相替代。
+
+以下四个 raw 入口是 **compat** 兼容别名，仍保留但不属于主教程：
+
+| 兼容别名 | 规范入口 | 当前状态 |
+|---|---|---|
+| `FifoMpscChannel` | `Channel<Mode::FifoMpsc>` | 4.x 导出并产生弃用警告；5.0 门禁后删除 |
+| `FifoMpmcChannel` | `Channel<Mode::FifoMpmc>` | 同上 |
+| `OrderedMpscChannel` | `Channel<Mode::OrderedMpsc>` | 同上 |
+| `OrderedMpmcChannel` | `Channel<Mode::OrderedMpmc>` | 同上 |
+
+直接 `Channel<Mode::LatestMpmc>` 也是 **compat** 入口，不再并列主推。raw latest 的替代入口是
+`LatestMpmcChannel`；typed latest 仍保留直接 `Channel<Mode::LatestMpmc, Schema>` 路径，其正式替代
+入口须等 Phase 2 先定义类型安全和静态配置契约，不能把 typed 用户静默迁移成 raw wrapper。
+完整迁移表见 [Channel API 迁移说明](migration/channel-api-convergence.md)。
 
 公共 API 暴露单一 per-producer-ring 引擎的四种排序/拓扑组合，并增加 `LatestMpmc` 保留窗口模式：
 
@@ -100,7 +114,7 @@ auto lossy = owner->subscriber(salias::SubscriptionPolicy::DropOldest);
 `try_subscriber()` 将分配失败转换为 `Error::OutOfMemory`。
 
 ```cpp
-auto owner = salias::FifoMpmcChannel::create(config);
+auto owner = salias::Channel<salias::Mode::FifoMpmc>::create(config);
 auto publisher = owner->publisher();
 auto subscriber = owner->subscriber();
 ```
@@ -131,11 +145,7 @@ struct Quote {
   std::uint32_t quantity;
 };
 
-struct QuoteSchema {
-  using message_type = Quote;
-  static constexpr std::uint64_t schema_id = 0x51554F5445000001;
-  static constexpr std::uint32_t version = 1;
-};
+using QuoteSchema = salias::Schema<Quote, 0x51554F5445000001, 1>;
 
 using QuoteChannel = salias::Channel<salias::Mode::FifoMpsc, QuoteSchema>;
 auto channel = QuoteChannel::create(config);
@@ -145,7 +155,8 @@ publisher.send(Quote{1001, 12345, 10});
 auto quote = subscriber.try_recv_copy();
 ```
 
-Schema 必须提供非零、应用管理的 `schema_id` 和 `version`；布局或字段语义变更时递增版本。连接端
+`Schema<T, Id, Version>` 只提供无运行时成本的显式声明；也可继续手写 `message_type`、`schema_id`
+和 `version`。Schema 必须提供非零、应用管理的 `schema_id` 和 `version`；布局或字段语义变更时递增版本。连接端
 比较 raw/typed 标记、schema ID、版本和 payload 大小，不匹配时返回 `Error::SchemaMismatch`。
 连接成功后固定长度用于定位每帧 payload 和下一帧，不逐消息比较 header payload 长度。
 值接口只接受或返回 `Schema::message_type`。`Publisher::send(const T&)` 复制一次对象表示到共享 ring；
@@ -180,6 +191,11 @@ publisher.commit(std::move(*claim));
 不会把可见水位推进到空洞之后，补齐后才连续发布。
 不支持放弃未提交 claim，也不支持发布进程异常退出后的自动恢复；这类故障需要重建通道。
 
+## 附加能力（extras 候选）
+
+以下能力当前仍从 `<salias/salias.hpp>` 和 `import salias;` 导出，但属于 extras 候选，不是核心
+快速入口。仓库外使用证据和负责人签署未完成前不删除，也不进入 `FixedChannel` 热路径。
+
 `LatestByKeyChannel<Key, Value, Capacity, SchemaVersion>` 提供跨进程的有界 key-value 最新值表。
 可直接包含 `<salias/latest_by_key_channel.hpp>`；发布、订阅和消息类型分别为
 `LatestByKeyPublisher<Key, Value>`、`LatestByKeySubscriber<Key, Value, Capacity>` 和
@@ -213,6 +229,20 @@ Linux 使用进程共享 robust mutex，持锁线程或进程终止后校验已�
 endpoint 中缓存描述符，不引入热路径 heap 分配，也不改变公开 `Message` 的默认零值、
 32 条批处理边界或批末 flush 时机。递归调用有独立描述符，但不额外承诺递归 flush 后
 外层 payload 仍有效；借用规则仍以上述回调/release 契约为准。
+
+## Priority 等待策略
+
+`PrioritySubscriber::recv(PriorityWaitPolicy policy = PriorityWaitPolicy::Yield)` 直接接受
+`enum class PriorityWaitPolicy : std::uint32_t { Yield, Spin, Adaptive }`，无独立无参重载。
+默认 `Yield` 在每次失败扫描后让出调度，保持原行为，空闲时仍可能占满一个核心。
+`Spin` 使用 CPU pause 持续轮询，偏向低延迟但不保证所有拓扑更快。`Adaptive` 先执行
+64 次失败扫描，然后在 Linux 支持时使用共享 epoch 的 `futex_waitv`，每次停车采用 1ms
+单调时钟绝对截止时间；不支持的 Linux 内核和 macOS 使用 1ms 全流重扫回退。发布者只有
+在通道曾激活 Adaptive 后才执行通知 epoch 更新；一次性注册票据保证槽位代际不会误唤醒。
+每次调用重新开始等待，空结果与 `BackPressured` 都推进等待。
+非法枚举在读取前返回 `BadConfig`，不可恢复错误立即返回。`try_recv*()` 和 `poll()`
+仍然非阻塞，WRR、借用与 TTL 语义不变。默认参数兼容普通无参调用，但成员函数指针
+类型随新签名变化。
 
 进程内有界队列可使用 `salias::Ringbuffer<T, Capacity, HighWatermarkPercent>`。默认
 `HighWatermarkPercent = 90`，即最多保留 `floor(Capacity * 0.9)` 项（最少一项）；入队超出

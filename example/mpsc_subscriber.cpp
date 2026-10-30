@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
 
   // 以创建者身份初始化 channel（分配共享内存 + ring）
   // 同名 channel 已存在时会返回错误
-  auto created = salias::FifoMpscChannel::create(config);
+  auto created = salias::Channel<salias::Mode::FifoMpsc>::create(config);
   if (!created) {
     std::cerr << "failed to create MPSC channel: " << salias_example::error_name(created.error())
               << '\n';

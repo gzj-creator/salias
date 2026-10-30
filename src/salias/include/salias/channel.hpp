@@ -202,9 +202,13 @@ class Channel<M, Schema> {
   Channel<M, RawPayloadSchema> channel_;
 };
 
-using FifoMpscChannel = Channel<Mode::FifoMpsc>;        ///< FIFO 多生产者单消费者通道别名。
-using FifoMpmcChannel = Channel<Mode::FifoMpmc>;  ///< FIFO 多生产者多消费者广播通道别名。
-using OrderedMpscChannel = Channel<Mode::OrderedMpsc>;  ///< 保序多生产者单消费者通道别名。
-using OrderedMpmcChannel = Channel<Mode::OrderedMpmc>;  ///< 保序多生产者多消费者广播通道别名。
+using FifoMpscChannel [[deprecated("use Channel<Mode::FifoMpsc>")]] =
+    Channel<Mode::FifoMpsc>;  ///< 兼容别名；新代码使用 Channel<Mode::FifoMpsc>。
+using FifoMpmcChannel [[deprecated("use Channel<Mode::FifoMpmc>")]] =
+    Channel<Mode::FifoMpmc>;  ///< 兼容别名；新代码使用 Channel<Mode::FifoMpmc>。
+using OrderedMpscChannel [[deprecated("use Channel<Mode::OrderedMpsc>")]] =
+    Channel<Mode::OrderedMpsc>;  ///< 兼容别名；新代码使用 Channel<Mode::OrderedMpsc>。
+using OrderedMpmcChannel [[deprecated("use Channel<Mode::OrderedMpmc>")]] =
+    Channel<Mode::OrderedMpmc>;  ///< 兼容别名；新代码使用 Channel<Mode::OrderedMpmc>。
 
 }  // namespace salias

@@ -1,0 +1,452 @@
+{
+  "schema_version": 1,
+  "api": "salias-channel",
+  "baseline_date": "2026-10-30",
+  "baseline_version": "4.1.0",
+  "statuses": {
+    "core": "Primary supported entry; keep and document as canonical.",
+    "compat": "Still exported for source compatibility; not a primary entry; removal requires the documented major-version gate.",
+    "extras": "Supported current export, but an extras candidate outside the core quick start; no deletion without external evidence and owner sign-off.",
+    "removed": "No longer present; retained in a migration table only."
+  },
+  "install_surfaces": {
+    "cmake_targets": ["salias::salias", "salias::salias_core"],
+    "headers": ["src/salias/include/salias/*.hpp", "src/core/**/*.hpp installed below salias/core"],
+    "metadata": ["CMake package config", "mcpp package gzj-creator.salias", "salias/salias.hpp umbrella header", "import salias; C++23 module"]
+  },
+  "module_exports": [
+    "Channel",
+    "Config",
+    "Error",
+    "FifoMpmcChannel",
+    "FifoMpmcPublisher",
+    "FifoMpmcSubscriber",
+    "FifoMpscChannel",
+    "FifoMpscPublisher",
+    "FifoMpscSubscriber",
+    "FixedChannel",
+    "FixedConfig",
+    "FixedPublishClaim",
+    "FixedPublisher",
+    "FixedSubscriber",
+    "FixedTopology",
+    "HugePage",
+    "LatestByKeyChannel",
+    "LatestByKeyMessage",
+    "LatestByKeyPublisher",
+    "LatestByKeySubscriber",
+    "LatestMpmcChannel",
+    "LatestMpmcPublisher",
+    "LatestMpmcSubscriber",
+    "Message",
+    "Mode",
+    "OrderedMpmcChannel",
+    "OrderedMpmcPublisher",
+    "OrderedMpmcSubscriber",
+    "OrderedMpscChannel",
+    "OrderedMpscPublisher",
+    "OrderedMpscSubscriber",
+    "PriorityMessage",
+    "PriorityPublisher",
+    "PrioritySubscriber",
+    "PriorityWaitPolicy",
+    "PublishClaim",
+    "Publisher",
+    "Result",
+    "Ringbuffer",
+    "Schema",
+    "Subscriber",
+    "SubscriptionPolicy"
+  ],
+  "symbols": [
+    {
+      "name": "salias::Config",
+      "kind": "struct",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/config.hpp", "line": 53, "declaration": "struct Config {"},
+      "replacement": "salias::Config (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Shared Channel and LatestMpmc creation configuration."
+    },
+    {
+      "name": "salias::Mode",
+      "kind": "enum",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/config.hpp", "line": 28, "declaration": "enum class Mode {"},
+      "replacement": "salias::Mode (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "members": [
+        {"name": "FifoMpsc", "status": "core"},
+        {"name": "FifoMpmc", "status": "core"},
+        {"name": "OrderedMpsc", "status": "core"},
+        {"name": "OrderedMpmc", "status": "core"},
+        {"name": "LatestMpmc", "status": "core"}
+      ]
+    },
+    {
+      "name": "salias::SubscriptionPolicy",
+      "kind": "enum",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/config.hpp", "line": 41, "declaration": "enum class SubscriptionPolicy : std::uint32_t { Reliable = 0, DropOldest = 1 };"},
+      "replacement": "salias::SubscriptionPolicy (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::HugePage",
+      "kind": "enum",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/config.hpp", "line": 49, "declaration": "enum class HugePage { None, Size2MB, Size1GB };"},
+      "replacement": "salias::HugePage (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::Error",
+      "kind": "enum",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/error.hpp", "line": 21, "declaration": "enum class Error {"},
+      "replacement": "salias::Error (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::Result",
+      "kind": "alias_template",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/error.hpp", "line": 40, "declaration": "using Result = std::expected<T, Error>;"},
+      "replacement": "salias::Result<T> (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::Message",
+      "kind": "alias",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/message.hpp", "line": 31, "declaration": "using Message = flow::Message;"},
+      "replacement": "salias::Message (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::RawPayloadSchema",
+      "kind": "struct",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/message.hpp", "line": 34, "declaration": "struct RawPayloadSchema final {};"},
+      "replacement": "salias::RawPayloadSchema (self; raw payload mode of Channel)",
+      "exports": {"header": true, "umbrella": true, "module": false, "cmake": true, "mcpp": true},
+      "notes": "Supporting marker for Channel<Mode>; raw and typed are one product, not two."
+    },
+    {
+      "name": "salias::Schema",
+      "kind": "struct_template",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/message.hpp", "line": 132, "declaration": "struct Schema final {"},
+      "replacement": "salias::Schema<T, Id, Version> (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Zero-runtime helper; schema ID and version remain explicit template arguments."
+    },
+    {
+      "name": "salias::Channel",
+      "kind": "class_template",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 40, "declaration": "class Channel<M, RawPayloadSchema> {"},
+      "replacement": "salias::Channel<Mode> or salias::Channel<Mode, Schema> (canonical generic entry)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Canonical dynamic reliable stream; raw and typed payload modes share the same ordering, topology, backpressure and subscription semantics."
+    },
+    {
+      "name": "salias::Channel<Mode::LatestMpmc>",
+      "kind": "specialization_path",
+      "status": "compat",
+      "location": {"file": "src/salias/include/salias/config.hpp", "line": 33, "declaration": "LatestMpmc = 4,"},
+      "secondary_locations": [
+        {"file": "src/salias/include/salias/latest_channel.hpp", "line": 51, "declaration": "auto channel = Channel<Mode::LatestMpmc>::create(typed_config);"}
+      ],
+      "replacement": "salias::LatestMpmcChannel<Capacity, HighWatermarkPercent> for raw payload; typed latest replacement pending Phase 2",
+      "exports": {"header": true, "umbrella": true, "module": false, "cmake": true, "mcpp": true},
+      "notes": "Compatibility path retained. Typed Channel<Mode::LatestMpmc, Schema> must not be silently reduced to the raw-only wrapper."
+    },
+    {
+      "name": "salias::Publisher",
+      "kind": "class_template",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/publisher.hpp", "line": 113, "declaration": "class Publisher<M, RawPayloadSchema> {"},
+      "replacement": "salias::Publisher<Mode, Schema> (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Endpoint returned by a channel; not a product-selection entry."
+    },
+    {
+      "name": "salias::Subscriber",
+      "kind": "class_template",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 53, "declaration": "class Subscriber<M, RawPayloadSchema> {"},
+      "replacement": "salias::Subscriber<Mode, Schema> (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Endpoint returned by a channel; not a product-selection entry."
+    },
+    {
+      "name": "salias::PublishClaim",
+      "kind": "class_template",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/publisher.hpp", "line": 58, "declaration": "class PublishClaim<M, RawPayloadSchema> {"},
+      "replacement": "salias::PublishClaim<Mode, Schema> (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::FixedTopology",
+      "kind": "enum",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/fixed_channel.hpp", "line": 39, "declaration": "enum class FixedTopology : std::uint8_t { Spsc, Mpsc, Spmc, Mpmc };"},
+      "replacement": "salias::FixedTopology (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "members": [
+        {"name": "Spsc", "status": "core"},
+        {"name": "Mpsc", "status": "core"},
+        {"name": "Spmc", "status": "core"},
+        {"name": "Mpmc", "status": "core"}
+      ]
+    },
+    {
+      "name": "salias::FixedConfig",
+      "kind": "struct",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/fixed_channel.hpp", "line": 42, "declaration": "struct FixedConfig {"},
+      "replacement": "salias::FixedConfig (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::FixedChannel",
+      "kind": "class_template",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/fixed_channel.hpp", "line": 274, "declaration": "class FixedChannel {"},
+      "replacement": "salias::FixedChannel (self; separate fixed-slot data plane)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::FixedPublisher",
+      "kind": "class_template",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/fixed_channel.hpp", "line": 133, "declaration": "class FixedPublisher {"},
+      "replacement": "salias::FixedPublisher (self; returned by FixedChannel)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::FixedSubscriber",
+      "kind": "class_template",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/fixed_channel.hpp", "line": 192, "declaration": "class FixedSubscriber {"},
+      "replacement": "salias::FixedSubscriber (self; returned by FixedChannel)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::FixedPublishClaim",
+      "kind": "class_template",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/fixed_channel.hpp", "line": 103, "declaration": "class FixedPublishClaim {"},
+      "replacement": "salias::FixedPublishClaim (self; returned by FixedPublisher)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::LatestMpmcChannel",
+      "kind": "class_template",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/latest_channel.hpp", "line": 31, "declaration": "class LatestMpmcChannel {"},
+      "replacement": "salias::LatestMpmcChannel<Capacity, HighWatermarkPercent> (self)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Canonical raw latest fanout wrapper with static capacity/watermark checks."
+    },
+    {
+      "name": "salias::FifoMpscChannel",
+      "kind": "alias",
+      "status": "compat",
+      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 205, "declaration": "using FifoMpscChannel [[deprecated(\"use Channel<Mode::FifoMpsc>\")]] ="},
+      "replacement": "salias::Channel<salias::Mode::FifoMpsc>",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Deprecated in 4.1.0; removal no earlier than 5.0.0."
+    },
+    {
+      "name": "salias::FifoMpmcChannel",
+      "kind": "alias",
+      "status": "compat",
+      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 207, "declaration": "using FifoMpmcChannel [[deprecated(\"use Channel<Mode::FifoMpmc>\")]] ="},
+      "replacement": "salias::Channel<salias::Mode::FifoMpmc>",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Deprecated in 4.1.0; removal no earlier than 5.0.0."
+    },
+    {
+      "name": "salias::OrderedMpscChannel",
+      "kind": "alias",
+      "status": "compat",
+      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 209, "declaration": "using OrderedMpscChannel [[deprecated(\"use Channel<Mode::OrderedMpsc>\")]] ="},
+      "replacement": "salias::Channel<salias::Mode::OrderedMpsc>",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Deprecated in 4.1.0; removal no earlier than 5.0.0."
+    },
+    {
+      "name": "salias::OrderedMpmcChannel",
+      "kind": "alias",
+      "status": "compat",
+      "location": {"file": "src/salias/include/salias/channel.hpp", "line": 211, "declaration": "using OrderedMpmcChannel [[deprecated(\"use Channel<Mode::OrderedMpmc>\")]] ="},
+      "replacement": "salias::Channel<salias::Mode::OrderedMpmc>",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Deprecated in 4.1.0; removal no earlier than 5.0.0."
+    },
+    {
+      "name": "salias::FifoMpscPublisher",
+      "kind": "endpoint_alias",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/publisher.hpp", "line": 290, "declaration": "using FifoMpscPublisher = Publisher<Mode::FifoMpsc>;"},
+      "replacement": "salias::Publisher<salias::Mode::FifoMpsc> (self alias; endpoint spelling only)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::FifoMpmcPublisher",
+      "kind": "endpoint_alias",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/publisher.hpp", "line": 291, "declaration": "using FifoMpmcPublisher = Publisher<Mode::FifoMpmc>;"},
+      "replacement": "salias::Publisher<salias::Mode::FifoMpmc> (self alias; endpoint spelling only)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::OrderedMpscPublisher",
+      "kind": "endpoint_alias",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/publisher.hpp", "line": 292, "declaration": "using OrderedMpscPublisher = Publisher<Mode::OrderedMpsc>;"},
+      "replacement": "salias::Publisher<salias::Mode::OrderedMpsc> (self alias; endpoint spelling only)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::OrderedMpmcPublisher",
+      "kind": "endpoint_alias",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/publisher.hpp", "line": 293, "declaration": "using OrderedMpmcPublisher ="},
+      "replacement": "salias::Publisher<salias::Mode::OrderedMpmc> (self alias; endpoint spelling only)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::LatestMpmcPublisher",
+      "kind": "endpoint_alias",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/publisher.hpp", "line": 295, "declaration": "using LatestMpmcPublisher = Publisher<Mode::LatestMpmc>;"},
+      "replacement": "salias::Publisher<salias::Mode::LatestMpmc> (self alias; returned by LatestMpmcChannel)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::FifoMpscSubscriber",
+      "kind": "endpoint_alias",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 300, "declaration": "using FifoMpscSubscriber = Subscriber<Mode::FifoMpsc>;"},
+      "replacement": "salias::Subscriber<salias::Mode::FifoMpsc> (self alias; endpoint spelling only)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::FifoMpmcSubscriber",
+      "kind": "endpoint_alias",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 301, "declaration": "using FifoMpmcSubscriber = Subscriber<Mode::FifoMpmc>;"},
+      "replacement": "salias::Subscriber<salias::Mode::FifoMpmc> (self alias; endpoint spelling only)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::OrderedMpscSubscriber",
+      "kind": "endpoint_alias",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 302, "declaration": "using OrderedMpscSubscriber = Subscriber<Mode::OrderedMpsc>;"},
+      "replacement": "salias::Subscriber<salias::Mode::OrderedMpsc> (self alias; endpoint spelling only)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::OrderedMpmcSubscriber",
+      "kind": "endpoint_alias",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 303, "declaration": "using OrderedMpmcSubscriber ="},
+      "replacement": "salias::Subscriber<salias::Mode::OrderedMpmc> (self alias; endpoint spelling only)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::LatestMpmcSubscriber",
+      "kind": "endpoint_alias",
+      "status": "core",
+      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 305, "declaration": "using LatestMpmcSubscriber = Subscriber<Mode::LatestMpmc>;"},
+      "replacement": "salias::Subscriber<salias::Mode::LatestMpmc> (self alias; returned by LatestMpmcChannel)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::LatestByKeyChannel",
+      "kind": "class_template",
+      "status": "extras",
+      "location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 470, "declaration": "class LatestByKeyChannel {"},
+      "replacement": "salias::LatestByKeyChannel (self until Phase 3 evidence and owner sign-off)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Extras candidate; external usage is unconfirmed."
+    },
+    {
+      "name": "salias::LatestByKeyMessage",
+      "kind": "struct_template",
+      "status": "extras",
+      "location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 29, "declaration": "struct LatestByKeyMessage {"},
+      "replacement": "salias::LatestByKeyMessage (self until Phase 3 evidence and owner sign-off)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::LatestByKeyPublisher",
+      "kind": "class_template",
+      "status": "extras",
+      "location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 319, "declaration": "class LatestByKeyPublisher {"},
+      "replacement": "salias::LatestByKeyPublisher (self until Phase 3 evidence and owner sign-off)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::LatestByKeySubscriber",
+      "kind": "class_template",
+      "status": "extras",
+      "location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 364, "declaration": "class LatestByKeySubscriber {"},
+      "replacement": "salias::LatestByKeySubscriber (self until Phase 3 evidence and owner sign-off)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::PriorityPublisher",
+      "kind": "class_template",
+      "status": "extras",
+      "location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 56, "declaration": "class PriorityPublisher {"},
+      "replacement": "salias::PriorityPublisher (self until Phase 3 evidence and owner sign-off)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Extras candidate; remains used by install consumer until Phase 3."
+    },
+    {
+      "name": "salias::PrioritySubscriber",
+      "kind": "class_template",
+      "status": "extras",
+      "location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 184, "declaration": "class PrioritySubscriber {"},
+      "replacement": "salias::PrioritySubscriber (self until Phase 3 evidence and owner sign-off)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::PriorityMessage",
+      "kind": "struct",
+      "status": "extras",
+      "location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 42, "declaration": "struct PriorityMessage {"},
+      "replacement": "salias::PriorityMessage (self until Phase 3 evidence and owner sign-off)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::PriorityWaitPolicy",
+      "kind": "enum",
+      "status": "extras",
+      "location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 39, "declaration": "enum class PriorityWaitPolicy : std::uint32_t { Yield, Spin, Adaptive };"},
+      "replacement": "salias::PriorityWaitPolicy (self until Phase 3 evidence and owner sign-off)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+    },
+    {
+      "name": "salias::Ringbuffer",
+      "kind": "class_template",
+      "status": "extras",
+      "location": {"file": "src/salias/include/salias/ringbuffer.hpp", "line": 29, "declaration": "class Ringbuffer {"},
+      "replacement": "salias::Ringbuffer (self until Phase 3 evidence and owner sign-off)",
+      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
+      "notes": "Extras candidate; external usage is unconfirmed."
+    }
+  ],
+  "removed_symbols": [],
+  "external_evidence": {
+    "status": "blocked",
+    "scope": ["LatestByKeyChannel", "PriorityPublisher", "PrioritySubscriber", "Ringbuffer", "typed LatestMpmc demand", "owner sign-off"],
+    "evidence": "doc/api/channel-api-downstream-evidence.md"
+  }
+}

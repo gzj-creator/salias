@@ -4,6 +4,10 @@ module;
 export module salias;
 
 // Re-export the header API without changing its ABI or module ownership.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 export namespace salias {
 using ::salias::Channel;
 using ::salias::Config;
@@ -44,6 +48,10 @@ using ::salias::PublishClaim;
 using ::salias::Publisher;
 using ::salias::Result;
 using ::salias::Ringbuffer;
+using ::salias::Schema;
 using ::salias::Subscriber;
 using ::salias::SubscriptionPolicy;
 }  // namespace salias
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
