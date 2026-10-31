@@ -2,7 +2,7 @@
 
 日期：2026-10-31（Asia/Shanghai）
 
-状态：**Phase 2 已完成；Phase 3 待执行**
+状态：**Phase 3 已完成；v6.0.0 已发布**
 
 ## 1. 目标
 
@@ -66,13 +66,13 @@ benchmark 的长期维护成本。本次不保留兼容入口，也不虚构仓�
 
 ## 6. Phase 3：完整验证、冻结与 v6 发布
 
-- [ ] Release、ASan/UBSan、TSan 全量测试通过，并记录实际测试数。
-- [ ] CMake 安装消费、mcpp core-only build/run、header/module consumer 和独立 shared-path consumer 通过。
-- [ ] 验证 wire protocol 仍为 v15、通用 Channel/FixedChannel 数据面未合并、Fast*Ring 名称未变。
-- [ ] 用二进制 symbol 差异和短时 channel benchmark 覆盖 include/link 边界变化风险；不修改或重测热路径算法。
-- [ ] 重新生成并校验 API freeze，绑定 `v6.0.0`。
-- [ ] 更新 `CHANGELOG.md` 与 `docs/release_note.md`，提交 release，创建并推送 `v6.0.0` tag，完成远端回验。
-- [ ] 若不满足发布门禁，保持本 Phase 未完成并记录阻塞，不创建 tag。
+- [x] Release、ASan/UBSan、TSan 全量测试通过，并记录实际测试数。
+- [x] CMake 安装消费、mcpp core-only build/run、header/module consumer 和独立 shared-path consumer 通过。
+- [x] 验证 wire protocol 仍为 v15、通用 Channel/FixedChannel 数据面未合并、Fast*Ring 名称未变。
+- [x] 用二进制 symbol 差异和短时 channel benchmark 覆盖 include/link 边界变化风险；不修改或重测热路径算法。
+- [x] 重新生成并校验 API freeze，绑定 `v6.0.0`。
+- [x] 更新 `CHANGELOG.md` 与 `docs/release_note.md`，提交 release，创建并推送 `v6.0.0` tag，完成远端回验。
+- [x] 若不满足发布门禁，保持本 Phase 未完成并记录阻塞，不创建 tag。
 
 ## 7. 执行记录与证据
 
@@ -150,13 +150,43 @@ Phase 2 证据：Release CTest 23/23、安装消费者、mcpp core/module/header
 consumer 均通过；API checker 与 47 文件 freeze candidate 一致。外部证据缺口仍是 Phase 0 的
 blocked 状态，不因仓库内验证而关闭。
 
-### 下一门禁：Phase 3
+### 2026-10-31 Phase 3
 
-Phase 3 尚未执行。正式发布前必须重新跑 Release、ASan/UBSan、TSan 全量；重新验证安装、mcpp、
-shared-path consumer、wire v15、`Channel`/`FixedChannel` 数据面分离和 `Fast*Ring` 名称；执行与
-include/link 风险匹配的二进制 symbol 差异和短时 channel benchmark；从最终发布树重新生成 freeze，
-更新 `CHANGELOG.md`/`docs/release_note.md`，创建并推送 `v6.0.0` tag。未满足这些门禁前不得声称
-v6 已发布，也不得把 candidate 冻结标记为 released。
+- 全量测试：
+  - Release：`ctest --test-dir build/release --output-on-failure -j 2`，23/23 通过。
+  - ASan/UBSan：`ctest --preset debug-asan-ubsan -j 2`，22/22 通过。
+  - TSan：`ctest --preset tsan -j 2`，22/22 通过。
+  - 三套 CTest 均包含安装消费者和 API 文档 checker；sanitizer 预设关闭 benchmark，因此为 22 项。
+- 安装与 package 消费：
+  - 三套 CTest 中的 `salias_install_consumer` 全部通过，core-only 安装前缀未出现 extras header、archive 或 CMake fragment。
+  - `mcpp build --offline --release --jobs 4`、`mcpp run test_mcpp_core_import ...`、
+    `mcpp run test_mcpp_import ...` 全部通过，覆盖 core module 和五种模式 module/header 混合消费。
+  - `python3 tools/check_mcpp.py`：两套独立 shared-path consumer 的 offline/locked 构建与运行通过。
+- 边界检查：`kNamedVersion = 15`；`Channel`/`FixedChannel` 仍为独立定义；`FastSpscRing`、
+  `FastMpscRing`、`FastSpmcRing`、`FastMpmcRing` 名称未变；extras module/header/target 均不存在。
+- 二进制差异：在 `v5.0.0` 临时 worktree 与当前树使用相同 GCC 14.2、RelWithDebInfo、无 LTO 参数构建
+  `salias`/`salias_core`。`libsalias_core.a` 的外部定义 symbol 集合均为 25 个且完全一致；公共
+  `libsalias.a` 从 487 个外部 symbol 变为 464 个，新增 0 个；移除的 23 个包括 Subscriber
+  adaptive hook（4×5 模式）、`SharedHybridMpscChannel::has_consumer` 特化和
+  `platform::fence::heavy_fence`，均是由 extras/adaptive 路径不再实例化的私有或传递符号。
+  当前源码仍保留内部头中的相关定义，core archive symbol 集合同样保持一致。
+- 可执行文件：`salias_fixed_channel_poll_compare` 两臂 SHA-256 均为
+  `c723db1b1935d7eaef4f637585a572b5fc87f7724773e38cc98ba8baeacd4945`，逐字节相同；
+  `salias_ipc_compare` 的文件 SHA 因本地 `CSWTCH` 符号编号不同而不同，但两臂均为 253,712 字节，
+  `.text`、`.rodata`、`.data`、`.data.rel.ro` 段逐字节相同，未观察到代码或数据布局变化。
+- 短时 benchmark：复用两臂同参数 Release 可执行文件，按 `v5,v6,v6,v5` 各跑 2 次，所有运行执行
+  全量 payload 校验，共验证 104,000,000 条消息。固定槽吞吐中位数 40.2835 -> 40.2767 Mmsg/s；
+  通用 Channel 饱和吞吐中位数 6.48818 -> 7.10109 Mmsg/s，但两臂代码段相同，不能把差值归因于
+  API 删除。planned 负载 p50：固定槽 259 -> 243 ns，通用 Channel 381 -> 455 ns；p99 受宿主调度
+  噪声明显（固定槽 4903 -> 2071 ns，通用 Channel 4447 -> 3327 ns），不宣称性能改善或退化。
+- API freeze：重新生成并校验 `v6_extras_removed_released`，47 个文件，聚合 SHA-256 为
+  `baeb48e6110ccfff008cc2fc367d94f8735ad60a91922e8746071899d9a32a20`；`release_tag` 为 `v6.0.0`。
+- 发布材料：`CHANGELOG.md` 新增 `v6.0.0` 版本节，`docs/release_note.md` 追加 v6 发布说明；
+  本 Release commit 创建注解 tag `v6.0.0`，推送 `main` 与 tag 后回验远端指向。
+- Phase 0 仓库外证据状态仍为 blocked，不把本次仓库内验证解释为外部零使用或迁移成本结论。
+
+Phase 3 证据：Release 23/23、ASan/UBSan 22/22、TSan 22/22；安装、mcpp、shared-path 全通过；
+核心 symbol 集合与两套 benchmark 代码段一致；104M 条消息全量校验通过；freeze 47 文件校验通过。
 
 ## 8. 验证命令基线
 

@@ -3,11 +3,11 @@
   "api": "salias-channel",
   "baseline_date": "2026-10-31",
   "baseline_version": "6.0.0",
-  "current_api_state": "v6_extras_removed_candidate",
+  "current_api_state": "v6_extras_removed_released",
   "removal_metadata": {
     "approved_by": "repository owner",
     "approved_on": "2026-10-31",
-    "state": "extras_removed_candidate",
+    "state": "extras_removed_released",
     "release_tag": "v6.0.0",
     "wire_protocol_changed": false,
     "compatibility_surface_retained": false

@@ -121,10 +121,10 @@ typed 用户必须保留第三个 `Schema` 模板参数。不能为了减少类�
 
 ## 5. 验证与剩余门禁
 
-本次 Phase 2 已由以下仓库内门禁验证：
+本次 v6 发布已由以下仓库内门禁验证：
 
-- Release CTest 23/23 覆盖通用 Channel、`FixedChannel`、Latest、版本一致性、安装消费和故障语义；
-  ASan/UBSan、TSan 全量仍属于 Phase 3 发布门禁，当前未执行。
+- Release CTest 23/23、ASan/UBSan CTest 22/22、TSan CTest 22/22 覆盖通用 Channel、
+  `FixedChannel`、Latest、版本一致性、安装消费和故障语义。
 - `test/api/removed_api_contract_test.cpp` 用 `__has_include` 锁定 extras umbrella、三个专项头、
   三个旧转发头和旧 detail header 均不可见。
 - `tools/check_channel_api.py` 对旧快捷入口、旧 extras 名称和 `salias::extras::*` 规范名称执行逐个
@@ -132,11 +132,11 @@ typed 用户必须保留第三个 `Schema` 模板参数。不能为了减少类�
 - `test/mcpp/core_import.cpp` 与 `test/mcpp/import.cpp` 只消费 `import salias;`；header probe 不再
   包含 extras；安装消费测试只安装 `core` component。
 - `tools/check_channel_api.py` 校验 manifest、core module、umbrella、安装面、文档和反向契约一致。
-- API 冻结候选以 `v6.0.0` 为目标 tag，覆盖删除后的公开/安装文件和聚合 SHA-256；正式发布前
-  Phase 3 必须重新生成并绑定发布提交，说明见
-  [Channel API v6 冻结候选](../api/channel-api-freeze.md)。
+- API 冻结基线绑定 `v6.0.0`，覆盖删除后的公开/安装文件和聚合 SHA-256，说明见
+  [Channel API 冻结基线](../api/channel-api-freeze.md)。
 
-删除前后的性能影响仍须在 Phase 3 以“热路径未修改 + 二进制符号差异 + 短时 channel benchmark”
-验证，当前未执行，不能把文档检查或 Release 测试视为性能结论；执行记录将写入
+删除前后的影响已以“热路径未修改 + 二进制符号差异 + 短时 channel benchmark”验证：核心归档
+symbol 集合一致，两套 benchmark 可执行文件的代码/数据段一致，104M 条消息全量校验通过；由于两臂
+代码相同，不据此宣称性能改善或退化。执行记录见
 [v6 维护收敛计划](../plans/2026-10-31-salias-v6-extras-removal.md)。Phase 0 未采集的仓库外使用证据
 仍是独立审计缺口，不能被解释为全局零使用。

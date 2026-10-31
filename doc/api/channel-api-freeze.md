@@ -2,13 +2,12 @@
 
 日期：2026-10-31（Asia/Shanghai）
 
-本文件记录 `v6.0.0` 的 Channel API 冻结候选。候选状态来自删除全部 `salias::extras` 后的 Phase 2
-工作区；正式发布前仍需在 Phase 3 重新生成并绑定发布提交。
+本文件记录 `v6.0.0` 的 Channel API 兼容基线。它对应同名 tag，是后续兼容比较的冻结真源。
 
 机器可读冻结记录为 [channel-api-freeze.json](channel-api-freeze.json)，当前状态是
-`v6_extras_removed_candidate`，计划发布 tag 为 `v6.0.0`，当前尚未创建该 tag。冻结候选基于
-Phase 1 提交 `5e8c2cc5c92872fa2b5105367e3d589d68f812bd` 及 Phase 2 工作区生成，覆盖 47 个文件，
-聚合 SHA-256 为 `42feb20252d6c16eb6e451c0b2e32f8258087ca50aaa854810afc7b59ea19bba`。
+`v6_extras_removed_released`，发布 tag 为 `v6.0.0`。API 语义基线来自 Phase 2 提交
+`4e4789a7c890f8c42d1c418a0eb043d8d1ab3912` 及 Phase 3 发布态更新，文件哈希覆盖 47 个文件，
+聚合 SHA-256 为 `baeb48e6110ccfff008cc2fc367d94f8735ad60a91922e8746071899d9a32a20`。
 
 ## 冻结范围
 
@@ -36,9 +35,8 @@ python3 tools/check_channel_api.py --compiler /usr/bin/c++
 
 ## 发布边界
 
-- `release_tag` 目标为 `v6.0.0`；Phase 2 不创建 tag，Phase 3 必须从最终发布树重新生成冻结文件，
-  并确保 tag、release note 和冻结文件指向同一发布提交。
+- `release_tag` 固定为 `v6.0.0`；tag、release note 和冻结文件指向同一发布提交。
 - Phase 0 的仓库外使用证据仍未采集，对应审计复选框继续保持未完成，不能用本冻结基线推断外部使用情况。
-- Phase 2 只完成文档、manifest、检查工具和版本候选；完整 sanitizer、安装、mcpp、性能/二进制和
-  正式 tag 验证仍属于 Phase 3 发布门禁。
+- Release、ASan/UBSan、TSan、安装、mcpp、shared-path、二进制与短时 benchmark 发布门禁均已完成；
+  仓库外使用证据仍是独立阻塞项，不影响本次由负责人批准的源码删除。
 - 后续任何公开 API 或安装/module 边界变化都必须另立版本并重新评审、重新冻结。

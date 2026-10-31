@@ -3,7 +3,7 @@
 `salias` 是支持 Linux 与 macOS 的 C++23 低延迟具名 IPC 消息通道。面向新用户的核心入口只有
 三个：通用可靠流 `Channel<Mode, Schema>`、固定布局快速流 `FixedChannel`，以及 latest fanout
 `LatestMpmcChannel`。`LatestByKey`、Priority 和 Ringbuffer/`salias::extras` 自 `v6.0.0` 起
-永久移除，当前版本不提供兼容入口或替代 API；`v6.0.0` 仍处于待发布候选阶段。
+永久移除，不提供兼容入口或替代 API。`v6.0.0` 已发布。
 
 ## 快速开始
 
@@ -145,7 +145,7 @@ LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者
 [Channel API 迁移说明](doc/migration/channel-api-convergence.md)；逐 symbol 的
 core/extras/removed 状态见
 [机器可读 API 清单](doc/api/channel-api-manifest.json)；发布兼容基线及 SHA-256 见
-[Channel API v6 冻结候选](doc/api/channel-api-freeze.md)。
+[Channel API v6 冻结基线](doc/api/channel-api-freeze.md)。
 
 ## 构建
 

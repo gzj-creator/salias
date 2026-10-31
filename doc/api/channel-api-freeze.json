@@ -1,5 +1,5 @@
 {
-  "aggregate_sha256": "42feb20252d6c16eb6e451c0b2e32f8258087ca50aaa854810afc7b59ea19bba",
+  "aggregate_sha256": "baeb48e6110ccfff008cc2fc367d94f8735ad60a91922e8746071899d9a32a20",
   "api": "salias-channel",
   "api_counts": {
     "compat": 0,
@@ -7,7 +7,7 @@
     "extras": 0,
     "removed": 23
   },
-  "basis_commit": "5e8c2cc5c92872fa2b5105367e3d589d68f812bd",
+  "basis_commit": "4e4789a7c890f8c42d1c418a0eb043d8d1ab3912",
   "files": [
     {
       "path": "CMakeLists.txt",
@@ -19,7 +19,7 @@
     },
     {
       "path": "doc/api/channel-api-manifest.json",
-      "sha256": "a361496da064eed2488b035d7fcbe45b1222fc83521a0a8ef5e89fba79056634"
+      "sha256": "a558626d4f03bac9c570156622647d9882e52173f0ecb3003fa9c9f5185425c0"
     },
     {
       "path": "mcpp.toml",
@@ -205,6 +205,6 @@
   },
   "release_tag": "v6.0.0",
   "schema_version": 1,
-  "state": "v6_extras_removed_candidate",
+  "state": "v6_extras_removed_released",
   "wire_protocol_version": 15
 }

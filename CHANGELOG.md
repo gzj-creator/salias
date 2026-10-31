@@ -16,11 +16,13 @@ are released.
 
 ## [Unreleased]
 
+## [v6.0.0] - 2026-10-31
+
 ### Changed
 
 - **Breaking source and packaging change**：永久移除 `salias::extras` 以及 `LatestByKey`、Priority 和进程内 `Ringbuffer` 能力，不提供兼容 namespace、转发头、CMake target/component 或 C++23 module。应用需要自行迁移或重新设计这些场景。
 - 删除仅供 Priority Adaptive 等待使用的私有 Subscriber 桥，以及仅供 LatestByKey 使用的 `Error::CapacityExceeded`、`Error::SequenceExhausted` 名称；保留枚举数值空洞 10/11，剩余错误码值不变。
-- CMake、vcpkg 和 mcpp 包版本统一为 `6.0.0`，作为 v6 删除版本的待发布候选；本提交不创建 tag。
+- CMake、vcpkg 和 mcpp 包版本统一为 `6.0.0`，发布 tag 为 `v6.0.0`；wire protocol 保持 v15。
 
 ### Removed
 
@@ -31,12 +33,13 @@ are released.
 ### Docs
 
 - README、L7/L1 API、仓库内使用矩阵与迁移表收敛为三个核心入口，九类 extras 规范符号统一标记为 removed 且无替代入口；README 同时保留四个 v5 raw 别名和集中迁移说明。
-- 机器可读 API manifest 更新为 30 core、0 compat、0 extras、23 removed；API freeze 候选覆盖 47 个文件，状态为 `v6_extras_removed_candidate`，目标 tag 为 `v6.0.0`，正式发布前仍需在 Phase 3 重新生成并绑定发布提交。
+- 机器可读 API manifest 更新为 30 core、0 compat、0 extras、23 removed；API freeze 覆盖 47 个文件，状态为 `v6_extras_removed_released`，对应 tag `v6.0.0`。
 - `tools/check_channel_api.py` 删除对已移除 extras umbrella/module 的读取，新增 22 个旧类型名和 8 个旧 header 的真实编译失败检查，并锁定 extras target/component/archive/fragment 均不存在。
 
 ### Tests
 
-- Release CTest 23/23 通过，覆盖 v6 版本一致性、removed API 契约、安装消费和 API 文档检查；mcpp core module、5 模式 module/header 消费及两套 shared-path consumer 通过。
+- Release CTest 23/23、ASan/UBSan CTest 22/22、TSan CTest 22/22 通过，覆盖 v6 版本一致性、removed API 契约、安装消费和 API 文档检查；mcpp core module、5 模式 module/header 消费及两套 shared-path consumer 通过。
+- `v5.0.0` 与当前树同参数非 LTO 构建的 core archive external symbol 集合均为 25 个且一致；公共归档新增 0 个、移除 23 个由 extras/adaptive 路径不再实例化的私有或传递 symbol。固定槽 benchmark 二进制逐字节相同，`salias_ipc_compare` 的代码与数据段相同；短时 benchmark 共全量校验 104M 条消息，未以此宣称性能改善或退化。
 
 ### Compatibility
 

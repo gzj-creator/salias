@@ -28,7 +28,7 @@ REMOVED_TEST = ROOT / "test/api/removed_api_contract_test.cpp"
 CORE_IMPORT_TEST = ROOT / "test/mcpp/core_import.cpp"
 MCPP_IMPORT_TEST = ROOT / "test/mcpp/import.cpp"
 FREEZE = ROOT / "doc/api/channel-api-freeze.json"
-FREEZE_STATE = "v6_extras_removed_candidate"
+FREEZE_STATE = "v6_extras_removed_released"
 FREEZE_RELEASE_TAG = "v6.0.0"
 
 ALIASES = (
@@ -203,8 +203,8 @@ def validate_symbols(data: dict) -> tuple[list[dict], dict[str, dict]]:
     if data.get("current_api_state") != FREEZE_STATE:
         fail(f"manifest current_api_state must be {FREEZE_STATE}")
     removal_metadata = data.get("removal_metadata", {})
-    if removal_metadata.get("state") != "extras_removed_candidate":
-        fail("removal metadata must record the v6 removal candidate")
+    if removal_metadata.get("state") != "extras_removed_released":
+        fail("removal metadata must record the released v6 removal")
     if removal_metadata.get("release_tag") != FREEZE_RELEASE_TAG:
         fail(f"removal metadata release tag must be {FREEZE_RELEASE_TAG}")
     if removal_metadata.get("wire_protocol_changed") is not False:

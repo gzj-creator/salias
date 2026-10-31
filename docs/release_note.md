@@ -129,3 +129,17 @@
   - **验证**：Release CTest 26/26、ASan/UBSan CTest 25/25、TSan CTest 25/25 通过；core-only/core+extras 安装消费、mcpp header/import、两个独立 shared-path consumer 全部通过。
   - **API 与性能证据**：API manifest 冻结为 30 core、0 compat、9 extras、14 removed，核心/extras module 分别导出 29/9 个符号，16 个 removed 契约执行真实编译失败检查；5 组 ABBA 共 80 次正式运行验证 5.2 亿条消息，`v4.1.0` 与当前树的 benchmark 二进制逐字节相同。冻结基线状态为 `post_phase4_released`，对应 tag `v5.0.0`。
   - **审计缺口**：按负责人决定，未采集仓库外源码消费方、发布包遥测和迁移成本；Phase 0 对应复选框继续保持未完成，不伪造外部证据或全局零使用结论。
+
+## v6.0.0 - 2026-10-31
+
+- **版本级别**：主版本（major），永久删除 `salias::extras` 及其 LatestByKey、Priority、Ringbuffer 能力；不修改共享内存 wire protocol，不升级通道版本。
+- **Git 提交消息**：refactor: 发布 v6.0.0 并移除 salias::extras
+- **git tag**：v6.0.0
+- **自上次 tag（v5.0.0）以来的变更摘要**：
+  - **破坏性源码与打包变更**：删除全部 extras namespace、specialized/umbrella/旧转发/内部 header、`salias_extras` static library、extras install component 和 `import salias.extras;`。LatestByKey、Priority、Ringbuffer 没有替代 API，应用必须停留 `v5.0.0` 或自行迁移/重新设计对应场景。
+  - **核心入口**：README 与 API 文档仅主推 `Channel<Mode, Schema>`、`FixedChannel`、`LatestMpmcChannel` 三个入口；四个 v5 raw 别名、直接 `Channel<Mode::LatestMpmc>` 和九类 extras 规范符号继续标记为 removed，并保留集中迁移表。
+  - **错误与语义边界**：删除 LatestByKey 专用的 `Error::CapacityExceeded`、`Error::SequenceExhausted` 名称，保留枚举数值 10/11 空洞；`Schema<T, Id, Version>` 继续作为零运行时成本、显式版本的辅助模板。通用 `Channel` 与 `FixedChannel` 数据面未合并，`Fast*Ring` 未重命名。
+  - **API 冻结**：manifest 为 30 core、0 compat、0 extras、23 removed，core module 导出 29 个符号、extras module 为 0；freeze 覆盖 47 个文件，聚合 SHA-256 为 `baeb48e6110ccfff008cc2fc367d94f8735ad60a91922e8746071899d9a32a20`，状态 `v6_extras_removed_released`。
+  - **验证**：Release CTest 23/23、ASan/UBSan CTest 22/22、TSan CTest 22/22 通过；CMake 安装消费、mcpp core/module/header 消费、两套 independent shared-path consumer 通过。`python3 tools/check_channel_api.py --compiler /usr/bin/c++` 的 30 项 removed 编译失败检查通过。
+  - **二进制与短时 benchmark**：`v5.0.0` 与当前树同参数非 LTO 构建的 core archive external symbol 集合均为 25 个且一致；公共归档新增 0 个 symbol，移除的 23 个是由 extras/adaptive 路径不再实例化的私有或传递符号。固定槽 benchmark 二进制逐字节相同，`salias_ipc_compare` 的 `.text`/`.rodata`/`.data`/`.data.rel.ro` 相同；短时 ABBA 运行全量校验 104M 条消息，不以相同代码的调度差异宣称性能改善或退化。
+  - **兼容与回滚**：wire protocol 仍为 15，既有共享内存通道不因 API/打包删除要求重建；回滚 API 层可回到 `v5.0.0`。本次验证仅覆盖仓库内能力，Phase 0 的仓库外使用证据仍为 blocked，不能被解释为外部零使用或迁移成本结论。
