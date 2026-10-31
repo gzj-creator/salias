@@ -29,7 +29,8 @@ REMOVED_TEST = ROOT / "test/api/removed_api_contract_test.cpp"
 CORE_IMPORT_TEST = ROOT / "test/mcpp/core_import.cpp"
 EXTRAS_IMPORT_TEST = ROOT / "test/mcpp/import.cpp"
 FREEZE = ROOT / "doc/api/channel-api-freeze.json"
-FREEZE_STATE = "post_phase4_freeze_candidate_unreleased"
+FREEZE_STATE = "post_phase4_released"
+FREEZE_RELEASE_TAG = "v5.0.0"
 
 ALIASES = (
     "FifoMpscChannel",
@@ -180,13 +181,13 @@ def validate_symbols(data: dict) -> tuple[list[dict], dict[str, dict]]:
         fail(f"manifest counts {counts} != expected {EXPECTED_COUNTS}")
     if by_name.get("salias::Channel<Mode::LatestMpmc>", {}).get("status") != "removed":
         fail("direct Channel<Mode::LatestMpmc> creation must remain removed")
-    if data.get("current_api_state") != "post_phase4_source_removal_unreleased":
-        fail("manifest does not record the post-Phase-4 unreleased state")
+    if data.get("current_api_state") != "post_phase4_source_removal_released":
+        fail("manifest does not record the post-Phase-4 release state")
     removal_metadata = data.get("removal_metadata", {})
-    if removal_metadata.get("state") != "source_removed_unreleased":
-        fail("removal metadata must keep the removal unreleased")
-    if removal_metadata.get("release_tag") is not None:
-        fail("removal metadata must not claim a release tag")
+    if removal_metadata.get("state") != "source_removed_released":
+        fail("removal metadata must record the released removal")
+    if removal_metadata.get("release_tag") != FREEZE_RELEASE_TAG:
+        fail(f"removal metadata release tag must be {FREEZE_RELEASE_TAG}")
     if removal_metadata.get("wire_protocol_changed") is not False:
         fail("removal metadata must state that the wire protocol did not change")
 
@@ -401,7 +402,7 @@ def validate_docs(by_name: dict[str, dict]) -> None:
         if alias not in removed_section:
             fail(f"README removed-entry section does not map {alias}")
     if "2026-10-30" not in removed_section or "5.0.0" not in removed_section:
-        fail("README removed-entry section must record owner approval date and pending 5.0.0 release")
+        fail("README removed-entry section must record owner approval date and the 5.0.0 release")
     if "compat" in removed_section.lower() or "still retained" in removed_section.lower():
         fail("README removed-entry section still describes compatibility exports")
 
@@ -480,7 +481,7 @@ def freeze_document(data: dict, symbols: list[dict]) -> dict:
         "schema_version": 1,
         "api": "salias-channel",
         "state": FREEZE_STATE,
-        "release_tag": None,
+        "release_tag": FREEZE_RELEASE_TAG,
         "basis_commit": current_revision(),
         "freeze_date": date.today().isoformat(),
         "api_counts": counts,
@@ -530,8 +531,8 @@ def validate_freeze(data: dict, symbols: list[dict], write: bool) -> dict:
         fail("API freeze metadata is invalid")
     if document.get("state") != FREEZE_STATE:
         fail(f"API freeze state must be {FREEZE_STATE}")
-    if document.get("release_tag") is not None:
-        fail("API freeze must not claim a release tag")
+    if document.get("release_tag") != FREEZE_RELEASE_TAG:
+        fail(f"API freeze release tag must be {FREEZE_RELEASE_TAG}")
     if document.get("wire_protocol_version") != current_wire_version():
         fail("API freeze wire protocol version does not match channel.cpp")
 

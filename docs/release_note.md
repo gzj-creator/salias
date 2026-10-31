@@ -114,3 +114,18 @@
   - **保留边界**：`LatestByKey`、Priority、Ringbuffer 仍作为 extras 候选完整导出；`Channel` 与 `FixedChannel` 数据面未合并；共享通道版本、slot 布局、completion protocol 和 `Fast*Ring` 名称均未改变。
   - **验证**：Release 构建与 CTest 25/25、ASan/UBSan CTest 24/24 通过，其中安装消费者、别名兼容、Schema roundtrip 和文档检查通过；mcpp 离线 Release 构建、`test_mcpp_import --locked` 及两个独立 shared-path 消费者通过。本轮为模板/文档/测试层收敛，未改热路径，因此未执行收敛前后性能 ABBA。
   - **后续门禁**：Phase 0 仍需完整外部证据与负责人签署；Phase 2-5 未执行。Fast Ring 最终重命名仍由既有 6×20 ABBA、独占 CPU 和 p99.9 门禁控制，本版本不打主版本 tag。
+
+## v5.0.0 - 2026-10-31
+
+- **版本级别**：主版本（major），删除重复源码入口并完成 Channel API 收敛；不修改共享内存 wire protocol，不升级通道版本。
+- **Git 提交消息**：refactor: 发布 v5.0.0 并完成 Channel API 收敛
+- **git tag**：v5.0.0
+- **自上次 tag（v4.1.0）以来的变更摘要**：
+  - **破坏性源码变更**：删除 `FifoMpscChannel`、`FifoMpmcChannel`、`OrderedMpscChannel`、`OrderedMpmcChannel` 四个 raw 快捷别名，统一迁移到 `Channel<Mode>`；未修改 wire protocol，通道版本保持 15。
+  - **Latest 唯一入口**：raw/typed latest fanout 统一使用 `LatestMpmcChannel<Capacity, HighWatermarkPercent[, Schema]>`；直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()` 已关闭，底层数据面继续由 wrapper 使用。
+  - **extras 边界**：LatestByKey、Priority 和 Ringbuffer 的规范能力完整保留在 `salias::extras`、`<salias/extras/*.hpp>` 与 `import salias.extras;`；九个顶层 extras 别名和三个旧转发头已删除，核心安装、umbrella、module 和库不依赖 extras。
+  - **保留边界**：通用 `Channel` 与 `FixedChannel` 继续使用独立数据面，未合并；`LatestByKey`、Priority、Ringbuffer 未删除；`Fast*Ring` 最终重命名仍由独立性能计划控制。
+  - **迁移方式**：`-Werror` 工程应先在 `v4.1.0` 清除弃用告警，再按迁移表和 codemod 切换到规范入口并重新编译。源码删除不要求重建既有共享通道，但不能把本版本解释为仓库外使用量或迁移成本的证据。
+  - **验证**：Release CTest 26/26、ASan/UBSan CTest 25/25、TSan CTest 25/25 通过；core-only/core+extras 安装消费、mcpp header/import、两个独立 shared-path consumer 全部通过。
+  - **API 与性能证据**：API manifest 冻结为 30 core、0 compat、9 extras、14 removed，核心/extras module 分别导出 29/9 个符号，16 个 removed 契约执行真实编译失败检查；5 组 ABBA 共 80 次正式运行验证 5.2 亿条消息，`v4.1.0` 与当前树的 benchmark 二进制逐字节相同。冻结基线状态为 `post_phase4_released`，对应 tag `v5.0.0`。
+  - **审计缺口**：按负责人决定，未采集仓库外源码消费方、发布包遥测和迁移成本；Phase 0 对应复选框继续保持未完成，不伪造外部证据或全局零使用结论。

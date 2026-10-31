@@ -1,6 +1,6 @@
 {
   "name": "salias",
-  "version-string": "4.1.0",
+  "version-string": "5.0.0",
   "dependencies": [
     "benchmark",
     "fmt",

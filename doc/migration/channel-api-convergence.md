@@ -4,9 +4,8 @@
 
 ## 1. 当前状态
 
-本文件描述 Phase 4 源码删除后的迁移路径。仓库负责人已于 2026-10-30 明确批准删除旧快捷入口；
-当前 `[Unreleased]` 源码树已删除四个 raw `*Channel` 别名、三个旧 extras 转发头和九个顶层 extras 别名。
-这只是未打 tag 的源码收敛，不表示 `5.0.0` 已发布。
+本文件描述 `v5.0.0` 的迁移路径。仓库负责人已于 2026-10-30 明确批准删除旧快捷入口；`v5.0.0`
+已删除四个 raw `*Channel` 别名、三个旧 extras 转发头和九个顶层 extras 别名。
 
 本次删除不修改共享内存 wire protocol，不升级通道控制段版本，不合并 `Channel` 与 `FixedChannel`
 数据面，也不删除 `LatestByKey`、Priority 或 Ringbuffer 的 `salias::extras` 规范能力。旧类型与规范
@@ -88,10 +87,10 @@ typed 用户必须保留第三个 `Schema` 模板参数。不能为了减少类�
 
 - `v4.1.0` 是旧入口最后一个已发布 tag；四个 raw 别名和九个 extras 顶层类型在该版本标记
   `[[deprecated]]`，旧转发头和迁移表同时发布。
-- 当前 `[Unreleased]` 源码删除由仓库负责人于 2026-10-30 明确批准，不由未采集的仓库外证据推断。
-- 完整 ABBA、TSan、安装/module 消费和 API SHA-256 冻结已在 Phase 5 的仓库内验证中完成；正式
-  `5.0.0` release note、版本 tag 和发布签署仍未完成。当前提交不打 tag，也不宣称主版本发布门禁
-  已全部通过。
+- `v5.0.0` 源码删除由仓库负责人于 2026-10-30 明确批准，并由后续发布授权确认，不由未采集的仓库外
+  证据推断。
+- 完整 ABBA、TSan、安装/module 消费和 API SHA-256 冻结已在 Phase 5 的仓库内验证中完成；`v5.0.0`
+  release note、版本 tag 和发布记录已在同一发布提交闭环。
 - 下游应固定并使用 `v4.1.0` 完成迁移，再升级到包含本次删除的版本。`-Werror` 工程应在
   `v4.1.0` 上先清除 `-Wdeprecated-declarations`，不要关闭告警。
 - 如需短期回滚源码删除，恢复到包含兼容入口的提交或继续使用 `v4.1.0`。wire protocol 和通道
@@ -118,8 +117,9 @@ typed 用户必须保留第三个 `Schema` 模板参数。不能为了减少类�
   相同；5 组 A/B/B/A、每 case 每臂 10 次正式运行全部通过消息数、全量 payload 和延迟采样校验。
   原始结果、主机信息和哈希见
   [Channel API ABBA 证据](../benchmarks/2026-10-31-channel-api-abba/README.md)。
-- API 冻结候选中 `release_tag` 为 `null`，绑定 53 个公开/安装文件、manifest、module 和 CMake/mcpp
+- API 冻结基线中 `release_tag` 为 `v5.0.0`，绑定 53 个公开/安装文件、manifest、module 和 CMake/mcpp
   导出面；逐文件 SHA-256 与聚合 digest 由 `salias_channel_api_documentation_check` 自动校验。
-  说明见 [Channel API 冻结候选](../api/channel-api-freeze.md)。
+  说明见 [Channel API 冻结基线](../api/channel-api-freeze.md)。
 
-Phase 5 仍需完成后才能发布主版本；本文件不把源码删除等同于 `5.0.0` 发布完成。
+Phase 5 已随 `v5.0.0` 发布完成。Phase 0 未采集的仓库外使用证据仍是独立审计缺口，不阻塞本版本
+基于负责人授权的源码收敛，也不能被解释为全局零使用。

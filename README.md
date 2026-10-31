@@ -100,8 +100,8 @@ LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者
 
 ## 已移除快捷入口
 
-以下四个 raw 便捷别名已在未打 tag 的 `[Unreleased]` 源码中删除。仓库负责人于 2026-10-30 明确
-批准本次删除；旧代码必须迁移到规范入口后重新编译：
+以下四个 raw 便捷别名已在 `v5.0.0` 删除。仓库负责人于 2026-10-30 明确批准本次删除；旧代码必须
+迁移到规范入口后重新编译：
 
 | 已删除入口 | 规范入口 |
 |---|---|
@@ -112,11 +112,11 @@ LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者
 
 公开 latest fanout 只有 `LatestMpmcChannel<Capacity, HighWatermarkPercent, Schema>` 一个入口；
 直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()` 已关闭，避免绕过静态容量、水位和 schema
-校验。当前只完成源码删除，尚未打 `5.0.0` tag，Phase 5 发布门禁仍待完成。迁移表、版本策略和
-codemod 命令见 [Channel API 迁移说明](doc/migration/channel-api-convergence.md)；逐 symbol 的
+校验。正式源码兼容基线使用 `v5.0.0` 主版本。迁移表、版本策略和 codemod 命令见
+[Channel API 迁移说明](doc/migration/channel-api-convergence.md)；逐 symbol 的
 core/extras/removed 状态见
-[机器可读 API 清单](doc/api/channel-api-manifest.json)；未发布的兼容基线候选及 SHA-256 见
-[Channel API 冻结候选](doc/api/channel-api-freeze.md)。
+[机器可读 API 清单](doc/api/channel-api-manifest.json)；发布兼容基线及 SHA-256 见
+[Channel API 冻结基线](doc/api/channel-api-freeze.md)。
 
 ## 附加能力
 
@@ -220,7 +220,7 @@ core-only 与 extras 增量安装。三个旧转发头不再安装；消费方�
 
 ## mcpp 与 C++23 模块
 
-原生包身份为 `gzj-creator.salias`，版本 `4.1.0` 与 CMake 一致。`mcpp.toml`
+原生包身份为 `gzj-creator.salias`，版本 `5.0.0` 与 CMake 一致。`mcpp.toml`
 编译公共库和必要的 core 实现，`src/salias.cppm` 提供 `import salias;`，
 `src/salias_extras.cppm` 提供 `import salias.extras;`；默认构建不需要
 GTest、Google Benchmark 或 Aeron。模块导出公共配置、枚举、错误和结果类型、Message、

@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "api": "salias-channel",
-  "baseline_date": "2026-10-30",
-  "baseline_version": "4.1.0",
-  "current_api_state": "post_phase4_source_removal_unreleased",
+  "baseline_date": "2026-10-31",
+  "baseline_version": "5.0.0",
+  "current_api_state": "post_phase4_source_removal_released",
   "removal_metadata": {
     "approved_by": "repository owner",
     "approved_on": "2026-10-30",
-    "state": "source_removed_unreleased",
-    "release_tag": null,
+    "state": "source_removed_released",
+    "release_tag": "v5.0.0",
     "wire_protocol_changed": false
   },
   "statuses": {
@@ -266,7 +266,7 @@
       "previous_location": {"file": "src/salias/include/salias/channel.hpp", "line": 236, "declaration": "using FifoMpscChannel [[deprecated(\"use Channel<Mode::FifoMpsc>\")]] ="},
       "replacement": "salias::Channel<salias::Mode::FifoMpsc>",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
-      "notes": "Deprecated in v4.1.0; source entry removed in the unreleased post-Phase-4 tree with owner approval."
+      "notes": "Deprecated in v4.1.0; source entry removed in v5.0.0 with owner approval."
     },
     {
       "name": "salias::FifoMpmcChannel",
@@ -275,7 +275,7 @@
       "previous_location": {"file": "src/salias/include/salias/channel.hpp", "line": 238, "declaration": "using FifoMpmcChannel [[deprecated(\"use Channel<Mode::FifoMpmc>\")]] ="},
       "replacement": "salias::Channel<salias::Mode::FifoMpmc>",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
-      "notes": "Deprecated in v4.1.0; source entry removed in the unreleased post-Phase-4 tree with owner approval."
+      "notes": "Deprecated in v4.1.0; source entry removed in v5.0.0 with owner approval."
     },
     {
       "name": "salias::OrderedMpscChannel",
@@ -284,7 +284,7 @@
       "previous_location": {"file": "src/salias/include/salias/channel.hpp", "line": 240, "declaration": "using OrderedMpscChannel [[deprecated(\"use Channel<Mode::OrderedMpsc>\")]] ="},
       "replacement": "salias::Channel<salias::Mode::OrderedMpsc>",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
-      "notes": "Deprecated in v4.1.0; source entry removed in the unreleased post-Phase-4 tree with owner approval."
+      "notes": "Deprecated in v4.1.0; source entry removed in v5.0.0 with owner approval."
     },
     {
       "name": "salias::OrderedMpmcChannel",
@@ -293,7 +293,7 @@
       "previous_location": {"file": "src/salias/include/salias/channel.hpp", "line": 242, "declaration": "using OrderedMpmcChannel [[deprecated(\"use Channel<Mode::OrderedMpmc>\")]] ="},
       "replacement": "salias::Channel<salias::Mode::OrderedMpmc>",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
-      "notes": "Deprecated in v4.1.0; source entry removed in the unreleased post-Phase-4 tree with owner approval."
+      "notes": "Deprecated in v4.1.0; source entry removed in v5.0.0 with owner approval."
     },
     {
       "name": "salias::FifoMpscPublisher",

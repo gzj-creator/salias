@@ -16,16 +16,24 @@ are released.
 
 ## [Unreleased]
 
-### Added
-
-- 新增独立 `salias::extras` 边界：`salias::extras` CMake target、可拆装的 `core` / `extras` install components，以及 `import salias.extras;` module。LatestByKey、Priority 和 Ringbuffer 是该边界中的可选能力，不进入核心快速入口。
+## [v5.0.0] - 2026-10-31
 
 ### Changed
 
-- latest fanout 收敛为唯一入口 `LatestMpmcChannel<Capacity, HighWatermarkPercent[, Schema]>`：直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()` 由编译期约束关闭，底层 Channel 数据面继续由 wrapper 使用，不修改共享内存协议或通道版本。
+- **Breaking source change**：删除四个 raw `*Channel` 快捷别名，统一使用 `Channel<Mode>`；源码迁移要求重新编译，但共享内存 wire protocol 和通道版本保持 15，不要求重建既有共享通道。
+- latest fanout 收敛为唯一入口 `LatestMpmcChannel<Capacity, HighWatermarkPercent[, Schema]>`：直接 `Channel<Mode::LatestMpmc>` 的 `create()`/`connect()` 由编译期约束关闭，底层 Channel 数据面继续由 wrapper 使用。
 - `LatestMpmcChannel` 增加可选 schema 参数，typed latest 继续校验 schema ID、版本和 payload 大小；raw/typed 两种 payload 模式共享相同的静态容量、水位、背压、订阅策略和故障语义。
-- LatestByKey、Priority 和 Ringbuffer 迁入 `<salias/extras/*.hpp>` 与 `salias::extras`；核心 `<salias/salias.hpp>`、`import salias;` 和 `libsalias.a` 不再包含 extras 依赖。
-- **Breaking source change**：仓库负责人于 2026-10-30 明确批准删除四个 raw `*Channel` 快捷别名、九个顶层 extras 别名和三个旧 extras 转发头。规范能力 `LatestByKey`、Priority 和 Ringbuffer 保留在 `salias::extras`；`Channel`、`FixedChannel` 两个数据面不合并，共享内存 wire protocol、通道版本和 `Fast*Ring` 候选名称不变。本次仅进入 `[Unreleased]`，不打 `5.0.0` tag，Phase 5 发布门禁仍未完成。
+- 通用 `Channel` 与 `FixedChannel` 继续使用独立数据面，未合并模板或热路径；`Fast*Ring` 到 `SpscRing`/`MpscRing`/`SpmcRing`/`MpmcRing` 的最终重命名仍由 Fast Ring 计划控制。
+
+### Added
+
+- 新增独立 `salias::extras` 边界：`salias::extras` CMake target、可拆装的 `core` / `extras` install components，以及 `import salias.extras;` module。LatestByKey、Priority 和 Ringbuffer 是可选能力，不进入核心快速入口。
+- LatestByKey、Priority 和 Ringbuffer 的规范能力完整保留在 `<salias/extras/*.hpp>`、`salias::extras` 和 `import salias.extras;`；核心 `<salias/salias.hpp>`、`import salias;` 与 `libsalias.a` 不再包含 extras 依赖。
+
+### Removed
+
+- 删除九个顶层 extras 别名和三个旧 extras 转发头；LatestByKey、Priority 和 Ringbuffer 的规范能力未删除。
+- 删除直接 `Channel<Mode::LatestMpmc>` 的公开创建/连接路径，保留其底层数据面供 `LatestMpmcChannel` 使用。
 
 ### Tests
 
@@ -37,9 +45,9 @@ are released.
 
 ### Docs
 
-- README、L7/L1 API、仓库内使用矩阵、迁移/回滚表和机器可读 API manifest 同步 latest 唯一入口、extras 边界和 removed 入口；manifest 当前记录 30 core、0 compat、9 extras、14 removed，core module 29 个符号、extras module 9 个符号。
-- 新增 `post_phase4_freeze_candidate_unreleased` API 冻结候选，覆盖 manifest、公开/安装头、两个 module、CMake/package/mcpp 导出面，共 53 个文件和聚合 SHA-256；`tools/check_channel_api.py` 自动校验，未声明 `5.0.0` 已发布。
-- 按本轮接口收敛边界，不检查仓库外源码消费方，也不将其使用量或迁移成本作为当前门禁；Phase 0 外部证据继续保持阻塞，Phase 1-4 源码工作与 Phase 5 仓库内验证已完成，主版本 release note、签署与 tag 仍未完成。
+- README、L7/L1 API、仓库内使用矩阵、迁移/回滚表和机器可读 API manifest 同步 latest 唯一入口、extras 边界和 removed 入口；manifest 记录 30 core、0 compat、9 extras、14 removed，core module 29 个符号、extras module 9 个符号。
+- 发布基线改为 `post_phase4_released`，绑定 `v5.0.0`、53 个公开/安装文件和聚合 SHA-256；`tools/check_channel_api.py` 自动校验逐文件哈希、文件集合、API/module 计数和 wire 版本。
+- 按本轮接口收敛边界，不检查仓库外源码消费方，也不将其使用量或迁移成本作为发布门禁；Phase 0 外部证据继续保持未完成，不能解释为全局零使用。
 
 ## [v4.1.0] - 2026-10-30
 
