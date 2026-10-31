@@ -1,0 +1,1 @@
+Channel API manifest OK: 30 core, 0 compat, 9 extras, 14 removed; core module 29, extras module 9; negative compile checks 16; freeze 53 files, aggregate 76dc56ee15686706688015fd89925d60e189340433021bd04150273046df2f83

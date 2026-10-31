@@ -31,13 +31,15 @@ are released.
 
 - API、poll、allocation、安装消费者和 mcpp module/header 消费迁移到唯一 latest 与规范 extras 入口；新增直接 Channel 工厂不可调用、typed wrapper 静态配置/schema 校验、raw/typed 跨消费面和 removed API 反向契约验证。
 - core-only 安装验证不包含 extras 头、归档或 import target；extras 独立安装验证 LatestByKey 跨进程收发、Priority 失败语义和 Ringbuffer 丢旧行为，并反向断言三个旧转发头未安装。
-- Release CTest 26/26、ASan/UBSan CTest 25/25、`salias_install_consumer`、mcpp core-only/core+extras module 消费、`test_mcpp_import` 与两个独立 shared-path consumer 均通过。
+- Release CTest 26/26、ASan/UBSan CTest 25/25、TSan CTest 25/25、`salias_install_consumer`、mcpp core-only/core+extras module 消费、`test_mcpp_import` 与两个独立 shared-path consumer 均通过。
 - removed 门禁对 13 个旧类型和 3 个旧 include 执行 16 次真实编译失败检查；以 `c898a6c` 为基线的同参数非 LTO 构建中，核心/extras 归档及三个数据面对象逐字节相同。
+- `v4.1.0` 与 Phase 4 当前树的固定槽、通用 Channel benchmark 可执行文件逐字节相同；5 组 ABBA、每 case 每臂 10 次正式运行全部通过全量 payload 校验。吞吐、planned p50/p99 原始结果与脚本保存在 `doc/benchmarks/2026-10-31-channel-api-abba/`。
 
 ### Docs
 
 - README、L7/L1 API、仓库内使用矩阵、迁移/回滚表和机器可读 API manifest 同步 latest 唯一入口、extras 边界和 removed 入口；manifest 当前记录 30 core、0 compat、9 extras、14 removed，core module 29 个符号、extras module 9 个符号。
-- 按本轮接口收敛边界，不检查仓库外源码消费方，也不将其使用量或迁移成本作为当前门禁；Phase 0 外部证据继续保持阻塞，Phase 1-3 已完成，Phase 4 源码删除已完成但主版本发布门禁留给 Phase 5。
+- 新增 `post_phase4_freeze_candidate_unreleased` API 冻结候选，覆盖 manifest、公开/安装头、两个 module、CMake/package/mcpp 导出面，共 53 个文件和聚合 SHA-256；`tools/check_channel_api.py` 自动校验，未声明 `5.0.0` 已发布。
+- 按本轮接口收敛边界，不检查仓库外源码消费方，也不将其使用量或迁移成本作为当前门禁；Phase 0 外部证据继续保持阻塞，Phase 1-4 源码工作与 Phase 5 仓库内验证已完成，主版本 release note、签署与 tag 仍未完成。
 
 ## [v4.1.0] - 2026-10-30
 

@@ -1,0 +1,27 @@
+   Resolving toolchain
+    Resolved llvm@22.1.8 → @mcpp/registry/data/xpkgs/xim-x-llvm/22.1.8/bin/clang++
+      Target x86_64-unknown-linux-gnu
+   Compiling gzj-creator.salias v4.1.0 (../../../data/disk1/projects/salias)
+   Compiling salias-mcpp-consumer v0.1.0 (.)
+
+    Finished release [optimized] in 7.70s
+   Resolving toolchain
+    Resolved llvm@22.1.8 → @mcpp/registry/data/xpkgs/xim-x-llvm/22.1.8/bin/clang++
+      Target x86_64-unknown-linux-gnu
+
+    Finished release [optimized] in 0.44s
+Module/header IPC, priority, latest-by-key, TTL, message windows, claim, batch, poll, checked lag and seek passed for 5 modes
+   Resolving toolchain
+    Resolved llvm@22.1.8 → @mcpp/registry/data/xpkgs/xim-x-llvm/22.1.8/bin/clang++
+      Target x86_64-unknown-linux-gnu
+   Compiling gzj-creator.salias v4.1.0 (../../../../data/disk1/projects/salias)
+   Compiling salias-mcpp-consumer v0.1.0 (.)
+
+    Finished release [optimized] in 7.43s
+   Resolving toolchain
+    Resolved llvm@22.1.8 → @mcpp/registry/data/xpkgs/xim-x-llvm/22.1.8/bin/clang++
+      Target x86_64-unknown-linux-gnu
+
+    Finished release [optimized] in 0.44s
+Module/header IPC, priority, latest-by-key, TTL, message windows, claim, batch, poll, checked lag and seek passed for 5 modes
+Two independent shared-path consumers passed with offline/locked builds

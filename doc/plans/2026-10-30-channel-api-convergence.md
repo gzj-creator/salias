@@ -2,7 +2,7 @@
 
 日期：2026-10-30（Asia/Singapore）
 
-状态：**Phase 0 本地审计与 Phase 1-3 完成；Phase 4 源码删除在 `[Unreleased]` 完成，正式发布门禁未完成；Phase 5 未开始**
+状态：**Phase 0 本地审计与 Phase 1-4 源码工作完成；Phase 5 仓库内验证和 API 冻结完成；正式 release note、发布签署与主版本 tag 未完成**
 
 ## 1. 目标
 
@@ -238,17 +238,25 @@ Phase 4 源码删除已完成。最后发布 tag 仍是 `v4.1.0`，`v4.1.0` 之�
 
 ### Phase 5：最终验证与发布
 
-- [ ] Release、ASan/UBSan、TSan 全套 CTest 通过。
-- [ ] `salias_install_consumer`、`mcpp header/import`、仅 core 和 core+extras 两种消费矩阵通过。
-- [ ] 对固定槽热路径和通用 Channel 分别执行收敛前后 ABBA；证明未因 include/link 拆分改变热路径。
-- [ ] 若无数据面代码变化，保存二进制和符号差异证据；不能仅凭“理论上没有影响”关闭。
-- [ ] 更新 `CHANGELOG.md`、`docs/release_note.md` 和主版本迁移说明。
-- [ ] 提供按 symbol 的自动迁移命令或 codemod 清单。
-- [ ] 冻结最终公开 API 清单和 SHA-256，作为下一版本兼容基线。
+- [x] Release、ASan/UBSan、TSan 全套 CTest 通过。
+- [x] `salias_install_consumer`、`mcpp header/import`、仅 core 和 core+extras 两种消费矩阵通过。
+- [x] 对固定槽热路径和通用 Channel 分别执行收敛前后 ABBA；证明未因 include/link 拆分改变热路径。
+- [x] 若无数据面代码变化，保存二进制和符号差异证据；不能仅凭“理论上没有影响”关闭。
+- [ ] 更新 `CHANGELOG.md`、`docs/release_note.md` 和主版本迁移说明：
+  - [x] `CHANGELOG.md` 记录 Phase 5 验证、ABBA 和冻结候选。
+  - [x] 主版本迁移说明补充 TSan、ABBA、冻结和剩余发布门禁。
+  - [ ] 本 session 不创建发版 tag，因此按 `commit_change` 约束未更新 `docs/release_note.md`；该项留待正式发布。
+- [x] 提供按 symbol 的自动迁移命令或 codemod 清单。
+- [x] 冻结最终公开 API 清单和 SHA-256，作为下一版本兼容基线；当前标记为未发布候选，不宣称 `5.0.0` 已发布。
 - [ ] 负责人签署 Phase 5，并决定是否打主版本 tag。
 
 **Phase 5 退出条件**：源码、安装、模块、文档、性能和发布证据全部闭环，且主版本迁移说明可由下游
 独立执行。
+
+Phase 5 的仓库内可执行项已完成：三套 CTest（Release、ASan/UBSan、TSan）、安装与 mcpp 消费矩阵、收敛前后
+ABBA、二进制逐字节证据、迁移 codemod、CHANGELOG/迁移说明和 53 文件 API 冻结候选均已落盘。
+由于用户明确不在本 session 打主版本 tag，且负责人尚未签署正式发布，`docs/release_note.md`、
+`5.0.0` 版本决定和 tag 仍保持未完成；Phase 5 退出条件不能全部关闭。
 
 ## 7. 版本与兼容策略
 
@@ -344,13 +352,18 @@ ELF 的历史记录只保留为当时已产生的审计痕迹，不再作为接�
 | 2026-10-30 | 4 | removed 门禁使用逐个真实编译失败而非不可解析名称的伪 `requires`：13 个旧类型和 3 个旧 include 均单独编译并确认失败；旧转发头安装反向断言、README/API/迁移文档同步通过 | `python3 tools/check_channel_api.py --compiler /usr/bin/c++`：16 个负向编译检查；Release 26/26、ASan/UBSan 25/25 |
 | 2026-10-30 | 4 | 安装与 module 消费闭环：core-only、core+extras install consumer、`mcpp build`、core-only import、core+extras import 和两个独立 shared-path consumer 均通过 | `ctest --test-dir build/release --output-on-failure -j 2`；`ctest --preset debug-asan-ubsan --output-on-failure -j 2`；`mcpp build --offline --release --jobs 4`；`mcpp run test_mcpp_core_import --offline --release --locked --features mcpp-tests`；`mcpp run test_mcpp_import --offline --release --locked --features mcpp-tests`；`python3 tools/check_mcpp.py` |
 | 2026-10-30 | 4 | 数据面二进制验证：以 `c898a6c` 基线 worktree 和当前树使用相同非 LTO Release 参数构建，核心/extra 归档及 channel、fixed-channel、keyed-table 对象均逐字节相同，故本次删除未改变数据面代码或链接产物 | `cmp`：core archive 均为 `437f4a65...b8bb`，extras archive 均为 `ed63d40c...f9b5`；`git diff --quiet HEAD -- src/salias/src/channel.cpp src/salias/src/fixed_channel.cpp` exit 0；`kNamedVersion = 15` |
+| 2026-10-31 | 5 | 最终正确性验证通过：Release 26/26、ASan/UBSan 25/25、TSan 25/25；三套均包含 `salias_install_consumer`、文档/API 冻结检查、通用 Channel、FixedChannel、Latest 和规范 extras 测试 | `cmake --build --preset release -j 4`；`ctest --test-dir build/release --output-on-failure -j 2`；`ctest --preset debug-asan-ubsan --output-on-failure -j 2`；`ctest --preset tsan --output-on-failure -j 2`；日志见 `doc/benchmarks/2026-10-31-channel-api-abba/validation/` |
+| 2026-10-31 | 5 | mcpp 消费矩阵通过：离线 Release 构建、core-only import、core+extras import、header probe 和两个独立 shared-path consumer 的 offline/locked 构建与运行全部 exit 0；core-only 不引入 extras | `mcpp build --offline --release --jobs 4`；`mcpp run test_mcpp_core_import --offline --release --locked --features mcpp-tests`；`mcpp run test_mcpp_import --offline --release --locked --features mcpp-tests`；`python3 tools/check_mcpp.py`；日志见同目录 `validation/mcpp-*.txt` |
+| 2026-10-31 | 5 | 收敛前后同机 ABBA 完成：`v4.1.0` 与 `c013a92` 使用同一 benchmark 源和 Release 参数，固定槽与通用 Channel benchmark 可执行文件分别逐字节相同；4 case x 5 组 x A/B/B/A 共 80 次正式运行全部通过消息数、全量 payload 和采样数断言，共验证 5.2 亿条 64 B 消息。固定槽吞吐 40.0385→40.1771 Mmsg/s（配对比 0.998x），通用 Channel 7,164,750→7,203,595 msg/s（1.010x）；planned p50/p99 原样记录，相同二进制下不把噪声归因于 API 收敛 | `python3 doc/benchmarks/2026-10-31-channel-api-abba/run_abba.py --before-root /data/disk1/projects/salias-v4.1.0-abba --after-root /data/disk1/projects/salias --groups 5`；`doc/benchmarks/2026-10-31-channel-api-abba/{README.md,summary.json,results.jsonl,source-state.txt}` |
+| 2026-10-31 | 5 | 公开 API 冻结候选落盘：状态 `post_phase4_freeze_candidate_unreleased`、`release_tag=null`、basis `c013a92`、wire v15；冻结 53 个文件，聚合 SHA-256 为 `76dc56ee...df2f83`。校验覆盖逐文件哈希、聚合 digest、API/module 计数和固定文件集合 | `python3 tools/check_channel_api.py --compiler /usr/bin/c++ --write-freeze`；`python3 tools/check_channel_api.py --compiler /usr/bin/c++`；`doc/api/channel-api-freeze.{json,md}` |
+| 2026-10-31 | 5 | CHANGELOG、主版本迁移说明、README/L7 发现入口、迁移 codemod 和 Phase 5 证据同步；按不打 tag 的约束未创建 `docs/release_note.md`，负责人签署和 `5.0.0` 版本决定保持未完成 | `CHANGELOG.md`、`doc/migration/channel-api-convergence.md`、`README.md`、`doc/11-L7-api.md`、本计划；`git diff --check` |
 
-## 11. 本 session 门禁结论
+## 11. Phase 5 门禁结论
 
 ### 已验证
 
-- Release 构建成功，26/26 CTest 通过；ASan/UBSan 25/25 通过。删除两个兼容测试并新增 removed 契约后，
-  计数与计划预期一致。
+- Release 构建成功，26/26 CTest 通过；ASan/UBSan 25/25、TSan 25/25 通过。三套均覆盖
+  `salias_install_consumer` 和 `salias_channel_api_documentation_check`。
 - core-only 安装不包含 extras 头、归档或 import target，并实际创建、发送和接收通用 Channel 与 typed
   `LatestMpmcChannel<4096, 75, Schema>`；extras 独立安装验证 LatestByKey 跨进程收发、Priority
   失败语义和 Ringbuffer 丢旧行为，并确认三个旧转发头未进入安装前缀。
@@ -358,8 +371,11 @@ ELF 的历史记录只保留为当时已产生的审计痕迹，不再作为接�
   `python3 tools/check_mcpp.py` 通过；仅 `import salias;` 可独立消费，core+extras module/header
   消费覆盖 LatestByKey 与 Priority，两个独立 shared-path consumer 离线锁定构建通过。
 - `python3 tools/check_channel_api.py` 通过：30 core、0 compat、9 extras、14 removed；core module
-  29 个符号、extras module 9 个符号；13 个旧类型和 3 个旧头分别执行真实编译失败断言，共 16 项。
-- `git diff --check` 通过，三份未跟踪/原有仓库外证据没有被本提交吸收。
+  29 个符号、extras module 9 个符号；13 个旧类型和 3 个旧头分别执行真实编译失败断言，共 16 项；
+  53 文件冻结候选及其聚合 SHA-256 校验通过。
+- 固定槽与通用 Channel 的 v4.1.0/当前树 benchmark 可执行文件逐字节相同；5 组 ABBA、每 case 每臂
+  10 次正式运行全部通过，原始 stdout/stderr、命令、环境、哈希和汇总均已落盘。
+- `git diff --check` 通过；Phase 0 的三份仓库外证据文件保持原工作区状态，没有被 Phase 5 提交吸收。
 
 ### 据代码检查
 
@@ -377,17 +393,18 @@ ELF 的历史记录只保留为当时已产生的审计痕迹，不再作为接�
   `tools/check_channel_api.py` 扫描 `test/`、`bench/`、`example/`，规范代码无旧入口正向使用。
 - 通用 Channel 与 FixedChannel 的数据面源码相对 `HEAD = c898a6c` 零差异；`kNamedVersion` 仍为 15，
   未修改共享内存 wire protocol、通道版本或固定槽热路径，未合并两个数据面，`Fast*Ring` 也未重命名。
-- 用相同 `-O3 -DNDEBUG -march=native` 非 LTO 配置分别构建 `c898a6c` 基线 worktree 和当前树，
-  `libsalias.a` 均为 `437f4a65...b8bb`，`libsalias_extras.a` 均为 `ed63d40c...f9b5`；
-  `channel.cpp.o`、`fixed_channel.cpp.o`、`latest_by_key.cpp.o` 的 `cmp` 也全部 exit 0。该逐字节
-  相同证据比数据面性能冒烟更直接，因此本阶段不重复 ABBA。
+- 用相同 Release 参数分别构建 `v4.1.0` 与当前树的 benchmark，固定槽可执行文件均为
+  `c723db1b...acd4945`，通用 Channel 可执行文件均为 `bf285620...4055949c`；ABBA 数值只描述
+  同机运行波动，不构成性能变化推断。
+- API 冻结候选绑定 53 个 manifest/公开头/安装头/module/CMake/mcpp 导出文件，`release_tag` 为 null；
+  任何 API 或包装边界变化都会使现有逐文件或聚合 SHA-256 校验失败。
 
-### 仍待外部确认
+### 仍待负责人或外部确认
 
 - 按用户决定，没有检查仓库外源码消费方，也不声称其调用量、迁移成本或私有仓库使用情况。
 - 两个 Phase 0 外部证据/签署复选框继续保持未完成；仓库负责人对 Phase 4 源码删除的明确批准已单独
   记录于 manifest 和迁移文档，不把外部证据缺口伪装成已闭合。
 - Phase 4 的“至少一个 released minor + release note”总门禁仍未完成：最后 tag 是 `v4.1.0`，
   Phase 3/4 变更仍位于 `[Unreleased]`。本次没有打 `5.0.0` tag，也没有更新 release note。
-- Phase 5 的 TSan 全套 CTest、最终公开 API SHA-256 冻结、主版本 release note、发布签署和是否打
-  tag 的决定仍未完成。下游按迁移表自行适配。
+- Phase 5 的仓库内验证已关闭，但正式 release note、负责人签署和是否打主版本 tag 仍未完成。
+  下游按迁移表和 codemod 自行适配；在正式签署前不得把冻结候选当作已发布 API 基线。

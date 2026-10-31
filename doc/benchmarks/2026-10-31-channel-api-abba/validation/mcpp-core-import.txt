@@ -1,0 +1,7 @@
+   Resolving toolchain
+    Resolved llvm@22.1.8 → @mcpp/registry/data/xpkgs/xim-x-llvm/22.1.8/bin/clang++
+      Target x86_64-unknown-linux-gnu
+   Compiling salias v4.1.0 (.)
+
+    Finished release [optimized] in 7.93s
+     Running `target/x86_64-linux-gnu/111162597052f8a3/bin/test_mcpp_core_import`

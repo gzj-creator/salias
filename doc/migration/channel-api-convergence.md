@@ -89,8 +89,9 @@ typed 用户必须保留第三个 `Schema` 模板参数。不能为了减少类�
 - `v4.1.0` 是旧入口最后一个已发布 tag；四个 raw 别名和九个 extras 顶层类型在该版本标记
   `[[deprecated]]`，旧转发头和迁移表同时发布。
 - 当前 `[Unreleased]` 源码删除由仓库负责人于 2026-10-30 明确批准，不由未采集的仓库外证据推断。
-- 正式 `5.0.0` release note、版本 tag、完整 ABBA、TSan、API SHA-256 冻结和发布签署仍属于
-  Phase 5；当前提交不打 tag，也不宣称主版本发布门禁已全部通过。
+- 完整 ABBA、TSan、安装/module 消费和 API SHA-256 冻结已在 Phase 5 的仓库内验证中完成；正式
+  `5.0.0` release note、版本 tag 和发布签署仍未完成。当前提交不打 tag，也不宣称主版本发布门禁
+  已全部通过。
 - 下游应固定并使用 `v4.1.0` 完成迁移，再升级到包含本次删除的版本。`-Werror` 工程应在
   `v4.1.0` 上先清除 `-Wdeprecated-declarations`，不要关闭告警。
 - 如需短期回滚源码删除，恢复到包含兼容入口的提交或继续使用 `v4.1.0`。wire protocol 和通道
@@ -106,12 +107,19 @@ typed 用户必须保留第三个 `Schema` 模板参数。不能为了减少类�
 
 本次源码删除至少由以下仓库内门禁验证：
 
-- Release 与 ASan/UBSan CTest 覆盖共享 Channel、`FixedChannel`、Latest 和规范 extras 行为。
+- Release、ASan/UBSan 与 TSan CTest 覆盖共享 Channel、`FixedChannel`、Latest 和规范 extras 行为。
 - `test/api/removed_api_contract_test.cpp` 用 `__has_include` 锁定三个旧转发头不可见；
   `tools/check_channel_api.py` 对 13 个旧类型和 3 个头文件执行逐个真实编译失败断言。
 - `test/mcpp/core_import.cpp` 与 `test/mcpp/import.cpp` 实际编译 `import salias;` 和
   `import salias.extras;` 的规范消费；门禁同时核对 module export 集合与 manifest 完全一致。
 - 安装消费测试验证三个旧转发头不进入安装前缀，并继续验证 core-only 与 extras 消费矩阵。
 - `tools/check_channel_api.py` 校验 manifest、module、umbrella、文档和反向契约测试一致。
+- `v4.1.0` 与当前树使用相同 Release 参数构建的固定槽和通用 Channel benchmark 可执行文件逐字节
+  相同；5 组 A/B/B/A、每 case 每臂 10 次正式运行全部通过消息数、全量 payload 和延迟采样校验。
+  原始结果、主机信息和哈希见
+  [Channel API ABBA 证据](../benchmarks/2026-10-31-channel-api-abba/README.md)。
+- API 冻结候选中 `release_tag` 为 `null`，绑定 53 个公开/安装文件、manifest、module 和 CMake/mcpp
+  导出面；逐文件 SHA-256 与聚合 digest 由 `salias_channel_api_documentation_check` 自动校验。
+  说明见 [Channel API 冻结候选](../api/channel-api-freeze.md)。
 
 Phase 5 仍需完成后才能发布主版本；本文件不把源码删除等同于 `5.0.0` 发布完成。

@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import pathlib
 import re
 import subprocess
 import sys
+from datetime import date
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -26,6 +28,8 @@ TEST_CMAKE = ROOT / "test/CMakeLists.txt"
 REMOVED_TEST = ROOT / "test/api/removed_api_contract_test.cpp"
 CORE_IMPORT_TEST = ROOT / "test/mcpp/core_import.cpp"
 EXTRAS_IMPORT_TEST = ROOT / "test/mcpp/import.cpp"
+FREEZE = ROOT / "doc/api/channel-api-freeze.json"
+FREEZE_STATE = "post_phase4_freeze_candidate_unreleased"
 
 ALIASES = (
     "FifoMpscChannel",
@@ -69,6 +73,13 @@ NEGATIVE_CONTRACT_TESTS = {REMOVED_TEST, CORE_IMPORT_TEST, EXTRAS_IMPORT_TEST}
 CODE_ROOTS = ("test", "bench", "example")
 EXPECTED_COUNTS = {"core": 30, "compat": 0, "extras": 9, "removed": 14}
 EXPECTED_MODULE_COUNTS = {"core": 29, "extras": 9}
+FREEZE_PACKAGING_FILES = (
+    "CMakeLists.txt",
+    "cmake/saliasConfig.cmake.in",
+    "mcpp.toml",
+    "src/core/CMakeLists.txt",
+    "src/salias/CMakeLists.txt",
+)
 README_REMOVED_HEADING = "## \u5df2\u79fb\u9664\u5feb\u6377\u5165\u53e3"
 DIRECT_LATEST_RE = re.compile(
     r"(?:salias::)?Channel<(?:salias::)?Mode::LatestMpmc(?=[,>])"
@@ -430,12 +441,140 @@ def validate_versions(data: dict) -> None:
         fail(f"manifest version {data['baseline_version']} != CMake {match.group(1)}")
 
 
+def sha256_file(path: pathlib.Path) -> str:
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError as error:
+        fail(f"cannot hash {path.relative_to(ROOT)}: {error}")
+    return digest.hexdigest()
+
+
+def freeze_paths() -> list[pathlib.Path]:
+    headers = sorted((ROOT / "src/salias/include/salias").rglob("*.hpp"))
+    headers += sorted((ROOT / "src/core").rglob("*.hpp"))
+    files = [
+        MANIFEST,
+        MODULE,
+        EXTRAS_MODULE,
+        *(ROOT / relative for relative in FREEZE_PACKAGING_FILES),
+        *headers,
+    ]
+    unique = {path.resolve() for path in files}
+    return sorted(unique, key=lambda path: path.relative_to(ROOT).as_posix())
+
+
+def freeze_document(data: dict, symbols: list[dict]) -> dict:
+    files = [
+        {
+            "path": path.relative_to(ROOT).as_posix(),
+            "sha256": sha256_file(path),
+        }
+        for path in freeze_paths()
+    ]
+    aggregate_input = "".join(f"{entry['sha256']}  {entry['path']}\n" for entry in files)
+    counts = {status: sum(s["status"] == status for s in symbols) for status in data["statuses"]}
+    return {
+        "schema_version": 1,
+        "api": "salias-channel",
+        "state": FREEZE_STATE,
+        "release_tag": None,
+        "basis_commit": current_revision(),
+        "freeze_date": date.today().isoformat(),
+        "api_counts": counts,
+        "module_export_counts": {
+            "core": len(data["module_exports"]),
+            "extras": len(data["extras_module_exports"]),
+        },
+        "wire_protocol_version": current_wire_version(),
+        "files": files,
+        "aggregate_sha256": hashlib.sha256(aggregate_input.encode("ascii")).hexdigest(),
+    }
+
+
+def current_wire_version() -> int:
+    channel_source = read(ROOT / "src/salias/src/channel.cpp")
+    match = re.search(r"kNamedVersion\s*=\s*([0-9]+)", channel_source)
+    if not match:
+        fail("cannot read kNamedVersion from channel.cpp")
+    return int(match.group(1))
+
+
+def current_revision() -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        fail(f"cannot read git revision: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def validate_freeze(data: dict, symbols: list[dict], write: bool) -> dict:
+    expected_paths = [path.relative_to(ROOT).as_posix() for path in freeze_paths()]
+    if write:
+        document = freeze_document(data, symbols)
+        FREEZE.write_text(json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    else:
+        try:
+            document = json.loads(read(FREEZE))
+        except json.JSONDecodeError as error:
+            fail(f"invalid API freeze JSON: {error}")
+
+    if document.get("schema_version") != 1 or document.get("api") != "salias-channel":
+        fail("API freeze metadata is invalid")
+    if document.get("state") != FREEZE_STATE:
+        fail(f"API freeze state must be {FREEZE_STATE}")
+    if document.get("release_tag") is not None:
+        fail("API freeze must not claim a release tag")
+    if document.get("wire_protocol_version") != current_wire_version():
+        fail("API freeze wire protocol version does not match channel.cpp")
+
+    counts = {status: sum(s["status"] == status for s in symbols) for status in data["statuses"]}
+    if document.get("api_counts") != counts:
+        fail(f"API freeze counts {document.get('api_counts')} != manifest {counts}")
+    module_counts = {
+        "core": len(data["module_exports"]),
+        "extras": len(data["extras_module_exports"]),
+    }
+    if document.get("module_export_counts") != module_counts:
+        fail("API freeze module export counts do not match the manifest")
+
+    entries = document.get("files", [])
+    paths = [entry.get("path") for entry in entries]
+    if paths != expected_paths:
+        missing = sorted(set(expected_paths) - set(paths))
+        extra = sorted(set(paths) - set(expected_paths))
+        fail(f"API freeze file set differs: missing={missing}, extra={extra}, order_or_duplicate={paths != expected_paths}")
+    for entry in entries:
+        path = ROOT / entry["path"]
+        if not path.is_file():
+            fail(f"API freeze points to missing file {entry['path']}")
+        if entry.get("sha256") != sha256_file(path):
+            fail(f"API freeze hash mismatch for {entry['path']}")
+    aggregate_input = "".join(f"{entry['sha256']}  {entry['path']}\n" for entry in entries)
+    aggregate = hashlib.sha256(aggregate_input.encode("ascii")).hexdigest()
+    if document.get("aggregate_sha256") != aggregate:
+        fail("API freeze aggregate SHA-256 is invalid")
+    return document
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--compiler",
         default=os.environ.get("CXX", "c++"),
         help="C++ compiler used for removed-header and removed-symbol compile checks",
+    )
+    parser.add_argument(
+        "--write-freeze",
+        action="store_true",
+        help="Regenerate the reviewed API freeze candidate from the current tree",
     )
     args = parser.parse_args()
 
@@ -446,6 +585,7 @@ def main() -> None:
     validate_removed_compile_contract(args.compiler)
     validate_docs(by_name)
     validate_versions(data)
+    freeze = validate_freeze(data, symbols, args.write_freeze)
     counts = {status: sum(s["status"] == status for s in symbols) for status in data["statuses"]}
     print(
         "Channel API manifest OK: "
@@ -453,7 +593,8 @@ def main() -> None:
         f"{counts['extras']} extras, {counts['removed']} removed; "
         f"core module {len(data['module_exports'])}, "
         f"extras module {len(data['extras_module_exports'])}; "
-        f"negative compile checks {len(REMOVED_TYPE_EXPRESSIONS) + len(REMOVED_HEADERS)}"
+        f"negative compile checks {len(REMOVED_TYPE_EXPRESSIONS) + len(REMOVED_HEADERS)}; "
+        f"freeze {len(freeze['files'])} files, aggregate {freeze['aggregate_sha256']}"
     )
 
 

@@ -29,6 +29,8 @@ fanout 的 raw 和 typed payload 都使用 `LatestMpmcChannel`：省略 `Schema`
 显式传入 `Schema` 时保持 schema ID、版本和 payload 大小校验。这样 latest 入口不会绕过静态容量与
 水位检查。
 完整迁移表见 [Channel API 迁移说明](migration/channel-api-convergence.md)。
+未发布 API 冻结候选与逐文件 SHA-256 见
+[Channel API 冻结候选](api/channel-api-freeze.md)。
 
 公共 API 暴露单一 per-producer-ring 引擎的四种排序/拓扑组合，并增加 `LatestMpmc` 保留窗口模式：
 

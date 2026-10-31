@@ -1,0 +1,195 @@
+{
+  "cases": {
+    "fixed-planned-latency": {
+      "description": "FixedChannel SPSC 64 B planned 1 Mmsg/s latency",
+      "metrics": {
+        "mmsg_s": {
+          "after": {
+            "max": 0.995026,
+            "median": 0.995025,
+            "min": 0.995025,
+            "samples": 10
+          },
+          "before": {
+            "max": 0.995029,
+            "median": 0.995025,
+            "min": 0.995025,
+            "samples": 10
+          },
+          "paired_after_over_before": {
+            "max": 1.0000005024999372,
+            "median": 1.0,
+            "min": 0.999998492502461,
+            "samples": 5
+          },
+          "unit": "Mmsg/s"
+        },
+        "p50_ns": {
+          "after": {
+            "max": 267.0,
+            "median": 244.0,
+            "min": 239.0,
+            "samples": 10
+          },
+          "before": {
+            "max": 271.0,
+            "median": 254.0,
+            "min": 239.0,
+            "samples": 10
+          },
+          "paired_after_over_before": {
+            "max": 1.0236220472440944,
+            "median": 0.988,
+            "min": 0.9320754716981132,
+            "samples": 5
+          },
+          "unit": "ns"
+        },
+        "p99_ns": {
+          "after": {
+            "max": 5119.0,
+            "median": 3295.0,
+            "min": 847.0,
+            "samples": 10
+          },
+          "before": {
+            "max": 7615.0,
+            "median": 2959.0,
+            "min": 759.0,
+            "samples": 10
+          },
+          "paired_after_over_before": {
+            "max": 2.1945594322885866,
+            "median": 0.7810245977436656,
+            "min": 0.33103183736095126,
+            "samples": 5
+          },
+          "unit": "ns"
+        }
+      }
+    },
+    "fixed-throughput": {
+      "description": "FixedChannel SPSC 64 B saturated poll throughput",
+      "metrics": {
+        "mmsg_s": {
+          "after": {
+            "max": 40.7636,
+            "median": 40.177099999999996,
+            "min": 34.8255,
+            "samples": 10
+          },
+          "before": {
+            "max": 40.3297,
+            "median": 40.0385,
+            "min": 35.0448,
+            "samples": 10
+          },
+          "paired_after_over_before": {
+            "max": 1.0244018464357447,
+            "median": 0.9977901873161531,
+            "min": 0.9879625450546375,
+            "samples": 5
+          },
+          "unit": "Mmsg/s"
+        }
+      }
+    },
+    "generic-planned-latency": {
+      "description": "Channel<FifoMpsc> 1P1C 64 B planned 1 Mmsg/s latency",
+      "metrics": {
+        "delivery_msg_per_sec": {
+          "after": {
+            "max": 994877.0,
+            "median": 994856.5,
+            "min": 994797.0,
+            "samples": 10
+          },
+          "before": {
+            "max": 994877.0,
+            "median": 994855.0,
+            "min": 994818.0,
+            "samples": 10
+          },
+          "paired_after_over_before": {
+            "max": 1.0000301558757216,
+            "median": 0.999992963858861,
+            "min": 0.9999763785978034,
+            "samples": 5
+          },
+          "unit": "msg/s"
+        },
+        "latency_p50_ns": {
+          "after": {
+            "max": 471.0,
+            "median": 457.0,
+            "min": 443.0,
+            "samples": 10
+          },
+          "before": {
+            "max": 479.0,
+            "median": 459.0,
+            "min": 447.0,
+            "samples": 10
+          },
+          "paired_after_over_before": {
+            "max": 1.008714596949891,
+            "median": 0.9956236323851203,
+            "min": 0.9745222929936306,
+            "samples": 5
+          },
+          "unit": "ns"
+        },
+        "latency_p99_ns": {
+          "after": {
+            "max": 6847.0,
+            "median": 4543.0,
+            "min": 1567.0,
+            "samples": 10
+          },
+          "before": {
+            "max": 8447.0,
+            "median": 4287.0,
+            "min": 2143.0,
+            "samples": 10
+          },
+          "paired_after_over_before": {
+            "max": 1.5210594876248371,
+            "median": 1.119430837415442,
+            "min": 0.6102864311101819,
+            "samples": 5
+          },
+          "unit": "ns"
+        }
+      }
+    },
+    "generic-throughput": {
+      "description": "Channel<FifoMpsc> 1P1C 64 B saturated full-verify throughput",
+      "metrics": {
+        "delivery_msg_per_sec": {
+          "after": {
+            "max": 7904120.0,
+            "median": 7203595.0,
+            "min": 6795560.0,
+            "samples": 10
+          },
+          "before": {
+            "max": 7605940.0,
+            "median": 7164750.0,
+            "min": 6880890.0,
+            "samples": 10
+          },
+          "paired_after_over_before": {
+            "max": 1.0675647883710626,
+            "median": 1.0101075647105753,
+            "min": 0.9720412070047985,
+            "samples": 5
+          },
+          "unit": "msg/s"
+        }
+      }
+    }
+  },
+  "groups": 5,
+  "order": "ABBA",
+  "runs_per_arm_per_case": 10
+}

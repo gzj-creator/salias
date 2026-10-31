@@ -1,0 +1,58 @@
+Internal ctest changing into directory: /data/disk1/projects/salias/build/release
+Test project /data/disk1/projects/salias/build/release
+      Start 15: salias_channel_api_documentation_check
+      Start  2: salias_install_consumer
+ 1/26 Test  #2: salias_install_consumer ..................   Passed    9.03 sec
+      Start  7: salias_batch_length_contract_test
+ 2/26 Test  #7: salias_batch_length_contract_test ........   Passed    1.22 sec
+      Start 24: salias_asymmetric_fence_tests
+ 3/26 Test #24: salias_asymmetric_fence_tests ............   Passed    0.68 sec
+      Start 23: salias_api_tests
+ 4/26 Test #23: salias_api_tests .........................   Passed    1.13 sec
+      Start  6: salias_bench_channel_stress
+ 5/26 Test  #6: salias_bench_channel_stress ..............   Passed    0.57 sec
+      Start 18: salias_ring_tests
+ 6/26 Test #18: salias_ring_tests ........................   Passed    0.03 sec
+      Start 26: salias_priority_tests
+ 7/26 Test #26: salias_priority_tests ....................   Passed    0.12 sec
+      Start 13: salias_removed_api_contract_test
+ 8/26 Test #13: salias_removed_api_contract_test .........   Passed    0.01 sec
+      Start 19: salias_extras_ring_tests
+ 9/26 Test #19: salias_extras_ring_tests .................   Passed    0.01 sec
+      Start 14: salias_schema_helper_test
+10/26 Test #14: salias_schema_helper_test ................   Passed    0.01 sec
+      Start  3: salias_example_smoke
+11/26 Test  #3: salias_example_smoke .....................   Passed    0.03 sec
+      Start 25: salias_latest_by_key_tests
+12/26 Test #25: salias_latest_by_key_tests ...............   Passed    0.04 sec
+      Start 10: salias_allocation_contract_test
+13/26 Test #10: salias_allocation_contract_test ..........   Passed    0.04 sec
+      Start 22: salias_channel_tests
+14/26 Test #22: salias_channel_tests .....................   Passed    0.02 sec
+      Start 17: salias_platform_tests
+15/26 Test #17: salias_platform_tests ....................   Passed    0.01 sec
+      Start 21: salias_flow_tests
+16/26 Test #21: salias_flow_tests ........................   Passed    0.01 sec
+      Start  4: salias_minimal_fifo
+17/26 Test  #4: salias_minimal_fifo ......................   Passed    0.01 sec
+      Start 16: salias_latency_histogram_tests
+18/26 Test #16: salias_latency_histogram_tests ...........   Passed    0.01 sec
+      Start  5: salias_minimal_ordered
+19/26 Test  #5: salias_minimal_ordered ...................   Passed    0.01 sec
+      Start 20: salias_frame_tests
+20/26 Test #20: salias_frame_tests .......................   Passed    0.01 sec
+      Start 11: salias_commit_visibility_contract_test
+21/26 Test #11: salias_commit_visibility_contract_test ...   Passed    0.01 sec
+      Start 12: salias_poll_storage_contract_test
+22/26 Test #12: salias_poll_storage_contract_test ........   Passed    0.01 sec
+      Start  9: salias_capacity_contract_test
+23/26 Test  #9: salias_capacity_contract_test ............   Passed    0.01 sec
+      Start  8: salias_config_contract_test
+24/26 Test  #8: salias_config_contract_test ..............   Passed    0.01 sec
+      Start  1: salias_version_consistency
+25/26 Test  #1: salias_version_consistency ...............   Passed    0.02 sec
+26/26 Test #15: salias_channel_api_documentation_check ...   Passed   30.05 sec
+
+100% tests passed, 0 tests failed out of 26
+
+Total Test time (real) =  30.05 sec

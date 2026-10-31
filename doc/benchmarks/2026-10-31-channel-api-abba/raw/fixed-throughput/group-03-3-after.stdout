@@ -1,0 +1,1 @@
+RESULT mode=poll workload=throughput origin=attempt messages=20000000 poll_batch=64 seconds=0.495973 mmsg_s=40.3248 verified=20000000

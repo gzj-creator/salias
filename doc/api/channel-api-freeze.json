@@ -1,0 +1,234 @@
+{
+  "aggregate_sha256": "76dc56ee15686706688015fd89925d60e189340433021bd04150273046df2f83",
+  "api": "salias-channel",
+  "api_counts": {
+    "compat": 0,
+    "core": 30,
+    "extras": 9,
+    "removed": 14
+  },
+  "basis_commit": "c013a9214dc759751a92682237bb87e5f23ccabf",
+  "files": [
+    {
+      "path": "CMakeLists.txt",
+      "sha256": "5a92391b2dd2c946b221ff20ec80abf92fa8bd77ba0d92a0ea858b1f65bc560c"
+    },
+    {
+      "path": "cmake/saliasConfig.cmake.in",
+      "sha256": "7818b641dea59905b85dde48620f846d48f97b956596a3dd3a217a1caf8a5510"
+    },
+    {
+      "path": "doc/api/channel-api-manifest.json",
+      "sha256": "1e5793001f7b504ba94bc78fbff7b496e1ea19ccf581b49cb7c9eabdd5a87ae1"
+    },
+    {
+      "path": "mcpp.toml",
+      "sha256": "f93129f2363af48c61a261ed7cad5d55774eb97e73bcde273967257fc8751435"
+    },
+    {
+      "path": "src/core/CMakeLists.txt",
+      "sha256": "e15ddf7e0a31ce02eb5760a8751155393145f0ede3cda36582a6627aa2deefda"
+    },
+    {
+      "path": "src/core/channel/error.hpp",
+      "sha256": "97b0a71374a829c30b222458a6df9ff9308df1bfa6ddf5191ebea30d79e9800e"
+    },
+    {
+      "path": "src/core/channel/hybrid_control.hpp",
+      "sha256": "ee1edc36b9d06129ca4c5fcb9ddc1ef7d74c91378224579a1ce07db102c2fddd"
+    },
+    {
+      "path": "src/core/channel/hybrid_mpsc.hpp",
+      "sha256": "e30e248f6d63a0c9154890d070a81bb1bdec1fbea775c7b0425303651d84a4c5"
+    },
+    {
+      "path": "src/core/channel/shared_hybrid_mpsc.hpp",
+      "sha256": "bd1faf14773b6759bf7de6eb40e1990f408caae9923d005901a5913503947991"
+    },
+    {
+      "path": "src/core/flow/consumer.hpp",
+      "sha256": "d36856d9b81857ab6ece3662b7b4f0c7ae22f4e1fe7c74b2cb915f8bf317818a"
+    },
+    {
+      "path": "src/core/flow/error.hpp",
+      "sha256": "df44ce84dca007bbd84f778dee20ceb79fe057a81b498c72d38205c6dc941cad"
+    },
+    {
+      "path": "src/core/flow/position.hpp",
+      "sha256": "ee7ea97b8fdc0d3edbd2183e12dc1b9b7ccc880b61e4968843291f01ed7dc100"
+    },
+    {
+      "path": "src/core/flow/producer.hpp",
+      "sha256": "f2abd0572f3f7a19d9a73a405451aba9268fa5468fa6eec38a43f82686da61dc"
+    },
+    {
+      "path": "src/core/frame/codec.hpp",
+      "sha256": "c1d1f15832ee45456fc591213d8e44415c5144cf95e86f9f507bd21f4299b25f"
+    },
+    {
+      "path": "src/core/frame/error.hpp",
+      "sha256": "73a5b28c7a58291c1c6e25d666550e9b3dba65b9e9d5c1633b2d63ff0c066870"
+    },
+    {
+      "path": "src/core/frame/header.hpp",
+      "sha256": "a5c090b80f5a3325bc8fc9cbaf34faca1da24b690d3dfc84893e52a399166add"
+    },
+    {
+      "path": "src/core/frame/sequence.hpp",
+      "sha256": "66518af4fc70aecc039d0a02f81aed03cb0791d4ee2d478171bc9748a88cd9bf"
+    },
+    {
+      "path": "src/core/platform/asymmetric_fence.hpp",
+      "sha256": "badf272a884a35264e704748d974c92623fa7a2b7608a9b41e9ac10b596e3fe0"
+    },
+    {
+      "path": "src/core/platform/error.hpp",
+      "sha256": "cfdb28f98adf37daea83186c6619aeddc99182329d1f44027b3f92ce17565d93"
+    },
+    {
+      "path": "src/core/platform/map_options.hpp",
+      "sha256": "48b2170918480d097537336dc5158b028f6ad58f67b796fe5d774b0a706fd7ee"
+    },
+    {
+      "path": "src/core/platform/mapping.hpp",
+      "sha256": "e6ef6533815b1cbaa5eb6282d004f8d76b0ea3e309bbd4dafdacd81df7960d6e"
+    },
+    {
+      "path": "src/core/platform/monotonic_clock.hpp",
+      "sha256": "6cdc655f0cf6f20cec1fdac9f35071cb7a354e8b4f2334c4375cfc2eca0a306c"
+    },
+    {
+      "path": "src/core/ring/atomic_cell.hpp",
+      "sha256": "2ee519e307c6c4e26035df4dd85ff4f802d4e57c730c3ab1937761799cf4c663"
+    },
+    {
+      "path": "src/core/ring/error.hpp",
+      "sha256": "aefe9d2e4fb2a016dc6983cddc3c7c3bd984f7c3486f422a6dbeddcf44092554"
+    },
+    {
+      "path": "src/core/ring/fast_mpmc_ring.hpp",
+      "sha256": "ce2f4ff86890ff99490cc46f9a2b8aaf2e34473f28fdc881c8531eebb48194aa"
+    },
+    {
+      "path": "src/core/ring/fast_mpsc_ring.hpp",
+      "sha256": "c51555b6c7c714688f8680b35afeebf5bbb9cbc84bbac7c6aed23847099c7353"
+    },
+    {
+      "path": "src/core/ring/fast_ring_error.hpp",
+      "sha256": "54438204270aad58a6256423fba8db15779081dc6a35967eb20e435cfa07a5e6"
+    },
+    {
+      "path": "src/core/ring/fast_ring_layout.hpp",
+      "sha256": "aff6856a276b09dccefe869f610c7793a1a38b8eea4f6301e6007857715f01e0"
+    },
+    {
+      "path": "src/core/ring/fast_spmc_ring.hpp",
+      "sha256": "1259268bedf557f46058492a4f61bc75debb3882ced9a23119e2f125bc70ad22"
+    },
+    {
+      "path": "src/core/ring/fast_spsc_ring.hpp",
+      "sha256": "975f6a57260763f02b29ffe53e77b4bbca63348fc9dab3f795c871b75661185a"
+    },
+    {
+      "path": "src/core/ring/magic_ring.hpp",
+      "sha256": "b0647e98d0ba24c3e914792b48834b299b31abb6c79f6f0229254342ab034870"
+    },
+    {
+      "path": "src/core/wait/cpu_relax.hpp",
+      "sha256": "614c2b132a841bca42e6afdc378a8af6ec7f585c9159d20b6939cd142be44e99"
+    },
+    {
+      "path": "src/core/wait/futex_wait.hpp",
+      "sha256": "cba64b0db9e08c82e7f6cf95476818010058e7351caf7fb3e432eddd5c295edf"
+    },
+    {
+      "path": "src/core/wait/spin_pause.hpp",
+      "sha256": "b93c28203b52ad18d654a945a585ed41feca64be3aca20b4bc1af103f13fa052"
+    },
+    {
+      "path": "src/core/wait/wait_strategy.hpp",
+      "sha256": "620c7f349a06493fca8f97f2bed9122b7b880b7862ad9addde1e8c3d1da5fc65"
+    },
+    {
+      "path": "src/salias.cppm",
+      "sha256": "85293c73769e5ac56b46f00fb01d5e096054ae03ba57d50c8f2448db9aff34d2"
+    },
+    {
+      "path": "src/salias/CMakeLists.txt",
+      "sha256": "48d7e54657cc2c6a9a98453f02af47d48ced2c1f6a910311c95977faad4050fb"
+    },
+    {
+      "path": "src/salias/include/salias/channel.hpp",
+      "sha256": "5ee61e5f30e7bb46cb7911d42d35043cf9a6f3a7065ea256d6db9d0f9f347d43"
+    },
+    {
+      "path": "src/salias/include/salias/config.hpp",
+      "sha256": "9e83ee615a5dde65ab87684e9278b2d28cc4ce2f07c51d8e8bf2962498d6c103"
+    },
+    {
+      "path": "src/salias/include/salias/detail/poll_buffer.hpp",
+      "sha256": "2ce5f0b2dd781bab2a7770f0a0ba19e72f985e26d9f6ffb3078f5aed5891517a"
+    },
+    {
+      "path": "src/salias/include/salias/error.hpp",
+      "sha256": "04b3b9532a37896851a10e3889d0374abf1ab5489ecf9ba4d47b2d99d8fa495b"
+    },
+    {
+      "path": "src/salias/include/salias/extras/detail/latest_by_key_storage.hpp",
+      "sha256": "682c32cedef7212e4ac884ed1b9274228a366aa9bae64c07ea909052b65cc453"
+    },
+    {
+      "path": "src/salias/include/salias/extras/extras.hpp",
+      "sha256": "c09e0b34e787961faacf2553b03496dcf2fb53ad39823d738f7c128136138be2"
+    },
+    {
+      "path": "src/salias/include/salias/extras/latest_by_key_channel.hpp",
+      "sha256": "7f9497f3d721c3cb1d07865f16168f207de50da5abbc763c19fa97fe7927a955"
+    },
+    {
+      "path": "src/salias/include/salias/extras/priority_channel.hpp",
+      "sha256": "4aa425f85212186cbbc33955254e0204f0d21214c6bbcb42852b83b94f464ada"
+    },
+    {
+      "path": "src/salias/include/salias/extras/ringbuffer.hpp",
+      "sha256": "078dc860269853010da981694cec4c350e9eedc18a8974ce07a7fb12675f0561"
+    },
+    {
+      "path": "src/salias/include/salias/fixed_channel.hpp",
+      "sha256": "926048cf2060a45251793b80eef07234fe1bec04781ac31ca0daf7bb25c42fc2"
+    },
+    {
+      "path": "src/salias/include/salias/latest_channel.hpp",
+      "sha256": "56b236a1fe183f5b6756c1bab2c558b85260923683ce0f84926ccf0a061b260c"
+    },
+    {
+      "path": "src/salias/include/salias/message.hpp",
+      "sha256": "2c4bf3c032ee9ddb423a524f055d6d25c8e24db155ccc2b15d446bd28479a3d4"
+    },
+    {
+      "path": "src/salias/include/salias/publisher.hpp",
+      "sha256": "307231bd4918a2d7d83d67f7f44b8906f61fc62cfacb9b185cd16babf3693f35"
+    },
+    {
+      "path": "src/salias/include/salias/salias.hpp",
+      "sha256": "1f31b3097ae4c138d94a33fae00a4a5f71b47c47efbc0cd571113044ffe4af92"
+    },
+    {
+      "path": "src/salias/include/salias/subscriber.hpp",
+      "sha256": "546c080b264be3d73c07654b11fcb43ab1157af0c09a41d7edc9e868a2a1970c"
+    },
+    {
+      "path": "src/salias_extras.cppm",
+      "sha256": "b6fe26a819b85d3e65e445cf49afe071d900bb3b78bf7cb4ef2e0cff2896cb26"
+    }
+  ],
+  "freeze_date": "2026-10-31",
+  "module_export_counts": {
+    "core": 29,
+    "extras": 9
+  },
+  "release_tag": null,
+  "schema_version": 1,
+  "state": "post_phase4_freeze_candidate_unreleased",
+  "wire_protocol_version": 15
+}

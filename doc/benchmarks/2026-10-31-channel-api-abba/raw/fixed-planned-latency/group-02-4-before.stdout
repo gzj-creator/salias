@@ -1,0 +1,1 @@
+RESULT mode=poll workload=latency origin=planned messages=2000000 poll_batch=64 seconds=2.01 mmsg_s=0.995026 verified=2000000 samples=125000 p50_ns=259 p99_ns=5055 p999_ns=13183 max_ns=78415

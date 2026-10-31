@@ -115,7 +115,8 @@ LatestMpmc 默认使用 `SubscriptionPolicy::DropOldest`；可为单个订阅者
 校验。当前只完成源码删除，尚未打 `5.0.0` tag，Phase 5 发布门禁仍待完成。迁移表、版本策略和
 codemod 命令见 [Channel API 迁移说明](doc/migration/channel-api-convergence.md)；逐 symbol 的
 core/extras/removed 状态见
-[机器可读 API 清单](doc/api/channel-api-manifest.json)。
+[机器可读 API 清单](doc/api/channel-api-manifest.json)；未发布的兼容基线候选及 SHA-256 见
+[Channel API 冻结候选](doc/api/channel-api-freeze.md)。
 
 ## 附加能力
 

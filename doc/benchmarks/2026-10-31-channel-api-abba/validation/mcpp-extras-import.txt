@@ -1,0 +1,8 @@
+   Resolving toolchain
+    Resolved llvm@22.1.8 → @mcpp/registry/data/xpkgs/xim-x-llvm/22.1.8/bin/clang++
+      Target x86_64-unknown-linux-gnu
+
+    Finished release [optimized] in 0.44s
+     Running `target/x86_64-linux-gnu/111162597052f8a3/bin/test_mcpp_import`
+
+Module/header IPC, priority, latest-by-key, TTL, message windows, claim, batch, poll, checked lag and seek passed for 5 modes
