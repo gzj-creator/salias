@@ -29,10 +29,9 @@ enum class Error {
   BadConfig,          ///< 配置非法（name 为空、容量或端点数量不合法等）。
   OutOfMemory,        ///< 创建或连接通道时的动态内存分配失败。
   NoSubscriberSlots,  ///< 所有订阅槽均被活动端点占用。
-  CapacityExceeded,   ///< LatestByKey 通道中尚无空间容纳新的唯一 key。
-  SequenceExhausted,  ///< LatestByKey 的 key 版本号或通道事件序列耗尽。
-  PayloadSizeMismatch,  ///< 类型化接收时 payload 大小与 sizeof(T) 不一致。
-  SchemaMismatch,       ///< 连接端的消息 schema 与共享通道 schema 不一致。
+  // 10/11 在 v6.0.0 随 LatestByKey 永久移除；保留空洞以维持既有枚举值稳定。
+  PayloadSizeMismatch = 12,  ///< 类型化接收时 payload 大小与 sizeof(T) 不一致。
+  SchemaMismatch = 13,       ///< 连接端的消息 schema 与共享通道 schema 不一致。
 };
 
 // 公共 API 使用的显式结果类型；保留 salias::Result<T> 名称，底层采用 C++23 std::expected。

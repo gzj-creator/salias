@@ -30,7 +30,6 @@
 #include <vector>
 
 #include "salias/salias.hpp"
-#include "salias/extras/extras.hpp"
 
 /// 匿名命名空间，仅本编译单元可见的 stress benchmark 辅助类型与函数。
 namespace {
@@ -46,12 +45,6 @@ struct SmallPayload {
   std::uint32_t producer = 0;  ///< 生产者编号，用于校验和核对各生产者投递完整性。
   std::uint32_t seq = 0;       ///< 该生产者发出的消息序列号，从 0 递增。
   std::array<std::byte, 56> padding{};  ///< 填充(padding)至 64 字节，模拟定长负载。
-};
-
-struct LatestByKeyPayload {
-  std::uint64_t sequence = 0;
-  std::uint64_t inverse = 0;
-  std::array<std::byte, 48> padding{};
 };
 
 template <std::size_t Size>
@@ -697,41 +690,6 @@ void BM_latest_seek_64b(benchmark::State& state) {
   state.SetBytesProcessed(static_cast<std::int64_t>(published * sizeof(SmallPayload)));
 }
 
-void BM_latest_by_key_roundtrip_64b(benchmark::State& state) {
-  using LatestByKey = salias::extras::LatestByKeyChannel<std::uint64_t, LatestByKeyPayload, 1024>;
-  const auto name = "salias-bench-latest-by-key-" + std::to_string(::getpid()) + "-" +
-                    std::to_string(state.thread_index());
-  auto created = LatestByKey::create(name);
-  if (!created) {
-    state.SkipWithError("failed to create latest-by-key channel");
-    return;
-  }
-  auto publisher = created->publisher();
-  auto subscriber = created->subscriber();
-  LatestByKeyPayload payload{};
-  constexpr std::uint64_t kKey = 17;
-
-  for (auto _ : state) {
-    payload.inverse = ~payload.sequence;
-    auto offered = publisher.offer(kKey, payload);
-    if (!offered) {
-      state.SkipWithError("latest-by-key offer failed");
-      return;
-    }
-    auto received = subscriber.try_recv_checked();
-    if (!received || !*received || (**received).key != kKey ||
-        (**received).value.sequence != payload.sequence ||
-        (**received).value.inverse != ~payload.sequence) {
-      state.SkipWithError("latest-by-key snapshot mismatch");
-      return;
-    }
-    benchmark::DoNotOptimize((**received).value.sequence);
-    ++payload.sequence;
-  }
-  state.SetItemsProcessed(state.iterations());
-  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
-}
-
 template <class Payload, bool Typed>
 void BM_typed_roundtrip(benchmark::State& state) {
   using TypedChannel = salias::Channel<salias::Mode::FifoMpsc, TypedRoundtripSchema<Payload>>;
@@ -850,53 +808,6 @@ void BM_fanout_copy_64b(benchmark::State& state) {
   state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload) * 3));
 }
 
-void BM_priority_weighted_roundtrip_64b(benchmark::State& state) {
-  using PriorityPublisher =
-      salias::extras::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>;
-  using PrioritySubscriber =
-      salias::extras::PrioritySubscriber<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc>;
-  auto high_config = config_for(salias::Mode::FifoMpsc, 1u << 16);
-  high_config.name += "-priority-high";
-  auto low_config = config_for(salias::Mode::FifoMpsc, 1u << 16);
-  low_config.name += "-priority-low";
-  auto high = salias::Channel<salias::Mode::FifoMpsc>::create(high_config);
-  auto low = salias::Channel<salias::Mode::FifoMpsc>::create(low_config);
-  if (!high || !low) {
-    state.SkipWithError("failed to create priority roundtrip channels");
-    return;
-  }
-
-  PriorityPublisher publisher(high->publisher(), low->publisher());
-  PrioritySubscriber subscriber(high->subscriber(), low->subscriber());
-  SmallPayload payload{};
-  std::array<std::uint32_t, 2> sequence{};
-  std::uint64_t delivered = 0;
-  for (auto _ : state) {
-    const std::size_t priority = delivered % 3 == 2 ? 1 : 0;
-    payload.producer = static_cast<std::uint32_t>(priority);
-    payload.seq = sequence[priority]++;
-    auto offered = publisher.offer(priority, std::as_bytes(std::span{&payload, 1}));
-    if (!offered) {
-      state.SkipWithError("priority offer failed");
-      return;
-    }
-    auto received = subscriber.try_recv_checked();
-    if (!received || !*received || (**received).priority != priority ||
-        decode_small((**received).message.payload).producer != priority) {
-      state.SkipWithError("priority scheduling mismatch");
-      return;
-    }
-    benchmark::DoNotOptimize((**received).message.payload.data());
-    if (!subscriber.release(**received)) {
-      state.SkipWithError("priority release failed");
-      return;
-    }
-    ++delivered;
-  }
-  state.SetItemsProcessed(state.iterations());
-  state.SetBytesProcessed(state.iterations() * static_cast<std::int64_t>(sizeof(payload)));
-}
-
 }  // namespace
 
 // 注册各 stress benchmark：SPSC 往返以微秒级单位度量，MPSC 多生产者吞吐以毫秒级度量。
@@ -932,7 +843,6 @@ BENCHMARK_TEMPLATE(BM_latest_concurrent_fanout_64b, 90)
     ->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_latest_checked_roundtrip_64b)->Unit(benchmark::kNanosecond);
 BENCHMARK(BM_latest_seek_64b)->Arg(4096)->Unit(benchmark::kMicrosecond);
-BENCHMARK(BM_latest_by_key_roundtrip_64b)->Unit(benchmark::kMicrosecond);
 BENCHMARK_TEMPLATE(BM_typed_roundtrip, TypedRoundtripPayload<64>, false)
     ->Unit(benchmark::kNanosecond);
 BENCHMARK_TEMPLATE(BM_typed_roundtrip, TypedRoundtripPayload<64>, true)
@@ -949,7 +859,5 @@ BENCHMARK_TEMPLATE(BM_typed_roundtrip, TypedRoundtripPayload<1024>, true)
 // true measures the explicitly schema-bound fixed-length parser.
 BENCHMARK_TEMPLATE(BM_fanout_copy_64b, false)->Unit(benchmark::kNanosecond);
 BENCHMARK_TEMPLATE(BM_fanout_copy_64b, true)->Unit(benchmark::kNanosecond);
-BENCHMARK(BM_priority_weighted_roundtrip_64b)->Unit(benchmark::kMicrosecond);
-
 // Google Benchmark 主入口：解析命令行参数并运行上述所有已注册 benchmark。
 BENCHMARK_MAIN();

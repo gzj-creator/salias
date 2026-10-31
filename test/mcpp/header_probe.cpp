@@ -1,6 +1,5 @@
 #include <array>
 #include <salias/salias.hpp>
-#include <salias/extras/extras.hpp>
 
 #include "typed_schema.hpp"
 
@@ -52,29 +51,5 @@ bool header_typed_publish(std::string_view name, const salias_mcpp::TypedPayload
   }
   auto publisher = connected->publisher();
   auto offered = publisher.send(payload);
-  return offered && *offered;
-}
-
-bool header_latest_by_key_publish(std::string_view name) {
-  using LatestByKey = salias::extras::LatestByKeyChannel<std::uint64_t, std::uint64_t, 4>;
-  auto connected = LatestByKey::connect(name);
-  if (!connected) {
-    return false;
-  }
-  auto publisher = connected->publisher();
-  auto offered = publisher.offer(7, 12);
-  return offered && *offered;
-}
-
-bool header_priority_publish(std::string_view high_name, std::string_view low_name) {
-  auto high = salias::Channel<salias::Mode::FifoMpsc>::connect(high_name);
-  auto low = salias::Channel<salias::Mode::FifoMpsc>::connect(low_name);
-  if (!high || !low) {
-    return false;
-  }
-  salias::extras::PriorityPublisher<salias::Mode::FifoMpsc, salias::Mode::FifoMpsc> publisher(
-      high->publisher(), low->publisher());
-  const std::array payload{std::byte{9}, std::byte{8}};
-  auto offered = publisher.offer(1, payload);
   return offered && *offered;
 }

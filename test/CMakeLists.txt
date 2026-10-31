@@ -41,7 +41,7 @@ salias_register_test(salias_capacity_contract_test "$<TARGET_FILE:salias_capacit
 add_executable(salias_allocation_contract_test
   api/allocation_contract_test.cpp
 )
-target_link_libraries(salias_allocation_contract_test PRIVATE salias_extras)
+target_link_libraries(salias_allocation_contract_test PRIVATE salias)
 salias_enable_warnings(salias_allocation_contract_test)
 salias_enable_sanitizers(salias_allocation_contract_test)
 salias_register_test(salias_allocation_contract_test "$<TARGET_FILE:salias_allocation_contract_test>")
@@ -63,7 +63,7 @@ salias_register_test(salias_poll_storage_contract_test
   "$<TARGET_FILE:salias_poll_storage_contract_test>")
 
 add_executable(salias_removed_api_contract_test api/removed_api_contract_test.cpp)
-target_link_libraries(salias_removed_api_contract_test PRIVATE salias_extras)
+target_link_libraries(salias_removed_api_contract_test PRIVATE salias)
 salias_enable_warnings(salias_removed_api_contract_test)
 salias_enable_sanitizers(salias_removed_api_contract_test)
 salias_register_test(salias_removed_api_contract_test
@@ -128,16 +128,6 @@ salias_enable_sanitizers(salias_ring_tests)
 
 salias_register_test(salias_ring_tests "$<TARGET_FILE:salias_ring_tests>")
 
-add_executable(salias_extras_ring_tests
-  ring/ringbuffer_test.cpp
-)
-target_link_libraries(salias_extras_ring_tests PRIVATE salias_extras GTest::gtest_main)
-
-salias_enable_warnings(salias_extras_ring_tests)
-salias_enable_sanitizers(salias_extras_ring_tests)
-
-salias_register_test(salias_extras_ring_tests "$<TARGET_FILE:salias_extras_ring_tests>")
-
 add_executable(salias_frame_tests
   frame/codec_test.cpp
 )
@@ -197,35 +187,3 @@ salias_enable_warnings(salias_asymmetric_fence_tests)
 salias_enable_sanitizers(salias_asymmetric_fence_tests)
 
 salias_register_test(salias_asymmetric_fence_tests "$<TARGET_FILE:salias_asymmetric_fence_tests>")
-
-add_library(salias_test_extras STATIC "${PROJECT_SOURCE_DIR}/src/salias/src/latest_by_key.cpp")
-target_compile_features(salias_test_extras PUBLIC cxx_std_23)
-target_include_directories(salias_test_extras
-  PUBLIC "${PROJECT_SOURCE_DIR}/src/salias/include"
-  PRIVATE "${PROJECT_SOURCE_DIR}/src"
-)
-target_compile_definitions(salias_test_extras PRIVATE SALIAS_TEST_HOOKS=1)
-target_link_libraries(salias_test_extras PUBLIC salias_core Threads::Threads)
-salias_enable_warnings(salias_test_extras)
-salias_enable_sanitizers(salias_test_extras)
-
-add_executable(salias_latest_by_key_tests
-  api/latest_by_key_test.cpp
-)
-target_compile_definitions(salias_latest_by_key_tests PRIVATE SALIAS_TEST_HOOKS=1)
-target_link_libraries(salias_latest_by_key_tests PRIVATE salias_test_extras GTest::gtest_main)
-
-salias_enable_warnings(salias_latest_by_key_tests)
-salias_enable_sanitizers(salias_latest_by_key_tests)
-
-salias_register_test(salias_latest_by_key_tests "$<TARGET_FILE:salias_latest_by_key_tests>")
-
-add_executable(salias_priority_tests
-  api/priority_channel_test.cpp
-)
-target_link_libraries(salias_priority_tests PRIVATE salias_extras GTest::gtest_main)
-
-salias_enable_warnings(salias_priority_tests)
-salias_enable_sanitizers(salias_priority_tests)
-
-salias_register_test(salias_priority_tests "$<TARGET_FILE:salias_priority_tests>")

@@ -1831,7 +1831,7 @@ class SharedHybridMpscChannel {
         bool notification_armed = false;
         bool notifications_active = channel_->wait_.needs_wake();
         if constexpr (requires(Wait& strategy) { strategy.activate(); }) {
-          // Blocking receive uses the same one-shot wake protocol as Priority's Adaptive policy.
+          // Blocking receive uses a one-shot wake protocol for each wait ticket.
           // The first 64 checks stay on the cheap polling path; after that, arm before taking the
           // epoch snapshot so a publication racing the following scan either becomes visible or
           // consumes this ticket and wakes the compare-wait below.

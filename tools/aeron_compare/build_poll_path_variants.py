@@ -123,8 +123,7 @@ def verify_api(output, variants, release):
     """串行重链已验证的 Release 测试对象，运行每个隔离实现的完整 API 套件。"""
     inputs = [release / "test/CMakeFiles/salias_api_tests.dir/api/channel_api_test.cpp.o",
               release / "test/CMakeFiles/salias_api_tests.dir/api/latest_subscription_test.cpp.o"]
-    libraries = [release / "src/salias/CMakeFiles/salias.dir/src/latest_by_key.cpp.o",
-                 Path("/usr/lib/x86_64-linux-gnu/libgtest_main.a"),
+    libraries = [Path("/usr/lib/x86_64-linux-gnu/libgtest_main.a"),
                  release / "src/core/libsalias_core.a",
                  Path("/usr/lib/x86_64-linux-gnu/libgtest.a")]
     shared = (ROOT / "src/core/channel/shared_hybrid_mpsc.hpp").read_text()

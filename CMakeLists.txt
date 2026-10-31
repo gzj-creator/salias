@@ -72,21 +72,9 @@ install(
   COMPONENT core
 )
 install(
-  TARGETS salias_extras
-  EXPORT saliasExtrasTargets
-  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  COMPONENT extras
-)
-install(
   DIRECTORY "${PROJECT_SOURCE_DIR}/src/salias/include/salias/"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/salias"
   COMPONENT core
-  PATTERN "extras" EXCLUDE
-)
-install(
-  DIRECTORY "${PROJECT_SOURCE_DIR}/src/salias/include/salias/extras"
-  DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/salias"
-  COMPONENT extras
 )
 install(
   DIRECTORY "${PROJECT_SOURCE_DIR}/src/core/"
@@ -101,14 +89,6 @@ install(
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/salias"
   COMPONENT core
 )
-install(
-  EXPORT saliasExtrasTargets
-  FILE saliasExtrasTargets.cmake
-  NAMESPACE salias::
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/salias"
-  COMPONENT extras
-)
-
 configure_package_config_file(
   "${PROJECT_SOURCE_DIR}/cmake/saliasConfig.cmake.in"
   "${PROJECT_BINARY_DIR}/saliasConfig.cmake"

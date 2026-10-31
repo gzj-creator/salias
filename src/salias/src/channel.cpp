@@ -2083,48 +2083,6 @@ Message Subscriber<M, RawPayloadSchema>::recv() noexcept {
 }
 
 template <Mode M>
-std::optional<bool> Subscriber<M, RawPayloadSchema>::try_arm_adaptive_wait() noexcept {
-  if (endpoint_ == nullptr || !endpoint_->valid) {
-    return std::nullopt;
-  }
-  return endpoint_->rx.try_arm_wait_notification();
-}
-
-template <Mode M>
-wait::FutexWaitToken Subscriber<M, RawPayloadSchema>::adaptive_wait_token() const noexcept {
-  if (endpoint_ == nullptr || !endpoint_->valid) {
-    return {};
-  }
-  return endpoint_->rx.notification_token();
-}
-
-template <Mode M>
-typename Subscriber<M, RawPayloadSchema>::AdaptiveTicketState
-Subscriber<M, RawPayloadSchema>::adaptive_wait_ticket_state() const noexcept {
-  if (endpoint_ == nullptr || !endpoint_->valid) {
-    return AdaptiveTicketState::Invalid;
-  }
-  using Rx = typename SubscriberEndpoint<M>::Rx;
-  using TicketState = typename Rx::WaitTicketState;
-  switch (endpoint_->rx.wait_ticket_state()) {
-    case TicketState::Armed:
-      return AdaptiveTicketState::Armed;
-    case TicketState::Consumed:
-      return AdaptiveTicketState::Consumed;
-    case TicketState::Invalid:
-      return AdaptiveTicketState::Invalid;
-  }
-  return AdaptiveTicketState::Invalid;
-}
-
-template <Mode M>
-void Subscriber<M, RawPayloadSchema>::clear_adaptive_wait_ticket() noexcept {
-  if (endpoint_ != nullptr && endpoint_->valid) {
-    endpoint_->rx.clear_wait_notification();
-  }
-}
-
-template <Mode M>
 Message Subscriber<M, RawPayloadSchema>::recv_fixed(std::uint32_t payload_size) noexcept {
   if (endpoint_ == nullptr || !endpoint_->valid) {
     return {};

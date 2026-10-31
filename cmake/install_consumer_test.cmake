@@ -98,9 +98,7 @@ endfunction()
 set(test_root "${SALIAS_BUILD_DIR}/install-consumer-test")
 set(install_prefix "${test_root}/prefix")
 set(core_consumer_build "${test_root}/core-build")
-set(extras_consumer_build "${test_root}/extras-build")
 set(core_archive "${install_prefix}/${SALIAS_INSTALL_LIBDIR}/libsalias.a")
-set(extras_archive "${install_prefix}/${SALIAS_INSTALL_LIBDIR}/libsalias_extras.a")
 
 file(REMOVE_RECURSE "${test_root}")
 salias_install_component(core "core-only")
@@ -116,9 +114,9 @@ if(EXISTS "${install_prefix}/include/salias/extras"
    OR EXISTS "${install_prefix}/include/salias/latest_by_key_channel.hpp"
    OR EXISTS "${install_prefix}/include/salias/priority_channel.hpp"
    OR EXISTS "${install_prefix}/include/salias/ringbuffer.hpp"
-   OR EXISTS "${extras_archive}"
+   OR EXISTS "${install_prefix}/${SALIAS_INSTALL_LIBDIR}/libsalias_extras.a"
    OR EXISTS "${install_prefix}/${SALIAS_INSTALL_LIBDIR}/cmake/salias/saliasExtrasTargets.cmake")
-  message(FATAL_ERROR "core component unexpectedly installed extras artifacts")
+  message(FATAL_ERROR "removed extras artifacts were unexpectedly installed")
 endif()
 
 find_program(salias_nm NAMES nm llvm-nm REQUIRED)
@@ -135,36 +133,10 @@ string(FIND "${core_symbols}" "LatestByKeyStorage" keyed_symbol_offset)
 if(NOT keyed_symbol_offset EQUAL -1)
   message(FATAL_ERROR "core archive contains LatestByKeyStorage implementation symbols")
 endif()
+string(FIND "${core_symbols}" "salias::extras" extras_symbol_offset)
+if(NOT extras_symbol_offset EQUAL -1)
+  message(FATAL_ERROR "core archive contains removed salias::extras symbols")
+endif()
 
 salias_configure_consumer(core-only "${SALIAS_SOURCE_DIR}/test/install" "${core_consumer_build}")
 salias_build_and_test_consumer(core-only "${core_consumer_build}")
-
-salias_install_component(extras "extras")
-if(NOT EXISTS "${install_prefix}/include/salias/extras/latest_by_key_channel.hpp"
-   OR NOT EXISTS "${extras_archive}"
-   OR NOT EXISTS "${install_prefix}/${SALIAS_INSTALL_LIBDIR}/cmake/salias/saliasExtrasTargets.cmake")
-  message(FATAL_ERROR "extras component did not install its headers, archive, and import target")
-endif()
-if(EXISTS "${install_prefix}/include/salias/latest_by_key_channel.hpp"
-   OR EXISTS "${install_prefix}/include/salias/priority_channel.hpp"
-   OR EXISTS "${install_prefix}/include/salias/ringbuffer.hpp")
-  message(FATAL_ERROR "extras component unexpectedly installed removed forwarding headers")
-endif()
-
-execute_process(
-  COMMAND "${salias_nm}" -C "${extras_archive}"
-  RESULT_VARIABLE extras_nm_result
-  OUTPUT_VARIABLE extras_symbols
-  ERROR_VARIABLE extras_nm_error
-)
-if(NOT extras_nm_result EQUAL 0)
-  message(FATAL_ERROR "cannot inspect extras archive symbols: ${extras_nm_error}")
-endif()
-string(FIND "${extras_symbols}" "create_latest_by_key_storage" keyed_factory_offset)
-if(keyed_factory_offset EQUAL -1)
-  message(FATAL_ERROR "extras archive is missing the keyed-table implementation")
-endif()
-
-salias_configure_consumer(extras "${SALIAS_SOURCE_DIR}/test/install/extras"
-                          "${extras_consumer_build}")
-salias_build_and_test_consumer(extras "${extras_consumer_build}")

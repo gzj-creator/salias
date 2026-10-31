@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <new>
 #include <salias/channel.hpp>
-#include <salias/extras/latest_by_key_channel.hpp>
 #include <salias/latest_channel.hpp>
 #include <string>
 
@@ -223,25 +222,4 @@ int main() {
     return 17;
   }
 
-  using LatestByKey = salias::extras::LatestByKeyChannel<std::uint64_t, std::uint64_t, 1>;
-  const std::string latest_by_key_name = "allocations-latest-by-key-" + std::to_string(::getpid());
-  auto latest_by_key = LatestByKey::create(latest_by_key_name);
-  if (!latest_by_key) {
-    return 10;
-  }
-  auto publisher = latest_by_key->publisher();
-  auto subscriber = latest_by_key->subscriber();
-  allocation_count.store(0, std::memory_order_relaxed);
-  for (std::uint64_t sequence = 0; sequence < 1000; ++sequence) {
-    if (!publisher.offer(1, sequence)) {
-      return 11;
-    }
-    auto received = subscriber.try_recv_checked();
-    if (!received || !*received || (**received).value != sequence) {
-      return 12;
-    }
-  }
-  if (allocation_count.load(std::memory_order_relaxed) != 0) {
-    return 13;
-  }
 }

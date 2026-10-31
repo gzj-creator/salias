@@ -100,7 +100,6 @@ def baseline_sources():
     ).stdout.splitlines()
     implementation_paths = [
         "src/salias/src/channel.cpp",
-        "src/salias/src/latest_by_key.cpp",
         "src/core/flow/consumer.cpp",
         "src/core/flow/producer.cpp",
         "src/core/ring/magic_ring.cpp",

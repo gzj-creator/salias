@@ -16,6 +16,21 @@ are released.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking source and packaging change**：永久移除 `salias::extras` 以及 `LatestByKey`、Priority 和进程内 `Ringbuffer` 能力，不提供兼容 namespace、转发头、CMake target/component 或 C++23 module。应用需要自行迁移或重新设计这些场景。
+- 删除仅供 Priority Adaptive 等待使用的私有 Subscriber 桥，以及仅供 LatestByKey 使用的 `Error::CapacityExceeded`、`Error::SequenceExhausted` 名称；保留枚举数值空洞 10/11，剩余错误码值不变。
+
+### Removed
+
+- 删除 extras umbrella/specialized headers、`src/salias_extras.cppm`、`salias_extras` 静态库与 `extras` install component，安装面只保留核心 target 和 `core` component。
+- 删除 LatestByKey、Priority、Ringbuffer 的专项测试、安装消费者和 benchmark；mcpp/header/install consumer 与 channel stress benchmark 迁移为 core-only。
+- `removed_api_contract_test` 和安装消费检查改为反向锁定 extras 头、符号、archive 与 CMake fragment 均不再存在。
+
+### Compatibility
+
+- 通用 `Channel` 与 `FixedChannel` 数据面未合并，`Fast*Ring` 未重命名，共享内存 wire protocol 仍为 v15；本次源码/打包删除不要求重建既有共享通道。
+
 ## [v5.0.0] - 2026-10-31
 
 ### Changed
