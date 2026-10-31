@@ -2,26 +2,27 @@
   "schema_version": 1,
   "api": "salias-channel",
   "baseline_date": "2026-10-31",
-  "baseline_version": "5.0.0",
-  "current_api_state": "post_phase4_source_removal_released",
+  "baseline_version": "6.0.0",
+  "current_api_state": "v6_extras_removed_candidate",
   "removal_metadata": {
     "approved_by": "repository owner",
-    "approved_on": "2026-10-30",
-    "state": "source_removed_released",
-    "release_tag": "v5.0.0",
-    "wire_protocol_changed": false
+    "approved_on": "2026-10-31",
+    "state": "extras_removed_candidate",
+    "release_tag": "v6.0.0",
+    "wire_protocol_changed": false,
+    "compatibility_surface_retained": false
   },
   "statuses": {
     "core": "Primary supported entry; keep and document as canonical.",
     "compat": "Still exported for source compatibility; not a primary entry; removal requires the documented major-version gate.",
-    "extras": "Optional supported capability outside the core quick start, distributed through the separate salias::extras target and salias.extras module.",
+    "extras": "Reserved classification with no current symbols; all former extras capabilities were removed in v6.0.0.",
     "removed": "No longer present; retained in a migration table only."
   },
   "install_surfaces": {
-    "cmake_targets": ["salias::salias", "salias::salias_core", "salias::extras"],
-    "install_components": ["core", "extras"],
-    "headers": ["src/salias/include/salias/*.hpp for core", "src/salias/include/salias/extras/**/*.hpp for extras", "src/core/**/*.hpp installed below salias/core"],
-    "metadata": ["CMake package config", "mcpp package gzj-creator.salias", "salias/salias.hpp core umbrella header", "salias/extras/extras.hpp extras umbrella header", "import salias; C++23 core module", "import salias.extras; C++23 extras module"]
+    "cmake_targets": ["salias::salias", "salias::salias_core"],
+    "install_components": ["core"],
+    "headers": ["src/salias/include/salias/*.hpp for core", "src/core/**/*.hpp installed below salias/core"],
+    "metadata": ["CMake package config", "mcpp package gzj-creator.salias", "salias/salias.hpp core umbrella header", "import salias; C++23 core module"]
   },
   "module_exports": [
     "Channel",
@@ -54,17 +55,7 @@
     "Subscriber",
     "SubscriptionPolicy"
   ],
-  "extras_module_exports": [
-    "LatestByKeyChannel",
-    "LatestByKeyMessage",
-    "LatestByKeyPublisher",
-    "LatestByKeySubscriber",
-    "PriorityMessage",
-    "PriorityPublisher",
-    "PrioritySubscriber",
-    "PriorityWaitPolicy",
-    "Ringbuffer"
-  ],
+  "extras_module_exports": [],
   "symbols": [
     {
       "name": "salias::Config",
@@ -118,7 +109,7 @@
       "name": "salias::Result",
       "kind": "alias_template",
       "status": "core",
-      "location": {"file": "src/salias/include/salias/error.hpp", "line": 40, "declaration": "using Result = std::expected<T, Error>;"},
+      "location": {"file": "src/salias/include/salias/error.hpp", "line": 39, "declaration": "using Result = std::expected<T, Error>;"},
       "replacement": "salias::Result<T> (self)",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
     },
@@ -183,7 +174,7 @@
       "name": "salias::Subscriber",
       "kind": "class_template",
       "status": "core",
-      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 55, "declaration": "class Subscriber<M, RawPayloadSchema> {"},
+      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 50, "declaration": "class Subscriber<M, RawPayloadSchema> {"},
       "replacement": "salias::Subscriber<Mode, Schema> (self)",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true},
       "notes": "Endpoint returned by a channel; not a product-selection entry."
@@ -339,7 +330,7 @@
       "name": "salias::FifoMpscSubscriber",
       "kind": "endpoint_alias",
       "status": "core",
-      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 328, "declaration": "using FifoMpscSubscriber = Subscriber<Mode::FifoMpsc>;"},
+      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 287, "declaration": "using FifoMpscSubscriber = Subscriber<Mode::FifoMpsc>;"},
       "replacement": "salias::Subscriber<salias::Mode::FifoMpsc> (self alias; endpoint spelling only)",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
     },
@@ -347,7 +338,7 @@
       "name": "salias::FifoMpmcSubscriber",
       "kind": "endpoint_alias",
       "status": "core",
-      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 329, "declaration": "using FifoMpmcSubscriber = Subscriber<Mode::FifoMpmc>;"},
+      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 288, "declaration": "using FifoMpmcSubscriber = Subscriber<Mode::FifoMpmc>;"},
       "replacement": "salias::Subscriber<salias::Mode::FifoMpmc> (self alias; endpoint spelling only)",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
     },
@@ -355,7 +346,7 @@
       "name": "salias::OrderedMpscSubscriber",
       "kind": "endpoint_alias",
       "status": "core",
-      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 330, "declaration": "using OrderedMpscSubscriber = Subscriber<Mode::OrderedMpsc>;"},
+      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 289, "declaration": "using OrderedMpscSubscriber = Subscriber<Mode::OrderedMpsc>;"},
       "replacement": "salias::Subscriber<salias::Mode::OrderedMpsc> (self alias; endpoint spelling only)",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
     },
@@ -363,7 +354,7 @@
       "name": "salias::OrderedMpmcSubscriber",
       "kind": "endpoint_alias",
       "status": "core",
-      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 331, "declaration": "using OrderedMpmcSubscriber ="},
+      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 290, "declaration": "using OrderedMpmcSubscriber ="},
       "replacement": "salias::Subscriber<salias::Mode::OrderedMpmc> (self alias; endpoint spelling only)",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
     },
@@ -371,88 +362,97 @@
       "name": "salias::LatestMpmcSubscriber",
       "kind": "endpoint_alias",
       "status": "core",
-      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 333, "declaration": "using LatestMpmcSubscriber = Subscriber<Mode::LatestMpmc>;"},
+      "location": {"file": "src/salias/include/salias/subscriber.hpp", "line": 292, "declaration": "using LatestMpmcSubscriber = Subscriber<Mode::LatestMpmc>;"},
       "replacement": "salias::Subscriber<salias::Mode::LatestMpmc> (self alias; returned by LatestMpmcChannel)",
       "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
     },
     {
       "name": "salias::extras::LatestByKeyChannel",
       "kind": "class_template",
-      "status": "extras",
-      "location": {"file": "src/salias/include/salias/extras/latest_by_key_channel.hpp", "line": 470, "declaration": "class LatestByKeyChannel {"},
-      "replacement": "salias::extras::LatestByKeyChannel (canonical)",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/extras/latest_by_key_channel.hpp", "line": 470, "declaration": "class LatestByKeyChannel {"},
+      "replacement": "None; removed permanently in v6.0.0",
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "LatestByKey has no replacement API in salias v6."
     },
     {
       "name": "salias::extras::LatestByKeyMessage",
       "kind": "struct_template",
-      "status": "extras",
-      "location": {"file": "src/salias/include/salias/extras/latest_by_key_channel.hpp", "line": 29, "declaration": "struct LatestByKeyMessage {"},
-      "replacement": "salias::extras::LatestByKeyMessage (canonical)",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/extras/latest_by_key_channel.hpp", "line": 29, "declaration": "struct LatestByKeyMessage {"},
+      "replacement": "None; removed permanently in v6.0.0",
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "LatestByKey has no replacement API in salias v6."
     },
     {
       "name": "salias::extras::LatestByKeyPublisher",
       "kind": "class_template",
-      "status": "extras",
-      "location": {"file": "src/salias/include/salias/extras/latest_by_key_channel.hpp", "line": 319, "declaration": "class LatestByKeyPublisher {"},
-      "replacement": "salias::extras::LatestByKeyPublisher (canonical)",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/extras/latest_by_key_channel.hpp", "line": 319, "declaration": "class LatestByKeyPublisher {"},
+      "replacement": "None; removed permanently in v6.0.0",
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "LatestByKey has no replacement API in salias v6."
     },
     {
       "name": "salias::extras::LatestByKeySubscriber",
       "kind": "class_template",
-      "status": "extras",
-      "location": {"file": "src/salias/include/salias/extras/latest_by_key_channel.hpp", "line": 364, "declaration": "class LatestByKeySubscriber {"},
-      "replacement": "salias::extras::LatestByKeySubscriber (canonical)",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/extras/latest_by_key_channel.hpp", "line": 364, "declaration": "class LatestByKeySubscriber {"},
+      "replacement": "None; removed permanently in v6.0.0",
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "LatestByKey has no replacement API in salias v6."
     },
     {
       "name": "salias::extras::PriorityPublisher",
       "kind": "class_template",
-      "status": "extras",
-      "location": {"file": "src/salias/include/salias/extras/priority_channel.hpp", "line": 56, "declaration": "class PriorityPublisher {"},
-      "replacement": "salias::extras::PriorityPublisher (canonical)",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/extras/priority_channel.hpp", "line": 56, "declaration": "class PriorityPublisher {"},
+      "replacement": "None; removed permanently in v6.0.0",
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Priority routing has no replacement API in salias v6."
     },
     {
       "name": "salias::extras::PrioritySubscriber",
       "kind": "class_template",
-      "status": "extras",
-      "location": {"file": "src/salias/include/salias/extras/priority_channel.hpp", "line": 184, "declaration": "class PrioritySubscriber {"},
-      "replacement": "salias::extras::PrioritySubscriber (canonical)",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/extras/priority_channel.hpp", "line": 184, "declaration": "class PrioritySubscriber {"},
+      "replacement": "None; removed permanently in v6.0.0",
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Priority routing has no replacement API in salias v6."
     },
     {
       "name": "salias::extras::PriorityMessage",
       "kind": "struct",
-      "status": "extras",
-      "location": {"file": "src/salias/include/salias/extras/priority_channel.hpp", "line": 42, "declaration": "struct PriorityMessage {"},
-      "replacement": "salias::extras::PriorityMessage (canonical)",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/extras/priority_channel.hpp", "line": 42, "declaration": "struct PriorityMessage {"},
+      "replacement": "None; removed permanently in v6.0.0",
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Priority routing has no replacement API in salias v6."
     },
     {
       "name": "salias::extras::PriorityWaitPolicy",
       "kind": "enum",
-      "status": "extras",
-      "location": {"file": "src/salias/include/salias/extras/priority_channel.hpp", "line": 39, "declaration": "enum class PriorityWaitPolicy : std::uint32_t { Yield, Spin, Adaptive };"},
-      "replacement": "salias::extras::PriorityWaitPolicy (canonical)",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/extras/priority_channel.hpp", "line": 39, "declaration": "enum class PriorityWaitPolicy : std::uint32_t { Yield, Spin, Adaptive };"},
+      "replacement": "None; removed permanently in v6.0.0",
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "Priority routing has no replacement API in salias v6."
     },
     {
       "name": "salias::extras::Ringbuffer",
       "kind": "class_template",
-      "status": "extras",
-      "location": {"file": "src/salias/include/salias/extras/ringbuffer.hpp", "line": 29, "declaration": "class Ringbuffer {"},
-      "replacement": "salias::extras::Ringbuffer (canonical)",
-      "exports": {"header": true, "umbrella": true, "module": true, "cmake": true, "mcpp": true}
+      "status": "removed",
+      "previous_location": {"file": "src/salias/include/salias/extras/ringbuffer.hpp", "line": 29, "declaration": "class Ringbuffer {"},
+      "replacement": "None; removed permanently in v6.0.0",
+      "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
+      "notes": "The local bounded queue has no replacement API in salias v6."
     },
     {
       "name": "salias::LatestByKeyChannel",
       "kind": "removed_alias",
       "status": "removed",
       "previous_location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 24, "declaration": "using LatestByKeyChannel"},
-      "replacement": "salias::extras::LatestByKeyChannel",
+      "replacement": "None; removed permanently in v6.0.0",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
       "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
@@ -461,7 +461,7 @@
       "kind": "removed_alias",
       "status": "removed",
       "previous_location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 12, "declaration": "using LatestByKeyMessage"},
-      "replacement": "salias::extras::LatestByKeyMessage",
+      "replacement": "None; removed permanently in v6.0.0",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
       "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
@@ -470,7 +470,7 @@
       "kind": "removed_alias",
       "status": "removed",
       "previous_location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 16, "declaration": "using LatestByKeyPublisher"},
-      "replacement": "salias::extras::LatestByKeyPublisher",
+      "replacement": "None; removed permanently in v6.0.0",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
       "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
@@ -479,7 +479,7 @@
       "kind": "removed_alias",
       "status": "removed",
       "previous_location": {"file": "src/salias/include/salias/latest_by_key_channel.hpp", "line": 20, "declaration": "using LatestByKeySubscriber"},
-      "replacement": "salias::extras::LatestByKeySubscriber",
+      "replacement": "None; removed permanently in v6.0.0",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
       "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
@@ -488,7 +488,7 @@
       "kind": "removed_alias",
       "status": "removed",
       "previous_location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 17, "declaration": "using PriorityPublisher"},
-      "replacement": "salias::extras::PriorityPublisher",
+      "replacement": "None; removed permanently in v6.0.0",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
       "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
@@ -497,7 +497,7 @@
       "kind": "removed_alias",
       "status": "removed",
       "previous_location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 21, "declaration": "using PrioritySubscriber"},
-      "replacement": "salias::extras::PrioritySubscriber",
+      "replacement": "None; removed permanently in v6.0.0",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
       "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
@@ -506,7 +506,7 @@
       "kind": "removed_alias",
       "status": "removed",
       "previous_location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 13, "declaration": "using PriorityMessage"},
-      "replacement": "salias::extras::PriorityMessage",
+      "replacement": "None; removed permanently in v6.0.0",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
       "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
@@ -515,7 +515,7 @@
       "kind": "removed_alias",
       "status": "removed",
       "previous_location": {"file": "src/salias/include/salias/priority_channel.hpp", "line": 11, "declaration": "using PriorityWaitPolicy"},
-      "replacement": "salias::extras::PriorityWaitPolicy",
+      "replacement": "None; removed permanently in v6.0.0",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
       "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     },
@@ -524,7 +524,7 @@
       "kind": "removed_alias",
       "status": "removed",
       "previous_location": {"file": "src/salias/include/salias/ringbuffer.hpp", "line": 12, "declaration": "using Ringbuffer"},
-      "replacement": "salias::extras::Ringbuffer",
+      "replacement": "None; removed permanently in v6.0.0",
       "exports": {"header": false, "umbrella": false, "module": false, "cmake": false, "mcpp": false},
       "notes": "Top-level forwarding name and header removed after the separate extras boundary shipped."
     }
@@ -543,7 +543,16 @@
     "salias::PriorityPublisher",
     "salias::PrioritySubscriber",
     "salias::PriorityWaitPolicy",
-    "salias::Ringbuffer"
+    "salias::Ringbuffer",
+    "salias::extras::LatestByKeyChannel",
+    "salias::extras::LatestByKeyMessage",
+    "salias::extras::LatestByKeyPublisher",
+    "salias::extras::LatestByKeySubscriber",
+    "salias::extras::PriorityMessage",
+    "salias::extras::PriorityPublisher",
+    "salias::extras::PrioritySubscriber",
+    "salias::extras::PriorityWaitPolicy",
+    "salias::extras::Ringbuffer"
   ],
   "external_evidence": {
     "status": "blocked",

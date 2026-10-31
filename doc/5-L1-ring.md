@@ -11,30 +11,13 @@
 
 **做：**
 - 封装 `MagicRing`：容量 2 的幂，任意逻辑偏移都能返回**连续**切片（跨尾回绕由 L0 双映射兜底）。
-- 通过可选的 `salias::extras` 提供独立的 `salias::extras::Ringbuffer<T, Capacity, HighWatermarkPercent>`：用于进程内、有界、单线程队列；默认高水位为容量的 90%，达到水位后丢弃最旧元素并保留最新数据。
 - 提供 `CacheAligned<T>`：把 head/tail/limit 各自放独立缓存行，消除 false sharing。
 - 提供对共享内存 64 位位置的原子访问原语（`std::atomic_ref<uint64_t>` 封装），并规定内存序。
 
 **不做：**
 - 不认识"帧"（L2）、不认识"背压/claim"（L3）、不认识"谁是生产者/消费者"（L5）。
-- extras `Ringbuffer` 不提供线程安全、进程间共享或 IPC channel 覆盖语义；这些契约仍由调用方或 L5 channel 定义。
 - 不做分片：消息 > 容量直接返回错误，bulk 由 L5 处理。
 - 不管等待策略（L4）。
-
-### 编译期 Ringbuffer
-
-`salias::extras::Ringbuffer<T, Capacity, HighWatermarkPercent>` 是单线程进程内队列，与 IPC
-使用的 `MagicRing` 分开。它不属于核心伞头，消费方需显式包含 extras 头并链接
-`salias::extras`。默认高水位为 90%；超过水位的新元素入队后淘汰最旧元素，队列保留最新值：
-
-```cpp
-#include <salias/extras/ringbuffer.hpp>
-
-salias::extras::Ringbuffer<Event, 1024> latest_events;
-bool dropped_oldest = latest_events.push(event);
-```
-
-该容器不提供线程安全或跨进程共享，不改变 `Channel` 的背压和借用消息契约。
 
 ---
 

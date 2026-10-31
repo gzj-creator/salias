@@ -14,12 +14,11 @@
 模式，不是两套产品；两者不能互连。`FixedChannel` 是独立数据面，不经过通用 Channel 的变长 frame、
 动态订阅、TTL 或 Latest 语义，也不能与通用 `Channel` 互相替代。
 
-以下四个 raw 快捷入口已在未打 tag 的 `[Unreleased]` 源码中标记为 **removed**。仓库负责人于
-2026-10-30 批准删除；它们不再由头文件或 `import salias;` 导出：
+以下四个 raw 快捷入口已在 `v5.0.0` 标记为 **removed**，不再由头文件或 `import salias;` 导出：
 
 | 已删除入口 | 规范入口 | 当前状态 |
 |---|---|---|
-| `salias::FifoMpscChannel` | `Channel<Mode::FifoMpsc>` | removed；源码已删除，尚未打 5.0 tag |
+| `salias::FifoMpscChannel` | `Channel<Mode::FifoMpsc>` | removed since `v5.0.0` |
 | `salias::FifoMpmcChannel` | `Channel<Mode::FifoMpmc>` | 同上 |
 | `salias::OrderedMpscChannel` | `Channel<Mode::OrderedMpsc>` | 同上 |
 | `salias::OrderedMpmcChannel` | `Channel<Mode::OrderedMpmc>` | 同上 |
@@ -28,9 +27,11 @@
 fanout 的 raw 和 typed payload 都使用 `LatestMpmcChannel`：省略 `Schema` 时是 raw payload，
 显式传入 `Schema` 时保持 schema ID、版本和 payload 大小校验。这样 latest 入口不会绕过静态容量与
 水位检查。
+`LatestByKey`、Priority 和进程内 `Ringbuffer` 已在 `v6.0.0` 与整个 `salias::extras` 边界一起
+永久移除。九个规范 extras 类型、四个 extras header、`salias::extras` CMake target/component 和
+`import salias.extras;` 均没有替代入口；应用需要自行迁移或重新设计对应场景。
 完整迁移表见 [Channel API 迁移说明](migration/channel-api-convergence.md)。
-未发布 API 冻结候选与逐文件 SHA-256 见
-[Channel API 冻结候选](api/channel-api-freeze.md)。
+API 冻结候选与逐文件 SHA-256 见 [Channel API v6 冻结候选](api/channel-api-freeze.md)。
 
 公共 API 暴露单一 per-producer-ring 引擎的四种排序/拓扑组合，并增加 `LatestMpmc` 保留窗口模式：
 
@@ -197,26 +198,7 @@ publisher.commit(std::move(*claim));
 不会把可见水位推进到空洞之后，补齐后才连续发布。
 不支持放弃未提交 claim，也不支持发布进程异常退出后的自动恢复；这类故障需要重建通道。
 
-## 附加能力（extras）
-
-以下能力位于独立的 `salias::extras` 命名空间，不属于核心 umbrella 或核心 module，也不进入
-`FixedChannel` 热路径。头文件消费者包含 `<salias/extras/extras.hpp>` 或对应专项头，CMake 消费者
-链接 `salias::extras`，模块消费者使用 `import salias.extras;`。CMake 安装的 `core` 与 `extras`
-component 分离；extras 的 keyed-table 实现不进入核心 `libsalias.a`。
-
-`extras::LatestByKeyChannel<Key, Value, Capacity, SchemaVersion>` 提供跨进程的有界 key-value 最新值表。
-可直接包含 `<salias/extras/latest_by_key_channel.hpp>`；发布、订阅和消息类型分别为
-`extras::LatestByKeyPublisher<Key, Value>`、`extras::LatestByKeySubscriber<Key, Value, Capacity>` 和
-`extras::LatestByKeyMessage<Key, Value>`。
-`SchemaVersion` 默认为 0 以兼容三参数实例，此时只有编译器类型签名校验，不能可靠发现同名同尺寸类型的
-布局或语义变化。应用若修改 key/value 的布局或语义，应显式递增版本；不同版本之间的 `connect()` 返回
-`Error::BadConfig`。`try_recv_checked()` 保留错误信息；`try_recv()`
-将错误折叠为空结果；阻塞 `recv()` 返回 `Result<LatestByKeyMessage<...>>`，仅在临时背压时重试，
-不可恢复错误会返回给调用方。fork 前须静置所有访问该 channel 的线程，fork 时有操作持锁不受支持。
-Linux 使用进程共享 robust mutex，持锁线程或进程终止后校验已提交元数据并恢复；macOS 使用
-故障自动释放的文件锁。所有读写快照仍由整表锁串行保护，普通内存拷贝不与写入并发。
-初始快照和事件溢出扫描都只遍历一轮；完成扫描后的空轮询通过原子事件序列检查避免加锁。
-内部共享布局版本为 2，不兼容的旧布局返回 `Error::VersionMismatch`，升级须重新创建通道。
+## TTL 与批量消费
 
 `offer_for(payload, ttl)`、`try_claim_for(size, ttl)` 和 `offer_batch_for(payloads, ttl)` 提供
 按消息指定 TTL 的路径。TTL 必须非负，截止时间在 API 调用时采样，0 表示立即到期；默认不带 TTL 的
@@ -238,30 +220,23 @@ endpoint 中缓存描述符，不引入热路径 heap 分配，也不改变公�
 32 条批处理边界或批末 flush 时机。递归调用有独立描述符，但不额外承诺递归 flush 后
 外层 payload 仍有效；借用规则仍以上述回调/release 契约为准。
 
-## Priority 等待策略
+## 已移除 extras
 
-`extras::PrioritySubscriber::recv(extras::PriorityWaitPolicy policy = extras::PriorityWaitPolicy::Yield)`
-直接接受 `enum class PriorityWaitPolicy : std::uint32_t { Yield, Spin, Adaptive }`，无独立无参重载。
-默认 `Yield` 在每次失败扫描后让出调度，保持原行为，空闲时仍可能占满一个核心。
-`Spin` 使用 CPU pause 持续轮询，偏向低延迟但不保证所有拓扑更快。`Adaptive` 先执行
-64 次失败扫描，然后在 Linux 支持时使用共享 epoch 的 `futex_waitv`，每次停车采用 1ms
-单调时钟绝对截止时间；不支持的 Linux 内核和 macOS 使用 1ms 全流重扫回退。发布者只有
-在通道曾激活 Adaptive 后才执行通知 epoch 更新；一次性注册票据保证槽位代际不会误唤醒。
-每次调用重新开始等待，空结果与 `BackPressured` 都推进等待。
-非法枚举在读取前返回 `BadConfig`，不可恢复错误立即返回。`try_recv*()` 和 `poll()`
-仍然非阻塞，WRR、借用与 TTL 语义不变。默认参数兼容普通无参调用，但成员函数指针
-类型随新签名变化。
+`v6.0.0` 永久删除 `salias::extras::LatestByKeyChannel`、`salias::extras::LatestByKeyPublisher`、
+`salias::extras::LatestByKeySubscriber`、`salias::extras::LatestByKeyMessage`、
+`salias::extras::PriorityPublisher`、`salias::extras::PrioritySubscriber`、
+`salias::extras::PriorityMessage`、`salias::extras::PriorityWaitPolicy` 和
+`salias::extras::Ringbuffer`。专项头 `<salias/extras/latest_by_key_channel.hpp>`、
+`<salias/extras/priority_channel.hpp>`、`<salias/extras/ringbuffer.hpp>`、umbrella
+`<salias/extras/extras.hpp>`、旧转发头 `<salias/latest_by_key_channel.hpp>`、
+`<salias/priority_channel.hpp>`、`<salias/ringbuffer.hpp>`、`salias::extras` CMake
+target/component 和 `import salias.extras;` 同时删除。
 
-进程内有界队列可使用 `salias::extras::Ringbuffer<T, Capacity, HighWatermarkPercent>`。默认
-`HighWatermarkPercent = 90`，即最多保留 `floor(Capacity * 0.9)` 项（最少一项）；入队超出
-高水位时淘汰最旧项、保留最新项。`push()` 返回本次是否发生淘汰，`dropped_count()` 提供
-累计数。它是单线程容器，不改变 IPC Channel 的背压、借用消息或 fanout 语义。
-
-旧顶层类型 `salias::LatestByKeyChannel`、`salias::LatestByKeyPublisher`、
+`v5.0.0` 删除的旧顶层名称 `salias::LatestByKeyChannel`、`salias::LatestByKeyPublisher`、
 `salias::LatestByKeySubscriber`、`salias::LatestByKeyMessage`、`salias::PriorityPublisher`、
 `salias::PrioritySubscriber`、`salias::PriorityMessage`、`salias::PriorityWaitPolicy` 和
-`salias::Ringbuffer` 和旧 include `<salias/latest_by_key_channel.hpp>`、
-`<salias/priority_channel.hpp>`、`<salias/ringbuffer.hpp>` 已标记为 **removed** 并从当前源码删除。
-LatestByKey、Priority 和 Ringbuffer 能力本身继续保留；唯一规范入口是上述 `salias::extras` 类型、
-`<salias/extras/*.hpp>`、`salias::extras` CMake target 和 `import salias.extras;`。迁移和回滚说明见
+`salias::Ringbuffer`，以及旧转发头 `<salias/latest_by_key_channel.hpp>`、
+`<salias/priority_channel.hpp>`、`<salias/ringbuffer.hpp>` 也继续保持删除状态。
+
+这些能力没有替代 API，也不在本库中保留兼容实现。迁移与仓库外证据边界见
 [Channel API 迁移说明](migration/channel-api-convergence.md)。

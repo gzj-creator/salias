@@ -1,23 +1,26 @@
 # Channel API 收敛迁移说明
 
-日期：2026-10-30（Asia/Singapore）
+日期：2026-10-31（Asia/Shanghai）
 
 ## 1. 当前状态
 
-本文件描述 `v5.0.0` 的迁移路径。仓库负责人已于 2026-10-30 明确批准删除旧快捷入口；`v5.0.0`
-已删除四个 raw `*Channel` 别名、三个旧 extras 转发头和九个顶层 extras 别名。
+本文件描述 `v6.0.0` 的迁移边界。`v5.0.0` 已删除四个 raw `*Channel` 快捷别名、三个旧 extras
+转发头和九个顶层 extras 别名；`v6.0.0` 进一步永久删除 `salias::extras` 的全部规范能力、headers、
+CMake target/component 和 module。
 
 本次删除不修改共享内存 wire protocol，不升级通道控制段版本，不合并 `Channel` 与 `FixedChannel`
-数据面，也不删除 `LatestByKey`、Priority 或 Ringbuffer 的 `salias::extras` 规范能力。旧类型与规范
-类型原本就是同型入口，因此迁移要求重新编译，但仅因这次 API 清理不要求重建既有通道。
+数据面。因为删除的是源码、打包和 module 入口，迁移要求重新编译；仅因 API 清理不要求重建已有共享
+通道。不存在仍导出的 Channel 产品兼容别名或 extras 兼容入口。
 
-当前源码中不存在仍导出的 Channel 产品兼容别名。删除项在
-[公开 API 清单](../api/channel-api-manifest.json)中状态为 `removed`，反向契约由
-`test/api/removed_api_contract_test.cpp`、mcpp import 单元和安装消费测试锁定。
+`LatestByKey`、Priority 和 Ringbuffer 没有替代 API。应用必须自行实现对应组件、改用其他库，或重新
+设计业务方案；本库不把 `Channel`、`FixedChannel` 或 `LatestMpmcChannel` 宣称为这些能力的一对一
+替代品。删除项在 [公开 API 清单](../api/channel-api-manifest.json)中状态为 `removed`，反向契约由
+`test/api/removed_api_contract_test.cpp`、`test/mcpp/import.cpp`、安装消费测试和
+`tools/check_channel_api.py` 锁定。
 
-## 2. 已删除入口与源码迁移表
+## 2. 迁移表
 
-### 2.1 通用 Channel 快捷别名
+### 2.1 通用 Channel 快捷别名（v5.0.0）
 
 以下名称已从头文件和 `import salias;` 删除，不再产生弃用警告，而是无法解析：
 
@@ -38,42 +41,59 @@ perl -pi -e 's/\bsalias::OrderedMpscChannel\b/salias::Channel<salias::Mode::Orde
 perl -pi -e 's/\bsalias::OrderedMpmcChannel\b/salias::Channel<salias::Mode::OrderedMpmc>/g' FILES
 ```
 
-### 2.2 extras 顶层入口与旧 include
+### 2.2 extras 规范入口（v6.0.0 永久删除）
 
-`LatestByKey`、Priority 和 Ringbuffer 能力仍保留，但只通过 `salias::extras` 命名空间、独立
-include 根、`salias::extras` CMake target 和 `salias.extras` module 提供。以下顶层名称和三个
-转发头已删除：
+以下九个规范类型没有替代入口。v6.0.0 不再提供弃用窗口，也不保留 namespace、header、CMake target
+或 module：
 
-| 已删除入口 | 规范入口 |
+| 已删除入口 | 替代入口 |
 |---|---|
-| `<salias/latest_by_key_channel.hpp>` | `<salias/extras/latest_by_key_channel.hpp>` |
-| `<salias/priority_channel.hpp>` | `<salias/extras/priority_channel.hpp>` |
-| `<salias/ringbuffer.hpp>` | `<salias/extras/ringbuffer.hpp>` |
-| `salias::LatestByKeyChannel` | `salias::extras::LatestByKeyChannel` |
-| `salias::LatestByKeyPublisher` | `salias::extras::LatestByKeyPublisher` |
-| `salias::LatestByKeySubscriber` | `salias::extras::LatestByKeySubscriber` |
-| `salias::LatestByKeyMessage` | `salias::extras::LatestByKeyMessage` |
-| `salias::PriorityPublisher` | `salias::extras::PriorityPublisher` |
-| `salias::PrioritySubscriber` | `salias::extras::PrioritySubscriber` |
-| `salias::PriorityMessage` | `salias::extras::PriorityMessage` |
-| `salias::PriorityWaitPolicy` | `salias::extras::PriorityWaitPolicy` |
-| `salias::Ringbuffer` | `salias::extras::Ringbuffer` |
+| `salias::extras::LatestByKeyChannel` | 无 |
+| `salias::extras::LatestByKeyPublisher` | 无 |
+| `salias::extras::LatestByKeySubscriber` | 无 |
+| `salias::extras::LatestByKeyMessage` | 无 |
+| `salias::extras::PriorityPublisher` | 无 |
+| `salias::extras::PrioritySubscriber` | 无 |
+| `salias::extras::PriorityMessage` | 无 |
+| `salias::extras::PriorityWaitPolicy` | 无 |
+| `salias::extras::Ringbuffer` | 无 |
 
-迁移时同时完成 namespace、include、链接和 module 变更：
+同时删除的 header 和打包/module 边界：
 
-```bash
-perl -pi -e 's{\bsalias::(LatestByKeyChannel|LatestByKeyPublisher|LatestByKeySubscriber|LatestByKeyMessage|PriorityPublisher|PrioritySubscriber|PriorityMessage|PriorityWaitPolicy|Ringbuffer)\b}{salias::extras::$1}g' FILES
-perl -pi -e 's{<salias/(latest_by_key_channel|priority_channel|ringbuffer)\.hpp>}{<salias/extras/$1.hpp>}g' FILES
-```
+| 已删除入口 | 替代入口 |
+|---|---|
+| `<salias/extras/extras.hpp>` | 无 |
+| `<salias/extras/latest_by_key_channel.hpp>` | 无 |
+| `<salias/extras/priority_channel.hpp>` | 无 |
+| `<salias/extras/ringbuffer.hpp>` | 无 |
+| `salias::extras` CMake target/component | 无 |
+| `import salias.extras;` | 无 |
 
-CMake 消费者链接 `salias::extras`。只使用通用 Channel、`FixedChannel` 或 `LatestMpmcChannel` 的
-消费者继续链接 `salias::salias`，不要为未使用的 extras 增加链接依赖。模块消费者使用
-`import salias; import salias.extras;`；仅使用核心入口时不要导入 extras。
+`v5.0.0` 已删除的旧顶层 extras 名称和旧转发头也继续保持 removed：
 
-### 2.3 直接 latest 工厂
+| 已删除入口 | 替代入口 |
+|---|---|
+| `<salias/latest_by_key_channel.hpp>` | 无 |
+| `<salias/priority_channel.hpp>` | 无 |
+| `<salias/ringbuffer.hpp>` | 无 |
+| `salias::LatestByKeyChannel` | 无 |
+| `salias::LatestByKeyPublisher` | 无 |
+| `salias::LatestByKeySubscriber` | 无 |
+| `salias::LatestByKeyMessage` | 无 |
+| `salias::PriorityPublisher` | 无 |
+| `salias::PrioritySubscriber` | 无 |
+| `salias::PriorityMessage` | 无 |
+| `salias::PriorityWaitPolicy` | 无 |
+| `salias::Ringbuffer` | 无 |
 
-直接 `Channel<salias::Mode::LatestMpmc>` 的 `create()` / `connect()` 在 Phase 2 已关闭。raw 和 typed
-latest 都必须使用 `LatestMpmcChannel`：
+迁移时必须删除 namespace、include、链接和 module 引用，不能仅做文本替换。`Error::CapacityExceeded`
+和 `Error::SequenceExhausted` 名称也随 LatestByKey 删除；枚举数值 10/11 保持空洞，剩余错误码数值
+不变。应用应自行定义所需的错误与同步策略，不要把核心 Channel 的背压语义当作 extras 的兼容替代。
+
+### 2.3 直接 latest 工厂（v5.0.0）
+
+直接 `Channel<salias::Mode::LatestMpmc>` 的 `create()` / `connect()` 已关闭。raw 和 typed latest
+都必须使用 `LatestMpmcChannel`：
 
 | 已删除路径 | 规范入口 |
 |---|---|
@@ -85,41 +105,38 @@ typed 用户必须保留第三个 `Schema` 模板参数。不能为了减少类�
 
 ## 3. 版本、弃用与回滚策略
 
-- `v4.1.0` 是旧入口最后一个已发布 tag；四个 raw 别名和九个 extras 顶层类型在该版本标记
-  `[[deprecated]]`，旧转发头和迁移表同时发布。
-- `v5.0.0` 源码删除由仓库负责人于 2026-10-30 明确批准，并由后续发布授权确认，不由未采集的仓库外
-  证据推断。
-- 完整 ABBA、TSan、安装/module 消费和 API SHA-256 冻结已在 Phase 5 的仓库内验证中完成；`v5.0.0`
-  release note、版本 tag 和发布记录已在同一发布提交闭环。
-- 下游应固定并使用 `v4.1.0` 完成迁移，再升级到包含本次删除的版本。`-Werror` 工程应在
-  `v4.1.0` 上先清除 `-Wdeprecated-declarations`，不要关闭告警。
-- 如需短期回滚源码删除，恢复到包含兼容入口的提交或继续使用 `v4.1.0`。wire protocol 和通道
-  版本未变，回滚 API 层不要求修改已有共享内存布局；应用仍需重新链接匹配的头文件和库。
+- `v4.1.0` 是旧快捷入口最后一个带弃用提示的已发布 tag。
+- `v5.0.0` 删除四个 raw 别名、九个顶层 extras 名称和三个旧转发头。
+- `v6.0.0` 是新的 breaking release，永久删除九个规范 extras 类型及其 header、target/component、
+  module、测试和 benchmark。该决定由仓库负责人于 2026-10-31 确认，以维护成本为主要依据，不依赖
+  未采集的仓库外使用数据。
+- 不提供 v6 弃用窗口。需要这些能力的应用必须停留在 `v5.0.0` 或自行迁移；回滚整个发布可回到
+  `v5.0.0`，但 wire protocol 和通道版本在 v5/v6 间未变，回滚 API/打包层不要求修改已有共享内存布局。
 
 ## 4. 仓库外证据边界
 
-按负责人决定，没有扫描仓库外源码消费方，也不声称其调用量、迁移成本或私有仓库零使用。
-`doc/api/channel-api-phase0-evidence.json` 和签署材料仍属于仓库外证据缺口并标记为阻塞，不能用
-本次仓库内验证替代。该缺口不改变已经由负责人明确批准的源码删除决定。
+按负责人决定，没有扫描或下载仓库外源码消费方，也不声称其调用量、迁移成本或私有仓库零使用。
+`doc/api/channel-api-downstream-evidence.md`、`channel-api-phase0-evidence.json` 和签署材料仍属于
+仓库外证据缺口并标记为阻塞，不能用本次仓库内验证替代。
 
 ## 5. 验证与剩余门禁
 
-本次源码删除至少由以下仓库内门禁验证：
+本次 Phase 2 已由以下仓库内门禁验证：
 
-- Release、ASan/UBSan 与 TSan CTest 覆盖共享 Channel、`FixedChannel`、Latest 和规范 extras 行为。
-- `test/api/removed_api_contract_test.cpp` 用 `__has_include` 锁定三个旧转发头不可见；
-  `tools/check_channel_api.py` 对 13 个旧类型和 3 个头文件执行逐个真实编译失败断言。
-- `test/mcpp/core_import.cpp` 与 `test/mcpp/import.cpp` 实际编译 `import salias;` 和
-  `import salias.extras;` 的规范消费；门禁同时核对 module export 集合与 manifest 完全一致。
-- 安装消费测试验证三个旧转发头不进入安装前缀，并继续验证 core-only 与 extras 消费矩阵。
-- `tools/check_channel_api.py` 校验 manifest、module、umbrella、文档和反向契约测试一致。
-- `v4.1.0` 与当前树使用相同 Release 参数构建的固定槽和通用 Channel benchmark 可执行文件逐字节
-  相同；5 组 A/B/B/A、每 case 每臂 10 次正式运行全部通过消息数、全量 payload 和延迟采样校验。
-  原始结果、主机信息和哈希见
-  [Channel API ABBA 证据](../benchmarks/2026-10-31-channel-api-abba/README.md)。
-- API 冻结基线中 `release_tag` 为 `v5.0.0`，绑定 53 个公开/安装文件、manifest、module 和 CMake/mcpp
-  导出面；逐文件 SHA-256 与聚合 digest 由 `salias_channel_api_documentation_check` 自动校验。
-  说明见 [Channel API 冻结基线](../api/channel-api-freeze.md)。
+- Release CTest 23/23 覆盖通用 Channel、`FixedChannel`、Latest、版本一致性、安装消费和故障语义；
+  ASan/UBSan、TSan 全量仍属于 Phase 3 发布门禁，当前未执行。
+- `test/api/removed_api_contract_test.cpp` 用 `__has_include` 锁定 extras umbrella、三个专项头、
+  三个旧转发头和旧 detail header 均不可见。
+- `tools/check_channel_api.py` 对旧快捷入口、旧 extras 名称和 `salias::extras::*` 规范名称执行逐个
+  真实编译失败断言，并检查 extras header/module/target 均不存在。
+- `test/mcpp/core_import.cpp` 与 `test/mcpp/import.cpp` 只消费 `import salias;`；header probe 不再
+  包含 extras；安装消费测试只安装 `core` component。
+- `tools/check_channel_api.py` 校验 manifest、core module、umbrella、安装面、文档和反向契约一致。
+- API 冻结候选以 `v6.0.0` 为目标 tag，覆盖删除后的公开/安装文件和聚合 SHA-256；正式发布前
+  Phase 3 必须重新生成并绑定发布提交，说明见
+  [Channel API v6 冻结候选](../api/channel-api-freeze.md)。
 
-Phase 5 已随 `v5.0.0` 发布完成。Phase 0 未采集的仓库外使用证据仍是独立审计缺口，不阻塞本版本
-基于负责人授权的源码收敛，也不能被解释为全局零使用。
+删除前后的性能影响仍须在 Phase 3 以“热路径未修改 + 二进制符号差异 + 短时 channel benchmark”
+验证，当前未执行，不能把文档检查或 Release 测试视为性能结论；执行记录将写入
+[v6 维护收敛计划](../plans/2026-10-31-salias-v6-extras-removal.md)。Phase 0 未采集的仓库外使用证据
+仍是独立审计缺口，不能被解释为全局零使用。

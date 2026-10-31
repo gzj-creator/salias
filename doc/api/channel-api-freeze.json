@@ -1,29 +1,29 @@
 {
-  "aggregate_sha256": "9691164b30cc41c219026192097ae25ea627603d0f28013d36ab55887ef1b1a9",
+  "aggregate_sha256": "42feb20252d6c16eb6e451c0b2e32f8258087ca50aaa854810afc7b59ea19bba",
   "api": "salias-channel",
   "api_counts": {
     "compat": 0,
     "core": 30,
-    "extras": 9,
-    "removed": 14
+    "extras": 0,
+    "removed": 23
   },
-  "basis_commit": "d9059e30079e605635b25438a59d6ccfae8213b1",
+  "basis_commit": "5e8c2cc5c92872fa2b5105367e3d589d68f812bd",
   "files": [
     {
       "path": "CMakeLists.txt",
-      "sha256": "b2b0b15058f57a52529ba3e1ea04e810272714a581b902fe534b4a6c59bc4aa5"
+      "sha256": "514b196be7ef1dbdbd0ab6421dbba5edce803b1d03336b99e8caed16b13e0202"
     },
     {
       "path": "cmake/saliasConfig.cmake.in",
-      "sha256": "7818b641dea59905b85dde48620f846d48f97b956596a3dd3a217a1caf8a5510"
+      "sha256": "b1f0181587c6a328c4ee55589302f33bb8042876b26ae49a19555879f1661ebc"
     },
     {
       "path": "doc/api/channel-api-manifest.json",
-      "sha256": "91fc8343223bd0090d9953bcd6dbb0dcec937684990065e5c64d848fc1508c4d"
+      "sha256": "a361496da064eed2488b035d7fcbe45b1222fc83521a0a8ef5e89fba79056634"
     },
     {
       "path": "mcpp.toml",
-      "sha256": "455c3b33fe19e2310309d396f6fcfd2c07b5dc0fc1f81f1744a5e4ffc39eaefb"
+      "sha256": "fc59b0235284f84be756b619777c3676abcd775bfb7a863ee0db62c4afe53f6e"
     },
     {
       "path": "src/core/CMakeLists.txt",
@@ -43,7 +43,7 @@
     },
     {
       "path": "src/core/channel/shared_hybrid_mpsc.hpp",
-      "sha256": "bd1faf14773b6759bf7de6eb40e1990f408caae9923d005901a5913503947991"
+      "sha256": "9ec770c7aaec0370f13bcb2c618f229d15deb910965b76d971f3d532ad86c7e3"
     },
     {
       "path": "src/core/flow/consumer.hpp",
@@ -155,7 +155,7 @@
     },
     {
       "path": "src/salias/CMakeLists.txt",
-      "sha256": "48d7e54657cc2c6a9a98453f02af47d48ced2c1f6a910311c95977faad4050fb"
+      "sha256": "32e016c2544c4bcec5fcc22506d33f77e7d841ccd3d4978e58061033a860edf1"
     },
     {
       "path": "src/salias/include/salias/channel.hpp",
@@ -171,27 +171,7 @@
     },
     {
       "path": "src/salias/include/salias/error.hpp",
-      "sha256": "04b3b9532a37896851a10e3889d0374abf1ab5489ecf9ba4d47b2d99d8fa495b"
-    },
-    {
-      "path": "src/salias/include/salias/extras/detail/latest_by_key_storage.hpp",
-      "sha256": "682c32cedef7212e4ac884ed1b9274228a366aa9bae64c07ea909052b65cc453"
-    },
-    {
-      "path": "src/salias/include/salias/extras/extras.hpp",
-      "sha256": "c09e0b34e787961faacf2553b03496dcf2fb53ad39823d738f7c128136138be2"
-    },
-    {
-      "path": "src/salias/include/salias/extras/latest_by_key_channel.hpp",
-      "sha256": "7f9497f3d721c3cb1d07865f16168f207de50da5abbc763c19fa97fe7927a955"
-    },
-    {
-      "path": "src/salias/include/salias/extras/priority_channel.hpp",
-      "sha256": "4aa425f85212186cbbc33955254e0204f0d21214c6bbcb42852b83b94f464ada"
-    },
-    {
-      "path": "src/salias/include/salias/extras/ringbuffer.hpp",
-      "sha256": "078dc860269853010da981694cec4c350e9eedc18a8974ce07a7fb12675f0561"
+      "sha256": "24314ec9d47f8cce9f1632c5bf428c8a690b4cb4427a6298efaa7f8e2892f9a1"
     },
     {
       "path": "src/salias/include/salias/fixed_channel.hpp",
@@ -211,24 +191,20 @@
     },
     {
       "path": "src/salias/include/salias/salias.hpp",
-      "sha256": "1f31b3097ae4c138d94a33fae00a4a5f71b47c47efbc0cd571113044ffe4af92"
+      "sha256": "09cfd2c52c7739b81833c8aa79971b3f3434ed1c74245a6c0f2dbfd28e45184e"
     },
     {
       "path": "src/salias/include/salias/subscriber.hpp",
-      "sha256": "546c080b264be3d73c07654b11fcb43ab1157af0c09a41d7edc9e868a2a1970c"
-    },
-    {
-      "path": "src/salias_extras.cppm",
-      "sha256": "b6fe26a819b85d3e65e445cf49afe071d900bb3b78bf7cb4ef2e0cff2896cb26"
+      "sha256": "a998f54b4e445eb686bae6cc44b3415eea12e717b9e4ab5d462d0bb1ade7e164"
     }
   ],
   "freeze_date": "2026-10-31",
   "module_export_counts": {
     "core": 29,
-    "extras": 9
+    "extras": 0
   },
-  "release_tag": "v5.0.0",
+  "release_tag": "v6.0.0",
   "schema_version": 1,
-  "state": "post_phase4_released",
+  "state": "v6_extras_removed_candidate",
   "wire_protocol_version": 15
 }

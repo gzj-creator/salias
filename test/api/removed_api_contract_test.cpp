@@ -16,6 +16,9 @@
 #if __has_include(<salias/extras/ringbuffer.hpp>)
 #error "ringbuffer header must remain removed"
 #endif
+#if __has_include(<salias/detail/latest_by_key_storage.hpp>)
+#error "latest-by-key detail header must remain removed"
+#endif
 #if __has_include(<salias/latest_by_key_channel.hpp>)
 #error "legacy latest-by-key include must remain removed"
 #endif

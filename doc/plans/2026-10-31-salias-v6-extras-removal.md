@@ -2,7 +2,7 @@
 
 日期：2026-10-31（Asia/Shanghai）
 
-状态：**Phase 1 已完成；Phase 2 待开始**
+状态：**Phase 2 已完成；Phase 3 待执行**
 
 ## 1. 目标
 
@@ -55,14 +55,14 @@ benchmark 的长期维护成本。本次不保留兼容入口，也不虚构仓�
 
 ## 5. Phase 2：README、API 文档、迁移表、manifest 与检查工具
 
-- [ ] README 快速开始只保留 `Channel<Mode, Schema>`、`FixedChannel`、`LatestMpmcChannel` 三个核心入口。
-- [ ] L7/L1 API 文档删除 extras 主路径，并明确九类规范 extras 符号与 extras module/component 于 v6 永久移除。
-- [ ] 使用矩阵将 extras 正向引用清零，九个规范符号和 three-party 边界统一标为 removed。
-- [ ] manifest 将九个 canonical extras symbol 改为 removed、无替代入口，清空 extras module exports/install surfaces。
-- [ ] 迁移表记录全部 extras 类型、头和 module 的移除，明确“无替代入口”及需要重新设计的应用场景。
-- [ ] `tools/check_channel_api.py` 增加 extras header/symbol/module/target 负向断言，并更新计数、版本与冻结 tag。
-- [ ] 将 CMake、vcpkg、mcpp manifest 版本统一到 `6.0.0`，更新版本相关文档。
-- [ ] 执行 `git diff --check` 与 API 文档检查，更新本阶段执行记录与证据并独立提交，不打 tag。
+- [x] README 快速开始只保留 `Channel<Mode, Schema>`、`FixedChannel`、`LatestMpmcChannel` 三个核心入口。
+- [x] L7/L1 API 文档删除 extras 主路径，并明确九类规范 extras 符号与 extras module/component 于 v6 永久移除。
+- [x] 使用矩阵将 extras 正向引用清零，九个规范符号和 three-party 边界统一标为 removed。
+- [x] manifest 将九个 canonical extras symbol 改为 removed、无替代入口，清空 extras module exports/install surfaces。
+- [x] 迁移表记录全部 extras 类型、头和 module 的移除，明确“无替代入口”及需要重新设计的应用场景。
+- [x] `tools/check_channel_api.py` 增加 extras header/symbol/module/target 负向断言，并更新计数、版本与冻结 tag。
+- [x] 将 CMake、vcpkg、mcpp manifest 版本统一到 `6.0.0`，更新版本相关文档。
+- [x] 执行 `git diff --check` 与 API 文档检查，更新本阶段执行记录与证据并独立提交，不打 tag。
 
 ## 6. Phase 3：完整验证、冻结与 v6 发布
 
@@ -109,6 +109,54 @@ benchmark 的长期维护成本。本次不保留兼容入口，也不虚构仓�
 
 Phase 1 证据：Release 非文档 CTest 22/22；安装消费者反向检查通过；mcpp 与两个 shared-path
 consumer 通过。`wire protocol` 文本仍为 `kNamedVersion = 15`，本阶段未修改热路径算法。
+
+### 2026-10-31 Phase 2
+
+- README 快速开始只保留 `Channel<Mode, Schema>`、`FixedChannel` 和 `LatestMpmcChannel`；removed 区
+  补齐四个 v5 raw 别名、九个规范/旧顶层 extras 类型、全部 extras/specialized/旧转发/内部头、
+  CMake target/component 和 `import salias.extras;`，并记录 2026-10-30 v5 批准与 2026-10-31 v6 批准。
+- L7 API 与 L1 Ring 文档删除 extras 主路径；迁移表将九个规范 extras 类型标记为无替代入口，并说明
+  需要重新设计相应场景，不能把通用 Channel 的背压、动态订阅或 latest 语义当作等价替代。
+- 使用矩阵已清零仓库内 extras 正向使用；extras 只出现在 removed 契约、checker 负向样例、安装
+  反向检查和历史迁移文档中。仓库外源码使用仍按负责人决定不扫描、不猜测，证据状态继续为 blocked。
+- manifest 更新为 30 core、0 compat、0 extras、23 removed；core module 29、extras module 0。九个
+  canonical extras symbol 和九个旧顶层 extras name 均为 removed 且没有替代入口。
+- `tools/check_channel_api.py` 不再读取已删除的 extras umbrella/module；新增每个 extras 类型与
+  header 的真实编译失败、core module 无 extras import、build/install 无 extras target/component、
+  extras archive/fragment/header 不存在等负向契约。负向编译检查共 30 项：22 个旧类型名 + 8 个头。
+- `test/api/removed_api_contract_test.cpp` 增加内部头
+  `<salias/detail/latest_by_key_storage.hpp>` 的 `__has_include` 反向断言。
+- CMake、vcpkg、mcpp 版本统一为 `6.0.0`；`Schema<T, Id, Version>` 仍是零运行时成本的显式版本
+  辅助模板，不引入默认版本或隐式推断，本阶段只更新文档/manifest 记录，不修改实现。
+- API freeze 候选为 47 个文件，聚合 SHA-256
+  `42feb20252d6c16eb6e451c0b2e32f8258087ca50aaa854810afc7b59ea19bba`，state 为
+  `v6_extras_removed_candidate`，目标 tag 为 `v6.0.0`；Phase 2 未创建 tag，Phase 3 发布前必须重新生成。
+- 实际验证：
+  - `git diff --check`：通过。
+  - `python3 tools/check_channel_api.py --compiler /usr/bin/c++ --write-freeze`：通过；30 core、
+    0 compat、0 extras、23 removed，core module 29、extras module 0，负向编译检查 30，freeze 47 files。
+  - `python3 tools/check_channel_api.py --compiler /usr/bin/c++`：通过，freeze SHA 与文件集合一致。
+  - `cmake --preset release`、`cmake --build --preset release -j 4`：通过。
+  - `ctest --test-dir build/release --output-on-failure -j 2`：23/23 通过；包含 version consistency、
+    removed API 契约、安装消费和 `salias_channel_api_documentation_check`。
+  - `mcpp build --offline --release --jobs 4`：通过，显示 `salias v6.0.0`。
+  - `mcpp run test_mcpp_core_import ...` 与 `mcpp run test_mcpp_import ...`：通过，覆盖 core module
+    和 5 种模式 module/header 混合消费。
+  - `python3 tools/check_mcpp.py`：两套独立 shared-path consumer 的 offline/locked 构建与运行通过。
+- 代码检查确认 `wire protocol` 仍为 `kNamedVersion = 15`，`Channel` / `FixedChannel` 数据面未合并，
+  `Fast*Ring` 名称未变；本阶段没有修改热路径或共享内存布局，因此未重复执行性能基准。
+
+Phase 2 证据：Release CTest 23/23、安装消费者、mcpp core/module/header 消费和两套 shared-path
+consumer 均通过；API checker 与 47 文件 freeze candidate 一致。外部证据缺口仍是 Phase 0 的
+blocked 状态，不因仓库内验证而关闭。
+
+### 下一门禁：Phase 3
+
+Phase 3 尚未执行。正式发布前必须重新跑 Release、ASan/UBSan、TSan 全量；重新验证安装、mcpp、
+shared-path consumer、wire v15、`Channel`/`FixedChannel` 数据面分离和 `Fast*Ring` 名称；执行与
+include/link 风险匹配的二进制 symbol 差异和短时 channel benchmark；从最终发布树重新生成 freeze，
+更新 `CHANGELOG.md`/`docs/release_note.md`，创建并推送 `v6.0.0` tag。未满足这些门禁前不得声称
+v6 已发布，也不得把 candidate 冻结标记为 released。
 
 ## 8. 验证命令基线
 
