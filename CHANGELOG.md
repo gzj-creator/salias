@@ -16,6 +16,33 @@ are released.
 
 ## [Unreleased]
 
+## [v6.2.0] - 2026-11-02
+
+### Added
+
+- 新增按公开 `Mode` 覆盖的通用 `Channel` 示例：`FifoMpsc`、`OrderedMpsc`、`FifoMpmc`、
+  `OrderedMpmc`、`LatestMpmc`，并保留跨进程 FIFO MPSC 发布/订阅双程序。
+- 新增 `FixedChannel` 四种固定槽拓扑示例，分别对应 `FastSpscRing`、`FastMpscRing`、
+  `FastSpmcRing`、`FastMpmcRing`，覆盖身份、fanout、lane 内 FIFO、背压和零拷贝 claim 用法。
+
+### Changed
+
+- 将 `example/` 按使用方式收拢为 `simple/` 与 `concurrency/`：`simple/` 保留通用 `Channel`
+  的 FIFO、Ordered、FifoMpmc、Latest 和跨进程 MPSC 示例，`concurrency/` 按 SPSC、MPSC、SPMC、MPMC
+  四种拓扑展示 `FixedChannel` 与对应 `Fast*Ring`；新增分组 README，并在每个示例中补充适用
+  场景、语义边界和错误处理注释。
+- CMake、vcpkg、mcpp 与 README 包版本统一为 `6.2.0`；API manifest/freeze 重新绑定
+  `v6.2.0`，公开 API、数据面和共享内存 wire protocol 保持 v15 不变。
+
+### Docs
+
+- `simple/` 按完整 `Mode` 命名，`concurrency/` 按完整 `FixedTopology` 命名；两组 README 补充
+  场景选择表、运行命令、预期输出，以及 Latest/Ordered 不提供 SPSC/SPMC 独立类型的原因和替代配置。
+
+### Tests
+
+- Release CTest 30/30、Release/ASan/UBSan 示例测试 10/10、Channel API/freeze 检查通过。
+
 ## [v6.1.0] - 2026-11-02
 
 ### Added

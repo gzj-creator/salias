@@ -1,21 +1,23 @@
 /**
- * @file example/mpsc_subscriber.cpp
+ * @file example/simple/fifo_mpsc_subscriber.cpp
  * @brief MPSC channel 示例：订阅端进程（channel 创建者）。
  * @details 本示例以 consumer 身份创建一个具名
  *          MPSC（多生产者单消费者）channel，
  *          并以忙等轮询方式消费文本消息。
  *          它负责 create channel（L7 公共 API），
- *          因此必须先于 mpsc_publisher 启动。
+ *          因此必须先于 simple/fifo_mpsc_publisher.cpp 启动。
  *          create 时通过 salias::Config 指定 name / mode / capacity，
  *          其中 capacity 决定底层 ring 的字节容量；容量过小会导致
  *          生产端频繁遇到背压（BackPressured）。典型运行：
  *          先启动本程序（创建 + 订阅），
- *          再启动 mpsc_publisher（连接 + 发布）。
+ *          再启动 simple/fifo_mpsc_publisher.cpp（连接 + 发布）。
+ *          这条路径使用通用 Channel 与 MagicRing，支持变长 payload、动态订阅和背压；
+ *          固定 schema、固定参与者且追求最低开销时改用 FixedChannel 与 Fast*Ring。
  */
 #include <iostream>
 #include <utility>
 
-#include "common.hpp"
+#include "../common.hpp"
 
 /**
  * @brief 订阅端程序入口。

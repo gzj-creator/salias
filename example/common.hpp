@@ -1,7 +1,8 @@
 /**
  * @file example/common.hpp
  * @brief 示例程序共享的工具与类型定义。
- * @details 本头文件为 example/ 目录下各示例（如 mpsc_publisher、mpsc_subscriber）
+ * @details 本头文件为 example/ 目录下各示例（如 simple/fifo_mpsc_publisher、
+ *          simple/fifo_mpsc_subscriber）
  *          提供公共基础设施：命令行参数解析、salias 公共 API 的便利封装
  *          （带重试的连接、带背压重试的发布、轮询消费循环）。
  *          它位于分层架构的 L7 salias 公共 API 之上，仅依赖

@@ -221,3 +221,15 @@ salias 首个发版版本。它是一个 Linux-only 的 C++23 低延迟具名 IP
   - **性能文档**：更新 `doc/performance-report.md`、README 与 `tools/aeron_compare/README.md` 的当前对比结论，2026-10-29 结果保留为历史对照；报告明确该矩阵是 1 组 × 5 轮开发验收，不是独占核、长时负载或生产 SLA 验收。
   - **版本治理**：CMake、vcpkg、mcpp 与 README 包版本统一为 `6.1.0`；API manifest/freeze 重新绑定 `v6.1.0`，checker 分离 `v6.0.0` 的 extras 删除语义与当前冻结 tag，公开 API 面未变化。
   - **兼容性**：本次没有库源码、数据面、公共 API 或 wire protocol 变更，既有共享内存通道不要求重建；性能结果来自 `v6.0.0` 产品二进制，不能解释为 `v6.1.0` 改变了数据面性能。
+
+## v6.2.0 - 2026-11-02
+
+- **版本级别**：次版本（minor），重组示例目录并补齐公开模式的场景化示例；不修改库源码、公共 API、数据面或共享内存 wire protocol，协议保持 v15。
+- **Git 提交消息**：docs: 按数据面重组示例并发布 v6.2.0
+- **git tag**：v6.2.0
+- **自上次 tag（v6.1.0）以来的变更摘要**：
+  - **示例结构**：将 `example/` 收拢为 `simple/` 与 `concurrency/`。`simple/` 按完整 `Mode` 命名，覆盖 `FifoMpsc`、`OrderedMpsc`、`FifoMpmc`、`OrderedMpmc`、`LatestMpmc` 和跨进程 FIFO MPSC；`concurrency/` 按完整 `FixedTopology` 命名，覆盖 SPSC、MPSC、SPMC、MPMC 对应的四种 `Fast*Ring`。
+  - **场景说明**：两个分组各新增 README，提供按使用场景选择入口的表、运行命令、预期输出和共同约束；每个示例补充适用场景、语义边界和错误处理注释。
+  - **Latest 与 Ordered 边界**：明确 Latest 只提供 `LatestMpmc`，但可通过 producer/consumer 数量配置覆盖 1P1S、1PNS 等形状；Ordered 只有 `OrderedMpsc` 和 `OrderedMpmc`，单 producer 的 SPSC/SPMC 形状直接使用 FIFO 即具备全序；`FixedChannel` 不提供 Ordered 或 Latest 变体。
+  - **版本治理**：CMake、vcpkg、mcpp 与 README 包版本统一为 `6.2.0`；API manifest/freeze 重新绑定 `v6.2.0`，冻结 47 个文件的聚合 SHA-256 为 `186f9339429ab87fb9cdc9b8d1d8f455ad75809882c56e8a121dfe033456fd06`，公开 API 面未变化。
+  - **验证**：Release CTest 30/30、Release 与 ASan/UBSan 示例测试 10/10、Channel API/freeze 检查通过；既有共享内存通道不因本版本要求重建。

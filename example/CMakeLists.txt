@@ -1,22 +1,25 @@
-add_executable(salias_mpsc_subscriber mpsc_subscriber.cpp)
-target_link_libraries(salias_mpsc_subscriber PRIVATE salias)
-salias_enable_warnings(salias_mpsc_subscriber)
-salias_enable_sanitizers(salias_mpsc_subscriber)
+# 示例按使用方式分组：
+# - simple/：通用 Channel 的入门与语义示例，底层是 per-producer MagicRing；
+# - concurrency/：FixedChannel 的固定槽并发拓扑，按拓扑选择 Fast*Ring。
+function(salias_add_example target source)
+  add_executable(${target} ${source})
+  target_link_libraries(${target} PRIVATE salias)
+  salias_enable_warnings(${target})
+  salias_enable_sanitizers(${target})
+endfunction()
 
-add_executable(salias_mpsc_publisher mpsc_publisher.cpp)
-target_link_libraries(salias_mpsc_publisher PRIVATE salias)
-salias_enable_warnings(salias_mpsc_publisher)
-salias_enable_sanitizers(salias_mpsc_publisher)
+salias_add_example(salias_example_simple_fifo_mpsc simple/fifo_mpsc.cpp)
+salias_add_example(salias_example_simple_fifo_mpsc_publisher simple/fifo_mpsc_publisher.cpp)
+salias_add_example(salias_example_simple_fifo_mpsc_subscriber simple/fifo_mpsc_subscriber.cpp)
+salias_add_example(salias_example_simple_ordered_mpsc simple/ordered_mpsc.cpp)
+salias_add_example(salias_example_simple_fifo_mpmc simple/fifo_mpmc.cpp)
+salias_add_example(salias_example_simple_ordered_mpmc simple/ordered_mpmc.cpp)
+salias_add_example(salias_example_simple_latest_mpmc simple/latest_mpmc.cpp)
 
-add_executable(salias_minimal_fifo minimal_fifo.cpp)
-target_link_libraries(salias_minimal_fifo PRIVATE salias)
-salias_enable_warnings(salias_minimal_fifo)
-salias_enable_sanitizers(salias_minimal_fifo)
-
-add_executable(salias_minimal_ordered minimal_ordered.cpp)
-target_link_libraries(salias_minimal_ordered PRIVATE salias)
-salias_enable_warnings(salias_minimal_ordered)
-salias_enable_sanitizers(salias_minimal_ordered)
+salias_add_example(salias_example_concurrency_spsc concurrency/spsc.cpp)
+salias_add_example(salias_example_concurrency_mpsc concurrency/mpsc.cpp)
+salias_add_example(salias_example_concurrency_spmc concurrency/spmc.cpp)
+salias_add_example(salias_example_concurrency_mpmc concurrency/mpmc.cpp)
 
 if(BUILD_TESTING)
   find_program(SALIAS_BASH_EXECUTABLE bash REQUIRED)
@@ -26,25 +29,44 @@ if(BUILD_TESTING)
     set(salias_example_launch_prefix
       "${SALIAS_TEST_LAUNCHER};--tsan-probe;${SALIAS_TEST_TSAN_PROBE};--")
   endif()
+
   add_test(
-    NAME salias_example_smoke
+    NAME salias_example_simple_fifo_mpsc_ipc
     COMMAND
       ${salias_example_launch_prefix}
       "${SALIAS_BASH_EXECUTABLE}"
       "${CMAKE_CURRENT_SOURCE_DIR}/example_smoke.sh"
-      "$<TARGET_FILE:salias_mpsc_subscriber>"
-      "$<TARGET_FILE:salias_mpsc_publisher>"
+      "$<TARGET_FILE:salias_example_simple_fifo_mpsc_subscriber>"
+      "$<TARGET_FILE:salias_example_simple_fifo_mpsc_publisher>"
   )
-  add_test(
-    NAME salias_minimal_fifo
-    COMMAND ${salias_example_launch_prefix} "$<TARGET_FILE:salias_minimal_fifo>"
-  )
-  add_test(
-    NAME salias_minimal_ordered
-    COMMAND ${salias_example_launch_prefix} "$<TARGET_FILE:salias_minimal_ordered>"
-  )
+
+  foreach(example
+      salias_example_simple_fifo_mpsc
+      salias_example_simple_ordered_mpsc
+      salias_example_simple_fifo_mpmc
+      salias_example_simple_ordered_mpmc
+      salias_example_simple_latest_mpmc
+      salias_example_concurrency_spsc
+      salias_example_concurrency_mpsc
+      salias_example_concurrency_spmc
+      salias_example_concurrency_mpmc)
+    add_test(
+      NAME ${example}
+      COMMAND ${salias_example_launch_prefix} "$<TARGET_FILE:${example}>"
+    )
+  endforeach()
+
   set_tests_properties(
-    salias_example_smoke salias_minimal_fifo salias_minimal_ordered
+    salias_example_simple_fifo_mpsc_ipc
+    salias_example_simple_fifo_mpsc
+    salias_example_simple_ordered_mpsc
+    salias_example_simple_fifo_mpmc
+    salias_example_simple_ordered_mpmc
+    salias_example_simple_latest_mpmc
+    salias_example_concurrency_spsc
+    salias_example_concurrency_mpsc
+    salias_example_concurrency_spmc
+    salias_example_concurrency_mpmc
     PROPERTIES TIMEOUT 120
   )
 endif()

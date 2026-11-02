@@ -1,41 +1,32 @@
-# salias examples
+# salias 示例
 
-## 最小 FIFO MPSC
+示例按使用方式分成两个目录，先确定自己要解决的是“把消息可靠地送到对端”，还是“固定拓扑下的并发吞吐”。
 
-`minimal_fifo.cpp` 创建两个 producer。producer 0 先 claim 但暂不 commit，producer 1 随后发布消息。
-FIFO 只保证单 producer 内顺序，因此 consumer 可以先收到 producer 1 的消息：
+| 目录 | 公开入口 | 底层 ring | 适用场景 |
+|---|---|---|---|
+| [`simple/`](simple/README.md) | `Channel`、`LatestMpmcChannel` | per-producer `MagicRing` | 变长消息、动态订阅、Ordered、Latest、跨进程入门 |
+| [`concurrency/`](concurrency/README.md) | `FixedChannel` | `FastSpscRing` / `FastMpscRing` / `FastSpmcRing` / `FastMpmcRing` | 固定 payload、固定参与者、单 producer lane FIFO、最低热路径开销 |
 
-```bash
-./build/release/example/salias_minimal_fifo
-```
+需要跨 producer 全局顺序、TTL、动态增删参与者或变长消息时用 `simple/`。消息类型和参与者数量在编译期固定，
+且每个 producer 只要求自己 lane 内 FIFO 时用 `concurrency/`。
 
-预期输出：
+文件命名直接对应公开类型：`simple/` 使用完整的 `Mode` 名（如 `fifo_mpsc`、`ordered_mpmc`），
+`concurrency/` 使用完整的 `FixedTopology` 名（如 `spsc`、`mpmc`）。因此两边的段数不同，但都没有省略
+协议信息。`Latest` 目前只有 `LatestMpmc`，`Ordered` 目前只有 `OrderedMpsc` 和 `OrderedMpmc`；
+具体替代关系见两个目录的 README。
 
-```text
-FIFO received ready producers: 2, 1
-```
-
-## 最小 Ordered MPSC
-
-`minimal_ordered.cpp` 同样创建两个 producer，并让全局序号更晚的消息先 commit。Ordered consumer
-必须等待更早的全局序号发布，最终仍按 `1, 2` 交付：
-
-```bash
-./build/release/example/salias_minimal_ordered
-```
-
-预期输出：
-
-```text
-Ordered received global sequence: 1, 2
-```
-
-## 构建
+## 构建与测试
 
 ```bash
 cmake --preset release
-cmake --build --preset release --target salias_minimal_fifo salias_minimal_ordered
+cmake --build --preset release
+ctest --test-dir build/release -R 'salias_example_' --output-on-failure
 ```
 
-原有 `mpsc_subscriber.cpp` 和 `mpsc_publisher.cpp` 展示两个独立进程通过具名共享内存连接的完整 FIFO
-MPSC 用法；两个 minimal demo 用于最短路径理解 FIFO 与 Ordered 的语义差异。
+只构建单个示例时使用对应 target，例如：
+
+```bash
+cmake --build --preset release --target salias_example_concurrency_spsc salias_example_simple_ordered_mpsc
+```
+
+所有示例都启用 ASan/UBSan 配置；跨进程 MPSC 示例由 `example_smoke.sh` 编排两个进程。

@@ -1,5 +1,5 @@
 {
-  "aggregate_sha256": "fc6a7f99d15585d33ec2b67a5f3f21b1f33e79c31ae801629b1fa6283a0243cc",
+  "aggregate_sha256": "186f9339429ab87fb9cdc9b8d1d8f455ad75809882c56e8a121dfe033456fd06",
   "api": "salias-channel",
   "api_counts": {
     "compat": 0,
@@ -7,11 +7,11 @@
     "extras": 0,
     "removed": 23
   },
-  "basis_commit": "4e4789a7c890f8c42d1c418a0eb043d8d1ab3912",
+  "basis_commit": "8f8e469b4a59c69046886bde87ab5627a12ce03b",
   "files": [
     {
       "path": "CMakeLists.txt",
-      "sha256": "77f1aa6eeb005262c277fe4dff221624f8f5c1aafeb81256003d7a4f2892df23"
+      "sha256": "d67d35023d9ffb056c01a0d7878b2f5a3d49c8f71c93260013df860dfe01fdf3"
     },
     {
       "path": "cmake/saliasConfig.cmake.in",
@@ -19,11 +19,11 @@
     },
     {
       "path": "doc/api/channel-api-manifest.json",
-      "sha256": "686bd5b5652fba1f64e9c7cc031529668b88f2fd108d6c57647a5dd4d2aae330"
+      "sha256": "04e56c443554ec3935b37dcb9f0e98ba156c86de85e039d1d3c9b81de795972f"
     },
     {
       "path": "mcpp.toml",
-      "sha256": "1108ad23b3a49cbcf6612e5d34a4bc88d9b04016c3fe2194d539aba1ad61570f"
+      "sha256": "e8028336f85a020119271c302280f7dfee7c76d52a070416dbfb90759743528f"
     },
     {
       "path": "src/core/CMakeLists.txt",
@@ -203,7 +203,7 @@
     "core": 29,
     "extras": 0
   },
-  "release_tag": "v6.1.0",
+  "release_tag": "v6.2.0",
   "schema_version": 1,
   "state": "v6_extras_removed_released",
   "wire_protocol_version": 15

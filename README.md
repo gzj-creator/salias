@@ -3,7 +3,7 @@
 `salias` 是支持 Linux 与 macOS 的 C++23 低延迟具名 IPC 消息通道。面向新用户的核心入口只有
 三个：通用可靠流 `Channel<Mode, Schema>`、固定布局快速流 `FixedChannel`，以及 latest fanout
 `LatestMpmcChannel`。`LatestByKey`、Priority 和 Ringbuffer/`salias::extras` 自 `v6.0.0` 起
-永久移除，不提供兼容入口或替代 API。当前 `v6.1.0` 已发布，数据面与 `v6.0.0` 相同。
+永久移除，不提供兼容入口或替代 API。当前 `v6.2.0` 已发布，数据面与 `v6.0.0` 相同。
 
 ## 快速开始
 
@@ -187,7 +187,7 @@ CMake 安装只有一个 `core` component；`salias::extras` target、component 
 
 ## mcpp 与 C++23 模块
 
-原生包身份为 `gzj-creator.salias`，版本 `6.1.0` 与 CMake 一致。`mcpp.toml`
+原生包身份为 `gzj-creator.salias`，版本 `6.2.0` 与 CMake 一致。`mcpp.toml`
 编译公共库和必要的 core 实现，`src/salias.cppm` 提供唯一的 `import salias;`；默认构建不需要
 GTest、Google Benchmark 或 Aeron。模块导出公共配置、枚举、错误和结果类型、Message、
 `Schema<T, Id, Version>`、Channel/Publisher/Subscriber/PublishClaim 模板、五种模式的端点别名、
@@ -360,8 +360,12 @@ NUMA 放置当前尚未实现，Linux 与 macOS 请求都会明确返回 `NumaUn
 - `salias_bench_channel_stress`：FIFO/ordered 多生产者压力基准。
 - `salias_ipc_compare`：`fifo` / `ordered` IPC 对比 harness。
 - `tools/aeron_compare/run_release_compare.sh`：与 Aeron 的 release 对比脚本。
-- `salias_mpsc_subscriber` / `salias_mpsc_publisher`：FIFO MPSC 示例。
-- `salias_minimal_fifo` / `salias_minimal_ordered`：两个单文件最小模式示例，说明见 `example/README.md`。
+- `salias_example_simple_*`：通用 `Channel` 的 FIFO、Ordered、Latest 与跨进程 MPSC 示例，
+  说明见 [example/simple/README.md](example/simple/README.md)。
+- `salias_example_concurrency_*`：`FixedChannel` 的 SPSC、MPSC、SPMC、MPMC 固定槽
+  `Fast*Ring` 示例，说明见 [example/concurrency/README.md](example/concurrency/README.md)。
+- 示例目录按使用方式分为 `simple/` 与 `concurrency/`，总览见
+  [example/README.md](example/README.md)。
 
 ## 架构动画
 
@@ -448,7 +452,7 @@ src/core/channel/    单一 hybrid per-producer-ring 引擎
 src/salias/          五种公共 Mode、具名 IPC facade 与候选 FixedChannel
 test/                platform/ring/frame/flow/channel/API 测试
 bench/               stress 与 IPC compare 目标
-example/             FIFO MPSC 示例
+example/             simple/ 通用 Channel、concurrency/ 固定槽 Fast*Ring 示例
 ```
 
 ## 性能边界

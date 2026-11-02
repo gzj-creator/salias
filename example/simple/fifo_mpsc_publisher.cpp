@@ -1,20 +1,22 @@
 /**
- * @file example/mpsc_publisher.cpp
+ * @file example/simple/fifo_mpsc_publisher.cpp
  * @brief MPSC channel 示例：发布端进程。
  * @details 本示例演示如何以 producer 身份向一个具名
  *          MPSC（多生产者单消费者）channel 发布文本消息。
  *          它通过 common.hpp 中的 connect_with_retry 连接到由
- *          mpsc_subscriber 先创建的 channel（L7 公共 API），
+ *          simple/fifo_mpsc_subscriber.cpp 先创建的 channel（L7 公共 API），
  *          再用 publish_text 逐条发布。
  *          发布端不负责创建 channel，仅 connect；channel 必须先由订阅端 create，
  *          否则 connect 会持续重试直至超时。典型运行：
- *          先启动 mpsc_subscriber（创建者），再启动本程序（发布者）。
+ *          先启动 fifo_mpsc_subscriber（创建者），再启动本程序（发布者）。
+ *          通用 Channel 使用 per-producer MagicRing，支持变长 payload；固定大小消息的
+ *          快速路径见 example/concurrency/。
  */
 #include <iostream>
 #include <string>
 #include <utility>
 
-#include "common.hpp"
+#include "../common.hpp"
 
 /**
  * @brief 发布端程序入口。

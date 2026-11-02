@@ -30,7 +30,7 @@ MCPP_IMPORT_TEST = ROOT / "test/mcpp/import.cpp"
 FREEZE = ROOT / "doc/api/channel-api-freeze.json"
 FREEZE_STATE = "v6_extras_removed_released"
 REMOVAL_RELEASE_TAG = "v6.0.0"
-FREEZE_RELEASE_TAG = "v6.1.0"
+FREEZE_RELEASE_TAG = "v6.2.0"
 
 ALIASES = (
     "FifoMpscChannel",

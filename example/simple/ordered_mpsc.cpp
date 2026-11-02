@@ -1,3 +1,15 @@
+/**
+ * @file example/simple/ordered_mpsc.cpp
+ * @brief MagicRing 场景示例：Ordered MPSC 的跨 producer 全局顺序。
+ * @details 适用场景：多个 producer 的事件必须按同一全局顺序消费，例如事件溯源、
+ *          审计日志、需要确定性回放的状态变更。底层仍是通用 `Channel` 与 per-producer
+ *          `MagicRing`，但提交时会分配全局序号，consumer 必须等待更早的序号发布后才能
+ *          交付。
+ *
+ *          本示例让全局序号更晚的消息先 commit，验证 consumer 不会提前交付它，最终仍按
+ *          1、2 的顺序返回。全局排序需要共享序号分配和归并点，吞吐通常低于 FIFO；
+ *          只有业务确实需要跨 producer 全序时才选择 Ordered。
+ */
 #include <unistd.h>
 
 #include <cstdint>

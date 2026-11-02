@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -ne 2 ]]; then
-  echo "usage: example_smoke.sh MPSC_SUB MPSC_PUB" >&2
+  echo "usage: example_smoke.sh FIFO_MPSC_SUB FIFO_MPSC_PUB" >&2
   exit 2
 fi
 
