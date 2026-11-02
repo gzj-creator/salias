@@ -1,5 +1,8 @@
 # Salias 固定槽 Ring 四拓扑开发验收：全文校验版（2026-10-29）
 
+> 本文是上一轮开发验收记录。当前 `v6.0.0` 复跑结果见
+> [2026-11-02 四拓扑对比](../2026-11-02-v6-aeron/README.md)。
+
 本目录记录 `FastSpscRing`、`FastSpmcRing`、`FastMpscRing`、`FastMpmcRing` 与
 Aeron 1.52.0 IPC、v4.0.1 通用 FIFO 的同机对比。本版在 **所有 240 次正式性能轮**
 启用逐字节、producer 身份、每 producer 序号、顺序和重复校验。结论是：**8/8 开发

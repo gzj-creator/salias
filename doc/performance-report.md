@@ -1,12 +1,51 @@
 # Salias 最终性能测试与优化交接报告
 
-更新日期：2026-10-29，Asia/Singapore。**本页是当前性能结论与下一轮优化的唯一阅读入口。**
+更新日期：2026-11-02，Asia/Shanghai。**本页是当前性能结论与下一轮优化的唯一阅读入口。**
 “最终”表示本轮结果已经汇总，不表示性能或生产 SLA 已验收。更早的完整实验和旧吞吐表保留在
 [性能归档](archive/performance/README.md)；不要拼接不同日期、版本、CPU 分配或计时口径的数据。
 
 ## 1. 给下一个 agent 的结论
 
-### 1.1 固定槽 Ring 四拓扑全文校验开发验收（2026-10-29）
+### 1.1 v6.0.0 四拓扑全文校验复跑（2026-11-02）
+
+当前 `v6.0.0`（提交 `feb722b`）已按与 2026-10-29 相同的协议复跑 SPSC、MPSC、SPMC、
+MPMC、64/256 B、1 轮预热 + 5 轮正式 ABBA，所有性能轮使用 `--verify full`，8/8 门禁
+通过。完整表格、原始日志、环境和逐文件哈希见
+[2026-11-02 四拓扑对比](benchmarks/2026-11-02-v6-aeron/README.md)与
+[门禁结论](benchmarks/2026-11-02-v6-aeron/verification-full-5-round.json)。
+`v6.0.0` 只删除 `salias::extras`，数据面未改；本轮是当前版本复验，不是与 2026-10-29
+的代码性能 A/B，不能把两轮差异归因于 v6。
+
+Fast Ring 发布吞吐为所有 producer 合计 Mmsg/s，括号为 Fast/Aeron：
+
+| 拓扑 | 64 B Fast / Aeron | 比值 | 256 B Fast / Aeron | 比值 |
+|---|---:|---:|---:|---:|
+| SPSC | 79.14 / 26.72 | 2.96x | 34.48 / 18.54 | 1.86x |
+| MPSC | 72.40 / 44.71 | 1.62x | 28.75 / 20.18 | 1.43x |
+| SPMC | 91.30 / 16.98 | 5.38x | 32.83 / 16.61 | 1.98x |
+| MPMC | 58.14 / 12.17 | 4.78x | 25.67 / 5.79 | 4.43x |
+
+同协议 FIFO 的 Salias/Aeron 比值在 64 B 为 **0.25/0.74/0.28/1.91**，256 B 为
+**0.92/0.77/1.02/3.21**（SPSC/MPSC/SPMC/MPMC）；Fast 相对 FIFO 的吞吐增益为
+**1.41x 至 16.37x**。attempt 延迟单位为 ns：
+
+| 拓扑 | 64 B p50 Fast / Aeron | 64 B p99 Fast / Aeron | 256 B p50 Fast / Aeron | 256 B p99 Fast / Aeron |
+|---|---:|---:|---:|---:|
+| SPSC | 173 / 221 | 379 / 451 | 307 / 307 | 535 / 567 |
+| MPSC | 161 / 237 | 423 / 4,159 | 245 / 307 | 2,975 / 45,055 |
+| SPMC | 191 / 239 | 467 / 18,687 | 263 / 391 | 687 / 72,703 |
+| MPMC | 181 / 259 | 112,639 / 737,279 | 259 / 11,775 | 81,919 / 737,279 |
+
+- **8/8 单元的 attempt p50/p99 均不高于 Aeron**，但 MPMC attempt p99.9 仍落后：
+  64 B 为 Fast **2.720 ms** 对 Aeron **1.327 ms**，256 B 为 **1.622 ms** 对
+  **1.606 ms**；其余 6 个单元 p99.9 低于 Aeron。不能把门禁扩大为所有尾分位领先。
+- **MPMC 仍有核共享边界。** 4 vCPU 上 Aeron driver 与 subscriber0 共用 CPU0；其
+  planned 百毫秒级分位数反映发送积压，不能当作 Aeron 固有延迟，也不能把 MPMC 的
+  FIFO/Aeron 领先外推到无核竞争环境。
+- **本轮仍是开发验收。** 1 组 x 5 轮不是最终 6 组 x 20 轮 ABBA 矩阵；独占核、长时
+  持续负载、生产 SLA 和 HFT 长尾门禁均未因此关闭。
+
+### 1.2 固定槽 Ring 四拓扑全文校验开发验收（2026-10-29）
 
 `FastSpscRing`、`FastSpmcRing`、`FastMpscRing`、`FastMpmcRing` 已完成 1 轮预热、5 轮
 正式 ABBA 开发对比；Fast 与同协议 FIFO 两套矩阵各 240 次正式性能轮均使用
@@ -63,13 +102,13 @@ p50/p99/p99.9 的配对中位数分别为 **1.06x/1.03x/1.00x**，planned 为
 [FixedChannel 批量 cursor 对比](benchmarks/2026-10-29-fast-ring/fixed-channel-poll-batch-20m-abba-10-group/README.md)。
 该产品 API 组只覆盖 SPSC 64 B；上面的四拓扑表仍是 `Fast*Ring` 热路径结果。
 
-### 1.2 v4.0.1 通用 FIFO 四拓扑 count-only 基线（2026-10-29）
+### 1.3 v4.0.1 通用 FIFO 四拓扑 count-only 基线（2026-10-29）
 
 本组在 `v4.0.1`、提交 `064281a77d8b` 上重新执行 SPSC、MPSC、SPMC、MPMC 四拓扑，
 同一轮内配对 Salias FIFO 与 Aeron 1.52.0 IPC exclusive publication，同时覆盖吞吐、
 attempt 和 planned 延迟。完整表格、逐轮原始记录和环境见
 [2026-10-29 四拓扑对比](benchmarks/2026-10-29/README.md)。该组不与任何早期拓扑数据拼接。
-该组是旧 count-only 基线，不能与 §1.1 的全文数组拼接；§1.1 的 Fast/FIFO 比值来自
+该组是旧 count-only 基线，不能与 §1.2 的全文数组拼接；§1.2 的 Fast/FIFO 比值来自
 `formal-full-fifo-5-round` 同协议全文矩阵，而不是本节数字。
 
 吞吐为每 producer 1000 万条、五轮正式结果中位数，单位为 Mmsg/s：
@@ -116,7 +155,7 @@ attempt 和 planned 延迟。完整表格、逐轮原始记录和环境见
 文档和 runner 修改，`environment.json` 的 git 描述为 `v4.0.1-dirty`；产品输入由其中
 记录的二进制 SHA-256 固定。
 
-### 1.3 P3-1 历史验收状态（2026-10-21）
+### 1.4 P3-1 历史验收状态（2026-10-21）
 
 发布路径非对称屏障已随 v4.0.0 发布，具名通道协议为 v15。验证证据，以及未通过的
 G4 长尾门禁，均保留在下方结果中。
@@ -142,7 +181,7 @@ G4 长尾门禁，均保留在下方结果中。
 S 臂输入完成度，先固定新假设与门槛；不重跑本轮以追求通过，不改 5% 界限，不跨组池化，
 不拼接 E1 nofence 诊断客户端作为产品收益。
 
-### 1.4 Claim API v4 历史产品 A/B（2026-10-23）
+### 1.5 Claim API v4 历史产品 A/B（2026-10-23）
 
 claim API v4 的代码、契约测试、示例和文档迁移已完成：`PublishClaim` 不再持有
 `shared_ptr<PublisherEndpoint>`，改由 `Publisher::commit(std::move(claim))` 提交并校验
@@ -197,7 +236,7 @@ planned p99 为 3599 对 4175 ns。256 B A/B 的 attempt p99/p99.9 为 479/4159 
 [迁移计划](plans/phase3-claim-api-v4-migration-plan.md) §4.8，精简证据见
 [2026-10-22 证据说明](benchmarks/2026-10-22/README.md)。
 
-### 1.5 v3.0.0 / Aeron 历史对照（2026-10-19）
+### 1.6 v3.0.0 / Aeron 历史对照（2026-10-19）
 
 1. **最明确的瓶颈是 64 B、单发布双订阅广播吞吐。** 同组五轮发布中位数：
    Salias **6.341 Mmsg/s**，Aeron **42.441 Mmsg/s**，Aeron 约为 **6.69 倍**。
@@ -220,8 +259,8 @@ planned p99 为 3599 对 4175 ns。256 B A/B 的 attempt p99/p99.9 为 479/4159 
 
 - 第 3–6 节和第 10 节的历史测量产品：`v3.0.0`，提交 `c5e6aa7df4397df6f47a4e00cf5f72ed5ae778bd`。
   2026-10-19 整理只修改文档与精简证据；P3-1 与 claim API v4 已随 `v4.0.0` 发布，
-  对应结果分别单列于 §1.3 与 §1.4。当前固定槽结果见 §1.1，通用 FIFO 四拓扑基线见
-  §1.2；这些结果不能反向当作
+  对应结果分别单列于 §1.4 与 §1.5。当前固定槽结果见 §1.2，通用 FIFO 四拓扑基线见
+  §1.3；这些结果不能反向当作
   第 3–8 节 v3 测量的重跑，也不能互相拼接。
 - 已采用 poll 优化：`f9ea5c2`；Reliable 发布慢路径减少冗余存活探测：`ffbf6e1`。
 - 本页 1P2S 是 **Reliable FIFO 广播**：每个订阅者接收每条消息，不是两个消费者分摊消息。
@@ -467,7 +506,9 @@ payload 借用期、批量安全前缀、TTL 过期推进、递归 poll 描述�
 
 | 数据集 | 位置 | 内容 |
 |---|---|---|
-| **v4.0.1 四拓扑（当前主结论）** | [2026-10-29](benchmarks/2026-10-29/README.md) | 吞吐与 attempt/planned 延迟、288 个案例、逐案例 JSONL、环境、冻结 runner、路径感知 SHA-256 |
+| **v6.0.0 四拓扑（当前主结论）** | [2026-11-02](benchmarks/2026-11-02-v6-aeron/README.md) | Fast/FIFO 各 288 个案例的吞吐与 attempt/planned 延迟、逐案例 JSONL、环境、冻结 runner、路径感知 SHA-256 |
+| 固定槽 Ring 全文校验（上一轮） | [2026-10-29 Fast Ring](benchmarks/2026-10-29-fast-ring/README.md) | Fast/FIFO 各 288 个案例、完整正确性矩阵、门禁结论与校验日志 |
+| v4.0.1 通用 FIFO count-only | [2026-10-29](benchmarks/2026-10-29/README.md) | 吞吐与 attempt/planned 延迟、288 个案例、逐案例 JSONL、环境、冻结 runner、路径感知 SHA-256 |
 | v3.0.0 1P2S 同组对比（历史） | [spmc-aeron](benchmarks/2026-10-19/spmc-aeron/summary.json) | summary、环境、72 条 JSONL、72 份小 stdout、冻结 runner |
 | 较早 Salias-only（辅助） | [spmc-salias](benchmarks/2026-10-19/spmc-salias/summary.json) | summary、环境、72 条 JSONL、72 份小 stdout、冻结 runner |
 | 新证据完整性 | [evidence-manifest.json](benchmarks/2026-10-19/evidence-manifest.json) | 源路径、目标路径、每文件 SHA-256/字节数 |
@@ -547,27 +588,29 @@ systemd-run --user --wait --pipe --collect \
 runner 中主实验允许 CPU0 是刻意的拓扑设置，不要直接套用只允许 CPU1–3 的旧单订阅 runner。
 冻结 runner 目前固定 2M/10M 消息短测；延长吞吐和增加诊断需要另存新实验并标注工具变化。
 若不在精确 tag HEAD，先审查版本和脚本的 `git describe --exact-match` 检查，不通过伪造 tag 绕过。
-当前 v4.0.1 四拓扑的通用命令和输入要求见
+2026-10-29 v4.0.1 四拓扑的通用命令和输入要求见
 [2026-10-29 证据说明](benchmarks/2026-10-29/README.md#证据与复现)。
 
 ## 9. 文档整理结果和禁止误读
 
 - 本页作为最终性能汇总；日期报告保留完整证据，旧吞吐表移入 `doc/archive/performance/`。
-  README 和工具入口统一指向本页，当前固定槽与通用 FIFO 四拓扑明细从本页 §1.1、§1.2 链接。
-- `docs/release_note.md`、`doc/release_note.md` 是历史发布记录，不改写已发布版本声明。
+  README 和工具入口统一指向本页；最新 v6 复跑见 §1.1，2026-10-29 Fast Ring 见 §1.2，
+  旧 count-only 基线见 §1.3。
+- `doc/release_note.md` 是统一发布记录，不改写已发布版本声明。
   CHANGELOG 只记录本次整理，不改产品版本或已存在的 v3.0.0 tag。
 - 未入库的旧优化估算草稿、生成源码副本及重复 bulk 日志移到本机
   `build/document-cleanup-20261019/`，共 1,069 个文件、2,705,527 字节，映射及哈希保存在
   `relocation-manifest.json`，避免下一位 agent 当成已实现事实。
   不删除源码、测试、失败证据或其他未提交实验来制造干净状态。
-- 2026-10-29 的 v4.0.1 通用 FIFO 四拓扑正式矩阵见 §1.2：240 次测量、48 次预热全部退出 0，
+- 2026-10-29 的 v4.0.1 通用 FIFO 四拓扑正式矩阵见 §1.3：240 次测量、48 次预热全部退出 0，
   计数和 720 份 stdout/stderr/driver log 的哈希已核验。该组仍是共享 4 vCPU 短测，
   MPMC 存在 driver/subscriber0 核共享；尚无独占裸机、长时持续负载、完整 payload、
   1P3S/1P4S 或无核共享 2P2S 的验收。
 - 2026-10-19 的 §3–8 历史整理未重新采样 perf、未运行新性能矩阵，只复核并冻结既有测量；
-  2026-10-22 claim API v4 的独立正式 A/B 见 §1.4。各版本、日期和拓扑数据不得拼接。
+  2026-10-22 claim API v4 的独立正式 A/B 见 §1.5。各版本、日期和拓扑数据不得拼接。
 - 整理核验：152 个新证据文件的源/目标哈希一致，144 份 stdout 已重解析、24 个五轮分组
-  已重算，报告主表与辅助表对齐；历史已跟踪证据及两处 release note 保持原字节。
+  已重算，报告主表与辅助表对齐；历史已跟踪证据保持原字节，两个 release note 仅合并路径
+  与文件头，各版本节内容未改写。
   该次整理为文档改动，未重跑 CTest；历史通过记录不作为新的测试结果。
 - 后续清理将三个未跟踪实验文件 `tools/aeron_compare/salias_fast_path_compare.cpp`、
   `tools/aeron_compare/verify_fast_path.sh`、`tools/microbench/measure_guard_cost.cpp` 移至本地

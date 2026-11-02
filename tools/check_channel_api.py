@@ -29,7 +29,8 @@ CORE_IMPORT_TEST = ROOT / "test/mcpp/core_import.cpp"
 MCPP_IMPORT_TEST = ROOT / "test/mcpp/import.cpp"
 FREEZE = ROOT / "doc/api/channel-api-freeze.json"
 FREEZE_STATE = "v6_extras_removed_released"
-FREEZE_RELEASE_TAG = "v6.0.0"
+REMOVAL_RELEASE_TAG = "v6.0.0"
+FREEZE_RELEASE_TAG = "v6.1.0"
 
 ALIASES = (
     "FifoMpscChannel",
@@ -205,8 +206,8 @@ def validate_symbols(data: dict) -> tuple[list[dict], dict[str, dict]]:
     removal_metadata = data.get("removal_metadata", {})
     if removal_metadata.get("state") != "extras_removed_released":
         fail("removal metadata must record the released v6 removal")
-    if removal_metadata.get("release_tag") != FREEZE_RELEASE_TAG:
-        fail(f"removal metadata release tag must be {FREEZE_RELEASE_TAG}")
+    if removal_metadata.get("release_tag") != REMOVAL_RELEASE_TAG:
+        fail(f"removal metadata release tag must be {REMOVAL_RELEASE_TAG}")
     if removal_metadata.get("wire_protocol_changed") is not False:
         fail("removal metadata must state that the wire protocol did not change")
     if removal_metadata.get("compatibility_surface_retained") is not False:
@@ -216,7 +217,7 @@ def validate_symbols(data: dict) -> tuple[list[dict], dict[str, dict]]:
         symbol = by_name.get(name)
         if symbol is None or symbol["status"] != "removed":
             fail(f"extras symbol {name} must be listed as removed")
-        if not symbol["replacement"].startswith("None; removed permanently in v6.0.0"):
+        if not symbol["replacement"].startswith(f"None; removed permanently in {REMOVAL_RELEASE_TAG}"):
             fail(f"extras symbol {name} must not advertise a replacement")
 
     removed_names = {symbol["name"] for symbol in symbols if symbol["status"] == "removed"}

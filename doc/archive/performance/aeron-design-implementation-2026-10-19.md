@@ -164,7 +164,7 @@ p99 分别 **467 / 431 / 427 ns**。planned p99.9 分别 **9.983 / 11.903 / 11.7
   `git diff --check` 通过。产品没有新增 heap 热分配，也没有移除正确性同步。
 - 预变更 baseline 的源码/include/object/二进制快照保留于 `build/`；每轮记录实际命令
   和哈希。该次实作结束时尚未 commit、tag，未替换其他已有未提交改动；随后产品优化
-  单独保存为 `f9ea5c2`，发布状态以 `docs/release_note.md` 为准。
+  单独保存为 `f9ea5c2`，发布状态以 `doc/release_note.md` 为准。
 
 工具入口和风险见[比较工具说明](../../../tools/aeron_compare/README.md#follow-up-implementation)。
 本轮落地的是有回归保障的接收路径减负；调度和发布协议都按证据拒绝直接推广。

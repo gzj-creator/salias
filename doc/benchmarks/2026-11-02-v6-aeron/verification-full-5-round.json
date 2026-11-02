@@ -1,0 +1,225 @@
+{
+  "passed": true,
+  "minimum_rounds": 5,
+  "minimum_groups": 1,
+  "baseline_evaluated": true,
+  "require_dedicated_driver": false,
+  "require_full_verification": true,
+  "require_abba": true,
+  "protocol": {
+    "fast": {
+      "groups": 1,
+      "rounds_per_group": 5,
+      "engine_order": "ABBA paired rounds",
+      "verification": "full"
+    },
+    "baseline": {
+      "groups": 1,
+      "rounds_per_group": 5,
+      "engine_order": "ABBA paired rounds",
+      "verification": "full"
+    }
+  },
+  "criteria": {
+    "minimum_aeron_throughput_ratio": 1.1,
+    "minimum_fifo_throughput_gain": 1.25,
+    "maximum_attempt_p50_ns": "Aeron",
+    "maximum_attempt_p99_ratio": 1.1,
+    "rounds": "minimum_rounds x minimum_groups"
+  },
+  "cells": [
+    {
+      "topology": "spsc",
+      "payload": 64,
+      "rounds": 5,
+      "groups": 1,
+      "throughput_mmsg_s": {
+        "fast": 79.1417,
+        "aeron": 26.718,
+        "fifo": 7.36739
+      },
+      "fast_over_aeron_throughput": 2.962111685006363,
+      "fast_over_fifo_throughput": 10.742162421155932,
+      "attempt_p50_ns": {
+        "fast": 173,
+        "aeron": 221
+      },
+      "attempt_p99_ns": {
+        "fast": 379,
+        "aeron": 451
+      },
+      "fast_over_aeron_p99": 0.8403547671840355,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "topology": "spsc",
+      "payload": 256,
+      "rounds": 5,
+      "groups": 1,
+      "throughput_mmsg_s": {
+        "fast": 34.478,
+        "aeron": 18.5402,
+        "fifo": 16.7264
+      },
+      "fast_over_aeron_throughput": 1.8596347396468218,
+      "fast_over_fifo_throughput": 2.061292328295389,
+      "attempt_p50_ns": {
+        "fast": 307,
+        "aeron": 307
+      },
+      "attempt_p99_ns": {
+        "fast": 535,
+        "aeron": 567
+      },
+      "fast_over_aeron_p99": 0.9435626102292769,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "topology": "mpsc",
+      "payload": 64,
+      "rounds": 5,
+      "groups": 1,
+      "throughput_mmsg_s": {
+        "fast": 72.4046,
+        "aeron": 44.7075,
+        "fifo": 34.1141
+      },
+      "fast_over_aeron_throughput": 1.6195179779679023,
+      "fast_over_fifo_throughput": 2.122424452059412,
+      "attempt_p50_ns": {
+        "fast": 161,
+        "aeron": 237
+      },
+      "attempt_p99_ns": {
+        "fast": 423,
+        "aeron": 4159
+      },
+      "fast_over_aeron_p99": 0.10170714113969705,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "topology": "mpsc",
+      "payload": 256,
+      "rounds": 5,
+      "groups": 1,
+      "throughput_mmsg_s": {
+        "fast": 28.7535,
+        "aeron": 20.177,
+        "fifo": 16.2273
+      },
+      "fast_over_aeron_throughput": 1.4250631907617584,
+      "fast_over_fifo_throughput": 1.7719213917287533,
+      "attempt_p50_ns": {
+        "fast": 245,
+        "aeron": 307
+      },
+      "attempt_p99_ns": {
+        "fast": 2975,
+        "aeron": 45055
+      },
+      "fast_over_aeron_p99": 0.06603040727999113,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "topology": "spmc",
+      "payload": 64,
+      "rounds": 5,
+      "groups": 1,
+      "throughput_mmsg_s": {
+        "fast": 91.3045,
+        "aeron": 16.978,
+        "fifo": 5.57744
+      },
+      "fast_over_aeron_throughput": 5.377812463187654,
+      "fast_over_fifo_throughput": 16.370324019621904,
+      "attempt_p50_ns": {
+        "fast": 191,
+        "aeron": 239
+      },
+      "attempt_p99_ns": {
+        "fast": 467,
+        "aeron": 18687
+      },
+      "fast_over_aeron_p99": 0.02499063520094183,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "topology": "spmc",
+      "payload": 256,
+      "rounds": 5,
+      "groups": 1,
+      "throughput_mmsg_s": {
+        "fast": 32.8281,
+        "aeron": 16.6088,
+        "fifo": 17.6826
+      },
+      "fast_over_aeron_throughput": 1.9765485766581572,
+      "fast_over_fifo_throughput": 1.856519968782871,
+      "attempt_p50_ns": {
+        "fast": 263,
+        "aeron": 391
+      },
+      "attempt_p99_ns": {
+        "fast": 687,
+        "aeron": 72703
+      },
+      "fast_over_aeron_p99": 0.009449403738497723,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "topology": "mpmc",
+      "payload": 64,
+      "rounds": 5,
+      "groups": 1,
+      "throughput_mmsg_s": {
+        "fast": 58.1357,
+        "aeron": 12.1743,
+        "fifo": 21.0983
+      },
+      "fast_over_aeron_throughput": 4.775280714291581,
+      "fast_over_fifo_throughput": 2.7554684500646975,
+      "attempt_p50_ns": {
+        "fast": 181,
+        "aeron": 259
+      },
+      "attempt_p99_ns": {
+        "fast": 112639,
+        "aeron": 737279
+      },
+      "fast_over_aeron_p99": 0.1527766286575367,
+      "passed": true,
+      "failures": []
+    },
+    {
+      "topology": "mpmc",
+      "payload": 256,
+      "rounds": 5,
+      "groups": 1,
+      "throughput_mmsg_s": {
+        "fast": 25.6724,
+        "aeron": 5.79325,
+        "fifo": 18.2116
+      },
+      "fast_over_aeron_throughput": 4.431433133387995,
+      "fast_over_fifo_throughput": 1.4096729556985657,
+      "attempt_p50_ns": {
+        "fast": 259,
+        "aeron": 11775
+      },
+      "attempt_p99_ns": {
+        "fast": 81919,
+        "aeron": 737279
+      },
+      "fast_over_aeron_p99": 0.11110990547675982,
+      "passed": true,
+      "failures": []
+    }
+  ],
+  "failures": []
+}

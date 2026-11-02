@@ -31,7 +31,7 @@ fanout 的 raw 和 typed payload 都使用 `LatestMpmcChannel`：省略 `Schema`
 永久移除。九个规范 extras 类型、四个 extras header、`salias::extras` CMake target/component 和
 `import salias.extras;` 均没有替代入口；应用需要自行迁移或重新设计对应场景。
 完整迁移表见 [Channel API 迁移说明](migration/channel-api-convergence.md)。
-API 冻结基线与逐文件 SHA-256 见 [Channel API v6 冻结基线](api/channel-api-freeze.md)。
+API 冻结基线与逐文件 SHA-256 见 [Channel API 冻结基线](api/channel-api-freeze.md)。
 
 公共 API 暴露单一 per-producer-ring 引擎的四种排序/拓扑组合，并增加 `LatestMpmc` 保留窗口模式：
 

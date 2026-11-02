@@ -1,7 +1,8 @@
 # Resource-Limited IPC Salias / Aeron Comparison
 
-Current fixed-ring development results: [2026-10-29 Fast Ring comparison](../../doc/benchmarks/2026-10-29-fast-ring/README.md).
-Current stable FIFO baseline (count-only): [2026-10-29 Salias / Aeron comparison](../../doc/benchmarks/2026-10-29/README.md).
+Current v6.0.0 results: [2026-11-02 four-topology comparison](../../doc/benchmarks/2026-11-02-v6-aeron/README.md).
+Previous fixed-ring development results: [2026-10-29 Fast Ring comparison](../../doc/benchmarks/2026-10-29-fast-ring/README.md).
+Previous stable FIFO baseline (count-only): [2026-10-29 Salias / Aeron comparison](../../doc/benchmarks/2026-10-29/README.md).
 Current conclusions and next-agent handoff: [final performance report](../../doc/performance-report.md).
 Historical single-subscriber matrix: [2026-10-19 report](../../doc/archive/performance/aeron-latency-comparison-2026-10-19.md).
 This harness is Linux/cgroup-v2 specific and uses the user systemd manager.

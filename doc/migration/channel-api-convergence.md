@@ -132,7 +132,8 @@ typed 用户必须保留第三个 `Schema` 模板参数。不能为了减少类�
 - `test/mcpp/core_import.cpp` 与 `test/mcpp/import.cpp` 只消费 `import salias;`；header probe 不再
   包含 extras；安装消费测试只安装 `core` component。
 - `tools/check_channel_api.py` 校验 manifest、core module、umbrella、安装面、文档和反向契约一致。
-- API 冻结基线绑定 `v6.0.0`，覆盖删除后的公开/安装文件和聚合 SHA-256，说明见
+- API 冻结基线绑定 `v6.1.0`，覆盖删除后的公开/安装文件和聚合 SHA-256；v6.1.0 仅更新包版本
+  元数据，公开 API 面未变化，说明见
   [Channel API 冻结基线](../api/channel-api-freeze.md)。
 
 删除前后的影响已以“热路径未修改 + 二进制符号差异 + 短时 channel benchmark”验证：核心归档

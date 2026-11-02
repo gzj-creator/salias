@@ -16,6 +16,22 @@ are released.
 
 ## [Unreleased]
 
+## [v6.1.0] - 2026-11-02
+
+### Added
+
+- 在 `v6.0.0` 上复跑 SPSC/MPSC/SPMC/MPMC、64/256 B、1 轮预热 + 5 轮正式 ABBA 的 Salias/Aeron 对比；Fast 与同协议 FIFO 各 240 次正式运行全部启用全文校验，8/8 吞吐与 attempt p50/p99 门禁通过。证据见 `doc/benchmarks/2026-11-02-v6-aeron/`。
+
+### Changed
+
+- CMake、vcpkg、mcpp 与 README 包版本统一为 `6.1.0`；本次仅发布文档、性能证据、版本与 API 冻结元数据，不修改库源码、公共 API、数据面或共享内存 wire protocol，协议保持 v15。
+- API manifest/freeze 重新绑定 `v6.1.0`；`tools/check_channel_api.py` 分离 extras 删除 tag（`v6.0.0`）与当前冻结 release tag（`v6.1.0`），公开 API 面不变。
+
+### Docs
+
+- 将 `docs/release_note.md` 合并到 `doc/release_note.md`，保留 v1.0.0、v1.1.0 与 v1.2.0–v6.0.0 的完整版本节，并删除独立 `docs/` 目录；同步更新性能报告、README、工具说明和历史引用。
+- 更新性能总览与 README 的当前对比数据为 2026-11-02 `v6.0.0` 复跑结果，2026-10-29 数据保留为历史对照。
+
 ## [v6.0.0] - 2026-10-31
 
 ### Changed
@@ -227,7 +243,7 @@ are released.
 
 ### Docs
 
-- CMake、vcpkg、mcpp 与 README 版本统一为 3.0.0；`docs/release_note.md` 收束自 v2.1.0 以来的累计变更、兼容性迁移和性能证据边界，注解 tag 与该版本节逐项对齐。
+- CMake、vcpkg、mcpp 与 README 版本统一为 3.0.0；`doc/release_note.md` 收束自 v2.1.0 以来的累计变更、兼容性迁移和性能证据边界，注解 tag 与该版本节逐项对齐。
 - 补齐 2026-10-19 Salias/Aeron 延迟对比、设计诊断、实现与后续候选报告；仅收录逐轮数据、8 组直接引用的真实 profile 及精简核验记录，明确约 100 ns 差距尚未完整归因、六个候选未晋升，不构成长时尾延迟 SLA 验收。
 - 补齐 2026-10-18 三组 ABBA、96 个正式阶段的相对收益失败报告；被否决的产品补丁不发布，48 分钟测量不等于通过性能验收，原始大文件和临时日志仅保留于本地 build 目录。
 - 汇总 Publisher 时延、基线/候选长测、交错 A/B、安全审查及使用边界；保留最终表、精简标量结果与来源哈希，将本日压测目录从 283 个文件、27.4 MB 精简至 4 个文件、约 0.29 MB。删除原始桶及临时日志后不能重新计算历史百分位，文档明确该限制。

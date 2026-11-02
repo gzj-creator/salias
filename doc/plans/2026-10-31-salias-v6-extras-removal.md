@@ -71,7 +71,7 @@ benchmark 的长期维护成本。本次不保留兼容入口，也不虚构仓�
 - [x] 验证 wire protocol 仍为 v15、通用 Channel/FixedChannel 数据面未合并、Fast*Ring 名称未变。
 - [x] 用二进制 symbol 差异和短时 channel benchmark 覆盖 include/link 边界变化风险；不修改或重测热路径算法。
 - [x] 重新生成并校验 API freeze，绑定 `v6.0.0`。
-- [x] 更新 `CHANGELOG.md` 与 `docs/release_note.md`，提交 release，创建并推送 `v6.0.0` tag，完成远端回验。
+- [x] 更新 `CHANGELOG.md` 与 `doc/release_note.md`，提交 release，创建并推送 `v6.0.0` tag，完成远端回验。
 - [x] 若不满足发布门禁，保持本 Phase 未完成并记录阻塞，不创建 tag。
 
 ## 7. 执行记录与证据
@@ -181,7 +181,7 @@ blocked 状态，不因仓库内验证而关闭。
   噪声明显（固定槽 4903 -> 2071 ns，通用 Channel 4447 -> 3327 ns），不宣称性能改善或退化。
 - API freeze：重新生成并校验 `v6_extras_removed_released`，47 个文件，聚合 SHA-256 为
   `baeb48e6110ccfff008cc2fc367d94f8735ad60a91922e8746071899d9a32a20`；`release_tag` 为 `v6.0.0`。
-- 发布材料：`CHANGELOG.md` 新增 `v6.0.0` 版本节，`docs/release_note.md` 追加 v6 发布说明；
+- 发布材料：`CHANGELOG.md` 新增 `v6.0.0` 版本节，`doc/release_note.md` 追加 v6 发布说明；
   本 Release commit 创建注解 tag `v6.0.0`，推送 `main` 与 tag 后回验远端指向。
 - Phase 0 仓库外证据状态仍为 blocked，不把本次仓库内验证解释为外部零使用或迁移成本结论。
 

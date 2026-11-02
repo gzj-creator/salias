@@ -3,7 +3,7 @@
 `salias` 是支持 Linux 与 macOS 的 C++23 低延迟具名 IPC 消息通道。面向新用户的核心入口只有
 三个：通用可靠流 `Channel<Mode, Schema>`、固定布局快速流 `FixedChannel`，以及 latest fanout
 `LatestMpmcChannel`。`LatestByKey`、Priority 和 Ringbuffer/`salias::extras` 自 `v6.0.0` 起
-永久移除，不提供兼容入口或替代 API。`v6.0.0` 已发布。
+永久移除，不提供兼容入口或替代 API。当前 `v6.1.0` 已发布，数据面与 `v6.0.0` 相同。
 
 ## 快速开始
 
@@ -51,8 +51,9 @@ auto fast_quote = fast_subscriber.try_recv_copy();
 `try_claim()` / `commit()` 可避免 `send()` 的一次本地对象复制。每个 producer/consumer index
 只能由一个线程独占；流量开始后不得动态增加参与者。所有 subscriber 都接收完整消息，最慢
 subscriber 对 producer 形成背压。该类型当前仍使用 `Fast*Ring` 候选名称，性能和正确性门禁
-边界见 [固定槽 Ring 开发验收](doc/benchmarks/2026-10-29-fast-ring/README.md)，与 Aeron
-的设计差异和继续优化路线见 [固定槽 Ring 架构分析](doc/fast-ring-architecture.md)。
+边界见 [2026-11-02 四拓扑对比](doc/benchmarks/2026-11-02-v6-aeron/README.md)；上一轮
+[固定槽 Ring 开发验收](doc/benchmarks/2026-10-29-fast-ring/README.md)保留为历史证据。
+与 Aeron 的设计差异和继续优化路线见 [固定槽 Ring 架构分析](doc/fast-ring-architecture.md)。
 
 有界 latest fanout 使用 `LatestMpmcChannel<Capacity, Watermark, Schema>`；省略 `Schema` 时使用
 raw payload：
@@ -186,7 +187,7 @@ CMake 安装只有一个 `core` component；`salias::extras` target、component 
 
 ## mcpp 与 C++23 模块
 
-原生包身份为 `gzj-creator.salias`，版本 `6.0.0` 与 CMake 一致。`mcpp.toml`
+原生包身份为 `gzj-creator.salias`，版本 `6.1.0` 与 CMake 一致。`mcpp.toml`
 编译公共库和必要的 core 实现，`src/salias.cppm` 提供唯一的 `import salias;`；默认构建不需要
 GTest、Google Benchmark 或 Aeron。模块导出公共配置、枚举、错误和结果类型、Message、
 `Schema<T, Id, Version>`、Channel/Publisher/Subscriber/PublishClaim 模板、五种模式的端点别名、
@@ -370,13 +371,14 @@ NUMA 放置当前尚未实现，Linux 与 macOS 请求都会明确返回 `NumaUn
 
 ## 性能
 
-最新候选是固定 schema、固定参与者的 `FixedChannel` 与 `Fast*Ring`。2026-10-29 的
-1 轮预热、5 轮正式 ABBA 开发矩阵覆盖 SPSC、MPSC、SPMC、MPMC、64/256 B、吞吐、
-attempt 和 planned 延迟；Fast 与同协议 FIFO 各 240 次正式性能轮均启用逐字节、producer
-身份、每 producer 序号、顺序和重复校验，吞吐和 attempt p50/p99 门禁 8/8 通过。原始日志、
-完整正确性矩阵和限制见
-[Fast Ring 全文校验开发验收](doc/benchmarks/2026-10-29-fast-ring/README.md)，结论与优化
-路线见 [性能交接报告](doc/performance-report.md)。
+最新候选是固定 schema、固定参与者的 `FixedChannel` 与 `Fast*Ring`。2026-11-02 在
+`v6.0.0` 上复跑 1 轮预热、5 轮正式 ABBA 开发矩阵，覆盖 SPSC、MPSC、SPMC、MPMC、
+64/256 B、吞吐、attempt 和 planned 延迟；Fast 与同协议 FIFO 各 240 次正式性能轮均启用
+逐字节、producer 身份、每 producer 序号、顺序和重复校验，吞吐和 attempt p50/p99 门禁
+8/8 通过。原始日志、环境和限制见
+[2026-11-02 四拓扑对比](doc/benchmarks/2026-11-02-v6-aeron/README.md)，上一轮
+[Fast Ring 全文校验开发验收](doc/benchmarks/2026-10-29-fast-ring/README.md)保留为历史
+对照；结论与优化路线见 [性能交接报告](doc/performance-report.md)。
 
 `FixedChannel::poll()` 已有 10 组 SPSC 64 B ABBA 产品 API 对比：批量 consumer cursor
 发布把饱和吞吐从 8.20 Mmsg/s 提升到 40.03 Mmsg/s，配对中位数 4.84x；attempt p50/p99
@@ -387,40 +389,41 @@ attempt 和 planned 延迟；Fast 与同协议 FIFO 各 240 次正式性能轮�
 
 | 拓扑 | 64 B Fast / Aeron | Fast/Aeron | 256 B Fast / Aeron | Fast/Aeron |
 |---|---:|---:|---:|---:|
-| SPSC | 75.55 / 30.08 | 2.51x | 34.56 / 17.74 | 1.95x |
-| MPSC | 77.44 / 45.55 | 1.70x | 28.32 / 21.54 | 1.31x |
-| SPMC | 93.29 / 18.58 | 5.02x | 31.68 / 18.29 | 1.73x |
-| MPMC | 62.68 / 12.53 | 5.00x | 27.16 / 6.26 | 4.34x |
+| SPSC | 79.14 / 26.72 | 2.96x | 34.48 / 18.54 | 1.86x |
+| MPSC | 72.40 / 44.71 | 1.62x | 28.75 / 20.18 | 1.43x |
+| SPMC | 91.30 / 16.98 | 5.38x | 32.83 / 16.61 | 1.98x |
+| MPMC | 58.14 / 12.17 | 4.78x | 25.67 / 5.79 | 4.43x |
 
 attempt 采用总计 100 万 msg/s、2 秒、每 16 条采样一次；表中为 Fast 的 p50 / p99 对
 Aeron 的 p50 / p99，单位 ns：
 
 | 拓扑 | 64 B Fast / Aeron | 256 B Fast / Aeron |
 |---|---:|---:|
-| SPSC | 171 / 347 vs 223 / 415 | 275 / 507 vs 315 / 607 |
-| MPSC | 161 / 379 vs 237 / 1,743 | 259 / 567 vs 311 / 7,295 |
-| SPMC | 193 / 451 vs 239 / 12,543 | 287 / 6,399 vs 399 / 8,447 |
-| MPMC | 189 / 299,007 vs 259 / 516,095 | 263 / 50,175 vs 13,311 / 557,055 |
+| SPSC | 173 / 379 vs 221 / 451 | 307 / 535 vs 307 / 567 |
+| MPSC | 161 / 423 vs 237 / 4,159 | 245 / 2,975 vs 307 / 45,055 |
+| SPMC | 191 / 467 vs 239 / 18,687 | 263 / 687 vs 391 / 72,703 |
+| MPMC | 181 / 112,639 vs 259 / 737,279 | 259 / 81,919 vs 11,775 / 737,279 |
 
 这证明固定快路径在当前开发矩阵中同时提高了吞吐并降低了 attempt p50/p99，但没有证明所有
-尾分位领先：MPMC attempt p99.9 仍为 Fast 3.178/1.589 ms、Aeron 1.671/1.163 ms
-（64/256 B）。对 v4.0.1 通用 FIFO，8/8 单元吞吐提升 1.48x 至 16.31x。最终改名仍等待
-至少 5 个独占 vCPU（或独占裸机）上的 6 组 x 20 轮 ABBA 最终矩阵；性能轮全文校验已完成。
+尾分位领先：MPMC attempt p99.9 仍为 Fast 2.720/1.622 ms、Aeron 1.327/1.606 ms
+（64/256 B）。对同协议 FIFO，8/8 单元吞吐提升 1.41x 至 16.37x。最终改名仍等待至少
+5 个独占 vCPU（或独占裸机）上的 6 组 x 20 轮 ABBA 最终矩阵；性能轮全文校验已完成。
 
-同协议 v4.0.1 通用 FIFO 全文校验基线如下，采用与 Fast 相同的 ABBA 轮次、负载和校验
+同协议 v6.0.0 通用 FIFO 全文校验基线如下，采用与 Fast 相同的 ABBA 轮次、负载和校验
 口径；Fast/FIFO 增益即由此计算：
 
 | 拓扑 | 64 B FIFO / Aeron | FIFO/Aeron | 256 B FIFO / Aeron | FIFO/Aeron |
 |---|---:|---:|---:|---:|
-| SPSC | 7.22 / 30.08 Mmsg/s | 0.240 | 16.85 / 17.74 Mmsg/s | 0.950 |
-| MPSC | 30.68 / 45.55 Mmsg/s | 0.673 | 16.46 / 21.54 Mmsg/s | 0.764 |
-| SPMC | 5.72 / 18.58 Mmsg/s | 0.308 | 17.68 / 18.29 Mmsg/s | 0.966 |
-| MPMC | 19.97 / 12.53 Mmsg/s | 1.593 | 18.32 / 6.26 Mmsg/s | 2.928 |
+| SPSC | 7.37 / 29.43 Mmsg/s | 0.250 | 16.73 / 18.12 Mmsg/s | 0.923 |
+| MPSC | 34.11 / 46.08 Mmsg/s | 0.740 | 16.23 / 21.21 Mmsg/s | 0.765 |
+| SPMC | 5.58 / 20.18 Mmsg/s | 0.276 | 17.68 / 17.26 Mmsg/s | 1.024 |
+| MPMC | 21.10 / 11.03 Mmsg/s | 1.913 | 18.21 / 5.68 Mmsg/s | 3.207 |
 
-完整证据见 [Fast Ring 全文校验开发验收](doc/benchmarks/2026-10-29-fast-ring/README.md)；
-更早的 count-only v4.0.1 基线保留在 [2026-10-29 四拓扑对比](doc/benchmarks/2026-10-29/README.md)，
-不与本表拼接。本机是共享 4 vCPU KVM，不是独占裸机或生产 SLA 验收；MPMC 的 Aeron driver
-与 subscriber0 共用 CPU0，不能把该格的比值外推为无核竞争下的通用结论。
+完整证据见 [2026-11-02 四拓扑对比](doc/benchmarks/2026-11-02-v6-aeron/README.md)；
+上一轮 [Fast Ring 全文校验开发验收](doc/benchmarks/2026-10-29-fast-ring/README.md)和更早的
+[count-only v4.0.1 基线](doc/benchmarks/2026-10-29/README.md)仅作历史对照，不与本表拼接。
+本机是共享 4 vCPU KVM，不是独占裸机或生产 SLA 验收；MPMC 的 Aeron driver 与 subscriber0
+共用 CPU0，不能把该格的比值外推为无核竞争下的通用结论。
 
 Phase 2 的冻结客户端身份与正式 A/B 规则见
 [Phase 2 执行基线](doc/plans/phase2-execution-baseline.md)。

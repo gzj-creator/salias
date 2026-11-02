@@ -214,7 +214,7 @@ Phase 3 已完成。核心 umbrella、`import salias;`、`salias::salias` 和 in
   - [x] 当前源码在 GCC 下实际产生四个 raw 别名和九个 extras 顶层别名的
     `-Wdeprecated-declarations` 警告；规范入口在同一 `-Werror` 编译参数下通过。
   - [x] Phase 3/4 变更已由 `v5.0.0` 主版本发布；负责人明确免除额外 minor 门禁。
-  - [x] `docs/release_note.md` 的 `v5.0.0` 节已发布 extras 边界、警告迁移和删除/回滚说明。
+  - [x] `doc/release_note.md` 的 `v5.0.0` 节已发布 extras 边界、警告迁移和删除/回滚说明。
 - [x] 删除 `FifoMpscChannel`、`FifoMpmcChannel`、`OrderedMpscChannel` 和
   `OrderedMpmcChannel` 别名，或由负责人明确批准永久保留并更新本计划。
 - [x] 按 Phase 2 决策关闭直接 `Channel<Mode::LatestMpmc>` 的公开创建/连接工厂。
@@ -242,10 +242,10 @@ release note、迁移说明和 removed 反向契约已同步。Phase 0 的外部
 - [x] `salias_install_consumer`、`mcpp header/import`、仅 core 和 core+extras 两种消费矩阵通过。
 - [x] 对固定槽热路径和通用 Channel 分别执行收敛前后 ABBA；证明未因 include/link 拆分改变热路径。
 - [x] 若无数据面代码变化，保存二进制和符号差异证据；不能仅凭“理论上没有影响”关闭。
-- [x] 更新 `CHANGELOG.md`、`docs/release_note.md` 和主版本迁移说明：
+- [x] 更新 `CHANGELOG.md`、`doc/release_note.md` 和主版本迁移说明：
   - [x] `CHANGELOG.md` 记录 Phase 5 验证、ABBA 和发布冻结基线。
   - [x] 主版本迁移说明补充 TSan、ABBA、冻结和发布记录。
-  - [x] `docs/release_note.md` 已追加与 `v5.0.0` tag 对齐的正式发布说明。
+  - [x] `doc/release_note.md` 已追加与 `v5.0.0` tag 对齐的正式发布说明。
 - [x] 提供按 symbol 的自动迁移命令或 codemod 清单。
 - [x] 冻结最终公开 API 清单和 SHA-256，作为 `v5.0.0` 兼容基线。
 - [x] 负责人授权 Phase 5 发布，并决定打 `v5.0.0` 主版本 tag。
@@ -356,7 +356,7 @@ ELF 的历史记录只保留为当时已产生的审计痕迹，不再作为接�
 | 2026-10-31 | 5 | 收敛前后同机 ABBA 完成：`v4.1.0` 与 `c013a92` 使用同一 benchmark 源和 Release 参数，固定槽与通用 Channel benchmark 可执行文件分别逐字节相同；4 case x 5 组 x A/B/B/A 共 80 次正式运行全部通过消息数、全量 payload 和采样数断言，共验证 5.2 亿条 64 B 消息。固定槽吞吐 40.0385→40.1771 Mmsg/s（配对比 0.998x），通用 Channel 7,164,750→7,203,595 msg/s（1.010x）；planned p50/p99 原样记录，相同二进制下不把噪声归因于 API 收敛 | `python3 doc/benchmarks/2026-10-31-channel-api-abba/run_abba.py --before-root /data/disk1/projects/salias-v4.1.0-abba --after-root /data/disk1/projects/salias --groups 5`；`doc/benchmarks/2026-10-31-channel-api-abba/{README.md,summary.json,results.jsonl,source-state.txt}` |
 | 2026-10-31 | 5 | 发布前冻结候选落盘（后续由正式发布冻结替代）：状态 `post_phase4_freeze_candidate_unreleased`、`release_tag=null`、basis `c013a92`、wire v15；冻结 53 个文件，聚合 SHA-256 为 `76dc56ee...df2f83` | `python3 tools/check_channel_api.py --compiler /usr/bin/c++ --write-freeze`；`python3 tools/check_channel_api.py --compiler /usr/bin/c++`；`doc/api/channel-api-freeze.{json,md}` |
 | 2026-10-31 | 5 | 发布前文档同步（随后由正式发布记录替代）：CHANGELOG、主版本迁移说明、README/L7 发现入口、迁移 codemod 和 Phase 5 证据已完成；当时未创建 release note 和 tag | `CHANGELOG.md`、`doc/migration/channel-api-convergence.md`、`README.md`、`doc/11-L7-api.md`、本计划；`git diff --check` |
-| 2026-10-31 | 5 | 负责人授权完成发布收口，Phase 0 不再继续；版本元数据统一为 `5.0.0`，新增 `v5.0.0` release note，迁移说明和 README 从未发布候选改为正式基线；Phase 0 三个外部证据文件仍未纳入提交 | `CMakeLists.txt`、`mcpp.toml`、`vcpkg.json`、`README.md`、`CHANGELOG.md`、`docs/release_note.md`、`doc/migration/channel-api-convergence.md` |
+| 2026-10-31 | 5 | 负责人授权完成发布收口，Phase 0 不再继续；版本元数据统一为 `5.0.0`，新增 `v5.0.0` release note，迁移说明和 README 从未发布候选改为正式基线；Phase 0 三个外部证据文件仍未纳入提交 | `CMakeLists.txt`、`mcpp.toml`、`vcpkg.json`、`README.md`、`CHANGELOG.md`、`doc/release_note.md`、`doc/migration/channel-api-convergence.md` |
 | 2026-10-31 | 5 | 发布冻结重新生成并验证：状态 `post_phase4_released`、`release_tag=v5.0.0`、wire v15；53 个文件，聚合 SHA-256 为 `9691164b...1b1a9`；API/manifest 仍为 30 core、0 compat、9 extras、14 removed，module 29/9，16 个 removed 负向编译检查通过 | `python3 tools/check_channel_api.py --compiler /usr/bin/c++ --write-freeze`；`python3 tools/check_channel_api.py --compiler /usr/bin/c++`；`doc/api/channel-api-freeze.{json,md}` |
 | 2026-10-31 | 5 | 发布候选复验通过：Release 26/26、ASan/UBSan 25/25、TSan 25/25；mcpp v5.0.0 离线构建、core-only/core+extras import、两个独立 shared-path consumer 和 `tools/check_mcpp.py` 全部通过；`git diff --check` 通过 | `cmake --preset release && cmake --build --preset release -j 4 && ctest --test-dir build/release --output-on-failure -j 2`；`ctest --preset debug-asan-ubsan --output-on-failure -j 2`；`ctest --preset tsan --output-on-failure -j 2`；`mcpp build --offline --release --jobs 4`；`mcpp run test_mcpp_core_import --offline --release --locked --features mcpp-tests`；`mcpp run test_mcpp_import --offline --release --locked --features mcpp-tests`；`python3 tools/check_mcpp.py` |
 | 2026-10-31 | 5 | `v5.0.0` 发布完成：发布提交包含版本、CHANGELOG、release note、迁移/冻结基线；annotated tag 与 release note 对齐并推送远端回验 | `git tag -a v5.0.0`；`git push origin main`；`git push origin v5.0.0`；`git ls-remote --tags origin v5.0.0` |

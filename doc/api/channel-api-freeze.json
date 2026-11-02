@@ -1,5 +1,5 @@
 {
-  "aggregate_sha256": "baeb48e6110ccfff008cc2fc367d94f8735ad60a91922e8746071899d9a32a20",
+  "aggregate_sha256": "fc6a7f99d15585d33ec2b67a5f3f21b1f33e79c31ae801629b1fa6283a0243cc",
   "api": "salias-channel",
   "api_counts": {
     "compat": 0,
@@ -11,7 +11,7 @@
   "files": [
     {
       "path": "CMakeLists.txt",
-      "sha256": "514b196be7ef1dbdbd0ab6421dbba5edce803b1d03336b99e8caed16b13e0202"
+      "sha256": "77f1aa6eeb005262c277fe4dff221624f8f5c1aafeb81256003d7a4f2892df23"
     },
     {
       "path": "cmake/saliasConfig.cmake.in",
@@ -19,11 +19,11 @@
     },
     {
       "path": "doc/api/channel-api-manifest.json",
-      "sha256": "a558626d4f03bac9c570156622647d9882e52173f0ecb3003fa9c9f5185425c0"
+      "sha256": "686bd5b5652fba1f64e9c7cc031529668b88f2fd108d6c57647a5dd4d2aae330"
     },
     {
       "path": "mcpp.toml",
-      "sha256": "fc59b0235284f84be756b619777c3676abcd775bfb7a863ee0db62c4afe53f6e"
+      "sha256": "1108ad23b3a49cbcf6612e5d34a4bc88d9b04016c3fe2194d539aba1ad61570f"
     },
     {
       "path": "src/core/CMakeLists.txt",
@@ -198,12 +198,12 @@
       "sha256": "a998f54b4e445eb686bae6cc44b3415eea12e717b9e4ab5d462d0bb1ade7e164"
     }
   ],
-  "freeze_date": "2026-10-31",
+  "freeze_date": "2026-11-02",
   "module_export_counts": {
     "core": 29,
     "extras": 0
   },
-  "release_tag": "v6.0.0",
+  "release_tag": "v6.1.0",
   "schema_version": 1,
   "state": "v6_extras_removed_released",
   "wire_protocol_version": 15

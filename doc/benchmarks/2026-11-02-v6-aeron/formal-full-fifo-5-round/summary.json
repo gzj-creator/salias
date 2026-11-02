@@ -1,0 +1,3631 @@
+{
+  "environment": {
+    "date": "2026-11-02T11:01:26+0800",
+    "commit": "feb722bd6674a7d7af7fd4fa341666c2df2cf1b9",
+    "tag": "v6.0.0-dirty",
+    "hostname": "VM-8-5-ubuntu",
+    "kernel": "6.8.0-101-generic",
+    "machine": "x86_64",
+    "cpu_model": "Intel(R) Xeon(R) Platinum 8255C CPU @ 2.50GHz",
+    "online_cpus": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "cpu_capacity": {
+      "allowed_cpus": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "max_application_workers": 4,
+      "dedicated_driver_available": false,
+      "require_dedicated_driver": false
+    },
+    "aeron_version": "1.52.0",
+    "workload": {
+      "topologies": [
+        "spsc",
+        "mpsc",
+        "spmc",
+        "mpmc"
+      ],
+      "payloads": [
+        64,
+        256
+      ],
+      "kinds": [
+        "latency",
+        "throughput"
+      ],
+      "throughput_messages_per_producer": 10000000,
+      "latency_total_rate_msg_s": 1000000,
+      "latency_seconds": 2,
+      "latency_origins": [
+        "attempt",
+        "planned"
+      ],
+      "latency_sample_rate": 16,
+      "warmup_rounds": 1,
+      "warmup_rounds_per_group": 1,
+      "groups": 1,
+      "measured_rounds": 5,
+      "measured_rounds_per_engine_per_group": 5,
+      "engine_order": "ABBA paired rounds",
+      "verification": "full"
+    },
+    "semantics": "Salias fifo engine and Aeron exclusive publications; multiple subscribers receive every published message (fanout), not competing consumers",
+    "salias_engine": "fifo",
+    "capacity": "Salias 1 MiB per-producer ring versus Aeron 1 MiB term in a multi-term log; total mapped capacities differ",
+    "aggregation": "Median and range across measured run values; latency uses each run's worst subscriber, never pooled histograms",
+    "payload_limit": "Full verification checks every payload byte, producer identity, per-producer sequence, ordering, and duplicates",
+    "cgroup": {
+      "path": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/run-u49.service",
+      "memory.high": "738197504",
+      "memory.max": "738197504",
+      "memory.swap.max": "0",
+      "cpu.max": null
+    },
+    "files": {
+      "build/release/bench/salias_ipc_compare": "053bfb02a78b4b7dfc9a7756d82777ed6423f11a5da4e8994233744d15277e4a",
+      "build/benchmarks/verification-clients/aeron_ipc_compare": "b6ac1c433b23bd36b7c4ca8ed5854fffc8fe7899acc1d96e533308814d676e53",
+      "build/benchmarks/topology-v4.0.1-20261029-115020/bin/aeronmd": "9bd356315b87e6f7b87ce7dca454ee79637c635bda04d85d01384e543d955d72",
+      "/data/disk1/projects/salias/tools/aeron_compare/run_topology_suite.py": "d80c375d392c3a690ee46e379f8975a8054d2e170d61756a8697ac353db6ea0a",
+      "/data/disk1/projects/salias/third_party/aeron-1.52.0.tar.gz": "10795fec3245a0b0a28cc7897fa05c0ff537197351ada293969f31cb2491c8df"
+    },
+    "limits_start": {
+      "memory.current": "13996032",
+      "memory.peak": "18006016",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+      "cpu.stat": "usage_usec 93486\nuser_usec 72376\nsystem_usec 21109\ncore_sched.force_idle_usec 0"
+    },
+    "limits_end": {
+      "memory.current": "21581824",
+      "memory.peak": "619716608",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+      "cpu.stat": "usage_usec 1604435544\nuser_usec 1516455430\nsystem_usec 87980114\ncore_sched.force_idle_usec 0"
+    }
+  },
+  "groups": [
+    {
+      "topology": "mpmc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994472,
+        "min": 0.9944,
+        "max": 0.994771
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98894,
+        "min": 1.9888,
+        "max": 1.98954
+      },
+      "duration_s": {
+        "median": 2.01112,
+        "min": 2.01051,
+        "max": 2.01126
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 263,
+          "min": 253,
+          "max": 267
+        },
+        "p99": {
+          "median": 589823,
+          "min": 270335,
+          "max": 851967
+        },
+        "p999": {
+          "median": 1425407,
+          "min": 1130495,
+          "max": 2031615
+        },
+        "max": {
+          "median": 2590781,
+          "min": 2082957,
+          "max": 35728688
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 263,
+          "p99": 589823,
+          "p999": 1097727,
+          "max": 2079457
+        },
+        {
+          "p50": 253,
+          "p99": 266239,
+          "p999": 1425407,
+          "max": 2590781
+        }
+      ]
+    },
+    {
+      "topology": "mpmc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994789,
+        "min": 0.994693,
+        "max": 0.99483
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98958,
+        "min": 1.98939,
+        "max": 1.98966
+      },
+      "duration_s": {
+        "median": 2.01048,
+        "min": 2.01039,
+        "max": 2.01067
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 427,
+          "min": 419,
+          "max": 427
+        },
+        "p99": {
+          "median": 507903,
+          "min": 69631,
+          "max": 2080767
+        },
+        "p999": {
+          "median": 4980735,
+          "min": 1343487,
+          "max": 6291455
+        },
+        "max": {
+          "median": 5921089,
+          "min": 2027459,
+          "max": 7877841
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 423,
+          "p99": 180223,
+          "p999": 1376255,
+          "max": 2124135
+        },
+        {
+          "p50": 427,
+          "p99": 278527,
+          "p999": 2686975,
+          "max": 3349326
+        }
+      ]
+    },
+    {
+      "topology": "mpmc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994408,
+        "min": 0.9929,
+        "max": 0.99474
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98882,
+        "min": 1.9858,
+        "max": 1.98948
+      },
+      "duration_s": {
+        "median": 2.01125,
+        "min": 2.01058,
+        "max": 2.0143
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 323,
+          "min": 315,
+          "max": 343
+        },
+        "p99": {
+          "median": 108003327,
+          "min": 56623103,
+          "max": 142606335
+        },
+        "p999": {
+          "median": 124780543,
+          "min": 73400319,
+          "max": 159383551
+        },
+        "max": {
+          "median": 126379850,
+          "min": 74848166,
+          "max": 159319171
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 323,
+          "p99": 108003327,
+          "p999": 124780543,
+          "max": 126379850
+        },
+        {
+          "p50": 319,
+          "p99": 108003327,
+          "p999": 124780543,
+          "max": 126330817
+        }
+      ]
+    },
+    {
+      "topology": "mpmc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994745,
+        "min": 0.994714,
+        "max": 0.99479
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98949,
+        "min": 1.98943,
+        "max": 1.98958
+      },
+      "duration_s": {
+        "median": 2.01057,
+        "min": 2.01047,
+        "max": 2.01063
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 491,
+          "min": 483,
+          "max": 507
+        },
+        "p99": {
+          "median": 1556479,
+          "min": 925695,
+          "max": 2293759
+        },
+        "p999": {
+          "median": 5701631,
+          "min": 2981887,
+          "max": 8191999
+        },
+        "max": {
+          "median": 7562225,
+          "min": 5518593,
+          "max": 10073834
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 491,
+          "p99": 811007,
+          "p999": 2818047,
+          "max": 5518593
+        },
+        {
+          "p50": 483,
+          "p99": 1048575,
+          "p999": 5111807,
+          "max": 7562225
+        }
+      ]
+    },
+    {
+      "topology": "mpmc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.987088,
+        "min": 0.958308,
+        "max": 0.994748
+      },
+      "delivery_mmsg_s": {
+        "median": 1.97418,
+        "min": 1.91662,
+        "max": 1.9895
+      },
+      "duration_s": {
+        "median": 2.02616,
+        "min": 2.01056,
+        "max": 2.08701
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 28159,
+          "min": 5887,
+          "max": 43519
+        },
+        "p99": {
+          "median": 557055,
+          "min": 511999,
+          "max": 655359
+        },
+        "p999": {
+          "median": 2293759,
+          "min": 1179647,
+          "max": 4587519
+        },
+        "max": {
+          "median": 26663845,
+          "min": 11051583,
+          "max": 153170074
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 28159,
+          "p99": 540671,
+          "p999": 909311,
+          "max": 26663845
+        },
+        {
+          "p50": 415,
+          "p99": 227327,
+          "p999": 1900543,
+          "max": 26535700
+        }
+      ]
+    },
+    {
+      "topology": "mpmc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994732,
+        "min": 0.99435,
+        "max": 0.994829
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98946,
+        "min": 1.9887,
+        "max": 1.98966
+      },
+      "duration_s": {
+        "median": 2.01059,
+        "min": 2.0104,
+        "max": 2.01137
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 519,
+          "min": 495,
+          "max": 519
+        },
+        "p99": {
+          "median": 77823,
+          "min": 59391,
+          "max": 393215
+        },
+        "p999": {
+          "median": 1376255,
+          "min": 1048575,
+          "max": 3801087
+        },
+        "max": {
+          "median": 3139861,
+          "min": 1290388,
+          "max": 4480786
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 519,
+          "p99": 37887,
+          "p999": 1048575,
+          "max": 1404292
+        },
+        {
+          "p50": 511,
+          "p99": 66559,
+          "p999": 1359871,
+          "max": 2222271
+        }
+      ]
+    },
+    {
+      "topology": "mpmc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994403,
+        "min": 0.994342,
+        "max": 0.994754
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98881,
+        "min": 1.98868,
+        "max": 1.98951
+      },
+      "duration_s": {
+        "median": 2.01126,
+        "min": 2.01055,
+        "max": 2.01138
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 1753087,
+          "min": 2847,
+          "max": 71303167
+        },
+        "p99": {
+          "median": 199229439,
+          "min": 136314879,
+          "max": 629145599
+        },
+        "p999": {
+          "median": 213909503,
+          "min": 150994943,
+          "max": 654311423
+        },
+        "max": {
+          "median": 215081107,
+          "min": 151768474,
+          "max": 653113595
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 1753087,
+          "p99": 199229439,
+          "p999": 213909503,
+          "max": 215081107
+        },
+        {
+          "p50": 1589247,
+          "p99": 199229439,
+          "p999": 213909503,
+          "max": 215032108
+        }
+      ]
+    },
+    {
+      "topology": "mpmc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994686,
+        "min": 0.994671,
+        "max": 0.99482
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98937,
+        "min": 1.98934,
+        "max": 1.98964
+      },
+      "duration_s": {
+        "median": 2.01068,
+        "min": 2.01041,
+        "max": 2.01071
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 575,
+          "min": 567,
+          "max": 583
+        },
+        "p99": {
+          "median": 696319,
+          "min": 101375,
+          "max": 1163263
+        },
+        "p999": {
+          "median": 3801087,
+          "min": 1023999,
+          "max": 10223615
+        },
+        "max": {
+          "median": 4910389,
+          "min": 2110426,
+          "max": 12019891
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 567,
+          "p99": 696319,
+          "p999": 2490367,
+          "max": 3704661
+        },
+        {
+          "p50": 575,
+          "p99": 507903,
+          "p999": 2392063,
+          "max": 3973088
+        }
+      ]
+    },
+    {
+      "topology": "mpmc",
+      "kind": "throughput",
+      "payload": 64,
+      "origin": "claim",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 11.0313,
+        "min": 8.47099,
+        "max": 12.5717
+      },
+      "delivery_mmsg_s": {
+        "median": 22.0626,
+        "min": 16.942,
+        "max": 25.1434
+      },
+      "duration_s": {
+        "median": 1.81302,
+        "min": 1.59087,
+        "max": 2.361
+      }
+    },
+    {
+      "topology": "mpmc",
+      "kind": "throughput",
+      "payload": 64,
+      "origin": "claim",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 21.0983,
+        "min": 13.829,
+        "max": 23.1194
+      },
+      "delivery_mmsg_s": {
+        "median": 42.1965,
+        "min": 27.658,
+        "max": 46.2388
+      },
+      "duration_s": {
+        "median": 0.947945,
+        "min": 0.865075,
+        "max": 1.44623
+      }
+    },
+    {
+      "topology": "mpmc",
+      "kind": "throughput",
+      "payload": 256,
+      "origin": "claim",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 5.67932,
+        "min": 4.85313,
+        "max": 6.36524
+      },
+      "delivery_mmsg_s": {
+        "median": 11.3586,
+        "min": 9.70625,
+        "max": 12.7305
+      },
+      "duration_s": {
+        "median": 3.52155,
+        "min": 3.14206,
+        "max": 4.12105
+      }
+    },
+    {
+      "topology": "mpmc",
+      "kind": "throughput",
+      "payload": 256,
+      "origin": "claim",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 18.2116,
+        "min": 17.7681,
+        "max": 19.1503
+      },
+      "delivery_mmsg_s": {
+        "median": 36.4232,
+        "min": 35.5362,
+        "max": 38.3007
+      },
+      "duration_s": {
+        "median": 1.0982,
+        "min": 1.04437,
+        "max": 1.12561
+      }
+    },
+    {
+      "topology": "mpsc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994763,
+        "min": 0.994698,
+        "max": 0.994793
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994763,
+        "min": 0.994698,
+        "max": 0.994793
+      },
+      "duration_s": {
+        "median": 2.01053,
+        "min": 2.01047,
+        "max": 2.01066
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 237,
+          "min": 219,
+          "max": 241
+        },
+        "p99": {
+          "median": 7743,
+          "min": 2303,
+          "max": 29439
+        },
+        "p999": {
+          "median": 720895,
+          "min": 45055,
+          "max": 2588671
+        },
+        "max": {
+          "median": 2021045,
+          "min": 351312,
+          "max": 4507935
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 237,
+          "p99": 7743,
+          "p999": 720895,
+          "max": 2021045
+        }
+      ]
+    },
+    {
+      "topology": "mpsc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994803,
+        "min": 0.99476,
+        "max": 0.994834
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994803,
+        "min": 0.99476,
+        "max": 0.994834
+      },
+      "duration_s": {
+        "median": 2.01045,
+        "min": 2.01038,
+        "max": 2.01053
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 407,
+          "min": 399,
+          "max": 427
+        },
+        "p99": {
+          "median": 703,
+          "min": 623,
+          "max": 727
+        },
+        "p999": {
+          "median": 7999,
+          "min": 6335,
+          "max": 356351
+        },
+        "max": {
+          "median": 80211,
+          "min": 67699,
+          "max": 1483691
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 407,
+          "p99": 703,
+          "p999": 7999,
+          "max": 80211
+        }
+      ]
+    },
+    {
+      "topology": "mpsc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994764,
+        "min": 0.994451,
+        "max": 0.994817
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994764,
+        "min": 0.994451,
+        "max": 0.994817
+      },
+      "duration_s": {
+        "median": 2.01053,
+        "min": 2.01042,
+        "max": 2.01116
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 311,
+          "min": 303,
+          "max": 319
+        },
+        "p99": {
+          "median": 79871,
+          "min": 16639,
+          "max": 1327103
+        },
+        "p999": {
+          "median": 2424831,
+          "min": 532479,
+          "max": 4095999
+        },
+        "max": {
+          "median": 3352423,
+          "min": 1714636,
+          "max": 5617313
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 311,
+          "p99": 79871,
+          "p999": 2424831,
+          "max": 3352423
+        }
+      ]
+    },
+    {
+      "topology": "mpsc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.99481,
+        "min": 0.994775,
+        "max": 0.994856
+      },
+      "delivery_mmsg_s": {
+        "median": 0.99481,
+        "min": 0.994775,
+        "max": 0.994856
+      },
+      "duration_s": {
+        "median": 2.01043,
+        "min": 2.01034,
+        "max": 2.0105
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 463,
+          "min": 459,
+          "max": 471
+        },
+        "p99": {
+          "median": 8447,
+          "min": 3135,
+          "max": 10495
+        },
+        "p999": {
+          "median": 282623,
+          "min": 19967,
+          "max": 1130495
+        },
+        "max": {
+          "median": 1893782,
+          "min": 544016,
+          "max": 2589849
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 463,
+          "p99": 8447,
+          "p999": 282623,
+          "max": 1893782
+        }
+      ]
+    },
+    {
+      "topology": "mpsc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994768,
+        "min": 0.994752,
+        "max": 0.994794
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994768,
+        "min": 0.994752,
+        "max": 0.994794
+      },
+      "duration_s": {
+        "median": 2.01052,
+        "min": 2.01047,
+        "max": 2.01055
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 299,
+          "min": 295,
+          "max": 331
+        },
+        "p99": {
+          "median": 4223,
+          "min": 2271,
+          "max": 19711
+        },
+        "p999": {
+          "median": 401407,
+          "min": 212991,
+          "max": 1376255
+        },
+        "max": {
+          "median": 1186533,
+          "min": 958752,
+          "max": 1677010
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 299,
+          "p99": 4223,
+          "p999": 401407,
+          "max": 1186533
+        }
+      ]
+    },
+    {
+      "topology": "mpsc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994815,
+        "min": 0.994796,
+        "max": 0.994828
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994815,
+        "min": 0.994796,
+        "max": 0.994828
+      },
+      "duration_s": {
+        "median": 2.01042,
+        "min": 2.0104,
+        "max": 2.01046
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 495,
+          "min": 483,
+          "max": 503
+        },
+        "p99": {
+          "median": 3775,
+          "min": 991,
+          "max": 77823
+        },
+        "p999": {
+          "median": 282623,
+          "min": 30207,
+          "max": 3866623
+        },
+        "max": {
+          "median": 2130076,
+          "min": 118863,
+          "max": 5540191
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 495,
+          "p99": 3775,
+          "p999": 282623,
+          "max": 2130076
+        }
+      ]
+    },
+    {
+      "topology": "mpsc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994769,
+        "min": 0.994707,
+        "max": 0.994789
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994769,
+        "min": 0.994707,
+        "max": 0.994789
+      },
+      "duration_s": {
+        "median": 2.01052,
+        "min": 2.01048,
+        "max": 2.01064
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 383,
+          "min": 379,
+          "max": 463
+        },
+        "p99": {
+          "median": 22527,
+          "min": 11007,
+          "max": 352255
+        },
+        "p999": {
+          "median": 1441791,
+          "min": 286719,
+          "max": 2326527
+        },
+        "max": {
+          "median": 2779415,
+          "min": 1030087,
+          "max": 3946711
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 383,
+          "p99": 22527,
+          "p999": 1441791,
+          "max": 2779415
+        }
+      ]
+    },
+    {
+      "topology": "mpsc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994806,
+        "min": 0.994774,
+        "max": 0.994822
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994806,
+        "min": 0.994774,
+        "max": 0.994822
+      },
+      "duration_s": {
+        "median": 2.01044,
+        "min": 2.01041,
+        "max": 2.01051
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 559,
+          "min": 543,
+          "max": 559
+        },
+        "p99": {
+          "median": 8959,
+          "min": 5631,
+          "max": 25343
+        },
+        "p999": {
+          "median": 251903,
+          "min": 59391,
+          "max": 1146879
+        },
+        "max": {
+          "median": 1700565,
+          "min": 628045,
+          "max": 3433422
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 559,
+          "p99": 8959,
+          "p999": 251903,
+          "max": 1700565
+        }
+      ]
+    },
+    {
+      "topology": "mpsc",
+      "kind": "throughput",
+      "payload": 64,
+      "origin": "claim",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 46.0849,
+        "min": 35.3308,
+        "max": 47.4354
+      },
+      "delivery_mmsg_s": {
+        "median": 46.0849,
+        "min": 35.3308,
+        "max": 47.4354
+      },
+      "duration_s": {
+        "median": 0.433982,
+        "min": 0.421626,
+        "max": 0.566078
+      }
+    },
+    {
+      "topology": "mpsc",
+      "kind": "throughput",
+      "payload": 64,
+      "origin": "claim",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 34.1141,
+        "min": 27.3662,
+        "max": 36.3757
+      },
+      "delivery_mmsg_s": {
+        "median": 34.1141,
+        "min": 27.3662,
+        "max": 36.3757
+      },
+      "duration_s": {
+        "median": 0.586267,
+        "min": 0.549818,
+        "max": 0.730828
+      }
+    },
+    {
+      "topology": "mpsc",
+      "kind": "throughput",
+      "payload": 256,
+      "origin": "claim",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 21.2053,
+        "min": 20.4838,
+        "max": 24.1098
+      },
+      "delivery_mmsg_s": {
+        "median": 21.2053,
+        "min": 20.4838,
+        "max": 24.1098
+      },
+      "duration_s": {
+        "median": 0.94316,
+        "min": 0.829539,
+        "max": 0.976383
+      }
+    },
+    {
+      "topology": "mpsc",
+      "kind": "throughput",
+      "payload": 256,
+      "origin": "claim",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 16.2273,
+        "min": 15.756,
+        "max": 16.5589
+      },
+      "delivery_mmsg_s": {
+        "median": 16.2273,
+        "min": 15.756,
+        "max": 16.5589
+      },
+      "duration_s": {
+        "median": 1.23249,
+        "min": 1.20781,
+        "max": 1.26936
+      }
+    },
+    {
+      "topology": "spmc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994689,
+        "min": 0.994554,
+        "max": 0.994776
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98938,
+        "min": 1.98911,
+        "max": 1.98955
+      },
+      "duration_s": {
+        "median": 2.01068,
+        "min": 2.0105,
+        "max": 2.01095
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 237,
+          "min": 231,
+          "max": 249
+        },
+        "p99": {
+          "median": 5247,
+          "min": 4415,
+          "max": 24063
+        },
+        "p999": {
+          "median": 843775,
+          "min": 194559,
+          "max": 2260991
+        },
+        "max": {
+          "median": 2123101,
+          "min": 884016,
+          "max": 4378146
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 237,
+          "p99": 5183,
+          "p999": 516095,
+          "max": 1229672
+        },
+        {
+          "p50": 235,
+          "p99": 2623,
+          "p999": 647167,
+          "max": 2123101
+        }
+      ]
+    },
+    {
+      "topology": "spmc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994839,
+        "min": 0.994809,
+        "max": 0.99485
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98968,
+        "min": 1.98962,
+        "max": 1.9897
+      },
+      "duration_s": {
+        "median": 2.01038,
+        "min": 2.01035,
+        "max": 2.01044
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 427,
+          "min": 391,
+          "max": 451
+        },
+        "p99": {
+          "median": 631,
+          "min": 551,
+          "max": 711
+        },
+        "p999": {
+          "median": 52735,
+          "min": 19455,
+          "max": 115711
+        },
+        "max": {
+          "median": 443903,
+          "min": 209705,
+          "max": 1677738
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 427,
+          "p99": 631,
+          "p999": 52735,
+          "max": 344453
+        },
+        {
+          "p50": 427,
+          "p99": 551,
+          "p999": 9983,
+          "max": 351576
+        }
+      ]
+    },
+    {
+      "topology": "spmc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994763,
+        "min": 0.994748,
+        "max": 0.994799
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98953,
+        "min": 1.9895,
+        "max": 1.9896
+      },
+      "duration_s": {
+        "median": 2.01053,
+        "min": 2.01046,
+        "max": 2.01056
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 303,
+          "min": 299,
+          "max": 307
+        },
+        "p99": {
+          "median": 139263,
+          "min": 14079,
+          "max": 901119
+        },
+        "p999": {
+          "median": 1966079,
+          "min": 1114111,
+          "max": 2588671
+        },
+        "max": {
+          "median": 3071133,
+          "min": 1805968,
+          "max": 4032141
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 303,
+          "p99": 139263,
+          "p999": 1343487,
+          "max": 1805868
+        },
+        {
+          "p50": 303,
+          "p99": 10623,
+          "p999": 1114111,
+          "max": 2505709
+        }
+      ]
+    },
+    {
+      "topology": "spmc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994848,
+        "min": 0.994827,
+        "max": 0.994855
+      },
+      "delivery_mmsg_s": {
+        "median": 1.9897,
+        "min": 1.98965,
+        "max": 1.98971
+      },
+      "duration_s": {
+        "median": 2.01036,
+        "min": 2.01034,
+        "max": 2.0104
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 503,
+          "min": 463,
+          "max": 507
+        },
+        "p99": {
+          "median": 6207,
+          "min": 4479,
+          "max": 35839
+        },
+        "p999": {
+          "median": 339967,
+          "min": 63487,
+          "max": 2015231
+        },
+        "max": {
+          "median": 2147755,
+          "min": 198408,
+          "max": 3602613
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 495,
+          "p99": 6079,
+          "p999": 114687,
+          "max": 1116121
+        },
+        {
+          "p50": 503,
+          "p99": 4287,
+          "p999": 339967,
+          "max": 2065567
+        }
+      ]
+    },
+    {
+      "topology": "spmc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994757,
+        "min": 0.994418,
+        "max": 0.994776
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98951,
+        "min": 1.98884,
+        "max": 1.98955
+      },
+      "duration_s": {
+        "median": 2.01054,
+        "min": 2.0105,
+        "max": 2.01123
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 403,
+          "min": 323,
+          "max": 407
+        },
+        "p99": {
+          "median": 17407,
+          "min": 1695,
+          "max": 107519
+        },
+        "p999": {
+          "median": 1146879,
+          "min": 606207,
+          "max": 1163263
+        },
+        "max": {
+          "median": 2149505,
+          "min": 1700508,
+          "max": 2545958
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 403,
+          "p99": 3775,
+          "p999": 475135,
+          "max": 1223202
+        },
+        {
+          "p50": 323,
+          "p99": 4159,
+          "p999": 1146879,
+          "max": 2149505
+        }
+      ]
+    },
+    {
+      "topology": "spmc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994819,
+        "min": 0.99481,
+        "max": 0.994833
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98964,
+        "min": 1.98962,
+        "max": 1.98967
+      },
+      "duration_s": {
+        "median": 2.01042,
+        "min": 2.01039,
+        "max": 2.01043
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 499,
+          "min": 475,
+          "max": 507
+        },
+        "p99": {
+          "median": 823,
+          "min": 767,
+          "max": 5887
+        },
+        "p999": {
+          "median": 94207,
+          "min": 48127,
+          "max": 450559
+        },
+        "max": {
+          "median": 826088,
+          "min": 151781,
+          "max": 1985421
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 499,
+          "p99": 823,
+          "p999": 51199,
+          "max": 826088
+        },
+        {
+          "p50": 491,
+          "p99": 735,
+          "p999": 94207,
+          "max": 390706
+        }
+      ]
+    },
+    {
+      "topology": "spmc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994772,
+        "min": 0.994766,
+        "max": 0.99479
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98954,
+        "min": 1.98953,
+        "max": 1.98958
+      },
+      "duration_s": {
+        "median": 2.01051,
+        "min": 2.01047,
+        "max": 2.01052
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 443,
+          "min": 423,
+          "max": 467
+        },
+        "p99": {
+          "median": 91135,
+          "min": 14463,
+          "max": 1228799
+        },
+        "p999": {
+          "median": 1982463,
+          "min": 274431,
+          "max": 2981887
+        },
+        "max": {
+          "median": 3026389,
+          "min": 1557765,
+          "max": 4028550
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 439,
+          "p99": 30975,
+          "p999": 835583,
+          "max": 1821471
+        },
+        {
+          "p50": 443,
+          "p99": 91135,
+          "p999": 1982463,
+          "max": 3026389
+        }
+      ]
+    },
+    {
+      "topology": "spmc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994836,
+        "min": 0.994757,
+        "max": 0.994856
+      },
+      "delivery_mmsg_s": {
+        "median": 1.98967,
+        "min": 1.98951,
+        "max": 1.98971
+      },
+      "duration_s": {
+        "median": 2.01038,
+        "min": 2.01034,
+        "max": 2.01054
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 559,
+          "min": 559,
+          "max": 591
+        },
+        "p99": {
+          "median": 8191,
+          "min": 7295,
+          "max": 8831
+        },
+        "p999": {
+          "median": 389119,
+          "min": 31231,
+          "max": 1163263
+        },
+        "max": {
+          "median": 2051090,
+          "min": 143831,
+          "max": 3034889
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 559,
+          "p99": 8191,
+          "p999": 389119,
+          "max": 2051090
+        },
+        {
+          "p50": 559,
+          "p99": 7551,
+          "p999": 115711,
+          "max": 225556
+        }
+      ]
+    },
+    {
+      "topology": "spmc",
+      "kind": "throughput",
+      "payload": 64,
+      "origin": "claim",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 20.1769,
+        "min": 10.8144,
+        "max": 26.1144
+      },
+      "delivery_mmsg_s": {
+        "median": 40.3538,
+        "min": 21.6289,
+        "max": 52.2289
+      },
+      "duration_s": {
+        "median": 0.495616,
+        "min": 0.38293,
+        "max": 0.924691
+      }
+    },
+    {
+      "topology": "spmc",
+      "kind": "throughput",
+      "payload": 64,
+      "origin": "claim",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 5.57744,
+        "min": 5.46754,
+        "max": 5.9324
+      },
+      "delivery_mmsg_s": {
+        "median": 11.1549,
+        "min": 10.9351,
+        "max": 11.8648
+      },
+      "duration_s": {
+        "median": 1.79294,
+        "min": 1.68566,
+        "max": 1.82898
+      }
+    },
+    {
+      "topology": "spmc",
+      "kind": "throughput",
+      "payload": 256,
+      "origin": "claim",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 17.2647,
+        "min": 15.8264,
+        "max": 19.7334
+      },
+      "delivery_mmsg_s": {
+        "median": 34.5294,
+        "min": 31.6529,
+        "max": 39.4668
+      },
+      "duration_s": {
+        "median": 0.579217,
+        "min": 0.506755,
+        "max": 0.631854
+      }
+    },
+    {
+      "topology": "spmc",
+      "kind": "throughput",
+      "payload": 256,
+      "origin": "claim",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 17.6826,
+        "min": 16.8544,
+        "max": 18.3441
+      },
+      "delivery_mmsg_s": {
+        "median": 35.3653,
+        "min": 33.7087,
+        "max": 36.6883
+      },
+      "duration_s": {
+        "median": 0.565526,
+        "min": 0.545133,
+        "max": 0.593318
+      }
+    },
+    {
+      "topology": "spsc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994806,
+        "min": 0.994795,
+        "max": 0.994809
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994806,
+        "min": 0.994795,
+        "max": 0.994809
+      },
+      "duration_s": {
+        "median": 2.01044,
+        "min": 2.01044,
+        "max": 2.01046
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 221,
+          "min": 221,
+          "max": 235
+        },
+        "p99": {
+          "median": 419,
+          "min": 403,
+          "max": 791
+        },
+        "p999": {
+          "median": 9727,
+          "min": 7039,
+          "max": 14079
+        },
+        "max": {
+          "median": 80518,
+          "min": 50065,
+          "max": 1149154
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 221,
+          "p99": 419,
+          "p999": 9727,
+          "max": 80518
+        }
+      ]
+    },
+    {
+      "topology": "spsc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994875,
+        "min": 0.994853,
+        "max": 0.994884
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994875,
+        "min": 0.994853,
+        "max": 0.994884
+      },
+      "duration_s": {
+        "median": 2.0103,
+        "min": 2.01028,
+        "max": 2.01035
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 403,
+          "min": 395,
+          "max": 427
+        },
+        "p99": {
+          "median": 527,
+          "min": 495,
+          "max": 615
+        },
+        "p999": {
+          "median": 6143,
+          "min": 4543,
+          "max": 663551
+        },
+        "max": {
+          "median": 81878,
+          "min": 76318,
+          "max": 2571686
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 403,
+          "p99": 527,
+          "p999": 6143,
+          "max": 81878
+        }
+      ]
+    },
+    {
+      "topology": "spsc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994787,
+        "min": 0.99474,
+        "max": 0.994821
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994787,
+        "min": 0.99474,
+        "max": 0.994821
+      },
+      "duration_s": {
+        "median": 2.01048,
+        "min": 2.01041,
+        "max": 2.01058
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 287,
+          "min": 287,
+          "max": 299
+        },
+        "p99": {
+          "median": 3967,
+          "min": 2527,
+          "max": 5375
+        },
+        "p999": {
+          "median": 155647,
+          "min": 13695,
+          "max": 5242879
+        },
+        "max": {
+          "median": 1859061,
+          "min": 65018,
+          "max": 6961048
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 287,
+          "p99": 3967,
+          "p999": 155647,
+          "max": 1859061
+        }
+      ]
+    },
+    {
+      "topology": "spsc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994847,
+        "min": 0.994822,
+        "max": 0.994881
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994847,
+        "min": 0.994822,
+        "max": 0.994881
+      },
+      "duration_s": {
+        "median": 2.01036,
+        "min": 2.01029,
+        "max": 2.01041
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 463,
+          "min": 459,
+          "max": 479
+        },
+        "p99": {
+          "median": 5183,
+          "min": 2815,
+          "max": 5823
+        },
+        "p999": {
+          "median": 14591,
+          "min": 13055,
+          "max": 30719
+        },
+        "max": {
+          "median": 214481,
+          "min": 71795,
+          "max": 1323319
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 463,
+          "p99": 5183,
+          "p999": 14591,
+          "max": 214481
+        }
+      ]
+    },
+    {
+      "topology": "spsc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994798,
+        "min": 0.994772,
+        "max": 0.994825
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994798,
+        "min": 0.994772,
+        "max": 0.994825
+      },
+      "duration_s": {
+        "median": 2.01046,
+        "min": 2.0104,
+        "max": 2.01051
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 307,
+          "min": 291,
+          "max": 363
+        },
+        "p99": {
+          "median": 591,
+          "min": 543,
+          "max": 3647
+        },
+        "p999": {
+          "median": 9599,
+          "min": 8831,
+          "max": 31999
+        },
+        "max": {
+          "median": 78167,
+          "min": 48680,
+          "max": 698678
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 307,
+          "p99": 591,
+          "p999": 9599,
+          "max": 78167
+        }
+      ]
+    },
+    {
+      "topology": "spsc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994873,
+        "min": 0.994854,
+        "max": 0.994889
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994873,
+        "min": 0.994854,
+        "max": 0.994889
+      },
+      "duration_s": {
+        "median": 2.01031,
+        "min": 2.01027,
+        "max": 2.01035
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 471,
+          "min": 447,
+          "max": 503
+        },
+        "p99": {
+          "median": 671,
+          "min": 583,
+          "max": 3807
+        },
+        "p999": {
+          "median": 6719,
+          "min": 4543,
+          "max": 16255
+        },
+        "max": {
+          "median": 72072,
+          "min": 58351,
+          "max": 81863
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 471,
+          "p99": 671,
+          "p999": 6719,
+          "max": 72072
+        }
+      ]
+    },
+    {
+      "topology": "spsc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.994802,
+        "min": 0.994788,
+        "max": 0.994823
+      },
+      "delivery_mmsg_s": {
+        "median": 0.994802,
+        "min": 0.994788,
+        "max": 0.994823
+      },
+      "duration_s": {
+        "median": 2.01045,
+        "min": 2.01041,
+        "max": 2.01048
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 387,
+          "min": 375,
+          "max": 447
+        },
+        "p99": {
+          "median": 6271,
+          "min": 4735,
+          "max": 12287
+        },
+        "p999": {
+          "median": 247807,
+          "min": 74751,
+          "max": 1146879
+        },
+        "max": {
+          "median": 1344361,
+          "min": 959233,
+          "max": 2589470
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 387,
+          "p99": 6271,
+          "p999": 247807,
+          "max": 1344361
+        }
+      ]
+    },
+    {
+      "topology": "spsc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 0.99487,
+        "min": 0.994862,
+        "max": 0.994888
+      },
+      "delivery_mmsg_s": {
+        "median": 0.99487,
+        "min": 0.994862,
+        "max": 0.994888
+      },
+      "duration_s": {
+        "median": 2.01031,
+        "min": 2.01028,
+        "max": 2.01033
+      },
+      "latency_ns": {
+        "p50": {
+          "median": 535,
+          "min": 319,
+          "max": 543
+        },
+        "p99": {
+          "median": 5951,
+          "min": 3359,
+          "max": 7423
+        },
+        "p999": {
+          "median": 14335,
+          "min": 12415,
+          "max": 117759
+        },
+        "max": {
+          "median": 86942,
+          "min": 67655,
+          "max": 1878878
+        }
+      },
+      "per_subscriber_median_ns": [
+        {
+          "p50": 535,
+          "p99": 5951,
+          "p999": 14335,
+          "max": 86942
+        }
+      ]
+    },
+    {
+      "topology": "spsc",
+      "kind": "throughput",
+      "payload": 64,
+      "origin": "claim",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 29.427,
+        "min": 27.2074,
+        "max": 34.9622
+      },
+      "delivery_mmsg_s": {
+        "median": 29.427,
+        "min": 27.2074,
+        "max": 34.9622
+      },
+      "duration_s": {
+        "median": 0.339824,
+        "min": 0.286023,
+        "max": 0.367547
+      }
+    },
+    {
+      "topology": "spsc",
+      "kind": "throughput",
+      "payload": 64,
+      "origin": "claim",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 7.36739,
+        "min": 6.68384,
+        "max": 7.72671
+      },
+      "delivery_mmsg_s": {
+        "median": 7.36739,
+        "min": 6.68384,
+        "max": 7.72671
+      },
+      "duration_s": {
+        "median": 1.35733,
+        "min": 1.29421,
+        "max": 1.49615
+      }
+    },
+    {
+      "topology": "spsc",
+      "kind": "throughput",
+      "payload": 256,
+      "origin": "claim",
+      "engine": "aeron",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 18.1177,
+        "min": 17.7103,
+        "max": 20.1194
+      },
+      "delivery_mmsg_s": {
+        "median": 18.1177,
+        "min": 17.7103,
+        "max": 20.1194
+      },
+      "duration_s": {
+        "median": 0.551947,
+        "min": 0.497033,
+        "max": 0.564643
+      }
+    },
+    {
+      "topology": "spsc",
+      "kind": "throughput",
+      "payload": 256,
+      "origin": "claim",
+      "engine": "salias",
+      "rounds": 5,
+      "groups": 1,
+      "publish_mmsg_s": {
+        "median": 16.7264,
+        "min": 13.0838,
+        "max": 18.1947
+      },
+      "delivery_mmsg_s": {
+        "median": 16.7264,
+        "min": 13.0838,
+        "max": 18.1947
+      },
+      "duration_s": {
+        "median": 0.597857,
+        "min": 0.549609,
+        "max": 0.764302
+      }
+    }
+  ],
+  "paired": [
+    {
+      "topology": "mpmc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994789,
+          "min": 0.994693,
+          "max": 0.99483
+        },
+        "aeron": {
+          "median": 0.994472,
+          "min": 0.9944,
+          "max": 0.994771
+        },
+        "salias_over_aeron": 1.0003187621169827
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 427,
+            "min": 419,
+            "max": 427
+          },
+          "aeron": {
+            "median": 263,
+            "min": 253,
+            "max": 267
+          },
+          "salias_minus_aeron_median": 164
+        },
+        "p99": {
+          "salias": {
+            "median": 507903,
+            "min": 69631,
+            "max": 2080767
+          },
+          "aeron": {
+            "median": 589823,
+            "min": 270335,
+            "max": 851967
+          },
+          "salias_minus_aeron_median": -81920
+        },
+        "p999": {
+          "salias": {
+            "median": 4980735,
+            "min": 1343487,
+            "max": 6291455
+          },
+          "aeron": {
+            "median": 1425407,
+            "min": 1130495,
+            "max": 2031615
+          },
+          "salias_minus_aeron_median": 3555328
+        },
+        "max": {
+          "salias": {
+            "median": 5921089,
+            "min": 2027459,
+            "max": 7877841
+          },
+          "aeron": {
+            "median": 2590781,
+            "min": 2082957,
+            "max": 35728688
+          },
+          "salias_minus_aeron_median": 3330308
+        }
+      }
+    },
+    {
+      "topology": "mpmc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994745,
+          "min": 0.994714,
+          "max": 0.99479
+        },
+        "aeron": {
+          "median": 0.994408,
+          "min": 0.9929,
+          "max": 0.99474
+        },
+        "salias_over_aeron": 1.0003388951014072
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 491,
+            "min": 483,
+            "max": 507
+          },
+          "aeron": {
+            "median": 323,
+            "min": 315,
+            "max": 343
+          },
+          "salias_minus_aeron_median": 168
+        },
+        "p99": {
+          "salias": {
+            "median": 1556479,
+            "min": 925695,
+            "max": 2293759
+          },
+          "aeron": {
+            "median": 108003327,
+            "min": 56623103,
+            "max": 142606335
+          },
+          "salias_minus_aeron_median": -106446848
+        },
+        "p999": {
+          "salias": {
+            "median": 5701631,
+            "min": 2981887,
+            "max": 8191999
+          },
+          "aeron": {
+            "median": 124780543,
+            "min": 73400319,
+            "max": 159383551
+          },
+          "salias_minus_aeron_median": -119078912
+        },
+        "max": {
+          "salias": {
+            "median": 7562225,
+            "min": 5518593,
+            "max": 10073834
+          },
+          "aeron": {
+            "median": 126379850,
+            "min": 74848166,
+            "max": 159319171
+          },
+          "salias_minus_aeron_median": -118817625
+        }
+      }
+    },
+    {
+      "topology": "mpmc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994732,
+          "min": 0.99435,
+          "max": 0.994829
+        },
+        "aeron": {
+          "median": 0.987088,
+          "min": 0.958308,
+          "max": 0.994748
+        },
+        "salias_over_aeron": 1.0077439904040977
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 519,
+            "min": 495,
+            "max": 519
+          },
+          "aeron": {
+            "median": 28159,
+            "min": 5887,
+            "max": 43519
+          },
+          "salias_minus_aeron_median": -27640
+        },
+        "p99": {
+          "salias": {
+            "median": 77823,
+            "min": 59391,
+            "max": 393215
+          },
+          "aeron": {
+            "median": 557055,
+            "min": 511999,
+            "max": 655359
+          },
+          "salias_minus_aeron_median": -479232
+        },
+        "p999": {
+          "salias": {
+            "median": 1376255,
+            "min": 1048575,
+            "max": 3801087
+          },
+          "aeron": {
+            "median": 2293759,
+            "min": 1179647,
+            "max": 4587519
+          },
+          "salias_minus_aeron_median": -917504
+        },
+        "max": {
+          "salias": {
+            "median": 3139861,
+            "min": 1290388,
+            "max": 4480786
+          },
+          "aeron": {
+            "median": 26663845,
+            "min": 11051583,
+            "max": 153170074
+          },
+          "salias_minus_aeron_median": -23523984
+        }
+      }
+    },
+    {
+      "topology": "mpmc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994686,
+          "min": 0.994671,
+          "max": 0.99482
+        },
+        "aeron": {
+          "median": 0.994403,
+          "min": 0.994342,
+          "max": 0.994754
+        },
+        "salias_over_aeron": 1.0002845928662725
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 575,
+            "min": 567,
+            "max": 583
+          },
+          "aeron": {
+            "median": 1753087,
+            "min": 2847,
+            "max": 71303167
+          },
+          "salias_minus_aeron_median": -1752512
+        },
+        "p99": {
+          "salias": {
+            "median": 696319,
+            "min": 101375,
+            "max": 1163263
+          },
+          "aeron": {
+            "median": 199229439,
+            "min": 136314879,
+            "max": 629145599
+          },
+          "salias_minus_aeron_median": -198533120
+        },
+        "p999": {
+          "salias": {
+            "median": 3801087,
+            "min": 1023999,
+            "max": 10223615
+          },
+          "aeron": {
+            "median": 213909503,
+            "min": 150994943,
+            "max": 654311423
+          },
+          "salias_minus_aeron_median": -210108416
+        },
+        "max": {
+          "salias": {
+            "median": 4910389,
+            "min": 2110426,
+            "max": 12019891
+          },
+          "aeron": {
+            "median": 215081107,
+            "min": 151768474,
+            "max": 653113595
+          },
+          "salias_minus_aeron_median": -210170718
+        }
+      }
+    },
+    {
+      "topology": "mpmc",
+      "kind": "throughput",
+      "payload": 64,
+      "origin": "claim",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 21.0983,
+          "min": 13.829,
+          "max": 23.1194
+        },
+        "aeron": {
+          "median": 11.0313,
+          "min": 8.47099,
+          "max": 12.5717
+        },
+        "salias_over_aeron": 1.9125850987644246
+      }
+    },
+    {
+      "topology": "mpmc",
+      "kind": "throughput",
+      "payload": 256,
+      "origin": "claim",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 18.2116,
+          "min": 17.7681,
+          "max": 19.1503
+        },
+        "aeron": {
+          "median": 5.67932,
+          "min": 4.85313,
+          "max": 6.36524
+        },
+        "salias_over_aeron": 3.206651500531754
+      }
+    },
+    {
+      "topology": "mpsc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994803,
+          "min": 0.99476,
+          "max": 0.994834
+        },
+        "aeron": {
+          "median": 0.994763,
+          "min": 0.994698,
+          "max": 0.994793
+        },
+        "salias_over_aeron": 1.0000402105828223
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 407,
+            "min": 399,
+            "max": 427
+          },
+          "aeron": {
+            "median": 237,
+            "min": 219,
+            "max": 241
+          },
+          "salias_minus_aeron_median": 170
+        },
+        "p99": {
+          "salias": {
+            "median": 703,
+            "min": 623,
+            "max": 727
+          },
+          "aeron": {
+            "median": 7743,
+            "min": 2303,
+            "max": 29439
+          },
+          "salias_minus_aeron_median": -7040
+        },
+        "p999": {
+          "salias": {
+            "median": 7999,
+            "min": 6335,
+            "max": 356351
+          },
+          "aeron": {
+            "median": 720895,
+            "min": 45055,
+            "max": 2588671
+          },
+          "salias_minus_aeron_median": -712896
+        },
+        "max": {
+          "salias": {
+            "median": 80211,
+            "min": 67699,
+            "max": 1483691
+          },
+          "aeron": {
+            "median": 2021045,
+            "min": 351312,
+            "max": 4507935
+          },
+          "salias_minus_aeron_median": -1940834
+        }
+      }
+    },
+    {
+      "topology": "mpsc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.99481,
+          "min": 0.994775,
+          "max": 0.994856
+        },
+        "aeron": {
+          "median": 0.994764,
+          "min": 0.994451,
+          "max": 0.994817
+        },
+        "salias_over_aeron": 1.00004624212376
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 463,
+            "min": 459,
+            "max": 471
+          },
+          "aeron": {
+            "median": 311,
+            "min": 303,
+            "max": 319
+          },
+          "salias_minus_aeron_median": 152
+        },
+        "p99": {
+          "salias": {
+            "median": 8447,
+            "min": 3135,
+            "max": 10495
+          },
+          "aeron": {
+            "median": 79871,
+            "min": 16639,
+            "max": 1327103
+          },
+          "salias_minus_aeron_median": -71424
+        },
+        "p999": {
+          "salias": {
+            "median": 282623,
+            "min": 19967,
+            "max": 1130495
+          },
+          "aeron": {
+            "median": 2424831,
+            "min": 532479,
+            "max": 4095999
+          },
+          "salias_minus_aeron_median": -2142208
+        },
+        "max": {
+          "salias": {
+            "median": 1893782,
+            "min": 544016,
+            "max": 2589849
+          },
+          "aeron": {
+            "median": 3352423,
+            "min": 1714636,
+            "max": 5617313
+          },
+          "salias_minus_aeron_median": -1458641
+        }
+      }
+    },
+    {
+      "topology": "mpsc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994815,
+          "min": 0.994796,
+          "max": 0.994828
+        },
+        "aeron": {
+          "median": 0.994768,
+          "min": 0.994752,
+          "max": 0.994794
+        },
+        "salias_over_aeron": 1.0000472471973365
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 495,
+            "min": 483,
+            "max": 503
+          },
+          "aeron": {
+            "median": 299,
+            "min": 295,
+            "max": 331
+          },
+          "salias_minus_aeron_median": 196
+        },
+        "p99": {
+          "salias": {
+            "median": 3775,
+            "min": 991,
+            "max": 77823
+          },
+          "aeron": {
+            "median": 4223,
+            "min": 2271,
+            "max": 19711
+          },
+          "salias_minus_aeron_median": -448
+        },
+        "p999": {
+          "salias": {
+            "median": 282623,
+            "min": 30207,
+            "max": 3866623
+          },
+          "aeron": {
+            "median": 401407,
+            "min": 212991,
+            "max": 1376255
+          },
+          "salias_minus_aeron_median": -118784
+        },
+        "max": {
+          "salias": {
+            "median": 2130076,
+            "min": 118863,
+            "max": 5540191
+          },
+          "aeron": {
+            "median": 1186533,
+            "min": 958752,
+            "max": 1677010
+          },
+          "salias_minus_aeron_median": 943543
+        }
+      }
+    },
+    {
+      "topology": "mpsc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994806,
+          "min": 0.994774,
+          "max": 0.994822
+        },
+        "aeron": {
+          "median": 0.994769,
+          "min": 0.994707,
+          "max": 0.994789
+        },
+        "salias_over_aeron": 1.0000371945647684
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 559,
+            "min": 543,
+            "max": 559
+          },
+          "aeron": {
+            "median": 383,
+            "min": 379,
+            "max": 463
+          },
+          "salias_minus_aeron_median": 176
+        },
+        "p99": {
+          "salias": {
+            "median": 8959,
+            "min": 5631,
+            "max": 25343
+          },
+          "aeron": {
+            "median": 22527,
+            "min": 11007,
+            "max": 352255
+          },
+          "salias_minus_aeron_median": -13568
+        },
+        "p999": {
+          "salias": {
+            "median": 251903,
+            "min": 59391,
+            "max": 1146879
+          },
+          "aeron": {
+            "median": 1441791,
+            "min": 286719,
+            "max": 2326527
+          },
+          "salias_minus_aeron_median": -1189888
+        },
+        "max": {
+          "salias": {
+            "median": 1700565,
+            "min": 628045,
+            "max": 3433422
+          },
+          "aeron": {
+            "median": 2779415,
+            "min": 1030087,
+            "max": 3946711
+          },
+          "salias_minus_aeron_median": -1078850
+        }
+      }
+    },
+    {
+      "topology": "mpsc",
+      "kind": "throughput",
+      "payload": 64,
+      "origin": "claim",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 34.1141,
+          "min": 27.3662,
+          "max": 36.3757
+        },
+        "aeron": {
+          "median": 46.0849,
+          "min": 35.3308,
+          "max": 47.4354
+        },
+        "salias_over_aeron": 0.7402446354445816
+      }
+    },
+    {
+      "topology": "mpsc",
+      "kind": "throughput",
+      "payload": 256,
+      "origin": "claim",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 16.2273,
+          "min": 15.756,
+          "max": 16.5589
+        },
+        "aeron": {
+          "median": 21.2053,
+          "min": 20.4838,
+          "max": 24.1098
+        },
+        "salias_over_aeron": 0.7652473674034321
+      }
+    },
+    {
+      "topology": "spmc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994839,
+          "min": 0.994809,
+          "max": 0.99485
+        },
+        "aeron": {
+          "median": 0.994689,
+          "min": 0.994554,
+          "max": 0.994776
+        },
+        "salias_over_aeron": 1.000150800903599
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 427,
+            "min": 391,
+            "max": 451
+          },
+          "aeron": {
+            "median": 237,
+            "min": 231,
+            "max": 249
+          },
+          "salias_minus_aeron_median": 190
+        },
+        "p99": {
+          "salias": {
+            "median": 631,
+            "min": 551,
+            "max": 711
+          },
+          "aeron": {
+            "median": 5247,
+            "min": 4415,
+            "max": 24063
+          },
+          "salias_minus_aeron_median": -4616
+        },
+        "p999": {
+          "salias": {
+            "median": 52735,
+            "min": 19455,
+            "max": 115711
+          },
+          "aeron": {
+            "median": 843775,
+            "min": 194559,
+            "max": 2260991
+          },
+          "salias_minus_aeron_median": -791040
+        },
+        "max": {
+          "salias": {
+            "median": 443903,
+            "min": 209705,
+            "max": 1677738
+          },
+          "aeron": {
+            "median": 2123101,
+            "min": 884016,
+            "max": 4378146
+          },
+          "salias_minus_aeron_median": -1679198
+        }
+      }
+    },
+    {
+      "topology": "spmc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994848,
+          "min": 0.994827,
+          "max": 0.994855
+        },
+        "aeron": {
+          "median": 0.994763,
+          "min": 0.994748,
+          "max": 0.994799
+        },
+        "salias_over_aeron": 1.0000854474884973
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 503,
+            "min": 463,
+            "max": 507
+          },
+          "aeron": {
+            "median": 303,
+            "min": 299,
+            "max": 307
+          },
+          "salias_minus_aeron_median": 200
+        },
+        "p99": {
+          "salias": {
+            "median": 6207,
+            "min": 4479,
+            "max": 35839
+          },
+          "aeron": {
+            "median": 139263,
+            "min": 14079,
+            "max": 901119
+          },
+          "salias_minus_aeron_median": -133056
+        },
+        "p999": {
+          "salias": {
+            "median": 339967,
+            "min": 63487,
+            "max": 2015231
+          },
+          "aeron": {
+            "median": 1966079,
+            "min": 1114111,
+            "max": 2588671
+          },
+          "salias_minus_aeron_median": -1626112
+        },
+        "max": {
+          "salias": {
+            "median": 2147755,
+            "min": 198408,
+            "max": 3602613
+          },
+          "aeron": {
+            "median": 3071133,
+            "min": 1805968,
+            "max": 4032141
+          },
+          "salias_minus_aeron_median": -923378
+        }
+      }
+    },
+    {
+      "topology": "spmc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994819,
+          "min": 0.99481,
+          "max": 0.994833
+        },
+        "aeron": {
+          "median": 0.994757,
+          "min": 0.994418,
+          "max": 0.994776
+        },
+        "salias_over_aeron": 1.0000623267793038
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 499,
+            "min": 475,
+            "max": 507
+          },
+          "aeron": {
+            "median": 403,
+            "min": 323,
+            "max": 407
+          },
+          "salias_minus_aeron_median": 96
+        },
+        "p99": {
+          "salias": {
+            "median": 823,
+            "min": 767,
+            "max": 5887
+          },
+          "aeron": {
+            "median": 17407,
+            "min": 1695,
+            "max": 107519
+          },
+          "salias_minus_aeron_median": -16584
+        },
+        "p999": {
+          "salias": {
+            "median": 94207,
+            "min": 48127,
+            "max": 450559
+          },
+          "aeron": {
+            "median": 1146879,
+            "min": 606207,
+            "max": 1163263
+          },
+          "salias_minus_aeron_median": -1052672
+        },
+        "max": {
+          "salias": {
+            "median": 826088,
+            "min": 151781,
+            "max": 1985421
+          },
+          "aeron": {
+            "median": 2149505,
+            "min": 1700508,
+            "max": 2545958
+          },
+          "salias_minus_aeron_median": -1323417
+        }
+      }
+    },
+    {
+      "topology": "spmc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994836,
+          "min": 0.994757,
+          "max": 0.994856
+        },
+        "aeron": {
+          "median": 0.994772,
+          "min": 0.994766,
+          "max": 0.99479
+        },
+        "salias_over_aeron": 1.0000643363504402
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 559,
+            "min": 559,
+            "max": 591
+          },
+          "aeron": {
+            "median": 443,
+            "min": 423,
+            "max": 467
+          },
+          "salias_minus_aeron_median": 116
+        },
+        "p99": {
+          "salias": {
+            "median": 8191,
+            "min": 7295,
+            "max": 8831
+          },
+          "aeron": {
+            "median": 91135,
+            "min": 14463,
+            "max": 1228799
+          },
+          "salias_minus_aeron_median": -82944
+        },
+        "p999": {
+          "salias": {
+            "median": 389119,
+            "min": 31231,
+            "max": 1163263
+          },
+          "aeron": {
+            "median": 1982463,
+            "min": 274431,
+            "max": 2981887
+          },
+          "salias_minus_aeron_median": -1593344
+        },
+        "max": {
+          "salias": {
+            "median": 2051090,
+            "min": 143831,
+            "max": 3034889
+          },
+          "aeron": {
+            "median": 3026389,
+            "min": 1557765,
+            "max": 4028550
+          },
+          "salias_minus_aeron_median": -975299
+        }
+      }
+    },
+    {
+      "topology": "spmc",
+      "kind": "throughput",
+      "payload": 64,
+      "origin": "claim",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 5.57744,
+          "min": 5.46754,
+          "max": 5.9324
+        },
+        "aeron": {
+          "median": 20.1769,
+          "min": 10.8144,
+          "max": 26.1144
+        },
+        "salias_over_aeron": 0.2764270031570757
+      }
+    },
+    {
+      "topology": "spmc",
+      "kind": "throughput",
+      "payload": 256,
+      "origin": "claim",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 17.6826,
+          "min": 16.8544,
+          "max": 18.3441
+        },
+        "aeron": {
+          "median": 17.2647,
+          "min": 15.8264,
+          "max": 19.7334
+        },
+        "salias_over_aeron": 1.0242054596952161
+      }
+    },
+    {
+      "topology": "spsc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "attempt",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994875,
+          "min": 0.994853,
+          "max": 0.994884
+        },
+        "aeron": {
+          "median": 0.994806,
+          "min": 0.994795,
+          "max": 0.994809
+        },
+        "salias_over_aeron": 1.0000693602571757
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 403,
+            "min": 395,
+            "max": 427
+          },
+          "aeron": {
+            "median": 221,
+            "min": 221,
+            "max": 235
+          },
+          "salias_minus_aeron_median": 182
+        },
+        "p99": {
+          "salias": {
+            "median": 527,
+            "min": 495,
+            "max": 615
+          },
+          "aeron": {
+            "median": 419,
+            "min": 403,
+            "max": 791
+          },
+          "salias_minus_aeron_median": 108
+        },
+        "p999": {
+          "salias": {
+            "median": 6143,
+            "min": 4543,
+            "max": 663551
+          },
+          "aeron": {
+            "median": 9727,
+            "min": 7039,
+            "max": 14079
+          },
+          "salias_minus_aeron_median": -3584
+        },
+        "max": {
+          "salias": {
+            "median": 81878,
+            "min": 76318,
+            "max": 2571686
+          },
+          "aeron": {
+            "median": 80518,
+            "min": 50065,
+            "max": 1149154
+          },
+          "salias_minus_aeron_median": 1360
+        }
+      }
+    },
+    {
+      "topology": "spsc",
+      "kind": "latency",
+      "payload": 64,
+      "origin": "planned",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994847,
+          "min": 0.994822,
+          "max": 0.994881
+        },
+        "aeron": {
+          "median": 0.994787,
+          "min": 0.99474,
+          "max": 0.994821
+        },
+        "salias_over_aeron": 1.0000603144190667
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 463,
+            "min": 459,
+            "max": 479
+          },
+          "aeron": {
+            "median": 287,
+            "min": 287,
+            "max": 299
+          },
+          "salias_minus_aeron_median": 176
+        },
+        "p99": {
+          "salias": {
+            "median": 5183,
+            "min": 2815,
+            "max": 5823
+          },
+          "aeron": {
+            "median": 3967,
+            "min": 2527,
+            "max": 5375
+          },
+          "salias_minus_aeron_median": 1216
+        },
+        "p999": {
+          "salias": {
+            "median": 14591,
+            "min": 13055,
+            "max": 30719
+          },
+          "aeron": {
+            "median": 155647,
+            "min": 13695,
+            "max": 5242879
+          },
+          "salias_minus_aeron_median": -141056
+        },
+        "max": {
+          "salias": {
+            "median": 214481,
+            "min": 71795,
+            "max": 1323319
+          },
+          "aeron": {
+            "median": 1859061,
+            "min": 65018,
+            "max": 6961048
+          },
+          "salias_minus_aeron_median": -1644580
+        }
+      }
+    },
+    {
+      "topology": "spsc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "attempt",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.994873,
+          "min": 0.994854,
+          "max": 0.994889
+        },
+        "aeron": {
+          "median": 0.994798,
+          "min": 0.994772,
+          "max": 0.994825
+        },
+        "salias_over_aeron": 1.0000753921901733
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 471,
+            "min": 447,
+            "max": 503
+          },
+          "aeron": {
+            "median": 307,
+            "min": 291,
+            "max": 363
+          },
+          "salias_minus_aeron_median": 164
+        },
+        "p99": {
+          "salias": {
+            "median": 671,
+            "min": 583,
+            "max": 3807
+          },
+          "aeron": {
+            "median": 591,
+            "min": 543,
+            "max": 3647
+          },
+          "salias_minus_aeron_median": 80
+        },
+        "p999": {
+          "salias": {
+            "median": 6719,
+            "min": 4543,
+            "max": 16255
+          },
+          "aeron": {
+            "median": 9599,
+            "min": 8831,
+            "max": 31999
+          },
+          "salias_minus_aeron_median": -2880
+        },
+        "max": {
+          "salias": {
+            "median": 72072,
+            "min": 58351,
+            "max": 81863
+          },
+          "aeron": {
+            "median": 78167,
+            "min": 48680,
+            "max": 698678
+          },
+          "salias_minus_aeron_median": -6095
+        }
+      }
+    },
+    {
+      "topology": "spsc",
+      "kind": "latency",
+      "payload": 256,
+      "origin": "planned",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 0.99487,
+          "min": 0.994862,
+          "max": 0.994888
+        },
+        "aeron": {
+          "median": 0.994802,
+          "min": 0.994788,
+          "max": 0.994823
+        },
+        "salias_over_aeron": 1.0000683553109062
+      },
+      "latency_ns": {
+        "p50": {
+          "salias": {
+            "median": 535,
+            "min": 319,
+            "max": 543
+          },
+          "aeron": {
+            "median": 387,
+            "min": 375,
+            "max": 447
+          },
+          "salias_minus_aeron_median": 148
+        },
+        "p99": {
+          "salias": {
+            "median": 5951,
+            "min": 3359,
+            "max": 7423
+          },
+          "aeron": {
+            "median": 6271,
+            "min": 4735,
+            "max": 12287
+          },
+          "salias_minus_aeron_median": -320
+        },
+        "p999": {
+          "salias": {
+            "median": 14335,
+            "min": 12415,
+            "max": 117759
+          },
+          "aeron": {
+            "median": 247807,
+            "min": 74751,
+            "max": 1146879
+          },
+          "salias_minus_aeron_median": -233472
+        },
+        "max": {
+          "salias": {
+            "median": 86942,
+            "min": 67655,
+            "max": 1878878
+          },
+          "aeron": {
+            "median": 1344361,
+            "min": 959233,
+            "max": 2589470
+          },
+          "salias_minus_aeron_median": -1257419
+        }
+      }
+    },
+    {
+      "topology": "spsc",
+      "kind": "throughput",
+      "payload": 64,
+      "origin": "claim",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 7.36739,
+          "min": 6.68384,
+          "max": 7.72671
+        },
+        "aeron": {
+          "median": 29.427,
+          "min": 27.2074,
+          "max": 34.9622
+        },
+        "salias_over_aeron": 0.25036157270533865
+      }
+    },
+    {
+      "topology": "spsc",
+      "kind": "throughput",
+      "payload": 256,
+      "origin": "claim",
+      "publish_mmsg_s": {
+        "salias": {
+          "median": 16.7264,
+          "min": 13.0838,
+          "max": 18.1947
+        },
+        "aeron": {
+          "median": 18.1177,
+          "min": 17.7103,
+          "max": 20.1194
+        },
+        "salias_over_aeron": 0.9232076919255757
+      }
+    }
+  ],
+  "measured_runs": 240,
+  "warmup_runs": 48,
+  "verification": "full",
+  "measured_published": 1520000000,
+  "measured_delivered": 2280000000,
+  "measured_latency_samples": 30000000,
+  "verified_messages": 2280000000,
+  "min_mem_available_kib": 1595040
+}
